@@ -1357,6 +1357,9 @@ label + label {
   border-color: #c77c8830;
   color: #dba5ac;
 }
+.dialog-inner > .toast {
+  margin: 0 0 18px;
+}
 .dialog {
   width: 460px;
   border: 1px solid #ffffff17;

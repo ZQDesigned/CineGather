@@ -3,6 +3,10 @@ export class Metrics {
   private errors = 0;
   private authDenied = 0;
   private durationMs = 0;
+  private tokenIssueFailures = 0;
+  tokenIssueFailed() {
+    this.tokenIssueFailures++;
+  }
   observe(status: number, elapsed: number) {
     this.requests++;
     this.durationMs += elapsed;
@@ -15,6 +19,7 @@ export class Metrics {
       requests: this.requests,
       errors: this.errors,
       authDenied: this.authDenied,
+      tokenIssueFailures: this.tokenIssueFailures,
       averageDurationMs: this.requests
         ? Math.round(this.durationMs / this.requests)
         : 0,

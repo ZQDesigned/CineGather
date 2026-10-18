@@ -35,6 +35,8 @@ export class MediaSession {
   private audioElements = new Map<string, HTMLMediaElement[]>();
   private mixer = new AudioMixer();
   private watching = true;
+  private microphoneRevision = 0;
+  private microphoneWanted = false;
   private poll?: ReturnType<typeof setInterval>;
   constructor(
     private readonly changed: (summary: MediaSummary) => void,
@@ -243,15 +245,43 @@ export class MediaSession {
     }
   }
   async microphone(enabled: boolean, deviceId?: string) {
-    if (!this.room || this.room.state !== ConnectionState.Connected)
+    const room = this.room;
+    if (enabled && (!room || room.state !== ConnectionState.Connected))
       throw new Error("请先连接房间");
-    await this.room.localParticipant.setMicrophoneEnabled(enabled, {
-      deviceId: deviceId || undefined,
-      echoCancellation: true,
-      noiseSuppression: true,
-      autoGainControl: true,
-    });
-    this.emit();
+    let revision = ++this.microphoneRevision;
+    let wanted = enabled;
+    this.microphoneWanted = enabled;
+    if (!room) return;
+    while (this.room === room) {
+      let publication: LocalTrackPublication | undefined;
+      try {
+        publication = await room.localParticipant.setMicrophoneEnabled(wanted, {
+          deviceId: deviceId || undefined,
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        });
+      } catch (error) {
+        if (
+          this.room !== room ||
+          (revision !== this.microphoneRevision && !this.microphoneWanted)
+        )
+          return;
+        throw error;
+      }
+      if (this.room !== room) {
+        publication?.track?.stop();
+        return;
+      }
+      if (revision === this.microphoneRevision) {
+        this.emit();
+        return;
+      }
+      // A pending OS grant or SDK publication can settle after a newer mute.
+      // Reapply the latest intent, including when the SDK's pending wait expires.
+      revision = this.microphoneRevision;
+      wanted = this.microphoneWanted;
+    }
   }
   async share(quality: Quality, systemAudio: boolean) {
     const room = this.room;
@@ -323,8 +353,10 @@ export class MediaSession {
   }
   async devices(input?: string, output?: string) {
     if (!this.room) return;
-    if (input) await this.room.switchActiveDevice("audioinput", input);
-    if (output) await this.room.switchActiveDevice("audiooutput", output);
+    if (input !== undefined)
+      await this.room.switchActiveDevice("audioinput", input || "default");
+    if (output !== undefined)
+      await this.room.switchActiveDevice("audiooutput", output || "default");
   }
   async startAudio() {
     await this.room?.startAudio();
@@ -393,6 +425,8 @@ export class MediaSession {
   }
   async disconnect() {
     ++this.revision;
+    ++this.microphoneRevision;
+    this.microphoneWanted = false;
     clearInterval(this.poll);
     this.poll = undefined;
     const room = this.room;

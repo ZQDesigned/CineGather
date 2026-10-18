@@ -10,6 +10,7 @@ import {
   Req,
   Res,
   HttpCode,
+  HttpException,
   Inject,
 } from "@nestjs/common";
 import { ApiBearerAuth, ApiQuery, ApiHeader } from "@nestjs/swagger";
@@ -93,12 +94,22 @@ export class ApiController {
   }
   @Post("rooms/:roomId/join")
   @Endpoint("joinRoom", c.joinSchema, c.joinInput, ["roomId"], 201)
-  join(
+  async join(
     @Req() req: AuthRequest,
     @Param("roomId") roomId: string,
     @Body() body: unknown,
   ) {
-    return r.joinRoom(req.user, roomId, parse(c.joinInput, body).inviteToken);
+    try {
+      return await r.joinRoom(
+        req.user,
+        roomId,
+        parse(c.joinInput, body).inviteToken,
+      );
+    } catch (error) {
+      if (!(error instanceof HttpException) || error.getStatus() >= 500)
+        this.metrics.tokenIssueFailed();
+      throw error;
+    }
   }
   @Post("rooms/:roomId/leave")
   @Endpoint("leaveRoom", c.okSchema, undefined, ["roomId"], 201)
@@ -236,6 +247,7 @@ export class ApiController {
       requests: z.number(),
       errors: z.number(),
       authDenied: z.number(),
+      tokenIssueFailures: z.number(),
       averageDurationMs: z.number(),
       activeRooms: z.number(),
     }),

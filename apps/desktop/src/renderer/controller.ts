@@ -253,7 +253,10 @@ export async function toggleMicrophone() {
   }
 }
 export async function ptt(enabled: boolean) {
-  if (state().roomState === "connected" && state().settings.pushToTalk)
+  if (
+    state().settings.pushToTalk &&
+    (!enabled || state().roomState === "connected")
+  )
     try {
       await media.microphone(enabled, state().settings.inputDevice);
     } catch (error) {
@@ -277,6 +280,12 @@ export async function stopShare() {
   await shareSession.stop();
 }
 export async function saveSettings(settings: DesktopSettings) {
+  if (
+    settings.pushToTalk &&
+    !state().settings.pushToTalk &&
+    state().roomState === "connected"
+  )
+    await media.microphone(false);
   if (window.desktop) await window.desktop.saveSettings(settings);
   else localStorage.setItem("cinegather.settings", JSON.stringify(settings));
   await media.devices(settings.inputDevice, settings.outputDevice);

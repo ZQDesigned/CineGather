@@ -10,6 +10,31 @@ if (!Number.isFinite(seconds) || seconds < 30 || seconds > 86400)
 const output = `.local/soak-${new Date().toISOString().replace(/[:.]/g, "-")}`;
 await mkdir(output, { recursive: true });
 const root = resolve("apps/desktop/out/renderer");
+const assets = new Map<string, Blob>();
+const assetPaths: string[] = [];
+for await (const name of new Bun.Glob("**/*").scan({
+  cwd: root,
+  onlyFiles: true,
+}))
+  assetPaths.push(name);
+const rendererDigest = createHash("sha256");
+for (const name of assetPaths.sort()) {
+  const file = Bun.file(resolve(root, name));
+  const bytes = new Uint8Array(await file.arrayBuffer());
+  rendererDigest.update(name.split(sep).join("/"));
+  rendererDigest.update(bytes);
+  assets.set(resolve(root, name), new Blob([bytes], { type: file.type }));
+}
+const build = {
+  gitSha: (await Bun.$`git rev-parse HEAD`.text()).trim(),
+  dirty: Boolean((await Bun.$`git status --porcelain`.text()).trim()),
+  rendererSha256: rendererDigest.digest("hex"),
+};
+class SoakFailure extends Error {
+  constructor(readonly code: string) {
+    super(code);
+  }
+}
 const server = Bun.serve({
   hostname: "127.0.0.1",
   port: 15173,
@@ -21,8 +46,8 @@ const server = Bun.serve({
     );
     if (!path.startsWith(root + sep))
       return new Response("Forbidden", { status: 403 });
-    const file = Bun.file(path);
-    return (await file.exists())
+    const file = assets.get(path);
+    return file
       ? new Response(file)
       : new Response("Not found", { status: 404 });
   },
@@ -44,6 +69,7 @@ process.once("SIGTERM", () => {
   aborted = true;
 });
 const startedAt = new Date();
+let mediaStartedAt: Date | undefined;
 let step = "boot";
 const samples: unknown[] = [];
 const buildHash = createHash("sha256")
@@ -235,12 +261,13 @@ try {
         .evaluate((el) => (el as HTMLAudioElement).volume),
     )
     .toBe(0.75);
-  const deadline = Date.now() + seconds * 1000;
+  mediaStartedAt = new Date();
+  const deadline = mediaStartedAt.getTime() + seconds * 1000;
   step = "continuous-media";
   console.log(
     `Five clients, one 1080p/30 synthetic screen plus independent audio. Running for ${seconds}s. Report: ${output}`,
   );
-  while (Date.now() < deadline && !aborted) {
+  while (!aborted) {
     const sample = [];
     for (const page of pages) {
       await expect(page.locator(".members-list .member")).toHaveCount(5);
@@ -277,6 +304,9 @@ try {
                     "state",
                   ])
                     if (stat[key] !== undefined) safe[key] = stat[key];
+                  // Opaque RTC report identifiers correlate counters, without IPs,
+                  // credentials, device labels or media samples.
+                  if (stat.type.endsWith("-rtp")) safe.id = stat.id;
                   stats.push(safe);
                 }
               });
@@ -293,14 +323,40 @@ try {
         }),
       );
     }
-    if (samples.length) {
-      const previous = samples.at(-1) as {
-        clients: { decodedFrames: number }[];
-      };
-      for (let i = 1; i < sample.length; i++) {
-        if (sample[i]!.decodedFrames <= previous.clients[i]!.decodedFrames)
-          throw new Error("Receiving video stopped advancing");
+    const previous = samples.at(-1) as
+      | {
+          clients: {
+            decodedFrames: number;
+            stats: Record<string, unknown>[];
+          }[];
+        }
+      | undefined;
+    for (let i = 0; i < sample.length; i++) {
+      const current = sample[i]!;
+      const expectedAudio = i === 0 ? 4 : 5;
+      const inboundAudio = current.stats.filter(
+        (stat) => stat.type === "inbound-rtp" && stat.kind === "audio",
+      );
+      if (
+        current.audioElements !== expectedAudio ||
+        inboundAudio.length < expectedAudio
+      )
+        throw new SoakFailure("AUDIO_TRACK_MISSING");
+      for (const audio of inboundAudio) {
+        const before = previous?.clients[i]!.stats.find(
+          (stat) => stat.id === audio.id,
+        );
+        if (
+          Number(audio.bytesReceived ?? 0) <= Number(before?.bytesReceived ?? 0)
+        )
+          throw new SoakFailure("AUDIO_RECEIVE_STALLED");
       }
+      if (
+        i > 0 &&
+        previous &&
+        current.decodedFrames <= previous.clients[i]!.decodedFrames
+      )
+        throw new SoakFailure("VIDEO_DECODE_STALLED");
     }
     samples.push({
       elapsedSeconds: Math.round((Date.now() - startedAt.getTime()) / 1000),
@@ -314,6 +370,8 @@ try {
           startedAt,
           seconds,
           buildHash,
+          build,
+          mediaStartedAt,
           lastSample: samples.at(-1),
           sampleCount: samples.length,
         },
@@ -322,7 +380,8 @@ try {
       ),
     );
     const remaining = deadline - Date.now();
-    if (remaining > 0) await Bun.sleep(Math.min(30000, remaining));
+    if (remaining <= 0) break;
+    await Bun.sleep(Math.min(30000, remaining));
   }
   if (aborted) throw new Error("Interrupted");
   for (const page of pages.slice(1)) {
@@ -339,7 +398,12 @@ try {
         startedAt,
         completedAt: new Date(),
         seconds,
+        measuredMediaSeconds: Math.floor(
+          (Date.now() - mediaStartedAt.getTime()) / 1000,
+        ),
         buildHash,
+        build,
+        mediaStartedAt,
         capture:
           "synthetic; not a system-audio echo or Windows compatibility test",
         samples,
@@ -354,13 +418,20 @@ try {
     `${output}/result.json`,
     JSON.stringify(
       {
-        status: "failed",
+        status: aborted ? "interrupted" : "failed",
         step,
+        failureCode: aborted
+          ? "INTERRUPTED"
+          : error instanceof SoakFailure
+            ? error.code
+            : "UNEXPECTED_FAILURE",
         errorType: error instanceof Error ? error.name : "Unknown",
         startedAt,
         failedAt: new Date(),
         seconds,
         buildHash,
+        build,
+        mediaStartedAt,
         samples,
       },
       null,

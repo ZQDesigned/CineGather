@@ -371,3 +371,388 @@ test("double-clicking the fullscreen control performs exactly one operation per 
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   }
 });
+
+test("closing settings while microphone permission is pending releases the late capture", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices,
+    );
+    const probe = {
+      tracks: [] as MediaStreamTrack[],
+      release: undefined as (() => void) | undefined,
+    };
+    Object.assign(window, { delayedDeviceProbe: probe });
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      const stream = await original(constraints);
+      probe.tracks.push(...stream.getTracks());
+      await new Promise<void>((resolve) => {
+        probe.release = resolve;
+      });
+      return stream;
+    };
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
+  const ended = () =>
+    page.evaluate(() => {
+      const probe = (
+        window as unknown as {
+          delayedDeviceProbe: { tracks: MediaStreamTrack[] };
+        }
+      ).delayedDeviceProbe;
+      return (
+        probe.tracks.length > 0 &&
+        probe.tracks.every((track) => track.readyState === "ended")
+      );
+    });
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        Boolean(
+          (
+            window as unknown as {
+              delayedDeviceProbe: { release?: () => void };
+            }
+          ).delayedDeviceProbe.release,
+        ),
+      ),
+    )
+    .toBe(true);
+  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await page.evaluate(() =>
+    (
+      window as unknown as { delayedDeviceProbe: { release: () => void } }
+    ).delayedDeviceProbe.release(),
+  );
+  try {
+    await expect.poll(ended).toBe(true);
+  } finally {
+    await page.evaluate(() =>
+      (
+        window as unknown as {
+          delayedDeviceProbe: { tracks: MediaStreamTrack[] };
+        }
+      ).delayedDeviceProbe.tracks.forEach((track) => track.stop()),
+    );
+  }
+});
+
+test("a removed output device does not leave the speaker test audio context open", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const contexts: AudioContext[] = [];
+    Object.assign(window, { speakerTestContexts: contexts });
+    const Original = window.AudioContext;
+    window.AudioContext = class extends Original {
+      constructor(options?: AudioContextOptions) {
+        super(options);
+        contexts.push(this);
+      }
+    };
+    navigator.mediaDevices.enumerateDevices = async () => [
+      {
+        deviceId: "removed-speaker",
+        groupId: "test-only",
+        kind: "audiooutput" as const,
+        label: "已拔出的测试扬声器",
+        toJSON() {
+          return {};
+        },
+      },
+    ];
+    HTMLMediaElement.prototype.setSinkId = async () => {
+      throw new DOMException(
+        "The selected speaker was removed",
+        "NotFoundError",
+      );
+    };
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+  await page
+    .getByRole("combobox", { name: "扬声器 / 耳机", exact: true })
+    .selectOption("removed-speaker");
+  await page.getByRole("button", { name: "播放测试音", exact: true }).click();
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const contexts = (
+          window as unknown as { speakerTestContexts: AudioContext[] }
+        ).speakerTestContexts;
+        return (
+          contexts.length > 0 &&
+          contexts.every((context) => context.state === "closed")
+        );
+      }),
+    )
+    .toBe(true);
+});
+
+test("a rejected join displays its actionable error inside the active dialog", async ({
+  page,
+}) => {
+  await guest(page, "加入失败提示");
+  await page.getByRole("button", { name: "加入房间", exact: true }).click();
+  await page
+    .getByLabel("邀请链接或完整房间码")
+    .fill("00000000-0000-4000-8000-000000000000");
+  await page.getByRole("button", { name: "进入房间", exact: true }).click();
+  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
+    "房间不存在",
+  );
+  await expect(
+    page.getByRole("button", { name: "进入房间", exact: true }),
+  ).toBeEnabled();
+});
+
+test("switching a selected microphone back to system default updates the active capture", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const original = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices,
+    );
+    const probe = { calls: 0 };
+    Object.assign(window, { deviceSwitchProbe: probe });
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      probe.calls++;
+      return original(constraints);
+    };
+  });
+  await guest(page, "默认设备回归");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("默认设备切换测试");
+  await page.getByRole("button", { name: "创建并进入" }).click();
+  await expect(
+    page.getByRole("button", { name: "关闭麦克风", exact: true }),
+  ).toBeEnabled();
+  const calls = () =>
+    page.evaluate(
+      () =>
+        (window as unknown as { deviceSwitchProbe: { calls: number } })
+          .deviceSwitchProbe.calls,
+    );
+  try {
+    await page
+      .getByRole("button", { name: "音频设备设置", exact: true })
+      .click();
+    const select = page.getByRole("combobox", { name: "麦克风", exact: true });
+    await expect
+      .poll(() => select.locator("option").count())
+      .toBeGreaterThan(1);
+    const specific = await select
+      .locator("option")
+      .last()
+      .getAttribute("value");
+    const before = await calls();
+    await select.selectOption(specific!);
+    await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect.poll(calls).toBeGreaterThan(before);
+    const selectedCalls = await calls();
+    await page
+      .getByRole("button", { name: "音频设备设置", exact: true })
+      .click();
+    await page
+      .getByRole("combobox", { name: "麦克风", exact: true })
+      .selectOption("");
+    await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect.poll(calls).toBeGreaterThan(selectedCalls);
+  } finally {
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  }
+});
+
+test("enabling push-to-talk mutes immediately and chat typing cannot release a latched microphone", async ({
+  page,
+}) => {
+  await guest(page, "按键说话回归");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("按键说话行为测试");
+  await page.getByRole("button", { name: "创建并进入" }).click();
+  await expect(
+    page.getByRole("button", { name: "关闭麦克风", exact: true }),
+  ).toBeEnabled();
+  try {
+    await page
+      .getByRole("button", { name: "音频设备设置", exact: true })
+      .click();
+    await page.getByRole("checkbox", { name: /^按键说话/ }).check();
+    await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await page.locator(".stage").click({ position: { x: 8, y: 8 } });
+    await page.keyboard.down("Space");
+    await expect(
+      page.getByRole("button", { name: "关闭麦克风", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.up("Space");
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "开启麦克风", exact: true }).click();
+    await page.getByRole("button", { name: "聊天", exact: true }).click();
+    await page
+      .getByRole("textbox", { name: "聊天消息", exact: true })
+      .press("Space");
+    await expect(
+      page.getByRole("button", { name: "关闭麦克风", exact: true }),
+    ).toBeVisible();
+  } finally {
+    await page.keyboard.up("Space");
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  }
+});
+
+test("a microphone grant arriving after push-to-talk release cannot leave the microphone live", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    localStorage.setItem(
+      "cinegather.settings",
+      JSON.stringify({
+        pushToTalk: true,
+        minimizeToTray: false,
+        quality: "cinema",
+        pttShortcut: "CommandOrControl+Shift+Space",
+        muteShortcut: "CommandOrControl+Shift+M",
+        inputDevice: "",
+        outputDevice: "",
+      }),
+    );
+    const original = navigator.mediaDevices.getUserMedia.bind(
+      navigator.mediaDevices,
+    );
+    const probe = {
+      tracks: [] as MediaStreamTrack[],
+      release: undefined as (() => void) | undefined,
+    };
+    Object.assign(window, { delayedTalkProbe: probe });
+    navigator.mediaDevices.getUserMedia = async (constraints) => {
+      const stream = await original(constraints);
+      probe.tracks.push(...stream.getTracks());
+      await new Promise<void>((resolve) => {
+        probe.release = resolve;
+      });
+      return stream;
+    };
+  });
+  await guest(page, "迟到开麦回归");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("迟到授权测试");
+  await page.getByRole("button", { name: "创建并进入" }).click();
+  await expect(
+    page.getByRole("button", { name: "开启麦克风", exact: true }),
+  ).toBeEnabled();
+  await page.locator(".stage").click({ position: { x: 8, y: 8 } });
+  try {
+    await page.keyboard.down("Space");
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          Boolean(
+            (
+              window as unknown as {
+                delayedTalkProbe: { release?: () => void };
+              }
+            ).delayedTalkProbe.release,
+          ),
+        ),
+      )
+      .toBe(true);
+    await page.keyboard.up("Space");
+    // The SDK waits only ten seconds for pending publication. Model a user who
+    // grants OS microphone permission after that wait has already timed out.
+    await page.waitForTimeout(10_500);
+    await page.evaluate(() =>
+      (
+        window as unknown as { delayedTalkProbe: { release: () => void } }
+      ).delayedTalkProbe.release(),
+    );
+    await expect
+      .poll(() =>
+        page.evaluate(() =>
+          (
+            window as unknown as {
+              delayedTalkProbe: { tracks: MediaStreamTrack[] };
+            }
+          ).delayedTalkProbe.tracks.every(
+            (track) => !track.enabled || track.readyState === "ended",
+          ),
+        ),
+      )
+      .toBe(true);
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+  } finally {
+    await page.keyboard.up("Space");
+    await page.evaluate(() => {
+      const probe = (
+        window as unknown as {
+          delayedTalkProbe: {
+            release?: () => void;
+            tracks: MediaStreamTrack[];
+          };
+        }
+      ).delayedTalkProbe;
+      probe.release?.();
+      probe.tracks.forEach((track) => track.stop());
+    });
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  }
+});
+
+test("push-to-talk released during an SFU outage stays muted after reconnection", async ({
+  page,
+}) => {
+  const { execFile } = await import("node:child_process");
+  const { promisify } = await import("node:util");
+  await guest(page, "重连按键说话");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("重连静音意图测试");
+  await page.getByRole("button", { name: "创建并进入" }).click();
+  await page.getByRole("button", { name: "音频设备设置", exact: true }).click();
+  await page.getByRole("checkbox", { name: /^按键说话/ }).check();
+  await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "开启麦克风", exact: true }),
+  ).toBeVisible();
+  await page.locator(".stage").click({ position: { x: 8, y: 8 } });
+  try {
+    await page.keyboard.down("Space");
+    await expect(
+      page.getByRole("button", { name: "关闭麦克风", exact: true }),
+    ).toBeVisible();
+    await promisify(execFile)("docker", [
+      "compose",
+      "--env-file",
+      ".env",
+      "-f",
+      "infra/compose/dev.yml",
+      "restart",
+      "--timeout",
+      "1",
+      "livekit",
+    ]);
+    await expect(page.locator(".connection")).toHaveText(/重新连接|断开/, {
+      timeout: 15000,
+    });
+    await page.keyboard.up("Space");
+    await expect(page.locator(".connection")).toHaveText("已连接", {
+      timeout: 30000,
+    });
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+  } finally {
+    await page.keyboard.up("Space");
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  }
+});

@@ -2988,6 +2988,7 @@ export interface operations {
                         requests: number;
                         errors: number;
                         authDenied: number;
+                        tokenIssueFailures: number;
                         averageDurationMs: number;
                         activeRooms: number;
                     };

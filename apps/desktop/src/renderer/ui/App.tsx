@@ -8,7 +8,6 @@ import {
   Radio,
   Shield,
   LogOut,
-  X,
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -16,6 +15,7 @@ import { Dialogs } from "./Dialogs";
 import { Welcome } from "./Welcome";
 import { Home } from "./Home";
 import { Room } from "./Room";
+import { MessageBanner } from "./MessageBanner";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
   authenticating: "正在验证身份",
@@ -34,25 +34,33 @@ export function App() {
       if (ended) fn?.();
       else dispose = fn;
     });
+    let holdActive = false;
     const down = (event: KeyboardEvent) => {
+      const current = useApp.getState();
       if (
+        current.settings.pushToTalk &&
+        current.roomState === "connected" &&
         event.code === "Space" &&
         !event.repeat &&
         !["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(
           (event.target as HTMLElement).tagName,
         ) &&
-        !useApp.getState().modal
+        !current.modal
       ) {
         event.preventDefault();
+        holdActive = true;
         void actions.ptt(true);
       }
     };
-    const up = (event: KeyboardEvent) => {
-      if (event.code === "Space") void actions.ptt(false);
-    };
-    const blur = () => {
+    const releaseHold = () => {
+      if (!holdActive) return;
+      holdActive = false;
       void actions.ptt(false);
     };
+    const up = (event: KeyboardEvent) => {
+      if (event.code === "Space") releaseHold();
+    };
+    const blur = releaseHold;
     const exit = () => {
       void actions.roomSession.leave();
     };
@@ -196,21 +204,7 @@ export function App() {
             <span className="version">v0.1.0</span>
           </div>
         </header>
-        {(app.error || app.notice) && (
-          <div
-            className={`toast ${app.error ? "error" : ""}`}
-            role={app.error ? "alert" : "status"}
-          >
-            <span>{app.error ?? app.notice}</span>
-            <button
-              aria-label="关闭提示"
-              className="icon-button"
-              onClick={() => update({ error: undefined, notice: undefined })}
-            >
-              <X size={16} />
-            </button>
-          </div>
-        )}
+        {!app.modal && <MessageBanner />}
         {!app.user ? <Welcome /> : app.room ? <Room /> : <Home />}
         <footer className="app-footer">
           <span>

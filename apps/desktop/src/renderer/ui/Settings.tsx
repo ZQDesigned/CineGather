@@ -10,6 +10,9 @@ export function Settings() {
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [server, setServer] = useState(actions.baseUrl);
   const [testing, setTesting] = useState(false);
+  const [requesting, setRequesting] = useState(false);
+  const capturePending = useRef(false);
+  const testRevision = useRef(0);
   const [level, setLevel] = useState(0);
   const audioRef = useRef<
     { stream: MediaStream; context: AudioContext; frame: number } | undefined
@@ -28,6 +31,7 @@ export function Settings() {
     refresh();
     navigator.mediaDevices.addEventListener("devicechange", refresh);
     return () => {
+      ++testRevision.current;
       navigator.mediaDevices.removeEventListener("devicechange", refresh);
       const active = audioRef.current;
       if (active) {
@@ -38,6 +42,7 @@ export function Settings() {
     };
   }, []);
   const testMicrophone = async () => {
+    if (capturePending.current) return;
     if (audioRef.current) {
       const active = audioRef.current;
       audioRef.current = undefined;
@@ -48,34 +53,53 @@ export function Settings() {
       setLevel(0);
       return;
     }
-    const stream = await navigator.mediaDevices.getUserMedia({
-      audio: {
-        deviceId: settings.inputDevice
-          ? { exact: settings.inputDevice }
-          : undefined,
-        echoCancellation: true,
-      },
-      video: false,
-    });
-    const context = new AudioContext();
-    const analyser = context.createAnalyser();
-    context.createMediaStreamSource(stream).connect(analyser);
-    const values = new Uint8Array(analyser.frequencyBinCount);
-    audioRef.current = { stream, context, frame: 0 };
-    setTesting(true);
-    refresh();
-    const tick = () => {
-      if (!audioRef.current) return;
-      analyser.getByteFrequencyData(values);
-      setLevel(
-        Math.min(
-          1,
-          values.reduce((sum, n) => sum + n, 0) / values.length / 100,
-        ),
-      );
-      audioRef.current.frame = requestAnimationFrame(tick);
-    };
-    tick();
+    capturePending.current = true;
+    setRequesting(true);
+    const revision = ++testRevision.current;
+    let stream: MediaStream | undefined;
+    let context: AudioContext | undefined;
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          deviceId: settings.inputDevice
+            ? { exact: settings.inputDevice }
+            : undefined,
+          echoCancellation: true,
+        },
+        video: false,
+      });
+      if (revision !== testRevision.current) {
+        stream.getTracks().forEach((track) => track.stop());
+        return;
+      }
+      context = new AudioContext();
+      const analyser = context.createAnalyser();
+      context.createMediaStreamSource(stream).connect(analyser);
+      const values = new Uint8Array(analyser.frequencyBinCount);
+      audioRef.current = { stream, context, frame: 0 };
+      setTesting(true);
+      refresh();
+      const tick = () => {
+        if (!audioRef.current) return;
+        analyser.getByteFrequencyData(values);
+        setLevel(
+          Math.min(
+            1,
+            values.reduce((sum, n) => sum + n, 0) / values.length / 100,
+          ),
+        );
+        audioRef.current.frame = requestAnimationFrame(tick);
+      };
+      tick();
+    } catch (error) {
+      stream?.getTracks().forEach((track) => track.stop());
+      await context?.close();
+      audioRef.current = undefined;
+      if (revision === testRevision.current) throw error;
+    } finally {
+      capturePending.current = false;
+      if (revision === testRevision.current) setRequesting(false);
+    }
   };
   const beep = async () => {
     const context = new AudioContext();
@@ -88,9 +112,9 @@ export function Settings() {
     gain.gain.value = 0.12;
     const player = new Audio();
     player.srcObject = destination.stream;
-    if (settings.outputDevice && "setSinkId" in player)
-      await player.setSinkId(settings.outputDevice);
     try {
+      if (settings.outputDevice && "setSinkId" in player)
+        await player.setSinkId(settings.outputDevice);
       await player.play();
       oscillator.start();
       await new Promise((resolve) => setTimeout(resolve, 450));
@@ -142,10 +166,15 @@ export function Settings() {
               <button
                 type="button"
                 className="secondary"
+                disabled={requesting}
                 onClick={() => void testMicrophone().catch(actions.report)}
               >
                 <Mic size={15} />
-                {testing ? "停止测试" : "测试麦克风"}
+                {requesting
+                  ? "正在请求麦克风…"
+                  : testing
+                    ? "停止测试"
+                    : "测试麦克风"}
               </button>
               <div className="meter">
                 <span style={{ width: `${level * 100}%` }} />

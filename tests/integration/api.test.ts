@@ -337,3 +337,32 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     ).toHaveLength(1);
   });
 });
+
+test("media token issuance failures are observable without counting rejected invitations", async () => {
+  const { media } = await import("../../apps/api/src/media");
+  const owner = await guest();
+  const outsider = await guest();
+  const target = await room(owner.token);
+  const before = await req("/diagnostics", owner.token);
+  expect(typeof before.body.tokenIssueFailures).toBe("number");
+  expect(
+    (await req(`/rooms/${target.id}/join`, outsider.token, {})).status,
+  ).toBe(403);
+  expect((await req("/diagnostics", owner.token)).body.tokenIssueFailures).toBe(
+    before.body.tokenIssueFailures,
+  );
+  const original = media.issue;
+  try {
+    media.issue = async () => {
+      throw new Error("Controlled token issuance failure");
+    };
+    expect(
+      (await req(`/rooms/${target.id}/join`, owner.token, {})).status,
+    ).toBe(503);
+    expect(
+      (await req("/diagnostics", owner.token)).body.tokenIssueFailures,
+    ).toBe(before.body.tokenIssueFailures + 1);
+  } finally {
+    media.issue = original;
+  }
+});

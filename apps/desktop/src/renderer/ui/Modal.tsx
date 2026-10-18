@@ -2,6 +2,7 @@ import { useEffect, useRef, type ReactNode } from "react";
 import { X } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
+import { MessageBanner } from "./MessageBanner";
 export function ModalShell({
   title,
   subtitle,
@@ -51,6 +52,7 @@ export function ModalShell({
             <X size={20} />
           </button>
         </header>
+        <MessageBanner />
         {children}
       </div>
     </dialog>
