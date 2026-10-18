@@ -1,11 +1,14 @@
-import type { RoomInfo, RoomState } from '@cinegather/contracts';
+import type { RoomInfo, RoomState } from "@cinegather/contracts";
 export interface RoomDependencies {
-  join(roomId: string, inviteToken?: string): Promise<{ room: RoomInfo; token: string; url: string }>;
+  join(
+    roomId: string,
+    inviteToken?: string,
+  ): Promise<{ room: RoomInfo; token: string; url: string }>;
   leave(roomId: string): Promise<void>;
   connect(url: string, token: string): Promise<void>;
   disconnect(): Promise<void>;
   stopShare(): Promise<void>;
-  changed(state: RoomState, room?: RoomInfo): void;
+  changed(state: RoomState, room: RoomInfo | undefined, revision: number): void;
   error(error: unknown): void;
 }
 export class RoomCoordinator {
@@ -19,24 +22,53 @@ export class RoomCoordinator {
     this.entering = true;
     const revision = ++this.revision;
     this.roomId = roomId;
-    this.deps.changed('joining');
+    this.deps.changed("joining", undefined, this.revision);
     try {
       const result = await this.deps.join(roomId, inviteToken);
-      if (revision !== this.revision) { await this.safeLeave(roomId); return; }
+      if (revision !== this.revision) {
+        await this.safeLeave(roomId);
+        return;
+      }
       await this.deps.connect(result.url, result.token);
-      if (revision !== this.revision) { await this.deps.disconnect(); await this.safeLeave(roomId); return; }
-      this.deps.changed('connected', result.room);
+      if (revision !== this.revision) {
+        await this.deps.disconnect();
+        await this.safeLeave(roomId);
+        return;
+      }
+      this.deps.changed("connected", result.room, this.revision);
     } catch (error) {
-      await this.deps.disconnect(); await this.safeLeave(roomId);
-      if (revision === this.revision) { this.roomId = undefined; this.deps.changed('failed'); this.deps.error(error); }
-    } finally { this.entering = false; }
+      await this.deps.disconnect();
+      await this.safeLeave(roomId);
+      if (revision === this.revision) {
+        this.roomId = undefined;
+        this.deps.changed("failed", undefined, this.revision);
+        this.deps.error(error);
+      }
+    } finally {
+      this.entering = false;
+    }
   }
-  private async safeLeave(roomId: string) { try { await this.deps.leave(roomId); } catch (error) { this.deps.error(error); } }
+  private async safeLeave(roomId: string) {
+    try {
+      await this.deps.leave(roomId);
+    } catch (error) {
+      this.deps.error(error);
+    }
+  }
   async leave() {
     ++this.revision;
-    const roomId = this.roomId; this.roomId = undefined;
-    this.deps.changed('leaving');
-    try { await this.deps.stopShare(); }
-    finally { await this.deps.disconnect(); if (roomId) await this.safeLeave(roomId); this.deps.changed('idle'); }
+    const roomId = this.roomId;
+    this.roomId = undefined;
+    this.deps.changed("leaving", undefined, this.revision);
+    try {
+      await this.deps.disconnect();
+    } finally {
+      try {
+        await this.deps.stopShare();
+      } finally {
+        if (roomId) await this.safeLeave(roomId);
+        this.deps.changed("idle", undefined, this.revision);
+      }
+    }
   }
 }

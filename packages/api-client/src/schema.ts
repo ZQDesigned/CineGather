@@ -911,8 +911,8 @@ export interface operations {
     createRoom: {
         parameters: {
             query?: never;
-            header: {
-                "idempotency-key": string;
+            header?: {
+                "idempotency-key"?: string;
             };
             path?: never;
             cookie?: never;
@@ -922,7 +922,7 @@ export interface operations {
                 "application/json": {
                     name: string;
                     /** @default 5 */
-                    maxMembers: number;
+                    maxMembers?: number;
                 };
             };
         };
@@ -1389,9 +1389,9 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @default 24 */
-                    expiresInHours: number;
+                    expiresInHours?: number;
                     /** @default 10 */
-                    maxUses: number;
+                    maxUses?: number;
                 };
             };
         };
@@ -1967,7 +1967,7 @@ export interface operations {
             content: {
                 "application/json": {
                     /** @default false */
-                    ban: boolean;
+                    ban?: boolean;
                 };
             };
         };
@@ -2410,8 +2410,8 @@ export interface operations {
     postMessage: {
         parameters: {
             query?: never;
-            header: {
-                "idempotency-key": string;
+            header?: {
+                "idempotency-key"?: string;
             };
             path: {
                 roomId: string;

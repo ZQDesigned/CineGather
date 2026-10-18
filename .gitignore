@@ -23,3 +23,7 @@ docs/
 **/*.pptx
 **/LICENSE*
 **/NOTICE*
+
+**/README*
+**/CHANGELOG*
+**/CONTRIBUTING*

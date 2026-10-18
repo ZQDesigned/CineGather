@@ -1,0 +1,8 @@
+[Unit]
+Description=Daily CineGather database backup
+[Timer]
+OnCalendar=*-*-* 03:20:00 Asia/Shanghai
+Persistent=true
+RandomizedDelaySec=10m
+[Install]
+WantedBy=timers.target

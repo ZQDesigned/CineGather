@@ -2,11 +2,7 @@
   "extends": "./tsconfig.base.json",
   "compilerOptions": {
     "noEmit": true,
-    "types": [
-      "bun",
-      "node",
-      "vite/client"
-    ]
+    "types": ["bun", "node", "vite/client"]
   },
   "include": [
     "apps/**/*.ts",
@@ -16,9 +12,5 @@
     "tests/**/*.ts",
     "playwright.config.ts"
   ],
-  "exclude": [
-    "node_modules",
-    "**/dist",
-    "**/out"
-  ]
+  "exclude": ["node_modules", "**/dist", "**/out"]
 }

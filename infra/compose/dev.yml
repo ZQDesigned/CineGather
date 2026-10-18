@@ -7,24 +7,24 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Run bun run setup}
       POSTGRES_DB: cinegather
     ports:
-      - '127.0.0.1:55432:5432'
+      - "127.0.0.1:55432:5432"
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
-      test: ['CMD-SHELL', 'pg_isready -U cinegather -d cinegather']
+      test: ["CMD-SHELL", "pg_isready -U cinegather -d cinegather"]
       interval: 3s
       timeout: 3s
       retries: 20
     restart: unless-stopped
   livekit:
     image: registry-1.docker.io/livekit/livekit-server:v1.13.10
-    command: ['--config', '/etc/livekit.yaml']
+    command: ["--config", "/etc/livekit.yaml"]
     volumes:
       - ../../.local/livekit.yaml:/etc/livekit.yaml:ro
     ports:
-      - '127.0.0.1:7880:7880'
-      - '127.0.0.1:7881:7881'
-      - '127.0.0.1:50000-50100:50000-50100/udp'
+      - "127.0.0.1:7880:7880"
+      - "127.0.0.1:7881:7881"
+      - "127.0.0.1:50000-50100:50000-50100/udp"
     restart: unless-stopped
 volumes:
   postgres-data:

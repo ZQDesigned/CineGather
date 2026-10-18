@@ -1,0 +1,14 @@
+node_modules
+**/out
+**/dist
+**/release
+docs
+.local
+.superpowers
+**/*.md
+**/*.mdx
+**/*.txt
+LICENSE
+bun.lock
+packages/api-client/src/schema.ts
+packages/database/migrations/meta

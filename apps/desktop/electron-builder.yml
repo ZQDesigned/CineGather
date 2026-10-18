@@ -1,0 +1,47 @@
+appId: city.zqdesigned.cinegather
+productName: CineGather
+copyright: Copyright © 2026 CineGather contributors
+directories:
+  output: release
+  buildResources: resources
+files:
+  - out/**
+  - resources/**
+  - package.json
+  - "!node_modules/**"
+extraResources:
+  - from: ../../LICENSE
+    to: LICENSE
+  - from: resources/THIRD_PARTY_NOTICES.txt
+    to: THIRD_PARTY_NOTICES.txt
+asar: true
+npmRebuild: false
+protocols:
+  name: CineGather invitation
+  schemes: [cinegather]
+mac:
+  target: [dmg, zip]
+  category: public.app-category.social-networking
+  icon: resources/icon.png
+  hardenedRuntime: true
+  identity: null
+  extendInfo:
+    NSMicrophoneUsageDescription: 映聚需要麦克风权限，与房间内朋友实时语音。
+    NSCameraUsageDescription: 映聚首版不采集摄像头。
+    NSScreenCaptureUsageDescription: 映聚需要屏幕录制权限，共享你选择的屏幕或窗口。
+    NSAudioCaptureUsageDescription: 映聚需要音频采集权限，共享你明确选择的系统声音。
+win:
+  target: [nsis, portable]
+  icon: resources/icon.png
+  signExecutable: false
+nsis:
+  artifactName: "${productName}-${version}-${os}-${arch}-setup.${ext}"
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  createDesktopShortcut: true
+  createStartMenuShortcut: true
+  license: ../../LICENSE
+portable:
+  artifactName: "${productName}-${version}-${os}-${arch}-portable.${ext}"
+artifactName: "${productName}-${version}-${os}-${arch}.${ext}"

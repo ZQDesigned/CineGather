@@ -1,0 +1,10 @@
+[Unit]
+Description=CineGather PostgreSQL backup
+Requires=docker.service
+After=docker.service
+[Service]
+Type=oneshot
+EnvironmentFile=-/etc/cinegather/backup.env
+ExecStart=/opt/cinegather/tools/production-backup.sh
+UMask=0077
+NoNewPrivileges=true

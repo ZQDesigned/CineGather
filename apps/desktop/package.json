@@ -23,11 +23,13 @@
     "dev": "electron-vite dev",
     "dev:renderer": "vite --host 127.0.0.1 --port 5173 --config vite.renderer.config.ts",
     "build": "electron-vite build",
-    "dist:win": "electron-vite build && electron-builder --win --x64 --publish never",
-    "dist:mac": "electron-vite build && electron-builder --mac --arm64 --publish never"
+    "dist:win": "electron-vite build && bun ../../tools/notices.ts && electron-builder --win --x64 --publish never",
+    "dist:mac": "electron-vite build && bun ../../tools/notices.ts && electron-builder --mac --arm64 --publish never"
   },
   "version": "0.1.0",
   "private": true,
   "type": "module",
-  "license": "MIT"
+  "license": "MIT",
+  "description": "映聚 CineGather — private voice and screen-sharing rooms",
+  "author": "CineGather contributors"
 }

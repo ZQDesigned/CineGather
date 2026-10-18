@@ -1,0 +1,55 @@
+name: verify
+on:
+  push:
+  pull_request:
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - run: bun install --frozen-lockfile
+      - run: bun run setup
+      - run: bun run infra:up
+      - run: bun run db:migrate
+      - run: bun run format:check
+      - run: bun run check
+      - run: bun run test:integration
+      - run: bun run api:generate && git diff --exit-code packages/api-client/src/schema.ts
+      - run: bun run build
+      - run: bunx playwright install --with-deps chromium
+      - run: bun run test:e2e
+      - run: bun tools/check-git.ts
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: test-diagnostics
+          path: test-results/
+  package-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - run: bun install --frozen-lockfile
+      - run: bun run setup
+      - run: bun run dist:win
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cinegather-windows-x64-unsigned
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap

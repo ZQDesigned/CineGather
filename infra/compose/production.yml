@@ -1,0 +1,85 @@
+name: cinegather-production
+services:
+  postgres:
+    image: registry-1.docker.io/library/postgres:17.6-alpine
+    environment:
+      POSTGRES_USER: cinegather
+      POSTGRES_DB: cinegather
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Set a production database password}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cinegather -d cinegather"]
+      interval: 5s
+      retries: 10
+    restart: unless-stopped
+    networks: [private]
+  api:
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+    environment:
+      DATABASE_URL: postgres://cinegather:${POSTGRES_PASSWORD}@postgres:5432/cinegather
+      SESSION_SECRET: ${SESSION_SECRET:?Set a 32-character minimum session secret}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY:?Set the media API key}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set a 32-character minimum media secret}
+      LIVEKIT_INTERNAL_URL: http://host.docker.internal:7880
+      LIVEKIT_URL: wss://${MEDIA_DOMAIN:?Set the media domain}
+      CORS_ORIGINS: ${CORS_ORIGINS:-}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: unless-stopped
+    networks: [private, public]
+    read_only: true
+    tmpfs: [/tmp]
+    security_opt: ["no-new-privileges:true"]
+  migrate:
+    profiles: [maintenance]
+    build:
+      context: ../..
+      dockerfile: apps/api/Dockerfile
+      target: build
+    command: ["bun", "run", "db:migrate"]
+    environment:
+      DATABASE_URL: postgres://cinegather:${POSTGRES_PASSWORD}@postgres:5432/cinegather
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks: [private]
+  livekit:
+    image: registry-1.docker.io/livekit/livekit-server:v1.13.10
+    network_mode: host
+    command: ["--config", "/etc/livekit.yaml"]
+    volumes:
+      - ${LIVEKIT_CONFIG_PATH:?Generate a production LiveKit config}:/etc/livekit.yaml:ro
+      - ${TLS_CERT_DIR:?Provide TURN certificate directory}:/etc/livekit-certs:ro
+    restart: unless-stopped
+  proxy:
+    image: registry-1.docker.io/library/caddy:2.10.2-alpine
+    environment:
+      API_DOMAIN: ${API_DOMAIN:?Set the API domain}
+      MEDIA_DOMAIN: ${MEDIA_DOMAIN:?Set the media domain}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ../proxy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    depends_on: [api]
+    restart: unless-stopped
+    networks: [public]
+volumes:
+  postgres-data:
+  caddy-data:
+  caddy-config:
+networks:
+  private:
+    internal: true
+  public:
