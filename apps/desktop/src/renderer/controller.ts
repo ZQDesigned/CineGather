@@ -128,6 +128,7 @@ export const shareSession = new ShareCoordinator({
   },
   error: report,
 });
+const pttHolds = new Set<"window" | "global">();
 export const roomSession = new RoomCoordinator({
   join: async (roomId, inviteToken) =>
     unwrap(
@@ -158,7 +159,10 @@ export const roomSession = new RoomCoordinator({
       report(error);
     }
   },
-  disconnect: () => media.disconnect(),
+  disconnect: () => {
+    pttHolds.clear();
+    return media.disconnect();
+  },
   stopShare,
   changed: (roomState, room, revision) => {
     update({
@@ -195,6 +199,12 @@ export async function initialize() {
       update({ user: unwrap(await api.GET("/api/v1/me")) });
       await refreshRooms();
     });
+  try {
+    const hotkeys = await window.desktop?.hotkeyStatus?.();
+    if (hotkeys?.error) update({ error: hotkeys.error });
+  } catch {
+    update({ error: "无法检查全局快捷键状态；已保留你的按键说话设置。" });
+  }
   const initial = await window.desktop?.takeInvitation();
   if (initial) receiveInvitation(initial);
   return window.desktop?.onAction((action, value) => {
@@ -203,11 +213,9 @@ export async function initialize() {
       void window.desktop?.takeInvitation();
     }
     if (action === "stop-share") void stopShare();
-    if (
-      action === "toggle-mute" ||
-      (action === "ptt-toggle" && state().settings.pushToTalk)
-    )
-      void toggleMicrophone();
+    if (action === "toggle-mute") void toggleMicrophone();
+    if (action === "ptt-press") void ptt(true, "global");
+    if (action === "ptt-release") void ptt(false, "global");
   });
 }
 export async function guest(displayName: string) {
@@ -252,13 +260,24 @@ export async function toggleMicrophone() {
     report(error);
   }
 }
-export async function ptt(enabled: boolean) {
+export async function ptt(
+  enabled: boolean,
+  source: "window" | "global" = "window",
+) {
+  if (
+    enabled &&
+    state().settings.pushToTalk &&
+    state().roomState === "connected"
+  )
+    pttHolds.add(source);
+  else pttHolds.delete(source);
   if (
     state().settings.pushToTalk &&
-    (!enabled || state().roomState === "connected")
+    (state().roomState === "connected" ||
+      (state().roomState === "reconnecting" && pttHolds.size === 0))
   )
     try {
-      await media.microphone(enabled, state().settings.inputDevice);
+      await media.microphone(pttHolds.size > 0, state().settings.inputDevice);
     } catch (error) {
       report(error);
     }
@@ -280,10 +299,11 @@ export async function stopShare() {
   await shareSession.stop();
 }
 export async function saveSettings(settings: DesktopSettings) {
+  const held = pttHolds.size > 0;
+  pttHolds.clear();
   if (
-    settings.pushToTalk &&
-    !state().settings.pushToTalk &&
-    state().roomState === "connected"
+    (held || (settings.pushToTalk && !state().settings.pushToTalk)) &&
+    ["connected", "reconnecting"].includes(state().roomState)
   )
     await media.microphone(false);
   if (window.desktop) await window.desktop.saveSettings(settings);

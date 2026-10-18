@@ -12,6 +12,7 @@ import {
   nativeImage,
   globalShortcut,
   dialog,
+  powerMonitor,
 } from "electron";
 import { join, resolve, sep } from "node:path";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
@@ -20,6 +21,8 @@ import { z } from "zod";
 import { allowedExternal, trustedURL, permissionAllowed } from "./security";
 import { defaultSettings, settingsSchema } from "./settings";
 import { configureDisplayCapture } from "./capture";
+import { HoldToTalk, shortcutKeys } from "./push-to-talk";
+import { nativeKeyState } from "./key-state";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 protocol.registerSchemesAsPrivileged([
   {
@@ -46,17 +49,35 @@ let pendingInvite: string | undefined = process.argv.find(
 const sendAction = (action: string, value?: string) =>
   win?.webContents.send("desktop:action", action, value);
 const settingsPath = () => join(app.getPath("userData"), "settings.json");
+let globalHold: HoldToTalk | undefined;
+let hotkeyFailure: string | undefined;
+let screenLocked = false;
+let suspended = false;
 function shortcuts(next: DesktopSettings) {
+  hotkeyFailure = undefined;
+  globalHold?.release();
   globalShortcut.unregisterAll();
   if (
     !globalShortcut.register(next.muteShortcut, () => sendAction("toggle-mute"))
   )
     throw new Error("麦克风快捷键被占用");
-  if (
-    next.pushToTalk &&
-    !globalShortcut.register(next.pttShortcut, () => sendAction("ptt-toggle"))
-  )
-    throw new Error("按键说话快捷键被占用");
+  if (next.pushToTalk) {
+    const keys = shortcutKeys(next.pttShortcut, process.platform);
+    globalHold ??= new HoldToTalk(
+      nativeKeyState(
+        process.platform,
+        app.isPackaged ? process.resourcesPath : undefined,
+      ),
+      (held) => sendAction(held ? "ptt-press" : "ptt-release"),
+    );
+    globalHold.configure(keys);
+    if (
+      !globalShortcut.register(next.pttShortcut, () => {
+        if (!screenLocked && !suspended) globalHold!.press();
+      })
+    )
+      throw new Error("按键说话快捷键被占用");
+  }
 }
 function showWindow() {
   win?.show();
@@ -180,6 +201,7 @@ function registerIPC() {
     await shell.openExternal(url);
   });
   handle("desktop:settings-load", () => settings);
+  handle("desktop:hotkey-status", () => ({ error: hotkeyFailure }));
   handle("desktop:settings-save", async (input) => {
     const next = settingsSchema.parse(input);
     try {
@@ -331,6 +353,7 @@ else {
     }
   });
   app.on("before-quit", () => {
+    globalHold?.release();
     quitting = true;
   });
   app.on("will-quit", () => {
@@ -360,6 +383,20 @@ else {
       });
       registerIPC();
       capturePermissions();
+      powerMonitor.on("suspend", () => {
+        suspended = true;
+        globalHold?.release();
+      });
+      powerMonitor.on("resume", () => {
+        suspended = false;
+      });
+      powerMonitor.on("lock-screen", () => {
+        screenLocked = true;
+        globalHold?.release();
+      });
+      powerMonitor.on("unlock-screen", () => {
+        screenLocked = false;
+      });
       const icon = nativeImage.createFromPath(
         join(__dirname, "../../resources/tray.png"),
       );
@@ -370,7 +407,10 @@ else {
       try {
         shortcuts(settings);
       } catch {
-        /* Settings UI reports shortcut registration on save. */
+        globalHold?.release();
+        // Preserve PTT mode so joining still starts muted if the shortcut fails.
+        hotkeyFailure =
+          "全局快捷键不可用，请在设置中重新保存组合键；窗口内仍可按住空格说话。";
       }
       app.setAsDefaultProtocolClient("cinegather");
       await createWindow();

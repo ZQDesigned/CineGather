@@ -832,3 +832,32 @@ test("the source picker forwards audio opt-in and excludes CineGather playback f
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   }
 });
+
+test("a hotkey status failure cannot disable the user's saved push-to-talk mode", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    Object.assign(window, {
+      desktop: {
+        platform: "darwin",
+        loadSettings: async () => ({
+          minimizeToTray: true,
+          pushToTalk: true,
+          pttShortcut: "Control+Alt+K",
+          muteShortcut: "CommandOrControl+Shift+M",
+          quality: "cinema",
+          inputDevice: "",
+          outputDevice: "",
+        }),
+        hotkeyStatus: async () => {
+          throw Error("diagnostic unavailable");
+        },
+        takeInvitation: async () => undefined,
+        onAction: () => () => {},
+      },
+    });
+  });
+  await page.goto("/");
+  await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "按键说话" })).toBeChecked();
+});

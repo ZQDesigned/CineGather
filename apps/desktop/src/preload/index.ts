@@ -9,6 +9,7 @@ const bridge: DesktopBridge = {
   cancelCapture: () => ipcRenderer.invoke("desktop:cancel-capture"),
   openExternal: (url) => ipcRenderer.invoke("desktop:external", url),
   loadSettings: () => ipcRenderer.invoke("desktop:settings-load"),
+  hotkeyStatus: () => ipcRenderer.invoke("desktop:hotkey-status"),
   saveSettings: (settings) =>
     ipcRenderer.invoke("desktop:settings-save", settings),
   exportDiagnostics: (data) => ipcRenderer.invoke("desktop:diagnostics", data),

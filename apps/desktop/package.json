@@ -10,7 +10,8 @@
     "react-dom": "catalog:",
     "zustand": "5.0.15",
     "livekit-client": "catalog:",
-    "lucide-react": "1.59.0"
+    "lucide-react": "1.59.0",
+    "koffi": "3.3.3"
   },
   "devDependencies": {
     "electron": "44.9.0",
@@ -23,8 +24,8 @@
     "dev": "electron-vite dev",
     "dev:renderer": "vite --host 127.0.0.1 --port 5173 --config vite.renderer.config.ts",
     "build": "electron-vite build",
-    "dist:win": "electron-vite build && bun ../../tools/notices.ts && electron-builder --win --x64 --publish never",
-    "dist:mac": "electron-vite build && bun ../../tools/notices.ts && electron-builder --mac --arm64 --publish never"
+    "dist:win": "electron-vite build && bun ../../tools/third-party.ts win32 x64 && electron-builder --win --x64 --publish never",
+    "dist:mac": "electron-vite build && bun ../../tools/third-party.ts darwin arm64 && electron-builder --mac --arm64 --publish never"
   },
   "version": "0.1.0",
   "private": true,

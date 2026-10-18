@@ -14,6 +14,10 @@ extraResources:
     to: LICENSE
   - from: resources/THIRD_PARTY_NOTICES.txt
     to: THIRD_PARTY_NOTICES.txt
+  - from: ../../node_modules/koffi
+    to: native/node_modules/koffi
+    filter:
+      [package.json, index.cjs, src/koffi/index.cjs, src/koffi/src/static.cjs]
 asar: true
 npmRebuild: false
 protocols:
@@ -25,6 +29,9 @@ mac:
   icon: resources/icon.png
   hardenedRuntime: true
   identity: null
+  extraResources:
+    - from: ../../node_modules/@koromix/koffi-darwin-arm64
+      to: native/node_modules/@koromix/koffi-darwin-arm64
   extendInfo:
     NSMicrophoneUsageDescription: 映聚需要麦克风权限，与房间内朋友实时语音。
     NSCameraUsageDescription: 映聚首版不采集摄像头。
@@ -34,6 +41,9 @@ win:
   target: [nsis, portable]
   icon: resources/icon.png
   signExecutable: false
+  extraResources:
+    - from: ../../node_modules/@koromix/koffi-win32-x64
+      to: native/node_modules/@koromix/koffi-win32-x64
 nsis:
   artifactName: "${productName}-${version}-${os}-${arch}-setup.${ext}"
   oneClick: false

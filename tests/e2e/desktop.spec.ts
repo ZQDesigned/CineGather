@@ -1,7 +1,7 @@
 import { test, expect, _electron as electron } from "@playwright/test";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 const executablePath = resolve(
@@ -167,6 +167,233 @@ test("packaged capture permissions require source approval while camera capture 
     await page.evaluate(() => window.desktop!.cancelCapture());
     await requestCapture();
     expect(await requestCount()).toBe(1);
+  } finally {
+    await app.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
+test("packaged global hold uses the native state boundary, combines foreground hold and releases in the background or on lock", async () => {
+  test.skip(
+    process.platform !== "darwin" || !existsSync(executablePath),
+    "Requires a local Mac package.",
+  );
+  const profile = await mkdtemp(join(tmpdir(), "cinegather-global-hold-"));
+  const app = await electron.launch({
+    executablePath,
+    args: [
+      `--user-data-dir=${profile}`,
+      "--use-fake-ui-for-media-stream",
+      "--use-fake-device-for-media-stream",
+    ],
+  });
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ globalShortcut, BrowserWindow }) => {
+      type Probe = {
+        down?: boolean;
+        nativeReads: number;
+        releases: number;
+        press?: () => void;
+      };
+      const state = globalThis as unknown as { holdProbe: Probe };
+      state.holdProbe = { nativeReads: 0, releases: 0 };
+      const contents = BrowserWindow.getAllWindows()[0]!.webContents;
+      const send = contents.send.bind(contents);
+      contents.send = (channel, ...args) => {
+        if (channel === "desktop:action" && args[0] === "ptt-release")
+          state.holdProbe.releases++;
+        send(channel, ...args);
+      };
+      const load = process
+        .getBuiltinModule("module")
+        .createRequire(`${process.resourcesPath}/native/fixture.cjs`);
+      const ffi = load(
+        `${process.resourcesPath}/native/node_modules/koffi/index.cjs`,
+      ) as {
+        load(path: string): {
+          func(signature: string): (...args: number[]) => boolean;
+        };
+      };
+      const original = ffi.load;
+      ffi.load = (path) => {
+        const library = original(path);
+        const declare = library.func.bind(library);
+        return {
+          func: (signature) => {
+            const native = declare(signature);
+            return (...args) => {
+              state.holdProbe.nativeReads++;
+              return state.holdProbe.down ?? native(...args);
+            };
+          },
+        };
+      };
+      const register = globalShortcut.register.bind(globalShortcut);
+      globalShortcut.register = (key, callback) => {
+        if (key === "Control+Alt+K") state.holdProbe.press = callback;
+        return register(key, callback);
+      };
+    });
+    await page.getByLabel("你的昵称").fill("全局按住说话验证");
+    await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await page
+      .getByRole("button", { name: "创建私人房间", exact: true })
+      .click();
+    await page.getByLabel("房间名称").fill("全局组合键验证");
+    await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+    await page
+      .getByRole("button", { name: "关闭麦克风", exact: true })
+      .waitFor();
+    await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+    await page.getByRole("checkbox", { name: "按键说话" }).check();
+    await page.getByLabel(/全局.*说话/).fill("Control+Alt+K");
+    await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    const press = (down?: boolean) =>
+      app.evaluate((_electron, held) => {
+        const probe = (
+          globalThis as unknown as {
+            holdProbe: { down?: boolean; press(): void };
+          }
+        ).holdProbe;
+        probe.down = held;
+        probe.press();
+      }, down);
+    // Real FFI reads the released key state before the OS boundary is controlled.
+    await press();
+    expect(
+      await app.evaluate(
+        () =>
+          (globalThis as unknown as { holdProbe: { nativeReads: number } })
+            .holdProbe.nativeReads,
+      ),
+    ).toBeGreaterThan(0);
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await press(true);
+    await expect(
+      page.getByRole("button", { name: "关闭麦克风", exact: true }),
+    ).toBeVisible();
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new KeyboardEvent("keydown", { code: "Space", bubbles: true }),
+      ),
+    );
+    await app.evaluate(() => {
+      (
+        globalThis as unknown as { holdProbe: { down: boolean } }
+      ).holdProbe.down = false;
+    });
+    // Wait for the real main-process release; foreground Space still owns its hold.
+    await expect
+      .poll(() =>
+        app.evaluate(
+          () =>
+            (globalThis as unknown as { holdProbe: { releases: number } })
+              .holdProbe.releases,
+        ),
+      )
+      .toBeGreaterThan(0);
+    await expect(
+      page.getByRole("button", { name: "关闭麦克风", exact: true }),
+    ).toBeVisible();
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new KeyboardEvent("keyup", { code: "Space", bubbles: true }),
+      ),
+    );
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await press(true);
+    await expect(
+      page.getByRole("button", { name: "关闭麦克风", exact: true }),
+    ).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]!.hide(),
+    );
+    await app.evaluate(() => {
+      (
+        globalThis as unknown as { holdProbe: { down: boolean } }
+      ).holdProbe.down = false;
+    });
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]!.show(),
+    );
+    await press(true);
+    await expect(
+      page.getByRole("button", { name: "关闭麦克风", exact: true }),
+    ).toBeVisible();
+    await app.evaluate(({ powerMonitor }) => powerMonitor.emit("lock-screen"));
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await press(true);
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await app.evaluate(({ powerMonitor }) =>
+      powerMonitor.emit("unlock-screen"),
+    );
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  } finally {
+    await app.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
+test("a failed startup hotkey keeps saved push-to-talk enabled and joins muted", async () => {
+  test.skip(
+    process.platform !== "darwin" || !existsSync(executablePath),
+    "Requires a local Mac package.",
+  );
+  const profile = await mkdtemp(join(tmpdir(), "cinegather-hotkey-failure-"));
+  await writeFile(
+    join(profile, "settings.json"),
+    JSON.stringify({
+      minimizeToTray: true,
+      pushToTalk: true,
+      pttShortcut: "Control+Unknown",
+      muteShortcut: "CommandOrControl+Shift+M",
+      quality: "cinema",
+      inputDevice: "",
+      outputDevice: "",
+    }),
+  );
+  const app = await electron.launch({
+    executablePath,
+    args: [
+      `--user-data-dir=${profile}`,
+      "--use-fake-ui-for-media-stream",
+      "--use-fake-device-for-media-stream",
+    ],
+  });
+  try {
+    const page = await app.firstWindow();
+    await expect(page.getByRole("alert")).toContainText("全局快捷键不可用");
+    await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+    await expect(
+      page.getByRole("checkbox", { name: "按键说话" }),
+    ).toBeChecked();
+    await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+    await page.getByLabel("你的昵称").fill("快捷键失效保持静音");
+    await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await page
+      .getByRole("button", { name: "创建私人房间", exact: true })
+      .click();
+    await page.getByLabel("房间名称").fill("默认静音验证");
+    await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
   } finally {
     await app.close();
     await rm(profile, { recursive: true, force: true });

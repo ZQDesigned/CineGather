@@ -238,11 +238,12 @@ export function Settings() {
                 onChange={(event) => change("pushToTalk", event.target.checked)}
               />
               <span>
-                按键说话<small>窗口内按住空格；后台使用下方全局切换键。</small>
+                按键说话
+                <small>窗口内按住空格；后台按住全局组合键，松开即静音。</small>
               </span>
             </label>
             <label>
-              全局切换说话
+              全局按住说话
               <input
                 value={settings.pttShortcut}
                 onChange={(event) => change("pttShortcut", event.target.value)}

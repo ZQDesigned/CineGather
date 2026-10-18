@@ -144,11 +144,17 @@ export interface DesktopBridge {
   cancelCapture(): Promise<void>;
   openExternal(url: string): Promise<void>;
   loadSettings(): Promise<DesktopSettings>;
+  hotkeyStatus?(): Promise<{ error?: string }>;
   saveSettings(settings: DesktopSettings): Promise<void>;
   exportDiagnostics(data: Record<string, unknown>): Promise<boolean>;
   onAction(
     callback: (
-      action: "toggle-mute" | "ptt-toggle" | "stop-share" | "invite",
+      action:
+        | "toggle-mute"
+        | "ptt-press"
+        | "ptt-release"
+        | "stop-share"
+        | "invite",
       value?: string,
     ) => void,
   ): () => void;
