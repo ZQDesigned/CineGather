@@ -19,6 +19,7 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { allowedExternal, trustedURL, permissionAllowed } from "./security";
 import { defaultSettings, settingsSchema } from "./settings";
+import { configureDisplayCapture } from "./capture";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 protocol.registerSchemesAsPrivileged([
   {
@@ -295,43 +296,22 @@ function capturePermissions() {
         ),
     ),
   );
-  ses.setDisplayMediaRequestHandler(
-    async (request, callback) => {
+  configureDisplayCapture(ses, {
+    takeSelection: () => {
       const choice = pending;
       pending = undefined;
-      if (
-        !win ||
-        request.frame !== win.webContents.mainFrame ||
-        !request.userGesture ||
-        !trustedURL(request.securityOrigin, devURL) ||
-        !choice ||
-        choice.expiresAt <= Date.now()
-      ) {
-        callback(null);
-        return;
-      }
-      try {
-        const source = (
-          await desktopCapturer.getSources({ types: ["screen", "window"] })
-        ).find((s) => s.id === choice.sourceId);
-        if (!source) {
-          callback(null);
-          return;
-        }
-        callback({
-          video: source,
-          ...(choice.systemAudio &&
-          request.audioRequested &&
-          process.platform === "win32"
-            ? { audio: "loopback" as const }
-            : {}),
-        });
-      } catch {
-        callback(null);
-      }
+      return choice;
     },
-    { useSystemPicker: process.platform === "darwin" },
-  );
+    isTrustedRequest: (request) =>
+      Boolean(
+        win &&
+          request.frame === win.webContents.mainFrame &&
+          trustedURL(request.securityOrigin, devURL),
+      ),
+    getSources: () =>
+      desktopCapturer.getSources({ types: ["screen", "window"] }),
+    platform: process.platform,
+  });
 }
 if (!app.requestSingleInstanceLock()) app.quit();
 else {

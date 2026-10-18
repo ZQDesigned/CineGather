@@ -291,7 +291,15 @@ export class MediaSession {
     const publication = await room.localParticipant.setScreenShareEnabled(
       true,
       {
-        audio: systemAudio,
+        audio: systemAudio
+          ? {
+              restrictOwnAudio: true,
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: 2,
+            }
+          : false,
         systemAudio: systemAudio ? "include" : "exclude",
         selfBrowserSurface: "exclude",
         resolution: {
@@ -317,7 +325,8 @@ export class MediaSession {
     }
     if (
       systemAudio &&
-      !room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio)
+      room.localParticipant.getTrackPublication(Track.Source.ScreenShareAudio)
+        ?.track?.mediaStreamTrack.readyState !== "live"
     )
       this.error(
         new Error(

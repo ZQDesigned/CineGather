@@ -756,3 +756,79 @@ test("push-to-talk released during an SFU outage stays muted after reconnection"
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   }
 });
+
+test("the source picker forwards audio opt-in and excludes CineGather playback from system capture", async ({
+  page,
+}) => {
+  await guest(page, "声音选项验证");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("声音选项验证");
+  await page.getByRole("button", { name: "创建并进入" }).click();
+  await page.getByRole("button", { name: "关闭麦克风", exact: true }).waitFor();
+  // Only the desktop bridge is simulated. Chromium and LiveKit capture/publish
+  // normally; observe the exact constraints at the browser API boundary.
+  await page.evaluate(() => {
+    const original = navigator.mediaDevices.getDisplayMedia.bind(
+      navigator.mediaDevices,
+    );
+    navigator.mediaDevices.getDisplayMedia = (options) => {
+      Object.assign(window, { screenCaptureOptions: options });
+      return original(options);
+    };
+    Object.assign(window, {
+      desktop: {
+        platform: "darwin",
+        sources: async () => [
+          {
+            id: "screen:test",
+            name: "Test screen",
+            kind: "screen",
+            thumbnail: "",
+          },
+        ],
+        selectSource: async () => {},
+        cancelCapture: async () => {},
+        setSharing: async () => {},
+      },
+    });
+  });
+  try {
+    for (const audio of [false, true]) {
+      await page
+        .getByRole("button", { name: "选择屏幕开始共享", exact: true })
+        .click();
+      await page.locator(".source-card").first().click();
+      await page
+        .getByRole("checkbox", { name: "共享系统声音" })
+        .setChecked(audio);
+      await page.getByRole("button", { name: "确认共享", exact: true }).click();
+      await expect(page.locator(".sharing-banner")).toBeVisible();
+      expect(
+        await page.evaluate(
+          () =>
+            (
+              window as unknown as {
+                screenCaptureOptions: DisplayMediaStreamOptions;
+              }
+            ).screenCaptureOptions.audio,
+        ),
+      ).toEqual(
+        audio
+          ? {
+              restrictOwnAudio: true,
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: 2,
+            }
+          : false,
+      );
+      await page
+        .locator(".sharing-banner")
+        .getByRole("button", { name: "停止共享" })
+        .click();
+    }
+  } finally {
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  }
+});

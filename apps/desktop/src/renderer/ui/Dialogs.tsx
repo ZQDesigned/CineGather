@@ -228,8 +228,8 @@ function SourcePicker() {
       </label>
       <p className="form-note">
         {window.desktop?.platform === "darwin"
-          ? "macOS 将通过系统选择器再次确认来源。系统声音取决于系统版本和录音授权。"
-          : "Windows 系统音频的远端语音回采仍需实机验证；建议佩戴耳机并先进行回声测试。"}
+          ? "macOS 在映聚内选择来源；首次使用需授予屏幕录制和系统录音权限。共享的是系统声音，并非仅此窗口的声音。"
+          : "共享的是系统声音，并非仅此窗口的声音。建议佩戴耳机；Windows 的语音回采隔离仍待实机验证。"}
       </p>
       <button
         className="primary wide"
