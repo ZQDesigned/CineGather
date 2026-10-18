@@ -23,3 +23,12 @@ test("trusted pages may capture a microphone and explicitly selected screen, but
   expect(permissionAllowed("clipboard-sanitized-write")).toBe(true);
   expect(permissionAllowed("clipboard-read")).toBe(false);
 });
+
+test("Electron display capture with empty media types requires a live source approval and never authorizes a camera", async () => {
+  const { permissionAllowed } = await import("../src/main/security");
+  expect(permissionAllowed("media", [], true)).toBe(true);
+  expect(permissionAllowed("media", [])).toBe(false);
+  expect(permissionAllowed("media", undefined, true)).toBe(false);
+  expect(permissionAllowed("media", ["video"], true)).toBe(false);
+  expect(permissionAllowed("media", ["audio", "video"], true)).toBe(false);
+});

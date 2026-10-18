@@ -329,3 +329,45 @@ test("an SFU restart produces an honest reconnecting state and restores the micr
   await expect(page.locator(".members-list .member")).toHaveCount(1);
   await page.getByRole("button", { name: "离开房间", exact: true }).click();
 });
+
+test("double-clicking the fullscreen control performs exactly one operation per click", async ({
+  page,
+}) => {
+  await guest(page, "全屏回归");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("全屏控制测试");
+  await page.getByRole("button", { name: "创建并进入" }).click();
+  await expect(
+    page.getByRole("heading", { name: "全屏控制测试" }),
+  ).toBeVisible();
+  await page.evaluate(() => {
+    const observed = { operations: 0 };
+    Object.assign(window, { fullscreenProbe: observed });
+    // Observe the native fullscreen boundary without resizing between the two
+    // pointer events; the product handlers and event propagation remain real.
+    Element.prototype.requestFullscreen = async function () {
+      observed.operations++;
+    };
+    Document.prototype.exitFullscreen = async function () {
+      observed.operations++;
+    };
+  });
+  try {
+    await page
+      .getByRole("button", { name: "全屏画面", exact: true })
+      .dblclick();
+    expect(
+      await page.evaluate(
+        () =>
+          (window as unknown as { fullscreenProbe: { operations: number } })
+            .fullscreenProbe.operations,
+      ),
+    ).toBe(2);
+  } finally {
+    await page.evaluate(async () => {
+      if (document.fullscreenElement)
+        await document.exitFullscreen().catch(() => {});
+    });
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  }
+});

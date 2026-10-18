@@ -32,7 +32,7 @@ const manifest = {
     api: "0.1.0",
     bun: Bun.version,
     electron: "44.9.0",
-    node: process.versions.node,
+    node: (await Bun.$`node -p process.versions.node`.text()).trim(),
     livekit: "1.13.10",
   },
   lockSha256: lock,

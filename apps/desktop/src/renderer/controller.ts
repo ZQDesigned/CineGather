@@ -37,10 +37,12 @@ export function report(error: unknown) {
     error:
       error instanceof Error
         ? (messages[error.name] ??
-          error.message.replace(
-            /^Error invoking remote method '[^']+': (?:Error: )?/,
-            "",
-          ))
+          (error.message.includes("Failed to get sources")
+            ? "无法读取屏幕或窗口，请检查系统屏幕录制权限后重试"
+            : error.message.replace(
+                /^Error invoking remote method '[^']+': (?:Error: )?/,
+                "",
+              )))
         : "操作未完成，请重试",
   });
 }

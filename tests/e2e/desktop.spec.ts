@@ -86,3 +86,89 @@ test("a first-launch invitation waits for guest onboarding instead of being lost
     await rm(profile, { recursive: true, force: true });
   }
 });
+
+test("packaged capture permissions require source approval while camera capture stays denied", async () => {
+  test.skip(
+    process.platform !== "darwin" || !existsSync(executablePath),
+    "Requires a local Mac package.",
+  );
+  const profile = await mkdtemp(join(tmpdir(), "cinegather-capture-gate-"));
+  const app = await electron.launch({
+    executablePath,
+    args: [`--user-data-dir=${profile}`],
+    timeout: 30000,
+  });
+  try {
+    const page = await app.firstWindow();
+    await expect(page.getByLabel("你的昵称")).toBeVisible();
+    // Replace only the OS capture boundary: every request is rejected without
+    // opening a native picker or starting a device, after the real permission gate.
+    await app.evaluate(({ BrowserWindow, desktopCapturer, nativeImage }) => {
+      desktopCapturer.getSources = async () => [
+        {
+          id: "screen:permission-regression",
+          name: "Permission regression source",
+          display_id: "0",
+          appIcon: nativeImage.createEmpty(),
+          thumbnail: nativeImage.createEmpty(),
+        },
+      ];
+      const state = globalThis as unknown as { captureRequests: number };
+      state.captureRequests = 0;
+      BrowserWindow.getAllWindows()[0]!.webContents.session.setDisplayMediaRequestHandler(
+        (_request, callback) => {
+          state.captureRequests++;
+          callback(null);
+        },
+        { useSystemPicker: false },
+      );
+    });
+    const requestCapture = () =>
+      page.evaluate(async () => {
+        try {
+          const stream = await navigator.mediaDevices.getDisplayMedia({
+            video: true,
+          });
+          stream.getTracks().forEach((track) => track.stop());
+          return "unexpected grant";
+        } catch (error) {
+          return (error as Error).name;
+        }
+      });
+    const requestCount = () =>
+      app.evaluate(
+        () =>
+          (globalThis as unknown as { captureRequests: number })
+            .captureRequests,
+      );
+    expect(await requestCapture()).toBe("NotAllowedError");
+    expect(await requestCount()).toBe(0);
+    await page.evaluate(() =>
+      window.desktop!.selectSource({
+        sourceId: "screen:permission-regression",
+        systemAudio: false,
+      }),
+    );
+    await requestCapture();
+    expect(await requestCount()).toBe(1);
+    expect(
+      await page.evaluate(async () => {
+        try {
+          const stream = await navigator.mediaDevices.getUserMedia({
+            video: true,
+          });
+          stream.getTracks().forEach((track) => track.stop());
+          return "unexpected grant";
+        } catch (error) {
+          return (error as Error).name;
+        }
+      }),
+    ).toBe("NotAllowedError");
+    await page.evaluate(() => window.desktop!.cancelCapture());
+    await requestCapture();
+    expect(await requestCount()).toBe(1);
+  } finally {
+    await app.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});

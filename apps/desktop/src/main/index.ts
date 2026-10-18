@@ -273,10 +273,12 @@ function capturePermissions() {
         Boolean(
           win &&
             webContents === win.webContents &&
+            details.isMainFrame &&
             trustedURL(details.requestingUrl, devURL) &&
             permissionAllowed(
               permission,
               "mediaTypes" in details ? details.mediaTypes : undefined,
+              Boolean(pending && pending.expiresAt > Date.now()),
             ),
         ),
       ),
@@ -285,6 +287,7 @@ function capturePermissions() {
     Boolean(
       win &&
         webContents === win.webContents &&
+        details.isMainFrame &&
         trustedURL(origin, devURL) &&
         permissionAllowed(
           permission,

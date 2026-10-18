@@ -99,7 +99,14 @@ export function Room() {
           <div
             className={`stage ${app.media.sharer ? "has-video" : ""}`}
             ref={stage}
-            onDoubleClick={fullscreen}
+            onDoubleClick={(event) => {
+              if (
+                event.target instanceof Element &&
+                event.target.closest("button")
+              )
+                return;
+              fullscreen();
+            }}
           >
             <Video />
             {!app.media.sharer && (

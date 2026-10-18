@@ -27,3 +27,5 @@ docs/
 **/README*
 **/CHANGELOG*
 **/CONTRIBUTING*
+
+.idea/

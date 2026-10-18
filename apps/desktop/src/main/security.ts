@@ -25,10 +25,17 @@ export function allowedExternal(raw: string) {
     return false;
   }
 }
-export function permissionAllowed(permission: string, mediaTypes?: string[]) {
+export function permissionAllowed(
+  permission: string,
+  mediaTypes?: string[],
+  approvedDisplay = false,
+) {
   if (permission === "media")
     return Boolean(
-      mediaTypes?.length && mediaTypes.every((kind) => kind === "audio"),
+      mediaTypes &&
+        (mediaTypes.length
+          ? mediaTypes.every((kind) => kind === "audio")
+          : approvedDisplay),
     );
   return [
     "display-capture",
