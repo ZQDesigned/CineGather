@@ -1,0 +1,28 @@
+{
+  "name": "@cinegather/api",
+  "dependencies": {
+    "@cinegather/contracts": "workspace:*",
+    "@cinegather/database": "workspace:*",
+    "@nestjs/common": "catalog:",
+    "@nestjs/core": "catalog:",
+    "@nestjs/platform-express": "catalog:",
+    "@nestjs/swagger": "catalog:",
+    "reflect-metadata": "0.2.2",
+    "rxjs": "7.8.2",
+    "livekit-server-sdk": "2.19.1",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "tsup": "9.0.0"
+  },
+  "scripts": {
+    "dev": "bun --watch src/main.ts",
+    "build": "tsup",
+    "start": "node dist/main.js",
+    "start:bun": "bun dist/main.js"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT"
+}

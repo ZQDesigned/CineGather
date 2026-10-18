@@ -1,0 +1,15 @@
+{
+  "name": "@cinegather/client-core",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "@cinegather/contracts": "workspace:*",
+    "@cinegather/api-client": "workspace:*",
+    "@cinegather/media-core": "workspace:*"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT"
+}

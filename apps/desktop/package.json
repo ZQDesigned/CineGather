@@ -1,0 +1,33 @@
+{
+  "name": "@cinegather/desktop",
+  "main": "out/main/index.cjs",
+  "dependencies": {
+    "@cinegather/contracts": "workspace:*",
+    "@cinegather/api-client": "workspace:*",
+    "@cinegather/client-core": "workspace:*",
+    "@cinegather/media-core": "workspace:*",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zustand": "5.0.15",
+    "livekit-client": "catalog:",
+    "lucide-react": "1.59.0"
+  },
+  "devDependencies": {
+    "electron": "44.9.0",
+    "electron-vite": "6.0.0",
+    "electron-builder": "26.15.3",
+    "vite": "8.3.4",
+    "@vitejs/plugin-react": "6.1.2"
+  },
+  "scripts": {
+    "dev": "electron-vite dev",
+    "dev:renderer": "vite --host 127.0.0.1 --port 5173 --config vite.renderer.config.ts",
+    "build": "electron-vite build",
+    "dist:win": "electron-vite build && electron-builder --win --x64 --publish never",
+    "dist:mac": "electron-vite build && electron-builder --mac --arm64 --publish never"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT"
+}

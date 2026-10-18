@@ -1,0 +1,13 @@
+{
+  "name": "@cinegather/api-client",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "openapi-fetch": "0.17.0"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT"
+}

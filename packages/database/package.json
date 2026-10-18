@@ -1,0 +1,17 @@
+{
+  "name": "@cinegather/database",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "dependencies": {
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:"
+  },
+  "devDependencies": {
+    "drizzle-kit": "0.31.11"
+  },
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "MIT"
+}
