@@ -24,6 +24,8 @@ jobs:
       - run: bun run test:integration
       - run: bun run api:generate && git diff --exit-code packages/api-client/src/schema.ts
       - run: bun run build
+      - run: docker build -t cinegather-api:0.1.0 -f apps/api/Dockerfile .
+      - run: bun run test:container
       - run: bunx playwright install --with-deps chromium
       - run: bun run test:e2e
       - run: bun tools/check-git.ts

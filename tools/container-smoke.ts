@@ -23,6 +23,36 @@ await writeFile(
   { mode: 0o600 },
 );
 try {
+  const dependencyCheck = Bun.spawn(
+    [
+      "docker",
+      "run",
+      "--rm",
+      "--entrypoint",
+      "node",
+      "cinegather-api:0.1.0",
+      "-e",
+      `const fs = require("node:fs"), path = require("node:path");
+     const forbidden = new Set(["esbuild", "sprintf-js", "drizzle-kit", "electron-builder", "electron", "react", "koffi"]);
+     const present = new Set();
+     function inspect(dir) {
+       for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
+         const filename = path.join(dir, entry.name);
+         if (entry.isDirectory()) inspect(filename);
+         else if (entry.isFile() && entry.name === "package.json") {
+           const pkg = JSON.parse(fs.readFileSync(filename, "utf8"));
+           if (forbidden.has(pkg.name)) present.add(pkg.name);
+         }
+       }
+     }
+     inspect("/app/node_modules");
+     if (present.size) { console.error("Unexpected production dependencies: " + [...present].join(", ")); process.exit(1); }
+     console.log("Production dependency tree excludes development and desktop tools, including nested packages.");`,
+    ],
+    { stdout: "inherit", stderr: "inherit" },
+  );
+  if ((await dependencyCheck.exited) !== 0)
+    throw new Error("Production dependency boundary failed");
   const launch = Bun.spawn(
     [
       "docker",
