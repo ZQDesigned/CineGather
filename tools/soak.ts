@@ -71,6 +71,7 @@ process.once("SIGTERM", () => {
 const startedAt = new Date();
 let mediaStartedAt: Date | undefined;
 let step = "boot";
+let checkpoint: { client?: number; check: string } = { check: "boot" };
 const samples: unknown[] = [];
 const buildHash = createHash("sha256")
   .update(new Uint8Array(await Bun.file("apps/api/dist/main.js").arrayBuffer()))
@@ -84,14 +85,24 @@ const browser = await chromium.launch({
 });
 const pages: Page[] = [];
 try {
-  for (let n = 0; n < 50; n++) {
+  checkpoint = { check: "api-health" };
+  const bootDeadline = Date.now() + 30_000;
+  let ready = false;
+  while (Date.now() < bootDeadline) {
     try {
-      if ((await fetch("http://127.0.0.1:14312/api/v1/health")).ok) break;
+      const response = await fetch("http://127.0.0.1:14312/api/v1/health", {
+        signal: AbortSignal.timeout(Math.min(1500, bootDeadline - Date.now())),
+      });
+      if (response.ok) {
+        ready = true;
+        break;
+      }
     } catch {
       /* Test-owned API boot. */
     }
     await Bun.sleep(100);
   }
+  if (!ready) throw new SoakFailure("BOOT_HEALTH_UNAVAILABLE");
   for (let i = 0; i < 5; i++) {
     step = `create-client-${i + 1}`;
     const context = await browser.newContext({
@@ -269,9 +280,12 @@ try {
   );
   while (!aborted) {
     const sample = [];
-    for (const page of pages) {
+    for (const [client, page] of pages.entries()) {
+      checkpoint = { client: client + 1, check: "member-count" };
       await expect(page.locator(".members-list .member")).toHaveCount(5);
+      checkpoint = { client: client + 1, check: "connection-state" };
       await expect(page.locator(".connection")).toContainText("已连接");
+      checkpoint = { client: client + 1, check: "media-stats" };
       sample.push(
         await page.evaluate(async () => {
           const peers = (
@@ -332,6 +346,7 @@ try {
         }
       | undefined;
     for (let i = 0; i < sample.length; i++) {
+      checkpoint = { client: i + 1, check: "media-continuity" };
       const current = sample[i]!;
       const expectedAudio = i === 0 ? 4 : 5;
       const inboundAudio = current.stats.filter(
@@ -414,12 +429,49 @@ try {
   );
   console.log(`Continuous media passed for ${seconds}s.`);
 } catch (error) {
+  const observations = await Promise.all(
+    pages.map(async (page, client) => {
+      if (page.isClosed()) return { client: client + 1, closed: true };
+      // Restrict diagnostics to fixed state/count fields. Never persist page
+      // text, URLs, SDP, console output, invitation links or credentials.
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      try {
+        const state = await Promise.race([
+          page.evaluate(() => {
+            const connection =
+              document.querySelector(".connection")?.textContent;
+            const video = document.querySelector("video");
+            return {
+              connected: connection?.includes("已连接") ?? false,
+              members: document.querySelectorAll(".members-list .member")
+                .length,
+              audioElements: document.querySelectorAll("audio").length,
+              videoPresent: Boolean(video),
+              videoWidth: video?.videoWidth ?? 0,
+              videoHeight: video?.videoHeight ?? 0,
+              visibility: document.visibilityState,
+            };
+          }),
+          new Promise<never>((_, reject) => {
+            timer = setTimeout(() => reject(new Error("Unavailable")), 2000);
+          }),
+        ]);
+        return { client: client + 1, ...state };
+      } catch {
+        return { client: client + 1, unavailable: true };
+      } finally {
+        clearTimeout(timer);
+      }
+    }),
+  );
   await writeFile(
     `${output}/result.json`,
     JSON.stringify(
       {
         status: aborted ? "interrupted" : "failed",
         step,
+        checkpoint,
+        observations,
         failureCode: aborted
           ? "INTERRUPTED"
           : error instanceof SoakFailure
