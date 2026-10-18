@@ -588,6 +588,29 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
       page.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeVisible();
     await page.locator(".stage").click({ position: { x: 8, y: 8 } });
+    for (const modifier of ["Control", "Alt", "Meta", "Shift"]) {
+      await page.keyboard.down(modifier);
+      await page.keyboard.down("Space");
+      const stayedMuted = await page.evaluate(
+        () =>
+          new Promise<boolean>((resolve) => {
+            let frames = 0;
+            const sample = () => {
+              if (document.querySelector('[aria-label="关闭麦克风"]'))
+                resolve(false);
+              else if (++frames >= 45) resolve(true);
+              else requestAnimationFrame(sample);
+            };
+            sample();
+          }),
+      );
+      expect(
+        stayedMuted,
+        `${modifier}+Space must not create a foreground hold`,
+      ).toBe(true);
+      await page.keyboard.up("Space");
+      await page.keyboard.up(modifier);
+    }
     await page.keyboard.down("Space");
     await expect(
       page.getByRole("button", { name: "关闭麦克风", exact: true }),
@@ -606,6 +629,8 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
     ).toBeVisible();
   } finally {
     await page.keyboard.up("Space");
+    for (const modifier of ["Control", "Alt", "Meta", "Shift"])
+      await page.keyboard.up(modifier);
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   }
 });

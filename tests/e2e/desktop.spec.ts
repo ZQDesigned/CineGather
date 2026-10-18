@@ -278,6 +278,40 @@ test("packaged global hold uses the native state boundary, combines foreground h
     await expect(
       page.getByRole("button", { name: "关闭麦克风", exact: true }),
     ).toBeVisible();
+    // A native global chord containing Space must not also acquire the foreground
+    // plain-Space hold, otherwise releasing a modifier could leave the mic open.
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new KeyboardEvent("keydown", {
+          code: "Space",
+          ctrlKey: true,
+          altKey: true,
+          bubbles: true,
+        }),
+      ),
+    );
+    await app.evaluate(() => {
+      (
+        globalThis as unknown as { holdProbe: { down: boolean } }
+      ).holdProbe.down = false;
+    });
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeVisible();
+    await page.evaluate(() =>
+      document.body.dispatchEvent(
+        new KeyboardEvent("keyup", { code: "Space", bubbles: true }),
+      ),
+    );
+    await press(true);
+    await expect(
+      page.getByRole("button", { name: "关闭麦克风", exact: true }),
+    ).toBeVisible();
+    const releasesBeforeWindow = await app.evaluate(
+      () =>
+        (globalThis as unknown as { holdProbe: { releases: number } }).holdProbe
+          .releases,
+    );
     await page.evaluate(() =>
       document.body.dispatchEvent(
         new KeyboardEvent("keydown", { code: "Space", bubbles: true }),
@@ -297,7 +331,7 @@ test("packaged global hold uses the native state boundary, combines foreground h
               .holdProbe.releases,
         ),
       )
-      .toBeGreaterThan(0);
+      .toBeGreaterThan(releasesBeforeWindow);
     await expect(
       page.getByRole("button", { name: "关闭麦克风", exact: true }),
     ).toBeVisible();

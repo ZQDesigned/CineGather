@@ -41,6 +41,10 @@ export function App() {
         current.settings.pushToTalk &&
         current.roomState === "connected" &&
         event.code === "Space" &&
+        !event.ctrlKey &&
+        !event.altKey &&
+        !event.metaKey &&
+        !event.shiftKey &&
         !event.repeat &&
         !["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(
           (event.target as HTMLElement).tagName,
