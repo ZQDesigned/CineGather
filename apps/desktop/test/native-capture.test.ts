@@ -66,7 +66,7 @@ test("an invalid multi-response packet immediately rejects the pending operation
   expect(killed).toBe(true);
 });
 
-test("whole-screen sharing requires an explicit application for sound and validates fresh source identity", async () => {
+test("screen audio captures the system mix without an application while window audio retains fresh app identity", async () => {
   const { selectNativeSource } = await import("../src/main/native-selection");
   const windows = [
     {
@@ -78,6 +78,13 @@ test("whole-screen sharing requires an explicit application for sound and valida
     },
   ];
   const displays = [{ displayId: 1, name: "显示器 1" }];
+  const screen = selectNativeSource(
+    { sourceId: "native-screen:1", systemAudio: true },
+    [],
+    displays,
+  );
+  expect(screen.displayId).toBe(1);
+  expect(screen.application).toBeUndefined();
   expect(
     selectNativeSource(
       { sourceId: "native:12:34", systemAudio: true },
@@ -87,36 +94,14 @@ test("whole-screen sharing requires an explicit application for sound and valida
   ).toBe("org.player");
   expect(() =>
     selectNativeSource(
-      { sourceId: "native:12:35", systemAudio: false },
+      { sourceId: "native:12:35", systemAudio: true },
       windows,
       displays,
     ),
   ).toThrow();
   expect(() =>
     selectNativeSource(
-      { sourceId: "native-screen:1", systemAudio: true },
-      windows,
-      displays,
-    ),
-  ).toThrow();
-  expect(
-    selectNativeSource(
-      {
-        sourceId: "native-screen:1",
-        systemAudio: true,
-        audioApplication: "org.player",
-      },
-      windows,
-      displays,
-    ).displayId,
-  ).toBe(1);
-  expect(() =>
-    selectNativeSource(
-      {
-        sourceId: "native-screen:1",
-        systemAudio: true,
-        audioApplication: "city.zqdesigned.cinegather",
-      },
+      { sourceId: "native-screen:2", systemAudio: true },
       windows,
       displays,
     ),
@@ -182,18 +167,14 @@ test("development capture excludes the Electron application hosting the room pla
       "com.github.Electron",
     ),
   ).toThrow();
-  expect(() =>
+  expect(
     selectNativeSource(
-      {
-        sourceId: "native-screen:1",
-        systemAudio: true,
-        audioApplication: "com.github.Electron",
-      },
+      { sourceId: "native-screen:1", systemAudio: true },
       windows,
       [{ displayId: 1, name: "显示器 1" }],
       "com.github.Electron",
-    ),
-  ).toThrow();
+    ).application,
+  ).toBeUndefined();
 });
 
 test("source thumbnails preserve native identity, stay bounded and cannot capture unlisted or own sources", async () => {
@@ -247,6 +228,81 @@ const fs=require('node:fs');require('node:readline').createInterface({input:proc
     expect(await capture.sourceThumbnails(["native:12:34"])).toEqual([]);
   } finally {
     await capture.shutdown();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("an exclusion-filter failure stops native capture and revokes its room lease", async () => {
+  const { NativeCapture } = await import("../src/main/native-capture");
+  const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
+    "node:fs/promises"
+  );
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "cg-audio-failure-"));
+  const work = join(root, "state");
+  await mkdir(join(root, "Contents/MacOS"), { recursive: true });
+  await writeFile(
+    join(root, "Contents/MacOS/CGScreenCaptureHost"),
+    `#!/usr/bin/env node
+const fs=require('node:fs');let active=false;require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data={screenPermission:true,outputPhase:active?'active':'stopped',sourceWidth:1920,sourcesActive:active,outputActive:active,audioCaptureError:fs.existsSync(process.argv[2]+'/fail')?'exclusion update failed':''};if(c.type==='windows')data={windows:[],displays:[{displayId:1,name:'Screen'}]};if(c.type==='start'){active=true;fs.writeFileSync(process.argv[2]+'/start',JSON.stringify(c));}if(c.type==='stop'){active=false;fs.writeFileSync(process.argv[2]+'/stopped','');}console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});
+`,
+    { mode: 0o755 },
+  );
+  let revoked = 0,
+    ended = 0;
+  const expiresAt = new Date(Date.now() + 20000).toISOString();
+  const server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    fetch(request) {
+      if (request.method === "DELETE") {
+        revoked++;
+        return Response.json({ ok: true });
+      }
+      return Response.json({
+        url: "https://example.invalid/local-disposable-whip",
+        token: "test-only",
+        identity: "test-only",
+        expiresAt,
+      });
+    },
+  });
+  const capture = new NativeCapture(
+    root,
+    work,
+    () => {
+      ended++;
+    },
+    "city.zqdesigned.cinegather",
+  );
+  try {
+    await capture.select({ sourceId: "native-screen:1", systemAudio: true });
+    await capture.start({
+      apiUrl: `http://127.0.0.1:${server.port}`,
+      sessionToken: "test-only",
+      roomId: crypto.randomUUID(),
+      quality: "cinema",
+      lease: {
+        leaseId: crypto.randomUUID(),
+        holderUserId: crypto.randomUUID(),
+        expiresAt,
+        revision: 1,
+      },
+    });
+    const command = JSON.parse(await readFile(join(work, "start"), "utf8"));
+    expect(command.systemAudio).toBe(true);
+    expect(command.application).toBeUndefined();
+    expect(command.excludedApplication).toBe("city.zqdesigned.cinegather");
+    await writeFile(join(work, "fail"), "");
+    for (let i = 0; i < 60 && !ended; i++)
+      await new Promise((r) => setTimeout(r, 50));
+    expect(ended).toBe(1);
+    expect(revoked).toBe(1);
+    expect(await readFile(join(work, "stopped"), "utf8")).toBe("");
+  } finally {
+    await capture.shutdown();
+    server.stop(true);
     await rm(root, { recursive: true, force: true });
   }
 });

@@ -113,6 +113,12 @@ static void stopCapture() {
   obs_wait_for_destroy_queue();
 }
 static NSDictionary *status() {
+  bool audioFailed = false;
+  if (audioSource) {
+    obs_data_t *state = obs_source_get_private_settings(audioSource);
+    audioFailed = obs_data_get_bool(state, "cg_audio_exclusion_failed");
+    obs_data_release(state);
+  }
   NSMutableArray *images = [NSMutableArray array];
   for (uint32_t i = 0; i < _dyld_image_count(); i++) {
     NSString *p = [NSString stringWithUTF8String:_dyld_get_image_name(i)];
@@ -139,6 +145,8 @@ static NSDictionary *status() {
     @"sourcesActive" : @(windowSource != nullptr),
     @"videoSourceActive" : @(windowSource && obs_source_active(windowSource)),
     @"audioSourceActive" : @(audioSource && obs_source_active(audioSource)),
+    @"audioSourceMuted" : @(audioSource && obs_source_muted(audioSource)),
+    @"audioCaptureError" : audioFailed ? @"系统声音排除规则更新失败，请重新共享" : @"",
     @"audioBlocks" : @(audioBlocks.load()),
     @"audioPeak" : @(audioPeak.load()),
     @"outputActive" : @(output && obs_output_active(output)),
@@ -403,6 +411,10 @@ static void startCapture(NSDictionary *config) {
   check(!output, "Stop the existing output first");
   check(CGPreflightScreenCaptureAccess(),
         "请在系统设置中允许 CGScreenCaptureHost 录屏与系统录音后重试");
+  if (config[@"displayId"] && [config[@"systemAudio"] boolValue]) {
+    if (@available(macOS 14.2, *)) {} else
+      check(false, "排除映聚的系统声音共享需要 macOS 14.2 或更新版本");
+  }
   int timeout = [config[@"remainingMs"] intValue];
   check(timeout > 0 && timeout <= 30000, "Invalid lease deadline");
   deadlineNs = monotonicNs() + int64_t(timeout) * 1000000;
@@ -433,13 +445,6 @@ static void startCapture(NSDictionary *config) {
     for (NSDictionary *d in enumerateDisplays())
       if ([d[@"displayId"] isEqual:displayId])
         valid = true;
-    if ([config[@"systemAudio"] boolValue]) {
-      bool audioValid = false;
-      for (NSDictionary *w in windows)
-        if ([w[@"bundleId"] isEqual:bundleId])
-          audioValid = true;
-      check(audioValid, "声音来源应用已关闭");
-    }
   }
   check(valid, "共享来源已关闭，请重新选择");
   audioBlocks = 0;
@@ -464,12 +469,16 @@ static void startCapture(NSDictionary *config) {
   vec2_set(&bounds, width, height);
   obs_sceneitem_set_bounds(item, &bounds);
   if ([config[@"systemAudio"] boolValue]) {
-    obs_data_t *as = settings(@{@"type" : @1, @"application" : bundleId});
+    obs_data_t *as = settings(@{
+      @"type" : displayId ? @0 : @1,
+      @"application" : bundleId ?: @"",
+      @"excluded_application" : config[@"excludedApplication"] ?: @"city.zqdesigned.cinegather"
+    });
     audioSource =
         obs_source_create("sck_audio_capture",
-                          "CineGather native application audio", as, nullptr);
+                          "CineGather native shared audio", as, nullptr);
     obs_data_release(as);
-    check(audioSource, "Application audio source creation failed");
+    check(audioSource, "声音采集启动失败，请检查 CGScreenCaptureHost 的系统录音权限");
     obs_source_set_audio_mixers(audioSource, 1);
     obs_source_add_audio_capture_callback(audioSource, audioMeter, nullptr);
     obs_scene_add(scene, audioSource);

@@ -220,3 +220,68 @@ test("native preview loading ignores stale category and closed-picker results an
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   }
 });
+
+test("native screen audio is a system mix and window audio remains app-scoped", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await page.getByLabel("你的昵称").fill("系统声音组件回归");
+  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("系统声音组件回归");
+  await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "选择屏幕开始共享" }),
+  ).toBeEnabled();
+  await page.evaluate(() =>
+    Object.assign(window, {
+      desktop: {
+        platform: "darwin",
+        nativeCapture: true,
+        sources: async () => [
+          {
+            id: "native-screen:1",
+            kind: "screen",
+            name: "显示器 1",
+            thumbnail: "",
+          },
+          {
+            id: "native:12:34",
+            kind: "window",
+            name: "受控窗口",
+            thumbnail: "",
+          },
+        ],
+        sourceThumbnails: async () => [],
+        cancelCapture: async () => {},
+        setSharing: async () => {},
+      },
+    }),
+  );
+  try {
+    await page.getByRole("button", { name: "选择屏幕开始共享" }).click();
+    await expect(
+      page.getByRole("checkbox", { name: "共享此应用的声音", exact: true }),
+    ).toBeVisible();
+    await page.getByRole("tab", { name: "整个屏幕", exact: true }).click();
+    await page
+      .getByRole("checkbox", { name: "共享系统声音（排除映聚）", exact: true })
+      .check();
+    await expect(
+      page.getByRole("button", { name: "确认共享", exact: true }),
+    ).toBeEnabled();
+    await expect(
+      page.getByRole("combobox", { name: "声音来源应用" }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("dialog")).toContainText(
+      "映聚的房间语音和播放声音不会被采集",
+    );
+    await page.getByRole("tab", { name: "应用窗口", exact: true }).click();
+    await expect(
+      page.getByRole("checkbox", { name: "共享此应用的声音", exact: true }),
+    ).toBeChecked();
+  } finally {
+    await page.getByRole("button", { name: "取消", exact: true }).click();
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  }
+});

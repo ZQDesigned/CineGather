@@ -228,24 +228,13 @@ function SourcePicker() {
     app.sources.find((s) => s.kind === (native ? "window" : "screen"))?.id ??
       "",
   );
-  const [audioApplication, setAudioApplication] = useState("");
   const selectedScreen =
     app.sources.find((s) => s.id === selected)?.kind === "screen";
-  const audioApplications = [
-    ...new Map(
-      app.sources
-        .filter((s) => s.applicationId)
-        .map((s) => [s.applicationId!, s.application!]),
-    ).entries(),
-  ];
   const choose = () =>
     void actions.run(() =>
       actions.chooseSource({
         sourceId: selected,
         systemAudio: app.systemAudio,
-        ...(native && selectedScreen && app.systemAudio
-          ? { audioApplication }
-          : {}),
       }),
     );
   const sources = (category: string) => {
@@ -328,16 +317,7 @@ function SourcePicker() {
           <Button
             type="primary"
             icon={<Monitor size={17} />}
-            disabled={
-              !selected ||
-              app.busy ||
-              Boolean(
-                native &&
-                  selectedScreen &&
-                  app.systemAudio &&
-                  !audioApplication,
-              )
-            }
+            disabled={!selected || app.busy}
             onClick={choose}
           >
             确认共享
@@ -386,31 +366,17 @@ function SourcePicker() {
         >
           {native
             ? selectedScreen
-              ? "共享指定应用的声音"
+              ? "共享系统声音（排除映聚）"
               : "共享此应用的声音"
             : "共享系统声音"}
         </Checkbox>
         <p className="field-help">与麦克风独立传输，观看端可单独调节。</p>
-        {native && selectedScreen && app.systemAudio && (
-          <Form layout="vertical">
-            <Form.Item label="声音来源应用" required>
-              <Select
-                aria-label="声音来源应用"
-                value={audioApplication || undefined}
-                placeholder="请选择应用"
-                onChange={setAudioApplication}
-                options={audioApplications.map(([value, label]) => ({
-                  value,
-                  label,
-                }))}
-              />
-            </Form.Item>
-          </Form>
-        )}
       </div>
       <p className="form-note">
         {window.desktop?.platform === "darwin"
-          ? "请保持共享窗口展开。开启声音会采集该应用的所有窗口或标签页；映聚语音不会被采集。"
+          ? selectedScreen
+            ? "共享系统正在播放的声音；映聚的房间语音和播放声音不会被采集。麦克风仍由语音开关单独控制。"
+            : "请保持共享窗口展开。开启声音会采集该应用的所有窗口或标签页；映聚语音不会被采集。"
           : "共享声音包含系统正在播放的声音，建议佩戴耳机。"}
       </p>
     </ModalShell>

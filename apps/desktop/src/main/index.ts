@@ -205,7 +205,6 @@ function registerIPC() {
       .strictObject({
         sourceId: z.string().max(256),
         systemAudio: z.boolean(),
-        audioApplication: z.string().max(256).optional(),
       })
       .parse(input);
     if (nativeCapture) {

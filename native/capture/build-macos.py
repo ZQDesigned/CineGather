@@ -43,10 +43,22 @@ expected=json.loads((root/'native/capture/runtime-lock.json').read_text())['bina
 if runtime_hashes!=expected:raise RuntimeError('OBS runtime differs from the pinned macOS arm64 distribution')
 (generated/'obsconfig.h').write_text('#pragma once\n#define OBS_DATA_PATH "data"\n#define OBS_PLUGIN_PATH "plugins"\n#define OBS_PLUGIN_DESTINATION "plugins"\n#define OBS_RELEASE_CANDIDATE 0\n#define OBS_BETA 0\n#define OBS_INSTALL_PREFIX ""\n')
 # Retain the explicitly granted development identity; production signing must use a stable identity.
-info={'CFBundleIdentifier':'city.zqdesigned.cinegather.libobsprobe','CFBundleName':'CGScreenCaptureHost','CFBundleDisplayName':'CGScreenCaptureHost','CFBundleExecutable':'CGScreenCaptureHost','CFBundlePackageType':'APPL','CFBundleVersion':'0.1.0','CFBundleShortVersionString':'0.1.0','NSHighResolutionCapable':True,'LSUIElement':True,'LSMinimumSystemVersion':'13.0','NSScreenCaptureUsageDescription':'映聚需要录制你在应用中选择的共享窗口。','NSAudioCaptureUsageDescription':'映聚只采集你选择的应用声音。'}
+info={'CFBundleIdentifier':'city.zqdesigned.cinegather.libobsprobe','CFBundleName':'CGScreenCaptureHost','CFBundleDisplayName':'CGScreenCaptureHost','CFBundleExecutable':'CGScreenCaptureHost','CFBundlePackageType':'APPL','CFBundleVersion':'0.1.0','CFBundleShortVersionString':'0.1.0','NSHighResolutionCapable':True,'LSUIElement':True,'LSMinimumSystemVersion':'13.0','NSScreenCaptureUsageDescription':'映聚需要录制你在应用中选择的共享窗口。','NSAudioCaptureUsageDescription':'映聚共享系统或所选应用的声音，并排除映聚自身的声音。'}
 (contents/'Info.plist').write_bytes(plistlib.dumps(info))
 common=['clang++','-std=c++17','-arch','arm64','-mmacosx-version-min=13.0','-O2','-Wno-nullability-completeness','-Wno-incompatible-pointer-types','-I'+str(vendor/'obs-studio-32.2.2/libobs'),'-I'+str(vendor/'simde-0.8.2'),'-I'+str(generated),'-I'+str(root/'native/capture'),'-F'+str(frameworks)]
 subprocess.run(common+['-fobjc-arc',str(root/'native/capture/host.mm'),'-framework','libobs','-framework','AppKit','-framework','ScreenCaptureKit','-framework','CoreGraphics','-framework','CoreMedia','-framework','CoreVideo','-Wl,-rpath,@executable_path/../Frameworks','-o',str(contents/'MacOS/CGScreenCaptureHost')],check=True)
+# Rebuild the pinned OBS mac-capture plugin with only the system-audio filter extended.
+mac_capture=work/'mac-capture'
+if mac_capture.exists():shutil.rmtree(mac_capture)
+shutil.copytree(vendor/'obs-studio-32.2.2/plugins/mac-capture',mac_capture)
+subprocess.run(['python3',str(root/'native/capture/patch-mac-audio.py'),str(mac_capture)],check=True)
+objects=[]
+for name in ['audio-device-enum.c','mac-audio.c','mac-display-capture.m','mac-sck-audio-capture.m','mac-sck-common.m','mac-sck-video-capture.m','mac-window-capture.m','plugin-main.c','window-utils.m']:
+ obj=mac_capture/(name+'.o');objects.append(str(obj))
+ subprocess.run(['clang','-arch','arm64','-mmacosx-version-min=13.0','-O2','-fvisibility=hidden','-Wno-deprecated-declarations','-I'+str(vendor/'obs-studio-32.2.2/libobs'),'-I'+str(vendor/'simde-0.8.2'),'-I'+str(generated),'-I'+str(root/'native/capture'),'-F'+str(frameworks),'-c',str(mac_capture/name),'-o',str(obj)],check=True)
+obj=mac_capture/'process-audio.o';objects.append(str(obj))
+subprocess.run(['clang++','-std=c++17','-fobjc-arc','-arch','arm64','-mmacosx-version-min=13.0','-O2','-fvisibility=hidden','-I'+str(vendor/'obs-studio-32.2.2/libobs'),'-I'+str(vendor/'simde-0.8.2'),'-I'+str(generated),'-F'+str(frameworks),'-c',str(root/'native/capture/process-audio.mm'),'-o',str(obj)],check=True)
+subprocess.run(['clang++','-dynamiclib','-arch','arm64','-mmacosx-version-min=13.0',*objects,'-F'+str(frameworks),*[a for n in ['libobs','AudioUnit','Cocoa','CoreAudio','AudioToolbox','CoreFoundation','CoreGraphics','CoreMedia','CoreVideo','IOSurface','ScreenCaptureKit'] for a in ['-framework',n]],'-Wl,-rpath,@loader_path/../../../Frameworks','-o',str(plugins/'mac-capture.plugin/Contents/MacOS/mac-capture')],check=True)
 whip=work/'whip';whip.mkdir(exist_ok=True)
 for name in ['obs-webrtc.cpp','whip-output.cpp','whip-output.h','whip-service.cpp','whip-service.h','whip-utils.h']:shutil.copy2(vendor/'obs-studio-32.2.2/plugins/obs-webrtc'/name,whip/name)
 subprocess.run(['python3',str(root/'native/capture/patch-whip.py'),str(whip)],check=True)
@@ -59,8 +71,9 @@ shutil.copy2(vendor/'obs-studio-32.2.2/COPYING',resources/'COPYING-OBS.txt')
 source_dir=resources/'source';source_dir.mkdir()
 shutil.copytree(root/'native/capture',source_dir/'cinegather',ignore=shutil.ignore_patterns('__pycache__'))
 shutil.copytree(whip,source_dir/'obs-webrtc-modified')
+shutil.copytree(mac_capture,source_dir/'mac-capture-modified',ignore=shutil.ignore_patterns('*.o'))
 for name,_,_ in pins:shutil.copy2(vendor/(name+'.tar.gz'),source_dir/(name+'.tar.gz'))
-manifest={'obsVersion':'32.2.2','sources':[{'name':n,'url':u,'sha256':h} for n,u,h in pins],'runtimeInputSha256':runtime_hashes,'hostSourceSha256':hashlib.sha256((root/'native/capture/host.mm').read_bytes()).hexdigest(),'plugins':plugin_names,'sync':'absolute-rtp-and-capture-ntp-v1','distribution':'local-development; full third-party runtime corresponding-source audit required before public release'}
+manifest={'obsVersion':'32.2.2','sources':[{'name':n,'url':u,'sha256':h} for n,u,h in pins],'runtimeInputSha256':runtime_hashes,'hostSourceSha256':hashlib.sha256((root/'native/capture/host.mm').read_bytes()).hexdigest(),'plugins':plugin_names,'sync':'absolute-rtp-and-capture-ntp-v1','systemAudio':'Core Audio process tap (macOS 14.2+) feeding OBS, CineGather process-family exclusions','distribution':'local-development; full third-party runtime corresponding-source audit required before public release'}
 (resources/'manifest.json').write_text(json.dumps(manifest,indent=2))
 subprocess.run(['codesign','--force','--deep','--sign',os.getenv('CINEGATHER_SIGN_IDENTITY','-'),str(app)],check=True)
 print(str(app))

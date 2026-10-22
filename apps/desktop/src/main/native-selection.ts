@@ -16,7 +16,11 @@ export function selectNativeSource(
   displays: NativeDisplay[],
   excludedApplication?: string,
 ) {
-  windows = windows.filter((window) => window.bundleId !== excludedApplication);
+  windows = windows.filter(
+    (window) =>
+      !window.bundleId.startsWith("city.zqdesigned.cinegather") &&
+      window.bundleId !== excludedApplication,
+  );
   const window = windows.find(
     (w) => `native:${w.windowId}:${w.pid}` === selection.sourceId,
   );
@@ -24,14 +28,7 @@ export function selectNativeSource(
     (d) => `native-screen:${d.displayId}` === selection.sourceId,
   );
   if (!window && !display) throw new Error("共享来源已关闭，请重新选择");
-  const application = window?.bundleId ?? selection.audioApplication;
-  if (
-    selection.systemAudio &&
-    (!application ||
-      application.startsWith("city.zqdesigned.cinegather") ||
-      !windows.some((w) => w.bundleId === application))
-  )
-    throw new Error("请明确选择要共享声音的应用");
+  const application = window?.bundleId;
   return {
     window,
     displayId: display?.displayId,

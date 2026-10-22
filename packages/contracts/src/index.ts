@@ -132,7 +132,6 @@ export type CaptureThumbnail = { id: string; thumbnail: string };
 export type CaptureSelection = {
   sourceId: string;
   systemAudio: boolean;
-  audioApplication?: string;
 };
 export interface DesktopSettings {
   minimizeToTray: boolean;

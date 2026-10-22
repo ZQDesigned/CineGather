@@ -26,6 +26,7 @@ const windowSchema = z.object({
 });
 type NativeWindow = z.infer<typeof windowSchema>;
 type Status = {
+  audioCaptureError?: string;
   screenPermission: boolean;
   outputPhase: string;
   sourceWidth: number;
@@ -276,6 +277,7 @@ export class NativeCapture {
         displayId: selection.displayId,
         application: selection.application,
         systemAudio: selection.systemAudio,
+        excludedApplication: this.ownApplication,
         quality: context.quality,
         server: publication.url,
         token: publication.token,
@@ -287,6 +289,7 @@ export class NativeCapture {
       const until = Date.now() + 12_000;
       while (epoch === this.epoch && Date.now() < until) {
         const status = await pipe.call<Status>({ type: "status" });
+        if (status.audioCaptureError) throw new Error(status.audioCaptureError);
         if (status.outputPhase === "failed" || status.outputPhase === "stopped")
           throw new Error("原生推流未连接，请检查服务和采集权限");
         if (status.outputPhase === "active" && status.sourceWidth > 0) {
@@ -354,6 +357,7 @@ export class NativeCapture {
           throw new Error("共享窗口已关闭");
       }
       if (
+        Boolean(status.audioCaptureError) ||
         !status.screenPermission ||
         !status.outputActive ||
         !status.sourcesActive
