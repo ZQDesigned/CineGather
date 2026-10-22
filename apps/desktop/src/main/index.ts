@@ -455,10 +455,10 @@ else {
       if (process.platform === "darwin")
         nativeCapture = new NativeCapture(
           app.isPackaged
-            ? join(process.resourcesPath, "capture/CineGatherLibobsHost.app")
+            ? join(process.resourcesPath, "capture/CGScreenCaptureHost.app")
             : resolve(
                 __dirname,
-                "../../../../.local/native-runtime/CineGatherLibobsHost.app",
+                "../../../../.local/native-runtime/CGScreenCaptureHost.app",
               ),
           join(app.getPath("userData"), "capture"),
           () => sendAction("stop-share"),

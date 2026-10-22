@@ -131,7 +131,7 @@ test("canceling source selection discards a delayed native enumeration result", 
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
   const root = await mkdtemp(join(tmpdir(), "cg-selection-"));
-  const executable = join(root, "Contents/MacOS/CineGatherLibobsHost");
+  const executable = join(root, "Contents/MacOS/CGScreenCaptureHost");
   const state = join(root, "state");
   await mkdir(join(root, "Contents/MacOS"), { recursive: true });
   await writeFile(

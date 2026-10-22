@@ -8,10 +8,10 @@ if (process.platform !== "darwin")
 const work = await mkdtemp(join(tmpdir(), "cg-native-smoke-"));
 const bundle = resolve(
   process.env.CINEGATHER_NATIVE_BUNDLE ??
-    "apps/desktop/release/mac-arm64/CineGather.app/Contents/Resources/capture/CineGatherLibobsHost.app",
+    "apps/desktop/release/mac-arm64/CineGather.app/Contents/Resources/capture/CGScreenCaptureHost.app",
 );
 const child = spawn(
-  join(bundle, "Contents/MacOS/CineGatherLibobsHost"),
+  join(bundle, "Contents/MacOS/CGScreenCaptureHost"),
   [work],
   { stdio: "pipe" },
 );
@@ -65,7 +65,7 @@ try {
   if (process.env.CINEGATHER_CAPTURE_TEST === "1") {
     check(
       initial.screenPermission,
-      "Grant screen/system audio recording to CineGatherLibobsHost before capture tests",
+      "Grant screen/system audio recording to CGScreenCaptureHost before capture tests",
     );
     const sources = await pipe.call<{
       windows: {

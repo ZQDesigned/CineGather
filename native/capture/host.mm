@@ -114,7 +114,7 @@ static NSDictionary *status() {
   NSMutableArray *images = [NSMutableArray array];
   for (uint32_t i = 0; i < _dyld_image_count(); i++) {
     NSString *p = [NSString stringWithUTF8String:_dyld_get_image_name(i)];
-    if ([p containsString:@"CineGatherLibobsHost.app"] ||
+    if ([p containsString:@"CGScreenCaptureHost.app"] ||
         [p hasPrefix:@"/Applications/OBS.app"])
       [images addObject:p];
   }
@@ -270,7 +270,7 @@ static void initEngine() {
 static void startCapture(NSDictionary *config) {
   check(!output, "Stop the existing output first");
   check(CGPreflightScreenCaptureAccess(),
-        "请在系统设置中允许 CineGatherLibobsHost 录屏与系统录音后重试");
+        "请在系统设置中允许 CGScreenCaptureHost 录屏与系统录音后重试");
   int timeout = [config[@"remainingMs"] intValue];
   check(timeout > 0 && timeout <= 30000, "Invalid lease deadline");
   deadlineNs = monotonicNs() + int64_t(timeout) * 1000000;

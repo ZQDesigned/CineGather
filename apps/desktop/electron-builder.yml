@@ -30,8 +30,8 @@ mac:
   hardenedRuntime: true
   identity: null
   extraResources:
-    - from: ../../.local/native-runtime/CineGatherLibobsHost.app
-      to: capture/CineGatherLibobsHost.app
+    - from: ../../.local/native-runtime/CGScreenCaptureHost.app
+      to: capture/CGScreenCaptureHost.app
     - from: ../../node_modules/@koromix/koffi-darwin-arm64
       to: native/node_modules/@koromix/koffi-darwin-arm64
   extendInfo:

@@ -58,7 +58,7 @@ export class NativeCapture {
     this.boot = (async () => {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
       const child = spawn(
-        join(this.bundle, "Contents/MacOS/CineGatherLibobsHost"),
+        join(this.bundle, "Contents/MacOS/CGScreenCaptureHost"),
         [this.directory],
         { stdio: "pipe" },
       );
@@ -103,7 +103,7 @@ export class NativeCapture {
     if (!status.screenPermission) {
       await pipe.call({ type: "requestPermission" });
       throw new Error(
-        "请在系统设置 → 隐私与安全 → 录屏与系统录音中允许 CineGatherLibobsHost，退出并重新打开后重试",
+        "请在系统设置 → 隐私与安全 → 录屏与系统录音中允许 CGScreenCaptureHost，退出并重新打开后重试",
       );
     }
     const data = z

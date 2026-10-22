@@ -15,7 +15,7 @@ source=pathlib.Path(os.getenv('CINEGATHER_OBS_APP','/Applications/OBS.app'))/'Co
 info=plistlib.loads((source/'Info.plist').read_bytes())
 if info['CFBundleShortVersionString']!='32.2.2':raise RuntimeError('OBS runtime must be version 32.2.2')
 subprocess.run(['codesign','--verify','--deep','--strict',str(source.parent)],check=True)
-app=work/'CineGatherLibobsHost.app';contents=app/'Contents';frameworks=contents/'Frameworks';plugins=contents/'PlugIns';generated=work/'generated'
+app=work/'CGScreenCaptureHost.app';contents=app/'Contents';frameworks=contents/'Frameworks';plugins=contents/'PlugIns';generated=work/'generated'
 if app.exists():shutil.rmtree(app)
 for p in [contents/'MacOS',frameworks,plugins,generated]:p.mkdir(parents=True,exist_ok=True)
 copied=set(); binaries=[];runtime_hashes={}
@@ -43,10 +43,10 @@ expected=json.loads((root/'native/capture/runtime-lock.json').read_text())['bina
 if runtime_hashes!=expected:raise RuntimeError('OBS runtime differs from the pinned macOS arm64 distribution')
 (generated/'obsconfig.h').write_text('#pragma once\n#define OBS_DATA_PATH "data"\n#define OBS_PLUGIN_PATH "plugins"\n#define OBS_PLUGIN_DESTINATION "plugins"\n#define OBS_RELEASE_CANDIDATE 0\n#define OBS_BETA 0\n#define OBS_INSTALL_PREFIX ""\n')
 # Retain the explicitly granted development identity; production signing must use a stable identity.
-info={'CFBundleIdentifier':'city.zqdesigned.cinegather.libobsprobe','CFBundleName':'CineGatherLibobsHost','CFBundleExecutable':'CineGatherLibobsHost','CFBundlePackageType':'APPL','CFBundleVersion':'0.1.0','CFBundleShortVersionString':'0.1.0','NSHighResolutionCapable':True,'LSUIElement':True,'LSMinimumSystemVersion':'13.0','NSScreenCaptureUsageDescription':'映聚需要录制你在应用中选择的共享窗口。','NSAudioCaptureUsageDescription':'映聚只采集你选择的应用声音。'}
+info={'CFBundleIdentifier':'city.zqdesigned.cinegather.libobsprobe','CFBundleName':'CGScreenCaptureHost','CFBundleDisplayName':'CGScreenCaptureHost','CFBundleExecutable':'CGScreenCaptureHost','CFBundlePackageType':'APPL','CFBundleVersion':'0.1.0','CFBundleShortVersionString':'0.1.0','NSHighResolutionCapable':True,'LSUIElement':True,'LSMinimumSystemVersion':'13.0','NSScreenCaptureUsageDescription':'映聚需要录制你在应用中选择的共享窗口。','NSAudioCaptureUsageDescription':'映聚只采集你选择的应用声音。'}
 (contents/'Info.plist').write_bytes(plistlib.dumps(info))
 common=['clang++','-std=c++17','-arch','arm64','-mmacosx-version-min=13.0','-O2','-Wno-nullability-completeness','-Wno-incompatible-pointer-types','-I'+str(vendor/'obs-studio-32.2.2/libobs'),'-I'+str(vendor/'simde-0.8.2'),'-I'+str(generated),'-I'+str(root/'native/capture'),'-F'+str(frameworks)]
-subprocess.run(common+['-fobjc-arc',str(root/'native/capture/host.mm'),'-framework','libobs','-framework','AppKit','-framework','ScreenCaptureKit','-framework','CoreGraphics','-Wl,-rpath,@executable_path/../Frameworks','-o',str(contents/'MacOS/CineGatherLibobsHost')],check=True)
+subprocess.run(common+['-fobjc-arc',str(root/'native/capture/host.mm'),'-framework','libobs','-framework','AppKit','-framework','ScreenCaptureKit','-framework','CoreGraphics','-Wl,-rpath,@executable_path/../Frameworks','-o',str(contents/'MacOS/CGScreenCaptureHost')],check=True)
 whip=work/'whip';whip.mkdir(exist_ok=True)
 for name in ['obs-webrtc.cpp','whip-output.cpp','whip-output.h','whip-service.cpp','whip-service.h','whip-utils.h']:shutil.copy2(vendor/'obs-studio-32.2.2/plugins/obs-webrtc'/name,whip/name)
 subprocess.run(['python3',str(root/'native/capture/patch-whip.py'),str(whip)],check=True)
