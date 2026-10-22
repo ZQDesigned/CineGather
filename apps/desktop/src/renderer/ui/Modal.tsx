@@ -7,11 +7,13 @@ export function ModalShell({
   subtitle,
   children,
   wide = false,
+  footer = null,
 }: {
   title: string;
   subtitle?: string;
   children: ReactNode;
   wide?: boolean;
+  footer?: ReactNode;
 }) {
   const trigger = useRef(
     document.activeElement instanceof HTMLElement
@@ -35,9 +37,10 @@ export function ModalShell({
   return (
     <Modal
       open
+      className="cinema-dialog"
       centered
-      width={wide ? 720 : 460}
-      footer={null}
+      width={wide ? 760 : 480}
+      footer={footer}
       onCancel={close}
       destroyOnHidden
       getContainer={false}

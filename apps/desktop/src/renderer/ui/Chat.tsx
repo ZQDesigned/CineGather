@@ -1,4 +1,4 @@
-import { Button, Input } from "./Controls";
+import { Button, Input, Empty, Tooltip } from "antd";
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, Send } from "lucide-react";
 import { useApp } from "../store";
@@ -40,14 +40,11 @@ export function Chat() {
     <div className="chat">
       <div className="chat-messages">
         {!items.length && (
-          <div className="chat-empty">
-            <MessageCircle size={25} />
-            <p>
-              第一句“在吗”，
-              <br />
-              就从这里开始。
-            </p>
-          </div>
+          <Empty
+            className="chat-empty"
+            image={<MessageCircle size={28} />}
+            description="第一句“在吗”，就从这里开始。"
+          />
         )}
         {items.map((item) => (
           <article className="chat-message" key={item.id}>
@@ -96,13 +93,16 @@ export function Chat() {
           onChange={(event) => setBody(event.target.value)}
           maxLength={2000}
         />
-        <Button
-          className="icon-button"
-          aria-label="发送消息"
-          disabled={!body.trim() || sending}
-        >
-          <Send size={17} />
-        </Button>
+        <Tooltip title="发送消息">
+          <Button
+            htmlType="submit"
+            type="primary"
+            aria-label="发送消息"
+            disabled={!body.trim() || sending}
+          >
+            <Send size={17} />
+          </Button>
+        </Tooltip>
       </form>
     </div>
   );

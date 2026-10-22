@@ -42,14 +42,23 @@ test("two independent clients join a real LiveKit room, synchronize microphone a
     await expect(
       page.locator(".member").filter({ hasText: "小聚" }),
     ).toContainText("麦克风已关闭");
-    await page.getByRole("button", { name: "聊天", exact: true }).click();
-    await friend.getByRole("button", { name: "聊天", exact: true }).click();
+    const memberVolume = page.getByRole("slider", {
+      name: "小聚的音量",
+      exact: true,
+    });
+    await memberVolume.press("Home");
+    await memberVolume.press("ArrowRight");
+    await expect(memberVolume).toHaveAttribute("aria-valuenow", "1");
+    await page.getByRole("tab", { name: "聊天", exact: true }).click();
+    await friend.getByRole("tab", { name: "聊天", exact: true }).click();
     await friend.getByLabel("聊天消息").fill("今晚一起看！");
     await friend.getByRole("button", { name: "发送消息" }).click();
     await expect(page.locator(".chat-message")).toContainText("今晚一起看！");
     await page.screenshot({ path: ".local/room-ui.png", fullPage: true });
+    await page.getByRole("tab", { name: /成员/ }).click();
+    await expect(memberVolume).toHaveAttribute("aria-valuenow", "1");
     await friend.getByRole("button", { name: "离开房间" }).click();
-    await page.getByRole("button", { name: /成员/ }).click();
+    await page.getByRole("tab", { name: /成员/ }).click();
     await expect(page.locator(".members-list .member")).toHaveCount(1);
     await expect(page.locator("audio[data-cinegather-audio]")).toHaveCount(0);
   } finally {
@@ -73,7 +82,7 @@ test("settings device tests release captured microphone when the dialog closes",
     };
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "停止测试", exact: true }),
@@ -394,7 +403,7 @@ test("closing settings while microphone permission is pending releases the late 
     };
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
   const ended = () =>
     page.evaluate(() => {
@@ -472,7 +481,7 @@ test("a removed output device does not leave the speaker test audio context open
     };
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page
     .getByRole("combobox", { name: "扬声器 / 耳机", exact: true })
     .click();
@@ -583,6 +592,7 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
     await page
       .getByRole("button", { name: "音频设备设置", exact: true })
       .click();
+    await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await page.getByRole("checkbox", { name: /^按键说话/ }).check();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await expect(
@@ -641,7 +651,7 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
       page.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "开启麦克风", exact: true }).click();
-    await page.getByRole("button", { name: "聊天", exact: true }).click();
+    await page.getByRole("tab", { name: "聊天", exact: true }).click();
     await page
       .getByRole("textbox", { name: "聊天消息", exact: true })
       .press("Space");
@@ -765,6 +775,7 @@ test("push-to-talk released during an SFU outage stays muted after reconnection"
   await page.getByLabel("房间名称").fill("重连静音意图测试");
   await page.getByRole("button", { name: "创建并进入" }).click();
   await page.getByRole("button", { name: "音频设备设置", exact: true }).click();
+  await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await page.getByRole("checkbox", { name: /^按键说话/ }).check();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await expect(
@@ -904,6 +915,7 @@ test("a hotkey status failure cannot disable the user's saved push-to-talk mode"
     });
   });
   await page.goto("/");
-  await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await expect(page.getByRole("checkbox", { name: "按键说话" })).toBeChecked();
 });

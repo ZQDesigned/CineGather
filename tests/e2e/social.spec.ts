@@ -41,13 +41,13 @@ test("friends and owner moderation work across independent real room clients", a
     ).toHaveCount(0);
     await page.getByRole("button", { name: "添加社交成员为好友" }).click();
     await expect(page.getByRole("status")).toContainText("好友请求已发送");
-    await friend.getByRole("button", { name: "好友", exact: true }).click();
-    const friendId = await friend.locator(".id-copy small").textContent();
+    await friend.getByRole("menuitem", { name: "好友", exact: true }).click();
+    const friendId = await friend.locator(".identity-card code").textContent();
     await expect(friend.locator(".friend")).toContainText("社交房主");
     await friend.getByRole("button", { name: "接受", exact: true }).click();
     await expect(friend.locator(".friend")).toContainText("已成为好友");
     await friend.getByRole("button", { name: "关闭对话框" }).click();
-    await page.getByRole("button", { name: "好友", exact: true }).click();
+    await page.getByRole("menuitem", { name: "好友", exact: true }).click();
     await expect(page.locator(".friend")).toContainText("社交成员");
     await expect(page.locator(".friend")).toContainText("已成为好友");
     await page

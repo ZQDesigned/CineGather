@@ -1,4 +1,4 @@
-import { Slider, Alert } from "antd";
+import { Slider, Alert, Tabs, Avatar, Tooltip, Tag, Badge } from "antd";
 import { Button } from "./Controls";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -32,7 +32,9 @@ import { Chat } from "./Chat";
 export function Room() {
   const app = useApp();
   const stage = useRef<HTMLDivElement>(null);
-  const [tab, setTab] = useState<"members" | "chat">("members");
+  const [memberVolumes, setMemberVolumes] = useState<Record<string, number>>(
+    {},
+  );
   const local = app.media.participants.find((p) => p.local);
   const sharing = [
     "acquiringLease",
@@ -56,42 +58,46 @@ export function Room() {
           </span>
           <h1>
             {app.room!.name}
-            <span className="private-badge">
-              <Shield size={11} />
-              私密
-            </span>
+            <Tag icon={<Shield size={11} />}>私密</Tag>
           </h1>
-          <Button
-            className="room-id"
-            title="复制房间 ID"
-            onClick={() =>
-              void actions
-                .copyText(app.room!.id, "房间 ID 已复制；新朋友仍需要有效邀请")
-                .catch(actions.report)
-            }
-          >
-            房间 {app.room!.id.slice(0, 8).toUpperCase()}
-            <Copy size={12} />
-          </Button>
+          <Tooltip title="复制房间 ID">
+            <Button
+              type="text"
+              size="small"
+              className="room-id"
+              title="复制房间 ID"
+              onClick={() =>
+                void actions
+                  .copyText(
+                    app.room!.id,
+                    "房间 ID 已复制；新朋友仍需要有效邀请",
+                  )
+                  .catch(actions.report)
+              }
+            >
+              房间 {app.room!.id.slice(0, 8).toUpperCase()}
+              <Copy size={12} />
+            </Button>
+          </Tooltip>
         </div>
         <div className="heading-actions">
           {app.room!.role === "owner" && (
-            <Button
-              className="secondary"
-              onClick={() => void actions.run(actions.createInvite)}
-            >
+            <Button onClick={() => void actions.run(actions.createInvite)}>
               <UserPlus size={16} />
               邀请朋友
             </Button>
           )}
-          <Button
-            className="icon-button"
-            title="影院模式"
-            aria-label="影院模式"
-            onClick={() => update({ cinema: !app.cinema })}
-          >
-            {app.cinema ? <Minimize size={20} /> : <Maximize size={20} />}
-          </Button>
+          <Tooltip title="影院模式">
+            <Button
+              type="text"
+              aria-pressed={app.cinema}
+              title="影院模式"
+              aria-label="影院模式"
+              onClick={() => update({ cinema: !app.cinema })}
+            >
+              {app.cinema ? <Minimize size={20} /> : <Maximize size={20} />}
+            </Button>
+          </Tooltip>
         </div>
       </div>
       <div className="room-layout">
@@ -119,7 +125,7 @@ export function Room() {
                 <h2>好戏，等你开场</h2>
                 <p>共享屏幕，与朋友一起看到同一个世界。</p>
                 <Button
-                  className="primary"
+                  type="primary"
                   disabled={!connected || sharing}
                   onClick={() => void actions.shareSession.start()}
                 >
@@ -144,14 +150,17 @@ export function Room() {
                 )}
               </div>
             )}
-            <Button
-              className="stage-fullscreen icon-button"
-              title="全屏画面"
-              aria-label="全屏画面"
-              onClick={fullscreen}
-            >
-              <Maximize size={17} />
-            </Button>
+            <Tooltip title="全屏画面">
+              <Button
+                type="text"
+                className="stage-fullscreen"
+                title="全屏画面"
+                aria-label="全屏画面"
+                onClick={fullscreen}
+              >
+                <Maximize size={17} />
+              </Button>
+            </Tooltip>
           </div>
           {app.shareState === "active" && (
             <Alert
@@ -160,7 +169,10 @@ export function Room() {
               showIcon
               title="你正在共享屏幕，请留意画面中的私人信息。"
               action={
-                <Button type="button" onClick={() => void actions.stopShare()}>
+                <Button
+                  htmlType="button"
+                  onClick={() => void actions.stopShare()}
+                >
                   停止共享
                 </Button>
               }
@@ -174,8 +186,7 @@ export function Room() {
               title="连接已断开"
               action={
                 <Button
-                  type="button"
-                  className="secondary"
+                  htmlType="button"
                   onClick={() => void actions.run(actions.retryRoom)}
                 >
                   <RefreshCw size={15} />
@@ -220,6 +231,8 @@ export function Room() {
           <div className="controls">
             <div className="control-group">
               <Button
+                type="text"
+                aria-pressed={Boolean(local?.microphone)}
                 className={`control-button ${!local?.microphone ? "muted-control" : ""}`}
                 disabled={!connected}
                 onClick={() => void actions.toggleMicrophone()}
@@ -235,7 +248,8 @@ export function Room() {
                 </span>
               </Button>
               <Button
-                className="control-settings icon-button"
+                type="text"
+                className="control-settings"
                 title="音频设备设置"
                 aria-label="音频设备设置"
                 onClick={() => update({ modal: "settings" })}
@@ -245,6 +259,8 @@ export function Room() {
             </div>
             <div className="control-divider" />
             <Button
+              type="text"
+              aria-pressed={sharing}
               className={`control-button ${sharing ? "sharing-control" : ""}`}
               disabled={!connected}
               onClick={() => {
@@ -262,6 +278,8 @@ export function Room() {
               </span>
             </Button>
             <Button
+              type="text"
+              aria-pressed={app.watching}
               className="control-button"
               disabled={!app.media.sharer || app.media.sharer.local}
               onClick={() => {
@@ -274,6 +292,7 @@ export function Room() {
             </Button>
             <span className="control-spacer" />
             <Button
+              danger
               className="leave-button"
               onClick={() =>
                 void actions.run(() => actions.roomSession.leave())
@@ -285,7 +304,7 @@ export function Room() {
           </div>
           {app.media.audioBlocked && (
             <Button
-              className="audio-unlock secondary"
+              className="audio-unlock"
               onClick={() => void actions.media.startAudio()}
             >
               <Volume2 size={16} />
@@ -294,140 +313,168 @@ export function Room() {
           )}
         </div>
         <aside className="room-panel">
-          <div className="panel-tabs">
-            <Button
-              className={tab === "members" ? "selected" : ""}
-              onClick={() => setTab("members")}
-            >
-              <Users size={16} />
-              成员 <span>{app.media.participants.length}</span>
-            </Button>
-            <Button
-              className={tab === "chat" ? "selected" : ""}
-              onClick={() => setTab("chat")}
-            >
-              <MessageCircle size={16} />
-              聊天
-            </Button>
-          </div>
-          {tab === "members" ? (
-            <>
-              <div className="members-list">
-                {app.media.participants.map((p) => (
-                  <div
-                    className={`member ${p.speaking ? "speaking" : ""}`}
-                    key={p.id}
-                  >
-                    <div className={`avatar ${p.local ? "purple" : "amber"}`}>
-                      {p.name[0]}
-                    </div>
-                    <div className="member-main">
-                      <strong>
-                        {p.name}
-                        {p.local && <span>你</span>}
-                        {p.id === app.room!.ownerUserId && (
-                          <span className="owner-badge">房主</span>
-                        )}
-                      </strong>
-                      <small>
-                        {p.speaking
-                          ? "正在说话"
-                          : p.microphone
-                            ? "语音已就绪"
-                            : "麦克风已关闭"}
-                      </small>
-                      {!p.local && (
-                        <Slider
-                          ariaLabelForHandle={`${p.name}的音量`}
-                          min={0}
-                          max={100}
-                          defaultValue={100}
-                          onChange={(value) =>
-                            actions.media.memberVolume(p.id, value / 100)
-                          }
-                        />
-                      )}
-                    </div>
-                    <span
-                      className={`member-quality ${p.quality === "poor" || p.quality === "lost" ? "poor" : ""}`}
-                      title={`网络质量：${p.quality === "excellent" ? "优秀" : p.quality === "good" ? "良好" : p.quality === "poor" ? "较差" : p.quality === "lost" ? "已丢失" : "测量中"}`}
-                    >
-                      <Signal size={12} />
-                    </span>
-                    <span className={`member-mic ${p.microphone ? "" : "off"}`}>
-                      {p.microphone ? <Mic size={16} /> : <MicOff size={16} />}
-                    </span>
-                    {!p.local && (
-                      <div className="member-actions">
-                        <Button
-                          className="icon-button"
-                          title="添加好友"
-                          aria-label={`添加${p.name}为好友`}
-                          onClick={() =>
-                            void actions.run(async () => {
-                              unwrap(
-                                await actions.api.POST("/api/v1/friends", {
-                                  body: { userId: p.id },
-                                }),
-                              );
-                              update({ notice: "好友请求已发送" });
-                            })
-                          }
+          <Tabs
+            className="room-tabs"
+            defaultActiveKey="members"
+            destroyOnHidden
+            items={[
+              {
+                key: "members",
+                label: (
+                  <span>
+                    成员{" "}
+                    <Badge
+                      count={app.media.participants.length}
+                      showZero
+                      color="#373040"
+                    />
+                  </span>
+                ),
+                icon: <Users size={16} />,
+                children: (
+                  <>
+                    <div className="members-list">
+                      {app.media.participants.map((p) => (
+                        <div
+                          className={`member ${p.speaking ? "speaking" : ""}`}
+                          key={p.id}
                         >
-                          <UserPlus size={13} />
-                        </Button>
-                        {app.room!.role === "owner" && (
-                          <Button
-                            className="text-button danger"
-                            onClick={() =>
-                              void actions.run(async () => {
-                                unwrap(
-                                  await actions.api.DELETE(
-                                    "/api/v1/rooms/{roomId}/members/{userId}",
-                                    {
-                                      params: {
-                                        path: {
-                                          roomId: app.room!.id,
-                                          userId: p.id,
-                                        },
-                                      },
-                                      body: { ban: false },
-                                    },
-                                  ),
-                                );
-                              })
-                            }
+                          <Avatar className={p.local ? "purple" : "amber"}>
+                            {p.name[0]}
+                          </Avatar>
+                          <div className="member-main">
+                            <strong>
+                              {p.name}
+                              {p.local && <Tag>你</Tag>}
+                              {p.id === app.room!.ownerUserId && (
+                                <Tag color="purple">房主</Tag>
+                              )}
+                            </strong>
+                            <small>
+                              {p.speaking
+                                ? "正在说话"
+                                : p.microphone
+                                  ? "语音已就绪"
+                                  : "麦克风已关闭"}
+                            </small>
+                            {!p.local && (
+                              <Slider
+                                ariaLabelForHandle={`${p.name}的音量`}
+                                min={0}
+                                max={100}
+                                value={memberVolumes[p.id] ?? 100}
+                                onChange={(value) => {
+                                  setMemberVolumes((previous) => ({
+                                    ...previous,
+                                    [p.id]: value,
+                                  }));
+                                  actions.media.memberVolume(p.id, value / 100);
+                                }}
+                              />
+                            )}
+                          </div>
+                          <span
+                            className={`member-quality ${p.quality === "poor" || p.quality === "lost" ? "poor" : ""}`}
+                            title={`网络质量：${p.quality === "excellent" ? "优秀" : p.quality === "good" ? "良好" : p.quality === "poor" ? "较差" : p.quality === "lost" ? "已丢失" : "测量中"}`}
                           >
-                            移出
-                          </Button>
-                        )}
-                      </div>
+                            <Signal size={12} />
+                          </span>
+                          <span
+                            className={`member-mic ${p.microphone ? "" : "off"}`}
+                          >
+                            {p.microphone ? (
+                              <Mic size={16} />
+                            ) : (
+                              <MicOff size={16} />
+                            )}
+                          </span>
+                          {!p.local && (
+                            <div className="member-actions">
+                              <Tooltip title="添加好友">
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  title="添加好友"
+                                  aria-label={`添加${p.name}为好友`}
+                                  onClick={() =>
+                                    void actions.run(async () => {
+                                      unwrap(
+                                        await actions.api.POST(
+                                          "/api/v1/friends",
+                                          {
+                                            body: { userId: p.id },
+                                          },
+                                        ),
+                                      );
+                                      update({ notice: "好友请求已发送" });
+                                    })
+                                  }
+                                >
+                                  <UserPlus size={13} />
+                                </Button>
+                              </Tooltip>
+                              {app.room!.role === "owner" && (
+                                <Button
+                                  type="text"
+                                  size="small"
+                                  danger
+                                  onClick={() =>
+                                    void actions.run(async () => {
+                                      unwrap(
+                                        await actions.api.DELETE(
+                                          "/api/v1/rooms/{roomId}/members/{userId}",
+                                          {
+                                            params: {
+                                              path: {
+                                                roomId: app.room!.id,
+                                                userId: p.id,
+                                              },
+                                            },
+                                            body: { ban: false },
+                                          },
+                                        ),
+                                      );
+                                    })
+                                  }
+                                >
+                                  移出
+                                </Button>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                    <div className="panel-note">
+                      <Headphones size={23} />
+                      <strong>在这里，声音也有座位。</strong>
+                      <p>
+                        可单独调整每位朋友的音量，
+                        <br />
+                        聊天声与共享声音互不影响。
+                      </p>
+                    </div>
+                    {app.room!.role === "owner" && (
+                      <Button
+                        type="link"
+                        className="ban-link"
+                        onClick={() => update({ modal: "bans" })}
+                      >
+                        <Shield size={13} />
+                        管理房间黑名单
+                      </Button>
                     )}
-                  </div>
-                ))}
-              </div>
-              <div className="panel-note">
-                <Headphones size={23} />
-                <strong>在这里，声音也有座位。</strong>
-                <p>
-                  可单独调整每位朋友的音量，
-                  <br />
-                  聊天声与共享声音互不影响。
-                </p>
-              </div>
-              {app.room!.role === "owner" && (
-                <Button
-                  className="text-button ban-link"
-                  onClick={() => update({ modal: "bans" })}
-                >
-                  <Shield size={13} />
-                  管理房间黑名单
-                </Button>
-              )}
-            </>
-          ) : (
-            <Chat />
-          )}
+                  </>
+                ),
+              },
+              {
+                key: "chat",
+                label: "聊天",
+                icon: <MessageCircle size={16} />,
+                children: <Chat />,
+              },
+            ]}
+          />
         </aside>
       </div>
     </div>

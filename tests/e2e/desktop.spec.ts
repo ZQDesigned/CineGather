@@ -52,7 +52,9 @@ test("packaged desktop starts with a sandboxed renderer and the minimal typed br
     expect(bridge.platform).toBe("darwin");
     expect(bridge.node).toBe("undefined");
     expect(bridge.keys).not.toContain("invoke");
-    await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+    await page
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
+      .click();
     await expect(page.getByRole("dialog")).toBeVisible();
     await page.screenshot({ path: ".local/desktop-settings.png" });
   } finally {
@@ -260,7 +262,10 @@ test("packaged global hold uses the native state boundary, combines foreground h
     await page
       .getByRole("button", { name: "关闭麦克风", exact: true })
       .waitFor();
-    await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+    await page
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
+      .click();
+    await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await page.getByRole("checkbox", { name: "按键说话" }).check();
     await page.getByLabel(/全局.*说话/).fill("Control+Alt+K");
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
@@ -430,7 +435,10 @@ test("a failed startup hotkey keeps saved push-to-talk enabled and joins muted",
   try {
     const page = await app.firstWindow();
     await expect(page.getByRole("alert")).toContainText("全局快捷键不可用");
-    await page.getByRole("button", { name: "设置与设备", exact: true }).click();
+    await page
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
+      .click();
+    await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await expect(
       page.getByRole("checkbox", { name: "按键说话" }),
     ).toBeChecked();

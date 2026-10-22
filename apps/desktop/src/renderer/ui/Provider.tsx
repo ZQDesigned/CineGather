@@ -6,6 +6,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
   return (
     <ConfigProvider
       locale={zhCN}
+      button={{ autoInsertSpace: false }}
       virtual={false}
       theme={{
         algorithm: theme.darkAlgorithm,
@@ -28,6 +29,12 @@ export function UIProvider({ children }: { children: ReactNode }) {
           Message: { zIndexPopup: 2100 },
           Notification: { zIndexPopup: 2150 },
           Select: { optionSelectedBg: "#bca5ff25" },
+          Menu: {
+            itemSelectedBg: "#b39bff14",
+            itemSelectedColor: "#c6b2f2",
+            itemHeight: 42,
+            itemBorderRadius: 8,
+          },
         },
       }}
     >

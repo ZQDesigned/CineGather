@@ -1,11 +1,24 @@
-import { Select, Checkbox } from "antd";
+import {
+  Select,
+  Checkbox,
+  Form,
+  Radio,
+  Card,
+  Tabs,
+  Empty,
+  Avatar,
+  Tooltip,
+  Typography,
+  Alert,
+  Collapse,
+  Statistic,
+  Space,
+} from "antd";
 import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useState } from "react";
 import {
   Copy,
-  Check,
-  ArrowRight,
   Monitor,
   AppWindow,
   Download,
@@ -31,48 +44,55 @@ export function Dialogs() {
   return null;
 }
 function CreateRoom() {
-  const [name, setName] = useState("今晚一起看");
-  const [max, setMax] = useState(5);
   const busy = useApp((s) => s.busy);
   return (
-    <ModalShell title="创建私人房间" subtitle="给今晚的相聚，取个好名字。">
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void actions.run(() => actions.createRoom(name, max));
-        }}
+    <ModalShell
+      title="创建私人房间"
+      subtitle="给今晚的相聚，取个好名字。"
+      footer={
+        <>
+          <Button onClick={() => update({ modal: null })}>取消</Button>
+          <Button
+            type="primary"
+            htmlType="submit"
+            form="create-room"
+            loading={busy}
+          >
+            创建并进入
+          </Button>
+        </>
+      }
+    >
+      <Form
+        id="create-room"
+        layout="vertical"
+        initialValues={{ name: "今晚一起看", max: 5 }}
+        onFinish={({ name, max }: { name: string; max: number }) =>
+          void actions.run(() => actions.createRoom(name.trim(), max))
+        }
       >
-        <label>
-          房间名称
-          <Input
-            autoFocus
-            required
-            maxLength={64}
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
-        <label>
-          房间人数
+        <Form.Item
+          name="name"
+          label="房间名称"
+          rules={[
+            { required: true, whitespace: true, message: "请输入房间名称" },
+          ]}
+        >
+          <Input autoFocus maxLength={64} showCount />
+        </Form.Item>
+        <Form.Item name="max" label="房间人数">
           <Select
-            aria-label="房间人数"
-            value={max}
-            onChange={setMax}
             options={Array.from({ length: 9 }, (_, i) => ({
               value: i + 2,
               label: `${i + 2} 人${i + 2 === 5 ? " · 默认" : ""}`,
             }))}
           />
-        </label>
-        <div className="form-note">
+        </Form.Item>
+        <p className="form-note">
           <Shield size={16} />
           只有受邀朋友可以加入，默认不录制。
-        </div>
-        <Button className="primary wide" disabled={busy || !name.trim()}>
-          {busy ? "正在创建并连接…" : "创建并进入"}
-          <ArrowRight size={17} />
-        </Button>
-      </form>
+        </p>
+      </Form>
     </ModalShell>
   );
 }
@@ -83,70 +103,93 @@ function JoinRoom() {
     <ModalShell
       title="加入朋友的房间"
       subtitle="把邀请粘贴到这里，见面只差一步。"
+      footer={
+        <>
+          <Button onClick={() => update({ modal: null })}>取消</Button>
+          <Button
+            type="primary"
+            htmlType="submit"
+            form="join-room"
+            loading={busy}
+          >
+            进入房间
+          </Button>
+        </>
+      }
     >
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void actions.run(() => actions.joinRoom(value));
-        }}
+      <Form
+        id="join-room"
+        layout="vertical"
+        initialValues={{ invite: value }}
+        onValuesChange={(_, values: { invite: string }) =>
+          update({ joinValue: values.invite })
+        }
+        onFinish={({ invite }: { invite: string }) =>
+          void actions.run(() => actions.joinRoom(invite))
+        }
       >
-        <label>
-          邀请链接或完整房间码
+        <Form.Item
+          label="邀请链接或完整房间码"
+          name="invite"
+          rules={[
+            {
+              required: true,
+              whitespace: true,
+              message: "请粘贴邀请链接或完整房间码",
+            },
+          ]}
+        >
           <TextArea
             autoFocus
-            required
             rows={3}
-            value={value}
-            onChange={(event) => update({ joinValue: event.target.value })}
             placeholder="cinegather://join?room=…&invite=…"
           />
-        </label>
+        </Form.Item>
         <p className="form-note">
           完整房间码格式：房间 UUID / 邀请 token。已加入的房间可直接使用完整
           UUID。
         </p>
-        <Button className="primary wide" disabled={busy || !value.trim()}>
-          {busy ? "正在连接…" : "进入房间"}
-          <ArrowRight size={17} />
-        </Button>
-      </form>
+      </Form>
     </ModalShell>
   );
 }
 function Invite() {
   const app = useApp();
   const invite = app.invite ?? "";
-  const [copied, setCopied] = useState(false);
+
   return (
     <ModalShell
       title="好座位，留给好朋友"
       subtitle="邀请在 24 小时内有效，最多可供 10 位新成员使用。"
     >
-      <div className="invite-art">
-        <UserPlus size={38} />
-      </div>
-      <label>
-        房间邀请
-        <TextArea readOnly rows={3} value={invite} />
-      </label>
+      <Form layout="vertical">
+        <Form.Item label="房间邀请">
+          <TextArea aria-label="房间邀请" readOnly rows={3} value={invite} />
+        </Form.Item>
+      </Form>
       <Button
-        className="primary wide"
+        type="primary"
+        block
         onClick={() =>
           void actions
             .copyText(invite)
-            .then(() => setCopied(true))
+
             .catch(actions.report)
         }
       >
-        {copied ? <Check size={17} /> : <Copy size={17} />}{" "}
-        {copied ? "已复制，发给朋友吧" : "复制邀请链接"}
+        <Copy size={17} />
+        复制邀请链接
       </Button>
-      <p className="form-note">
-        邀请包含私密加入凭证，请只分享给你信任的朋友。
-      </p>
+      <Alert
+        type="info"
+        showIcon
+        title="邀请包含私密加入凭证，请只分享给你信任的朋友。"
+        className="invite-note"
+      />
       {app.inviteId && app.room && (
         <Button
-          className="text-button danger"
+          type="text"
+          danger
           onClick={() =>
             void actions.run(async () => {
               unwrap(
@@ -176,10 +219,11 @@ function Invite() {
 }
 function SourcePicker() {
   const app = useApp();
+  const native = Boolean(window.desktop?.nativeCapture);
+  const [kind, setKind] = useState(native ? "window" : "screen");
   const [selected, setSelected] = useState(
-    app.sources.find(
-      (s) => s.kind === (window.desktop?.nativeCapture ? "window" : "screen"),
-    )?.id ?? "",
+    app.sources.find((s) => s.kind === (native ? "window" : "screen"))?.id ??
+      "",
   );
   const [audioApplication, setAudioApplication] = useState("");
   const selectedScreen =
@@ -191,128 +235,155 @@ function SourcePicker() {
         .map((s) => [s.applicationId!, s.application!]),
     ).entries(),
   ];
-  const [kind, setKind] = useState(
-    window.desktop?.nativeCapture ? "window" : "screen",
-  );
+  const choose = () =>
+    void actions.run(() =>
+      actions.chooseSource({
+        sourceId: selected,
+        systemAudio: app.systemAudio,
+        ...(native && selectedScreen && app.systemAudio
+          ? { audioApplication }
+          : {}),
+      }),
+    );
+  const sources = (category: string) => {
+    const items = app.sources.filter((s) => s.kind === category);
+    return items.length ? (
+      <Radio.Group
+        aria-label="共享来源"
+        name="capture-source"
+        value={selected}
+        onChange={(e) => setSelected(e.target.value)}
+        className="source-grid"
+      >
+        {items.map((source) => (
+          <Radio
+            key={source.id}
+            value={source.id}
+            className="source-card"
+            aria-label={source.name}
+          >
+            <Card
+              size="small"
+              className="source-option"
+              cover={
+                <div className="source-preview">
+                  {source.thumbnail ? (
+                    <img alt="" src={source.thumbnail} />
+                  ) : (
+                    <div className="source-placeholder">
+                      {source.kind === "screen" ? (
+                        <Monitor size={38} />
+                      ) : (
+                        <AppWindow size={38} />
+                      )}
+                      <small>{source.application}</small>
+                    </div>
+                  )}
+                </div>
+              }
+            >
+              <div className="source-name" title={source.name}>
+                {source.name}
+              </div>
+            </Card>
+          </Radio>
+        ))}
+      </Radio.Group>
+    ) : (
+      <Empty
+        image={Empty.PRESENTED_IMAGE_SIMPLE}
+        description={
+          category === "window"
+            ? "没有可共享的应用窗口，请先打开并展开窗口。"
+            : "没有可用的屏幕。"
+        }
+      />
+    );
+  };
   return (
     <ModalShell
       title="你想分享哪个画面？"
       subtitle="朋友们只会看到你选择的屏幕或应用窗口。"
       wide
+      footer={
+        <>
+          <Button onClick={() => void actions.chooseSource()}>取消</Button>
+          <Button
+            type="primary"
+            icon={<Monitor size={17} />}
+            disabled={
+              !selected ||
+              app.busy ||
+              Boolean(
+                native &&
+                  selectedScreen &&
+                  app.systemAudio &&
+                  !audioApplication,
+              )
+            }
+            onClick={choose}
+          >
+            确认共享
+          </Button>
+        </>
+      }
     >
-      <div className="source-tabs">
-        <Button
-          className={kind === "screen" ? "selected" : ""}
-          onClick={() => {
-            setKind("screen");
-            setSelected(app.sources.find((s) => s.kind === "screen")?.id ?? "");
-          }}
+      <Tabs
+        className="capture-tabs"
+        activeKey={kind}
+        onChange={(value) => {
+          setKind(value);
+          setSelected(app.sources.find((s) => s.kind === value)?.id ?? "");
+        }}
+        items={[
+          {
+            key: "screen",
+            label: "整个屏幕",
+            icon: <Monitor size={16} />,
+            children: sources("screen"),
+          },
+          {
+            key: "window",
+            label: "应用窗口",
+            icon: <AppWindow size={16} />,
+            children: sources("window"),
+          },
+        ]}
+      />
+      <div className="capture-audio">
+        <Checkbox
+          checked={app.systemAudio}
+          onChange={(e) => update({ systemAudio: e.target.checked })}
         >
-          <Monitor size={16} />
-          整个屏幕
-        </Button>
-        <Button
-          className={kind === "window" ? "selected" : ""}
-          onClick={() => {
-            setKind("window");
-            setSelected(app.sources.find((s) => s.kind === "window")?.id ?? "");
-          }}
-        >
-          <AppWindow size={16} />
-          应用窗口
-        </Button>
-      </div>
-      <div className="source-grid">
-        {app.sources
-          .filter((s) => s.kind === kind)
-          .map((source) => (
-            <Button
-              className={`source-card ${source.id === selected ? "selected" : ""}`}
-              key={source.id}
-              onClick={() => setSelected(source.id)}
-            >
-              {source.thumbnail ? (
-                <img alt={`${source.name}预览`} src={source.thumbnail} />
-              ) : (
-                <div className="source-placeholder">
-                  {source.kind === "screen" ? (
-                    <Monitor size={36} />
-                  ) : (
-                    <AppWindow size={36} />
-                  )}
-                  <small>{source.application}</small>
-                </div>
-              )}
-              <span>
-                {source.name}
-                {source.id === selected && <Check size={15} />}
-              </span>
-            </Button>
-          ))}
-      </div>
-      <Checkbox
-        className="check-label"
-        checked={app.systemAudio}
-        onChange={(event) => update({ systemAudio: event.target.checked })}
-      >
-        <span>
-          {window.desktop?.nativeCapture
+          {native
             ? selectedScreen
               ? "共享指定应用的声音"
               : "共享此应用的声音"
             : "共享系统声音"}
-          <small>与麦克风独立传输，观看端可单独调节。</small>
-        </span>
-      </Checkbox>
-      {window.desktop?.nativeCapture && selectedScreen && app.systemAudio && (
-        <label>
-          声音来源应用
-          <Select
-            aria-label="声音来源应用"
-            value={audioApplication || undefined}
-            placeholder="请选择应用"
-            onChange={setAudioApplication}
-            options={audioApplications.map(([value, label]) => ({
-              value,
-              label,
-            }))}
-          />
-        </label>
-      )}
+        </Checkbox>
+        <p className="field-help">与麦克风独立传输，观看端可单独调节。</p>
+        {native && selectedScreen && app.systemAudio && (
+          <Form layout="vertical">
+            <Form.Item label="声音来源应用" required>
+              <Select
+                aria-label="声音来源应用"
+                value={audioApplication || undefined}
+                placeholder="请选择应用"
+                onChange={setAudioApplication}
+                options={audioApplications.map(([value, label]) => ({
+                  value,
+                  label,
+                }))}
+              />
+            </Form.Item>
+          </Form>
+        )}
+      </div>
       <p className="form-note">
         {window.desktop?.platform === "darwin"
-          ? "macOS 在映聚内选择屏幕或窗口。请保持共享窗口展开，最小化或隐藏可能暂停画面。开启声音后会采集该应用的声音，包括同一应用的其他窗口或标签页；映聚语音不会被采集。首次使用需授予录屏与系统录音权限。"
-          : "共享的是系统声音，并非仅此窗口的声音。建议佩戴耳机；Windows 的语音回采隔离仍待实机验证。"}
+          ? "请保持共享窗口展开。开启声音会采集该应用的所有窗口或标签页；映聚语音不会被采集。"
+          : "共享声音包含系统正在播放的声音，建议佩戴耳机。"}
       </p>
-      <Button
-        className="primary wide"
-        disabled={
-          !selected ||
-          app.busy ||
-          Boolean(
-            window.desktop?.nativeCapture &&
-              selectedScreen &&
-              app.systemAudio &&
-              !audioApplication,
-          )
-        }
-        onClick={() =>
-          void actions.run(() =>
-            actions.chooseSource({
-              sourceId: selected,
-              systemAudio: app.systemAudio,
-              ...(window.desktop?.nativeCapture &&
-              selectedScreen &&
-              app.systemAudio
-                ? { audioApplication }
-                : {}),
-            }),
-          )
-        }
-      >
-        <Monitor size={17} />
-        确认共享
-      </Button>
     </ModalShell>
   );
 }
@@ -333,8 +404,7 @@ function Friends() {
   useEffect(() => {
     void load().catch(actions.report);
   }, []);
-  const submit = (event: FormEvent) => {
-    event.preventDefault();
+  const submit = () => {
     void actions.run(async () => {
       unwrap(
         await actions.api.POST("/api/v1/friends", {
@@ -348,40 +418,54 @@ function Friends() {
   };
   return (
     <ModalShell title="朋友们" subtitle="把熟悉的名字，留在身边。">
-      <Button
-        className="id-copy"
-        onClick={() =>
-          void actions
-            .copyText(user.id, "你的用户 ID 已复制")
-            .catch(actions.report)
-        }
-      >
-        <span>
-          我的用户 ID<small>{user.id}</small>
-        </span>
-        <Copy size={16} />
-      </Button>
-      <form className="inline-form" onSubmit={submit}>
-        <Input
-          aria-label="好友用户 ID"
-          placeholder="粘贴朋友的完整用户 ID"
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          required
-        />
-        <Button className="primary" aria-label="发送好友请求">
-          <UserPlus size={17} />
-        </Button>
-      </form>
+      <Card size="small" className="identity-card">
+        <Space direction="vertical" size={4}>
+          <Typography.Text type="secondary">我的用户 ID</Typography.Text>
+          <Typography.Text code>{user.id}</Typography.Text>
+        </Space>
+        <Tooltip title="复制用户 ID">
+          <Button
+            type="text"
+            aria-label="复制我的用户 ID"
+            icon={<Copy size={16} />}
+            onClick={() =>
+              void actions
+                .copyText(user.id, "你的用户 ID 已复制")
+                .catch(actions.report)
+            }
+          />
+        </Tooltip>
+      </Card>
+      <Form layout="vertical" onFinish={submit}>
+        <Form.Item label="好友用户 ID" required>
+          <Space.Compact block>
+            <Input
+              aria-label="好友用户 ID"
+              placeholder="粘贴朋友的完整用户 ID"
+              value={target}
+              onChange={(e) => setTarget(e.target.value)}
+              required
+            />
+            <Button
+              type="primary"
+              htmlType="submit"
+              icon={<UserPlus size={16} />}
+            >
+              发送好友请求
+            </Button>
+          </Space.Compact>
+        </Form.Item>
+      </Form>
       <div className="friends-list">
         {!items.length && (
-          <div className="empty-list">
-            暂无好友。你也可以在房间里向成员发送好友请求。
-          </div>
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="暂无好友，可以在房间里向成员发送好友请求。"
+          />
         )}
         {items.map((friend) => (
           <div className="friend" key={friend.userId}>
-            <div className="avatar amber">{friend.displayName[0]}</div>
+            <Avatar className="amber">{friend.displayName[0]}</Avatar>
             <span>
               {friend.displayName}
               <small>
@@ -394,7 +478,6 @@ function Friends() {
             </span>
             {friend.status === "pending" && friend.incoming && (
               <Button
-                className="secondary"
                 onClick={() =>
                   void actions.run(async () => {
                     unwrap(
@@ -410,23 +493,26 @@ function Friends() {
                 接受
               </Button>
             )}
-            <Button
-              className="icon-button"
-              title="移除关系"
-              aria-label={`移除${friend.displayName}`}
-              onClick={() =>
-                void actions.run(async () => {
-                  unwrap(
-                    await actions.api.DELETE("/api/v1/friends/{userId}", {
-                      params: { path: { userId: friend.userId } },
-                    }),
-                  );
-                  await load();
-                })
-              }
-            >
-              <X size={15} />
-            </Button>
+            <Tooltip title="移除关系">
+              <Button
+                type="text"
+                danger
+                title="移除关系"
+                aria-label={`移除${friend.displayName}`}
+                onClick={() =>
+                  void actions.run(async () => {
+                    unwrap(
+                      await actions.api.DELETE("/api/v1/friends/{userId}", {
+                        params: { path: { userId: friend.userId } },
+                      }),
+                    );
+                    await load();
+                  })
+                }
+              >
+                <X size={15} />
+              </Button>
+            </Tooltip>
           </div>
         ))}
       </div>
@@ -474,36 +560,58 @@ function Diagnostics() {
       wide
     >
       <div className="diagnostic-cards">
-        <div>
-          <span>媒体状态</span>
-          <strong>{String(data.state ?? "未连接")}</strong>
-        </div>
-        <div>
-          <span>服务器活跃房间</span>
-          <strong>{server?.activeRooms ?? "—"}</strong>
-        </div>
-        <div>
-          <span>API 请求 / 错误</span>
-          <strong>
-            {server ? `${server.requests} / ${server.errors}` : "—"}
-          </strong>
-        </div>
+        <Card size="small">
+          <Statistic
+            title="媒体状态"
+            value={
+              (
+                {
+                  connected: "已连接",
+                  disconnected: "未连接",
+                  reconnecting: "重新连接中",
+                  connecting: "连接中",
+                } as Record<string, string>
+              )[String(data.state)] ?? "未连接"
+            }
+          />
+        </Card>
+        <Card size="small">
+          <Statistic
+            title="服务器活跃房间"
+            value={server?.activeRooms ?? "—"}
+          />
+        </Card>
+        <Card size="small">
+          <Statistic
+            title="API 请求 / 错误"
+            value={server ? `${server.requests} / ${server.errors}` : "—"}
+          />
+        </Card>
       </div>
-      <pre className="diagnostic-json">{JSON.stringify(data, null, 2)}</pre>
+      <Collapse
+        items={[
+          {
+            key: "details",
+            label: "查看详细诊断数据",
+            children: (
+              <pre className="diagnostic-json">
+                {JSON.stringify(data, null, 2)}
+              </pre>
+            ),
+          },
+        ]}
+      />
       <p className="form-note">
         RTT、丢包、帧率等指标在轨道传输后可见。WebRTC RTT
         不等同于端到端音画延迟。
       </p>
       <div className="dialog-actions">
-        <Button
-          className="secondary"
-          onClick={() => void refresh().catch(actions.report)}
-        >
+        <Button onClick={() => void refresh().catch(actions.report)}>
           <RefreshCw size={16} />
           刷新
         </Button>
         <Button
-          className="primary"
+          type="primary"
           onClick={() => void exportData().catch(actions.report)}
         >
           <Download size={16} />
@@ -535,10 +643,9 @@ function Bans() {
       title="房间黑名单"
       subtitle="仅房主可以禁止或恢复成员的加入权限。"
     >
-      <form
-        className="inline-form"
-        onSubmit={(event) => {
-          event.preventDefault();
+      <Form
+        layout="vertical"
+        onFinish={() => {
           void actions.run(async () => {
             unwrap(
               await actions.api.DELETE(
@@ -554,25 +661,33 @@ function Bans() {
           });
         }}
       >
-        <Input
-          aria-label="要封禁的用户 ID"
-          placeholder="输入完整用户 ID"
-          value={target}
-          onChange={(event) => setTarget(event.target.value)}
-          required
-        />
-        <Button className="primary" aria-label="封禁成员">
-          <Shield size={17} />
-        </Button>
-      </form>
+        <Form.Item label="要封禁的用户 ID" required>
+          <Space.Compact block>
+            <Input
+              aria-label="要封禁的用户 ID"
+              placeholder="输入完整用户 ID"
+              value={target}
+              onChange={(event) => setTarget(event.target.value)}
+              required
+            />
+            <Button danger htmlType="submit" icon={<Shield size={16} />}>
+              封禁成员
+            </Button>
+          </Space.Compact>
+        </Form.Item>
+      </Form>
       <div className="friends-list">
-        {!items.length && <p className="empty-list">没有被禁止加入的成员。</p>}
+        {!items.length && (
+          <Empty
+            image={Empty.PRESENTED_IMAGE_SIMPLE}
+            description="没有被禁止加入的成员。"
+          />
+        )}
         {items.map((member) => (
           <div className="friend" key={member.userId}>
-            <div className="avatar amber">{member.displayName[0]}</div>
+            <Avatar className="amber">{member.displayName[0]}</Avatar>
             <span>{member.displayName}</span>
             <Button
-              className="secondary"
               onClick={() =>
                 void actions.run(async () => {
                   unwrap(

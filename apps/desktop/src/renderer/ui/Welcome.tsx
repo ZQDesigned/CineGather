@@ -1,4 +1,4 @@
-import { Button, Input } from "./Controls";
+import { Button, Input, Form } from "antd";
 import { useState } from "react";
 import {
   SlidersHorizontal,
@@ -53,18 +53,23 @@ export function Welcome() {
           <span className="orbit-label">LET’S WATCH TOGETHER</span>
         </div>
       </div>
-      <form
+      <Form
+        layout="vertical"
         className="welcome-card"
-        onSubmit={(event) => {
-          event.preventDefault();
+        onFinish={() => {
           void actions.run(() => actions.guest(name));
         }}
       >
         <span className="card-kicker">今晚的相聚，从这里开始</span>
         <h2>给自己一个名字</h2>
         <p>无需注册，用熟悉的昵称见面。</p>
-        <label>
-          你的昵称
+        <Form.Item
+          label="你的昵称"
+          name="displayName"
+          rules={[
+            { required: true, whitespace: true, message: "请输入你的昵称" },
+          ]}
+        >
           <Input
             autoFocus
             placeholder="朋友们怎么称呼你？"
@@ -73,8 +78,14 @@ export function Welcome() {
             maxLength={32}
             required
           />
-        </label>
-        <Button className="primary wide" disabled={busy || !name.trim()}>
+        </Form.Item>
+        <Button
+          type="primary"
+          htmlType="submit"
+          block
+          loading={busy}
+          disabled={busy || !name.trim()}
+        >
           {busy ? "正在准备…" : "进入映聚"}
           <ArrowRight size={18} />
         </Button>
@@ -82,14 +93,14 @@ export function Welcome() {
           访客身份保留 30 天。请勿在公共电脑上保留登录。
         </small>
         <Button
-          className="text-button"
-          type="button"
+          type="link"
+          htmlType="button"
           onClick={() => update({ modal: "settings" })}
         >
           <SlidersHorizontal size={14} />
           连接自托管服务器
         </Button>
-      </form>
+      </Form>
     </section>
   );
 }

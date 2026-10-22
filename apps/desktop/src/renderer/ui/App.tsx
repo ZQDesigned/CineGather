@@ -1,5 +1,5 @@
-import { Button } from "./Controls";
-import { useEffect } from "react";
+import { Button, Menu, Avatar, Badge, Breadcrumb, Tooltip } from "antd";
+import { useEffect, useState } from "react";
 import {
   Signal,
   Clapperboard,
@@ -29,6 +29,8 @@ const roomStates: Record<string, string> = {
 };
 export function App() {
   const app = useApp();
+  const [home, setHome] = useState(false);
+  useEffect(() => setHome(false), [app.room?.id]);
   useEffect(() => {
     let dispose: (() => void) | undefined;
     let ended = false;
@@ -51,7 +53,7 @@ export function App() {
         !(
           event.target instanceof Element &&
           event.target.closest(
-            'input, textarea, select, button, [role="combobox"], [role="slider"], [contenteditable="true"]',
+            'input, textarea, select, button, [role="combobox"], [role="slider"], [role="tab"], [role="menuitem"], [role="radio"], a, [contenteditable="true"]',
           )
         ) &&
         !current.modal
@@ -89,7 +91,15 @@ export function App() {
   return (
     <AppSurface className={`app ${app.cinema ? "cinema" : ""}`}>
       <aside className="sidebar">
-        <a className="brand" href="#" aria-label="映聚首页">
+        <a
+          className="brand"
+          href="#"
+          aria-label="映聚首页"
+          onClick={(e) => {
+            e.preventDefault();
+            setHome(true);
+          }}
+        >
           <span className="brand-icon">
             <Clapperboard size={23} />
           </span>
@@ -98,43 +108,57 @@ export function App() {
           </span>
         </a>
         <span className="nav-label">你的放映空间</span>
-        <Button
-          className="nav-item active"
-          onClick={() => update({ modal: null })}
-        >
-          <Film size={18} />
-          我的房间<span className="small-count">{app.rooms.length}</span>
-        </Button>
-        <Button
-          className="nav-item"
-          onClick={() => update({ modal: "friends" })}
-          disabled={!app.user}
-        >
-          <Users size={18} />
-          好友
-        </Button>
+        <Menu
+          className="sidebar-menu"
+          mode="inline"
+          selectedKeys={app.room && !home ? [] : ["home"]}
+          items={[
+            {
+              key: "home",
+              icon: <Film size={18} />,
+              label: (
+                <span>
+                  我的房间{" "}
+                  <Badge count={app.rooms.length} showZero color="#373040" />
+                </span>
+              ),
+              onClick: () => {
+                setHome(true);
+                update({ modal: null });
+              },
+            },
+            {
+              key: "friends",
+              icon: <Users size={18} />,
+              label: "好友",
+              disabled: !app.user,
+              onClick: () => update({ modal: "friends" }),
+            },
+          ]}
+        />
         <span className="nav-label room-label">最近加入</span>
         <div className="recent-rooms">
           {app.rooms.length ? (
-            app.rooms.map((room) => (
-              <Button
-                key={room.id}
-                className={`recent-room ${app.room?.id === room.id ? "selected" : ""}`}
-                onClick={() =>
-                  void actions.run(() => actions.roomSession.enter(room.id))
-                }
-                disabled={app.busy || app.roomState === "joining"}
-              >
-                <span className="room-symbol">{room.name[0]}</span>
-                <span>
-                  {room.name}
-                  <small>
-                    {room.role === "owner" ? "我创建的房间" : "受邀加入"}
-                  </small>
-                </span>
-                {app.room?.id === room.id && <span className="live-dot" />}
-              </Button>
-            ))
+            <Menu
+              className="sidebar-menu room-menu"
+              mode="inline"
+              selectedKeys={app.room && !home ? [app.room.id] : []}
+              items={app.rooms.map((room) => ({
+                key: room.id,
+                icon: (
+                  <Avatar size={28} shape="square">
+                    {room.name[0]}
+                  </Avatar>
+                ),
+                label: room.name,
+                disabled: app.busy || app.roomState === "joining",
+                onClick: () => {
+                  setHome(false);
+                  if (app.room?.id !== room.id)
+                    void actions.run(() => actions.roomSession.enter(room.id));
+                },
+              }))}
+            />
           ) : (
             <p className="sidebar-empty">
               相聚之后，
@@ -150,47 +174,54 @@ export function App() {
               只为彼此的私人空间<small>默认不录制 · 无广告</small>
             </span>
           </div>
-          <Button
-            className="nav-item"
-            onClick={() => update({ modal: "settings" })}
-          >
-            <Settings size={18} />
-            设置与设备
-          </Button>
-          <Button
-            className="nav-item"
-            onClick={() => update({ modal: "diagnostics" })}
-          >
-            <Radio size={18} />
-            连接诊断
-          </Button>
+          <Menu
+            className="sidebar-menu"
+            mode="inline"
+            selectedKeys={[]}
+            items={[
+              {
+                key: "settings",
+                icon: <Settings size={18} />,
+                label: "设置与设备",
+                onClick: () => update({ modal: "settings" }),
+              },
+              {
+                key: "diagnostics",
+                icon: <Radio size={18} />,
+                label: "连接诊断",
+                onClick: () => update({ modal: "diagnostics" }),
+              },
+            ]}
+          />
         </div>
         <div className="profile">
-          <div className="avatar purple">
-            {app.user?.displayName[0] ?? "映"}
-          </div>
+          <Avatar className="purple">{app.user?.displayName[0] ?? "映"}</Avatar>
           <span>
             {app.user?.displayName ?? "欢迎来到映聚"}
             <small>{app.user ? "访客身份" : "等待你的加入"}</small>
           </span>
           {app.user && (
-            <Button
-              className="icon-button"
-              title="退出访客身份"
-              aria-label="退出访客身份"
-              onClick={() => void actions.run(actions.logout)}
-            >
-              <LogOut size={16} />
-            </Button>
+            <Tooltip title="退出访客身份">
+              <Button
+                type="text"
+                title="退出访客身份"
+                aria-label="退出访客身份"
+                onClick={() => void actions.run(actions.logout)}
+              >
+                <LogOut size={16} />
+              </Button>
+            </Tooltip>
           )}
         </div>
       </aside>
       <main className="workspace">
         <header className="topbar">
-          <span className="breadcrumb">
-            我的空间<span>/</span>
-            {app.room?.name ?? "放映厅"}
-          </span>
+          <Breadcrumb
+            items={[
+              { title: "我的空间" },
+              { title: app.room && !home ? app.room.name : "放映厅" },
+            ]}
+          />
           <div className="topbar-right">
             {app.roomState === "connected" &&
               app.media.participants.some(
@@ -214,7 +245,18 @@ export function App() {
           </div>
         </header>
         <Feedback />
-        {!app.user ? <Welcome /> : app.room ? <Room /> : <Home />}
+        {!app.user ? (
+          <Welcome />
+        ) : (
+          <>
+            {app.room && (
+              <div hidden={home}>
+                <Room />
+              </div>
+            )}
+            {(!app.room || home) && <Home onEnterRoom={() => setHome(false)} />}
+          </>
+        )}
         <footer className="app-footer">
           <span>
             <Shield size={12} /> PRIVATE ROOMS, SHARED MOMENTS.

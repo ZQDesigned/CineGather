@@ -1,4 +1,4 @@
-import { Button } from "./Controls";
+import { Button, Card } from "antd";
 import {
   ArrowUpRight,
   Plus,
@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
-export function Home() {
+export function Home({ onEnterRoom }: { onEnterRoom: () => void }) {
   const app = useApp();
   return (
     <div className="home">
@@ -21,7 +21,7 @@ export function Home() {
           </h1>
           <p>挑一部好片，叫上那些想见的人。</p>
         </div>
-        <Button className="secondary" onClick={() => update({ modal: "join" })}>
+        <Button onClick={() => update({ modal: "join" })}>
           <ArrowUpRight size={16} />
           加入房间
         </Button>
@@ -42,10 +42,7 @@ export function Home() {
             <br />
             从一个属于你们的放映室开始。
           </p>
-          <Button
-            className="primary"
-            onClick={() => update({ modal: "create" })}
-          >
+          <Button type="primary" onClick={() => update({ modal: "create" })}>
             <Plus size={18} />
             创建私人房间
           </Button>
@@ -74,36 +71,40 @@ export function Home() {
       </div>
       <div className="room-grid">
         {app.rooms.map((room) => (
-          <Button
-            className="room-card"
-            key={room.id}
-            onClick={() =>
-              void actions.run(() => actions.roomSession.enter(room.id))
-            }
-            disabled={app.busy || app.roomState === "joining"}
-          >
+          <Card className="room-card" key={room.id} hoverable>
             <div className="room-card-art">
               <Film size={32} strokeWidth={1} />
               <span>{room.role === "owner" ? "我的房间" : "朋友的房间"}</span>
             </div>
             <div className="room-card-copy">
               <h3>{room.name}</h3>
-              <span>
-                最多 {room.maxMembers} 人<ArrowUpRight size={18} />
-              </span>
+              <span>最多 {room.maxMembers} 人</span>
+              <Button
+                type="text"
+                aria-label={`进入${room.name}`}
+                icon={<ArrowUpRight size={18} />}
+                onClick={() =>
+                  void actions.run(async () => {
+                    if (app.room?.id !== room.id)
+                      await actions.roomSession.enter(room.id);
+                    onEnterRoom();
+                  })
+                }
+                disabled={app.busy || app.roomState === "joining"}
+              >
+                进入房间
+              </Button>
             </div>
-          </Button>
+          </Card>
         ))}
-        <Button
-          className="room-card new-room"
-          onClick={() => update({ modal: "create" })}
-        >
+        <Card className="room-card new-room">
           <div className="new-plus">
             <Plus size={25} />
           </div>
           <h3>为相聚留个位置</h3>
           <p>创建一个新的私人房间</p>
-        </Button>
+          <Button onClick={() => update({ modal: "create" })}>新建房间</Button>
+        </Card>
       </div>
       <div className="home-note">
         <Headphones size={19} />

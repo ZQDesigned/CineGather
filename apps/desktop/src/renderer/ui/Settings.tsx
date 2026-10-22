@@ -1,8 +1,8 @@
-import { Select, Checkbox, Progress } from "antd";
+import { Select, Checkbox, Progress, Form, Tabs } from "antd";
 import { Button, Input } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, Mic, Volume2, Monitor, Check, Server } from "lucide-react";
-import { useApp } from "../store";
+import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { qualityPresets, type DesktopSettings } from "@cinegather/contracts";
 import { ModalShell } from "./Modal";
@@ -10,6 +10,7 @@ export function Settings() {
   const current = useApp((s) => s.settings);
   const [settings, setSettings] = useState<DesktopSettings>({ ...current });
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const [tab, setTab] = useState("audio");
   const [server, setServer] = useState(actions.baseUrl);
   const [testing, setTesting] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -133,182 +134,210 @@ export function Settings() {
       title="设置与设备"
       subtitle="让声音、画面和你的习惯刚刚好。"
       wide
-    >
-      <form
-        onSubmit={(event) => {
-          event.preventDefault();
-          void actions.run(() => actions.saveSettings(settings));
-        }}
-      >
-        <div className="settings-grid">
-          <section>
-            <h3>
-              <Headphones size={17} />
-              音频设备
-            </h3>
-            <label>
-              麦克风
-              <Select
-                aria-label="麦克风"
-                value={settings.inputDevice}
-                onChange={(value) => change("inputDevice", value)}
-                options={[
-                  { value: "", label: "系统默认麦克风" },
-                  ...devices
-                    .filter(
-                      (d) =>
-                        d.kind === "audioinput" && d.deviceId !== "default",
-                    )
-                    .map((d, i) => ({
-                      value: d.deviceId,
-                      label: d.label || `麦克风 ${i + 1}`,
-                    })),
-                ]}
-              />
-            </label>
-            <div className="device-test">
-              <Button
-                type="button"
-                className="secondary"
-                disabled={requesting}
-                onClick={() => void testMicrophone().catch(actions.report)}
-              >
-                <Mic size={15} />
-                {requesting
-                  ? "正在请求麦克风…"
-                  : testing
-                    ? "停止测试"
-                    : "测试麦克风"}
-              </Button>
-              <Progress
-                className="meter"
-                percent={Math.round(level * 100)}
-                showInfo={false}
-                size="small"
-                aria-label="麦克风输入电平"
-              />
-            </div>
-            <label>
-              扬声器 / 耳机
-              <Select
-                aria-label="扬声器 / 耳机"
-                value={settings.outputDevice}
-                onChange={(value) => change("outputDevice", value)}
-                options={[
-                  { value: "", label: "系统默认输出" },
-                  ...devices
-                    .filter(
-                      (d) =>
-                        d.kind === "audiooutput" && d.deviceId !== "default",
-                    )
-                    .map((d, i) => ({
-                      value: d.deviceId,
-                      label: d.label || `扬声器 / 耳机 ${i + 1}`,
-                    })),
-                ]}
-              />
-            </label>
-            <Button
-              type="button"
-              className="secondary"
-              onClick={() => void beep().catch(actions.report)}
-            >
-              <Volume2 size={15} />
-              播放测试音
+      footer={
+        <>
+          <Button onClick={() => update({ modal: null })}>取消</Button>
+          {tab === "server" ? (
+            <Button type="primary" htmlType="submit" form="server-settings">
+              保存地址并重新建立身份
             </Button>
-          </section>
-          <section>
-            <h3>
-              <Monitor size={17} />
-              共享与快捷键
-            </h3>
-            <label>
-              默认共享画质
-              <Select
-                aria-label="默认共享画质"
-                value={settings.quality}
-                onChange={(value) => change("quality", value)}
-                options={Object.entries(qualityPresets).map(([value, p]) => ({
-                  value: value as DesktopSettings["quality"],
-                  label: `${p.label} · ${p.width === 1920 ? "1080p" : "720p"} / ${p.frameRate} fps`,
-                }))}
-              />
-            </label>
-            <Checkbox
-              className="check-label"
-              checked={settings.pushToTalk}
-              onChange={(event) => change("pushToTalk", event.target.checked)}
+          ) : (
+            <Button
+              type="primary"
+              htmlType="submit"
+              form={tab === "audio" ? "audio-settings" : "sharing-settings"}
+              icon={<Check size={17} />}
             >
-              <span>
-                按键说话
-                <small>窗口内按住空格；后台按住全局组合键，松开即静音。</small>
-              </span>
-            </Checkbox>
-            <label>
-              全局按住说话
-              <Input
-                value={settings.pttShortcut}
-                onChange={(event) => change("pttShortcut", event.target.value)}
-                maxLength={64}
-              />
-            </label>
-            <label>
-              全局麦克风静音
-              <Input
-                value={settings.muteShortcut}
-                onChange={(event) => change("muteShortcut", event.target.value)}
-                maxLength={64}
-              />
-            </label>
-            <Checkbox
-              className="check-label"
-              checked={settings.minimizeToTray}
-              onChange={(event) =>
-                change("minimizeToTray", event.target.checked)
-              }
-            >
-              <span>
-                关闭窗口后保留在托盘
-                <small>语音继续运行，可从托盘停止共享或退出。</small>
-              </span>
-            </Checkbox>
-          </section>
-        </div>
-        <p className="form-note">
-          1080p / 60fps 为目标档位，实际帧率会随设备和网络调整。快捷键使用
-          Electron Accelerator 格式。
-        </p>
-        <Button className="primary wide" type="submit">
-          保存设置
-          <Check size={17} />
-        </Button>
-      </form>
-      <div className="server-config">
-        <h3>
-          <Server size={16} />
-          自托管服务器
-        </h3>
-        <label>
-          API 地址
-          <Input
-            value={server}
-            onChange={(event) => setServer(event.target.value)}
-            placeholder="https://api.example.com"
-          />
-        </label>
-        <Button
-          className="secondary"
-          onClick={() => {
-            try {
-              actions.configureServer(server);
-            } catch (error) {
-              actions.report(error);
-            }
-          }}
-        >
-          保存地址并重新建立身份
-        </Button>
-      </div>
+              保存设置
+            </Button>
+          )}
+        </>
+      }
+    >
+      <Tabs
+        activeKey={tab}
+        onChange={setTab}
+        items={[
+          {
+            key: "audio",
+            label: "音频设备",
+            icon: <Headphones size={16} />,
+            children: (
+              <Form
+                id="audio-settings"
+                layout="vertical"
+                onFinish={() =>
+                  void actions.run(() => actions.saveSettings(settings))
+                }
+              >
+                <Form.Item label="麦克风">
+                  <Select
+                    aria-label="麦克风"
+                    value={settings.inputDevice}
+                    onChange={(v) => change("inputDevice", v)}
+                    options={[
+                      { value: "", label: "系统默认麦克风" },
+                      ...devices
+                        .filter(
+                          (d) =>
+                            d.kind === "audioinput" &&
+                            Boolean(d.deviceId) &&
+                            d.deviceId !== "default",
+                        )
+                        .map((d, i) => ({
+                          value: d.deviceId,
+                          label: d.label || `麦克风 ${i + 1}`,
+                        })),
+                    ]}
+                  />
+                </Form.Item>
+                <div className="device-test">
+                  <Button
+                    loading={requesting}
+                    icon={<Mic size={15} />}
+                    onClick={() => void testMicrophone().catch(actions.report)}
+                  >
+                    {requesting
+                      ? "正在请求麦克风…"
+                      : testing
+                        ? "停止测试"
+                        : "测试麦克风"}
+                  </Button>
+                  <Progress
+                    className="meter"
+                    percent={Math.round(level * 100)}
+                    showInfo={false}
+                    size="small"
+                    aria-label="麦克风输入电平"
+                  />
+                </div>
+                <Form.Item label="扬声器 / 耳机">
+                  <Select
+                    aria-label="扬声器 / 耳机"
+                    value={settings.outputDevice}
+                    onChange={(v) => change("outputDevice", v)}
+                    options={[
+                      { value: "", label: "系统默认输出" },
+                      ...devices
+                        .filter(
+                          (d) =>
+                            d.kind === "audiooutput" &&
+                            d.deviceId !== "default",
+                        )
+                        .map((d, i) => ({
+                          value: d.deviceId,
+                          label: d.label || `扬声器 / 耳机 ${i + 1}`,
+                        })),
+                    ]}
+                  />
+                </Form.Item>
+                <Button
+                  icon={<Volume2 size={15} />}
+                  onClick={() => void beep().catch(actions.report)}
+                >
+                  播放测试音
+                </Button>
+              </Form>
+            ),
+          },
+          {
+            key: "sharing",
+            label: "共享与快捷键",
+            icon: <Monitor size={16} />,
+            children: (
+              <Form
+                id="sharing-settings"
+                layout="vertical"
+                onFinish={() =>
+                  void actions.run(() => actions.saveSettings(settings))
+                }
+              >
+                <Form.Item label="默认共享画质">
+                  <Select
+                    aria-label="默认共享画质"
+                    value={settings.quality}
+                    onChange={(v) => change("quality", v)}
+                    options={Object.entries(qualityPresets).map(
+                      ([value, p]) => ({
+                        value: value as DesktopSettings["quality"],
+                        label: `${p.label} · ${p.width === 1920 ? "1080p" : "720p"} / ${p.frameRate} fps`,
+                      }),
+                    )}
+                  />
+                </Form.Item>
+                <Form.Item extra="窗口内按住空格；后台按住全局组合键，松开即静音。">
+                  <Checkbox
+                    checked={settings.pushToTalk}
+                    onChange={(e) => change("pushToTalk", e.target.checked)}
+                  >
+                    按键说话
+                  </Checkbox>
+                </Form.Item>
+                <div className="shortcut-fields">
+                  <Form.Item label="全局按住说话">
+                    <Input
+                      aria-label="全局按住说话"
+                      value={settings.pttShortcut}
+                      onChange={(e) => change("pttShortcut", e.target.value)}
+                      maxLength={64}
+                    />
+                  </Form.Item>
+                  <Form.Item label="全局麦克风静音">
+                    <Input
+                      aria-label="全局麦克风静音"
+                      value={settings.muteShortcut}
+                      onChange={(e) => change("muteShortcut", e.target.value)}
+                      maxLength={64}
+                    />
+                  </Form.Item>
+                </div>
+                <Form.Item extra="语音继续运行，可从托盘停止共享或退出。">
+                  <Checkbox
+                    checked={settings.minimizeToTray}
+                    onChange={(e) => change("minimizeToTray", e.target.checked)}
+                  >
+                    关闭窗口后保留在托盘
+                  </Checkbox>
+                </Form.Item>
+                <p className="form-note">
+                  实际帧率会随设备和网络调整。快捷键示例：CommandOrControl+Shift+M。
+                </p>
+              </Form>
+            ),
+          },
+          {
+            key: "server",
+            label: "自托管服务器",
+            icon: <Server size={16} />,
+            children: (
+              <Form
+                id="server-settings"
+                layout="vertical"
+                onFinish={() => {
+                  try {
+                    actions.configureServer(server);
+                  } catch (error) {
+                    actions.report(error);
+                  }
+                }}
+              >
+                <Form.Item
+                  label="API 地址"
+                  extra="更换服务器会清除当前访客身份，请确认地址后保存。"
+                >
+                  <Input
+                    aria-label="API 地址"
+                    value={server}
+                    onChange={(e) => setServer(e.target.value)}
+                    placeholder="https://api.example.com"
+                    required
+                  />
+                </Form.Item>
+              </Form>
+            ),
+          },
+        ]}
+      />
     </ModalShell>
   );
 }
