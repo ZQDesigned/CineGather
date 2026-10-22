@@ -1,4 +1,5 @@
 import {
+  nativePublications,
   rooms,
   members,
   invites,
@@ -15,8 +16,23 @@ import { db, hash, token, audit, dedup } from "./context";
 import { fail, uuid } from "./errors";
 import { media } from "./media";
 import type { User, RoomInfo, ShareLease } from "@cinegather/contracts";
+import { nativeOwner, requireNativeLease } from "./native-authority";
 import { config } from "./config";
 
+async function requireActiveSession(tx: Transaction, userId: string) {
+  const [session] = await tx
+    .select({ id: credentials.id })
+    .from(credentials)
+    .where(
+      and(
+        eq(credentials.userId, userId),
+        isNull(credentials.revokedAt),
+        gt(credentials.expiresAt, new Date()),
+      ),
+    )
+    .limit(1);
+  if (!session) fail(401, "SESSION_EXPIRED", "身份已过期，请重新进入");
+}
 export async function requireMember(
   tx: Transaction,
   roomId: string,
@@ -29,6 +45,7 @@ export async function requireMember(
   const [room] = lock ? await query.for("update") : await query;
   if (!room || room.status !== "active")
     fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
+  await requireActiveSession(tx, userId);
   const [ban] = await tx
     .select()
     .from(bans)
@@ -144,6 +161,7 @@ export async function joinRoom(
       .for("update");
     if (!room || room.status !== "active")
       fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
+    await requireActiveSession(tx, user.id);
     const [ban] = await tx
       .select()
       .from(bans)
@@ -187,7 +205,9 @@ export async function joinRoom(
         and(eq(members.roomId, roomId), gt(members.admittedUntil, new Date())),
       );
     const occupying = new Set([
-      ...participants.map((p) => p.identity),
+      ...participants
+        .filter((p) => !nativeOwner(p.identity))
+        .map((p) => p.identity),
       ...admissions.map((a) => a.userId),
     ]);
     if (!occupying.has(user.id) && occupying.size >= room.maxMembers)
@@ -217,6 +237,7 @@ export async function leaveRoom(user: User, roomId: string) {
   roomId = uuid(roomId);
   await db.transaction(async (tx) => {
     await requireMember(tx, roomId, user.id, false, true);
+    await revokeNative(tx, roomId, user.id);
     await media.remove(roomId, user.id);
     await tx
       .update(members)
@@ -261,9 +282,11 @@ export async function acquireLease(user: User, roomId: string) {
           fail(409, "SHARE_BUSY", "已有成员正在共享");
         return leaseResult(lease);
       }
+      await revokeNative(tx, roomId);
       // Revoke first: LiveKit SetPermission removes all tracks from disallowed sources.
       for (const p of participants)
-        await media.setShare(roomId, p.identity, false);
+        if (!nativeOwner(p.identity))
+          await media.setShare(roomId, p.identity, false);
       await media.setShare(roomId, user.id, true);
       granted = true;
       const next = {
@@ -338,6 +361,7 @@ export async function releaseLease(
     )
       fail(409, "LEASE_LOST", "这次共享已结束");
     if (lease.holderUserId) {
+      await revokeNative(tx, roomId, user.id);
       if (
         (await media.participants(roomId)).some((p) => p.identity === user.id)
       )
@@ -370,6 +394,7 @@ export async function moderate(
       .from(users)
       .where(eq(users.id, targetId));
     if (!target) fail(404, "USER_NOT_FOUND", "成员不存在");
+    await revokeNative(tx, roomId, targetId);
     await media.remove(roomId, targetId);
     await tx
       .delete(members)
@@ -539,7 +564,21 @@ export async function reconcileRoom(roomId: string) {
       participants.some((p) => p.identity === lease.holderUserId)
         ? lease.holderUserId
         : null;
+    let [publication] = await tx
+      .select()
+      .from(nativePublications)
+      .where(eq(nativePublications.roomId, roomId));
+    const validNative =
+      publication &&
+      activeHolder === publication.holderUserId &&
+      publication.leaseId === lease?.leaseId &&
+      publication.revision === lease?.revision;
     for (const participant of participants) {
+      if (nativeOwner(participant.identity)) {
+        if (!validNative || participant.identity !== publication?.identity)
+          await media.remove(roomId, participant.identity);
+        continue;
+      }
       if (!authorized(participant.identity)) {
         await media.remove(roomId, participant.identity);
         continue;
@@ -547,9 +586,26 @@ export async function reconcileRoom(roomId: string) {
       const allowsScreen =
         participant.permission?.canPublishSources.includes(3) ||
         participant.permission?.canPublishSources.includes(4);
-      const shouldShare = participant.identity === activeHolder;
+      const shouldShare = participant.identity === activeHolder && !validNative;
       if (Boolean(allowsScreen) !== shouldShare)
         await media.setShare(roomId, participant.identity, shouldShare);
+    }
+    if (publication && !validNative) {
+      await revokeNative(tx, roomId);
+      publication = undefined;
+    }
+    for (const ingress of await media.ingress.listIngress({
+      roomName: roomId,
+    })) {
+      if (
+        ingress.name.startsWith("cinegather/native/v1/") &&
+        ingress.ingressId !== publication?.ingressId
+      )
+        await media.deleteNative(
+          roomId,
+          ingress.participantIdentity,
+          ingress.ingressId,
+        );
     }
     if (lease?.holderUserId && !activeHolder) {
       await tx
@@ -563,10 +619,7 @@ export async function reconcileRoom(roomId: string) {
   });
 }
 export async function reconcileAll() {
-  const active = await db
-    .select({ id: rooms.id })
-    .from(rooms)
-    .where(eq(rooms.status, "active"));
+  const active = await db.select({ id: rooms.id }).from(rooms);
   for (const room of active) {
     try {
       await reconcileRoom(room.id);
@@ -575,5 +628,100 @@ export async function reconcileAll() {
         JSON.stringify({ event: "room.reconcile_failed", roomId: room.id }),
       );
     }
+  }
+}
+
+export async function revokeNative(
+  tx: Transaction,
+  roomId: string,
+  holderUserId?: string,
+) {
+  const [publication] = await tx
+    .select()
+    .from(nativePublications)
+    .where(eq(nativePublications.roomId, roomId));
+  if (
+    !publication ||
+    (holderUserId && publication.holderUserId !== holderUserId)
+  )
+    return;
+  await media.deleteNative(roomId, publication.identity, publication.ingressId);
+  await tx
+    .delete(nativePublications)
+    .where(eq(nativePublications.roomId, roomId));
+}
+export async function nativePublication(
+  user: User,
+  roomId: string,
+  input: { leaseId: string; revision: number },
+) {
+  roomId = uuid(roomId);
+  let created: { ingressId: string; participantIdentity: string } | undefined;
+  try {
+    return await db.transaction(async (tx) => {
+      await requireMember(tx, roomId, user.id, false, true);
+      const [lease] = await tx
+        .select()
+        .from(leases)
+        .where(eq(leases.roomId, roomId));
+      requireNativeLease(
+        lease,
+        user.id,
+        input,
+        (await media.participants(roomId)).some((p) => p.identity === user.id),
+      );
+      const [existing] = await tx
+        .select()
+        .from(nativePublications)
+        .where(eq(nativePublications.roomId, roomId));
+      if (
+        existing &&
+        (existing.leaseId !== input.leaseId ||
+          existing.revision !== input.revision)
+      )
+        await revokeNative(tx, roomId);
+      let ingress =
+        existing?.leaseId === input.leaseId &&
+        existing.revision === input.revision
+          ? (
+              await media.ingress.listIngress({ ingressId: existing.ingressId })
+            )[0]
+          : undefined;
+      await media.setShare(roomId, user.id, false);
+      if (!ingress) {
+        if (existing)
+          await tx
+            .delete(nativePublications)
+            .where(eq(nativePublications.roomId, roomId));
+        ingress = await media.createNative(roomId, user, input.leaseId);
+        created = ingress;
+        await tx.insert(nativePublications).values({
+          roomId,
+          leaseId: input.leaseId,
+          revision: input.revision,
+          holderUserId: user.id,
+          ingressId: ingress.ingressId,
+          identity: ingress.participantIdentity,
+        });
+      }
+      if (!ingress.url || !ingress.streamKey)
+        fail(503, "INGRESS_UNAVAILABLE", "原生推流服务未配置，请联系房主");
+      return {
+        url: ingress.url,
+        token: ingress.streamKey,
+        identity: ingress.participantIdentity,
+        expiresAt: lease!.expiresAt!.toISOString(),
+      };
+    });
+  } catch (error) {
+    if (created)
+      await media
+        .deleteNative(roomId, created.participantIdentity, created.ingressId)
+        .catch(() =>
+          console.error(
+            JSON.stringify({ event: "native.compensation_required", roomId }),
+          ),
+        );
+    throw error;
   }
 }

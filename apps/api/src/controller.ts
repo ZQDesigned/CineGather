@@ -148,6 +148,21 @@ export class ApiController {
   ) {
     return r.renewLease(req.user, roomId, parse(c.leaseInput, body));
   }
+  @Post("rooms/:roomId/share-lease/native")
+  @Endpoint(
+    "nativePublication",
+    c.nativePublicationSchema,
+    c.leaseInput,
+    ["roomId"],
+    201,
+  )
+  native(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return r.nativePublication(req.user, roomId, parse(c.leaseInput, body));
+  }
   @Delete("rooms/:roomId/share-lease")
   @Endpoint("releaseLease", c.okSchema, c.leaseInput, ["roomId"])
   release(

@@ -20,6 +20,8 @@ import { pathToFileURL } from "node:url";
 import { z } from "zod";
 import { allowedExternal, trustedURL, permissionAllowed } from "./security";
 import { defaultSettings, settingsSchema } from "./settings";
+import { NativeCapture } from "./native-capture";
+import { leaseSchema } from "@cinegather/contracts";
 import { configureDisplayCapture } from "./capture";
 import { HoldToTalk, shortcutKeys } from "./push-to-talk";
 import { nativeKeyState } from "./key-state";
@@ -43,6 +45,8 @@ let sharing = false;
 let settings: DesktopSettings = defaultSettings;
 let pending: (CaptureSelection & { expiresAt: number }) | undefined;
 const devURL = process.env.ELECTRON_RENDERER_URL;
+let nativeCapture: NativeCapture | undefined;
+let shutdownStarted = false;
 let pendingInvite: string | undefined = process.argv.find(
   (value) => value.startsWith("cinegather://") && value.length <= 4096,
 );
@@ -140,6 +144,7 @@ async function createWindow() {
   });
   win.webContents.on("render-process-gone", () => {
     pending = undefined;
+    void nativeCapture?.stop().catch(() => {});
     sharing = false;
     updateTray();
   });
@@ -156,6 +161,15 @@ function registerIPC() {
         !trustedURL(event.senderFrame.url, devURL)
       )
         throw new Error("不受信任的 IPC 调用");
+      if (
+        [
+          "desktop:sources",
+          "desktop:select-source",
+          "desktop:native-start",
+        ].includes(name) &&
+        (screenLocked || suspended || quitting)
+      )
+        throw new Error("设备已锁定或休眠，请解锁后重新选择共享来源");
       return run(input);
     });
   }
@@ -165,34 +179,76 @@ function registerIPC() {
     return value;
   });
   handle("desktop:sources", async () =>
-    (
-      await desktopCapturer.getSources({
-        types: ["screen", "window"],
-        thumbnailSize: { width: 400, height: 225 },
-        fetchWindowIcons: false,
-      })
-    )
-      .filter((source) => source.id !== win?.getMediaSourceId())
-      .map((source) => ({
-        id: source.id,
-        name: source.name,
-        thumbnail: source.thumbnail.toDataURL(),
-        kind: source.id.startsWith("screen:") ? "screen" : "window",
-      })),
+    nativeCapture
+      ? nativeCapture.sources()
+      : (
+          await desktopCapturer.getSources({
+            types: ["screen", "window"],
+            thumbnailSize: { width: 400, height: 225 },
+            fetchWindowIcons: false,
+          })
+        )
+          .filter((source) => source.id !== win?.getMediaSourceId())
+          .map((source) => ({
+            id: source.id,
+            name: source.name,
+            thumbnail: source.thumbnail.toDataURL(),
+            kind: source.id.startsWith("screen:") ? "screen" : "window",
+          })),
   );
   handle("desktop:select-source", async (input) => {
     const choice = z
-      .strictObject({ sourceId: z.string().max(256), systemAudio: z.boolean() })
+      .strictObject({
+        sourceId: z.string().max(256),
+        systemAudio: z.boolean(),
+        audioApplication: z.string().max(256).optional(),
+      })
       .parse(input);
+    if (nativeCapture) {
+      await nativeCapture.select(choice);
+      return;
+    }
     const sources = await desktopCapturer.getSources({
       types: ["screen", "window"],
       thumbnailSize: { width: 0, height: 0 },
     });
     if (!sources.some((s) => s.id === choice.sourceId))
       throw new Error("共享来源已消失，请重新选择");
+    if (screenLocked || suspended || quitting)
+      throw new Error("设备已锁定或休眠，请解锁后重新选择共享来源");
     pending = { ...choice, expiresAt: Date.now() + 20_000 };
   });
+  handle("desktop:native-start", (input) => {
+    const context = z
+      .strictObject({
+        apiUrl: z.url().max(2048),
+        sessionToken: z.string().min(32).max(128),
+        roomId: z.uuid(),
+        lease: leaseSchema,
+        quality: z.enum(["saver", "cinema", "game"]),
+      })
+      .parse(input);
+    const url = new URL(context.apiUrl);
+    if (
+      url.username ||
+      url.password ||
+      url.search ||
+      url.hash ||
+      url.pathname !== "/" ||
+      !["http:", "https:"].includes(url.protocol)
+    )
+      throw new Error("无效的 API 地址");
+    context.apiUrl = url.origin;
+    if (!nativeCapture) throw new Error("当前平台不支持此采集引擎");
+    return nativeCapture.start(context);
+  });
+  handle("desktop:native-renew", (input) => {
+    if (!nativeCapture) throw new Error("当前平台不支持此采集引擎");
+    return nativeCapture.renew(leaseSchema.parse(input));
+  });
+  handle("desktop:native-stop", () => nativeCapture?.stop());
   handle("desktop:cancel-capture", () => {
+    nativeCapture?.cancelSelection();
     pending = undefined;
   });
   handle("desktop:external", async (input) => {
@@ -327,6 +383,9 @@ function capturePermissions() {
     isTrustedRequest: (request) =>
       Boolean(
         win &&
+          !screenLocked &&
+          !suspended &&
+          !quitting &&
           request.frame === win.webContents.mainFrame &&
           trustedURL(request.securityOrigin, devURL),
       ),
@@ -352,7 +411,19 @@ else {
       if (win) sendAction("invite", url);
     }
   });
-  app.on("before-quit", () => {
+  app.on("before-quit", (event) => {
+    if (nativeCapture && !shutdownStarted) {
+      event.preventDefault();
+      shutdownStarted = true;
+      const timeout = setTimeout(() => app.exit(0), 5000);
+      void nativeCapture
+        .shutdown()
+        .catch(() => {})
+        .finally(() => {
+          clearTimeout(timeout);
+          app.quit();
+        });
+    }
     globalHold?.release();
     quitting = true;
   });
@@ -381,10 +452,24 @@ else {
           return new Response("Forbidden", { status: 403 });
         return net.fetch(pathToFileURL(path).toString());
       });
+      if (process.platform === "darwin")
+        nativeCapture = new NativeCapture(
+          app.isPackaged
+            ? join(process.resourcesPath, "capture/CineGatherLibobsHost.app")
+            : resolve(
+                __dirname,
+                "../../../../.local/native-runtime/CineGatherLibobsHost.app",
+              ),
+          join(app.getPath("userData"), "capture"),
+          () => sendAction("stop-share"),
+          app.isPackaged ? undefined : "com.github.Electron",
+        );
       registerIPC();
       capturePermissions();
       powerMonitor.on("suspend", () => {
         suspended = true;
+        void nativeCapture?.stop().catch(() => {});
+        sendAction("stop-share");
         globalHold?.release();
       });
       powerMonitor.on("resume", () => {
@@ -392,6 +477,8 @@ else {
       });
       powerMonitor.on("lock-screen", () => {
         screenLocked = true;
+        void nativeCapture?.stop().catch(() => {});
+        sendAction("stop-share");
         globalHold?.release();
       });
       powerMonitor.on("unlock-screen", () => {

@@ -1,0 +1,26 @@
+{
+  "version": "32.2.2",
+  "platform": "darwin-arm64",
+  "binaries": {
+    "Frameworks/libobs.framework/libobs": "bfec317ac3f7c3081a9d77fdd035b5143814465c5e00c521c5de00faaa70a5c0",
+    "Frameworks/libobs-opengl.dylib": "ea9c2c8bb948c7cb91fd9a6301132c00004c45e448440053bec885e37ad7a49b",
+    "PlugIns/mac-capture.plugin/Contents/MacOS/mac-capture": "9f5b9525e9621d34d114cf7c8ff8a194ecb80cb853668a9e7ff2e1c2481d091c",
+    "PlugIns/mac-videotoolbox.plugin/Contents/MacOS/mac-videotoolbox": "6c810a5486d52b6a35bf672d9238dfe47d3ca7d899a337f0a8708c5e38143224",
+    "PlugIns/obs-ffmpeg.plugin/Contents/MacOS/obs-ffmpeg": "87ffdaa3e20dec25936958e9707bb0c525f9d39f8e3b45faaa24012cbdefcc63",
+    "PlugIns/obs-webrtc.plugin/Contents/MacOS/obs-webrtc": "419a7b5187ed84fb41aea4944b1a158ef106700cca42caf12aa9f9799d33b78f",
+    "Frameworks/libavcodec.dylib": "714678231df26d479e0f31cb6f2bcee55fd184defddfcb460c58d3cdd534bbc1",
+    "Frameworks/libavformat.dylib": "7e076e2bc32be002e3f2f06d31450fec778254d00a4ae52bce6452e9e3ac636f",
+    "Frameworks/libavutil.dylib": "dd3fa68334b71a25202856e3f24abdf2343943f5ac4450de5f281270cf72c98e",
+    "Frameworks/libswresample.dylib": "0103c12b8af9e244882815a61a35c6d1df7900c1e3f4ef2c35f33d911b43ccb5",
+    "Frameworks/libswscale.dylib": "6fe00a8eb3ff7500e06793ece96f5f3e68983bcfe2a2c016a70792852099e990",
+    "Frameworks/libavdevice.dylib": "ffa0b020dac05454c3e98572c341b047a979d9d0a59f0bc3794e8701d2f1deee",
+    "Frameworks/libavfilter.dylib": "54aaeffb048eff307a8218d6acc1fdf8111df0f9d544a7469c3e20ac10398415",
+    "Frameworks/librist.dylib": "cb114a32b5e4b2301a01880b6f3a3eadf7d58d79bab69f660aa9da8753385ca6",
+    "Frameworks/libsrt.dylib": "5100bf81a24e4d44bd29b4fbcb900661167f2705a515a36099891e7ad75564b8",
+    "Frameworks/libdatachannel.dylib": "451f74d2d70dadf8b3635f2f59fc1105081ad365ecbe1489e82ea93faf902cca",
+    "Frameworks/libx264.dylib": "dbf0b72d580bce3599486f9ddd0281eba987e8a49ed2638390d857275c764b7f",
+    "Frameworks/libmbedcrypto.dylib": "fea87f4b12f5c15824f4e71d1eda368659eb6997eab3a07c900408c525838e00",
+    "Frameworks/libmbedtls.dylib": "841a4a1f7ad77b235251c955b74f8c0b5a1cce3d4f37baa0e4538a6e70e923e2",
+    "Frameworks/libmbedx509.dylib": "ed81416219ea1208879bc1731df451711e0f4c8bee24e92aa93b20e92a666f72"
+  }
+}

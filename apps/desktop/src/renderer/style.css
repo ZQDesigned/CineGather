@@ -1886,3 +1886,14 @@ label + label {
 .member-quality.poor {
   color: #c9a270;
 }
+
+.source-placeholder {
+  height: 128px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  color: #a7b2d0;
+  background: #151b2a;
+}

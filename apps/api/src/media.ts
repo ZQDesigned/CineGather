@@ -1,11 +1,16 @@
 import {
+  IngressClient,
+  IngressInput,
+  IngressAudioOptions,
+  IngressVideoOptions,
   AccessToken,
   RoomServiceClient,
   TrackSource,
   WebhookReceiver,
 } from "livekit-server-sdk";
 import { config } from "./config";
-import type { User } from "@cinegather/contracts";
+import { nativeIdentity, type User } from "@cinegather/contracts";
+import { randomUUID } from "node:crypto";
 export class MediaGateway {
   readonly client = new RoomServiceClient(
     config.livekitInternalUrl,
@@ -13,6 +18,38 @@ export class MediaGateway {
     config.livekitSecret,
     { requestTimeout: 5 },
   );
+  readonly ingress = new IngressClient(
+    config.livekitInternalUrl,
+    config.livekitKey,
+    config.livekitSecret,
+    { requestTimeout: 5 },
+  );
+  async createNative(roomId: string, user: User, leaseId: string) {
+    return this.ingress.createIngress(IngressInput.WHIP_INPUT, {
+      name: `cinegather/native/v1/${leaseId}`,
+      roomName: roomId,
+      participantIdentity: nativeIdentity(user.id, randomUUID()),
+      participantName: user.displayName,
+      enableTranscoding: false,
+      audio: new IngressAudioOptions({
+        name: "影片声音",
+        source: TrackSource.SCREEN_SHARE_AUDIO,
+      }),
+      video: new IngressVideoOptions({
+        name: "影片画面",
+        source: TrackSource.SCREEN_SHARE,
+      }),
+    });
+  }
+  async deleteNative(roomId: string, identity: string, ingressId: string) {
+    // Remove the SFU session even if ingress signalling is temporarily unavailable.
+    await this.remove(roomId, identity);
+    try {
+      await this.ingress.deleteIngress(ingressId);
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
+  }
   readonly webhooks = new WebhookReceiver(
     config.livekitKey,
     config.livekitSecret,
@@ -28,7 +65,7 @@ export class MediaGateway {
   async ensureRoom(roomId: string, capacity: number) {
     await this.client.createRoom({
       name: roomId,
-      maxParticipants: capacity,
+      maxParticipants: capacity + 1,
       emptyTimeout: 300,
       departureTimeout: 60,
     });

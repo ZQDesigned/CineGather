@@ -16,6 +16,33 @@ services:
       timeout: 3s
       retries: 20
     restart: unless-stopped
+  redis:
+    image: registry-1.docker.io/library/redis:7-alpine
+    command:
+      [
+        "redis-server",
+        "--save",
+        "",
+        "--appendonly",
+        "no",
+        "--maxmemory",
+        "128mb",
+        "--maxmemory-policy",
+        "noeviction",
+      ]
+    restart: unless-stopped
+  ingress:
+    image: registry-1.docker.io/livekit/ingress:v1.5.0
+    command: ["--config", "/etc/ingress.yaml"]
+    volumes:
+      - ../../.local/ingress.yaml:/etc/ingress.yaml:ro
+    ports:
+      - "127.0.0.1:7885:7885"
+      - "127.0.0.1:7887:7887"
+      - "127.0.0.1:7886:7886/udp"
+      - "127.0.0.1:7888:7888"
+    depends_on: [livekit, redis]
+    restart: unless-stopped
   livekit:
     image: registry-1.docker.io/livekit/livekit-server:v1.13.10
     command: ["--config", "/etc/livekit.yaml"]
@@ -25,6 +52,7 @@ services:
       - "127.0.0.1:7880:7880"
       - "127.0.0.1:7881:7881"
       - "127.0.0.1:50000-50100:50000-50100/udp"
+    depends_on: [redis]
     restart: unless-stopped
 volumes:
   postgres-data:

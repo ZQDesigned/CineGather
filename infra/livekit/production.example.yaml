@@ -5,6 +5,11 @@ rtc:
   port_range_start: 50000
   port_range_end: 50100
   use_external_ip: true
+redis:
+  address: 127.0.0.1:6379
+  password: REPLACE_REDIS_PASSWORD
+ingress:
+  whip_base_url: https://whip.example.com/w
 turn:
   enabled: true
   domain: turn.example.com

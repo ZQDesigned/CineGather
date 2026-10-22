@@ -175,8 +175,24 @@ function Invite() {
 }
 function SourcePicker() {
   const app = useApp();
-  const [selected, setSelected] = useState(app.sources[0]?.id ?? "");
-  const [kind, setKind] = useState("screen");
+  const [selected, setSelected] = useState(
+    app.sources.find(
+      (s) => s.kind === (window.desktop?.nativeCapture ? "window" : "screen"),
+    )?.id ?? "",
+  );
+  const [audioApplication, setAudioApplication] = useState("");
+  const selectedScreen =
+    app.sources.find((s) => s.id === selected)?.kind === "screen";
+  const audioApplications = [
+    ...new Map(
+      app.sources
+        .filter((s) => s.applicationId)
+        .map((s) => [s.applicationId!, s.application!]),
+    ).entries(),
+  ];
+  const [kind, setKind] = useState(
+    window.desktop?.nativeCapture ? "window" : "screen",
+  );
   return (
     <ModalShell
       title="你想分享哪个画面？"
@@ -186,14 +202,20 @@ function SourcePicker() {
       <div className="source-tabs">
         <button
           className={kind === "screen" ? "selected" : ""}
-          onClick={() => setKind("screen")}
+          onClick={() => {
+            setKind("screen");
+            setSelected(app.sources.find((s) => s.kind === "screen")?.id ?? "");
+          }}
         >
           <Monitor size={16} />
           整个屏幕
         </button>
         <button
           className={kind === "window" ? "selected" : ""}
-          onClick={() => setKind("window")}
+          onClick={() => {
+            setKind("window");
+            setSelected(app.sources.find((s) => s.kind === "window")?.id ?? "");
+          }}
         >
           <AppWindow size={16} />
           应用窗口
@@ -208,7 +230,18 @@ function SourcePicker() {
               key={source.id}
               onClick={() => setSelected(source.id)}
             >
-              <img alt={`${source.name}预览`} src={source.thumbnail} />
+              {source.thumbnail ? (
+                <img alt={`${source.name}预览`} src={source.thumbnail} />
+              ) : (
+                <div className="source-placeholder">
+                  {source.kind === "screen" ? (
+                    <Monitor size={36} />
+                  ) : (
+                    <AppWindow size={36} />
+                  )}
+                  <small>{source.application}</small>
+                </div>
+              )}
               <span>
                 {source.name}
                 {source.id === selected && <Check size={15} />}
@@ -223,22 +256,58 @@ function SourcePicker() {
           onChange={(event) => update({ systemAudio: event.target.checked })}
         />
         <span>
-          共享系统声音<small>与麦克风独立传输，观看端可单独调节。</small>
+          {window.desktop?.nativeCapture
+            ? selectedScreen
+              ? "共享指定应用的声音"
+              : "共享此应用的声音"
+            : "共享系统声音"}
+          <small>与麦克风独立传输，观看端可单独调节。</small>
         </span>
       </label>
+      {window.desktop?.nativeCapture && selectedScreen && app.systemAudio && (
+        <label>
+          声音来源应用
+          <select
+            aria-label="声音来源应用"
+            value={audioApplication}
+            onChange={(e) => setAudioApplication(e.target.value)}
+          >
+            <option value="">请选择应用</option>
+            {audioApplications.map(([id, name]) => (
+              <option key={id} value={id}>
+                {name}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <p className="form-note">
         {window.desktop?.platform === "darwin"
-          ? "macOS 在映聚内选择来源；首次使用需授予屏幕录制和系统录音权限。共享的是系统声音，并非仅此窗口的声音。"
+          ? "macOS 在映聚内选择屏幕或窗口。请保持共享窗口展开，最小化或隐藏可能暂停画面。开启声音后会采集该应用的声音，包括同一应用的其他窗口或标签页；映聚语音不会被采集。首次使用需授予录屏与系统录音权限。"
           : "共享的是系统声音，并非仅此窗口的声音。建议佩戴耳机；Windows 的语音回采隔离仍待实机验证。"}
       </p>
       <button
         className="primary wide"
-        disabled={!selected || app.busy}
+        disabled={
+          !selected ||
+          app.busy ||
+          Boolean(
+            window.desktop?.nativeCapture &&
+              selectedScreen &&
+              app.systemAudio &&
+              !audioApplication,
+          )
+        }
         onClick={() =>
           void actions.run(() =>
             actions.chooseSource({
               sourceId: selected,
               systemAudio: app.systemAudio,
+              ...(window.desktop?.nativeCapture &&
+              selectedScreen &&
+              app.systemAudio
+                ? { audioApplication }
+                : {}),
             }),
           )
         }

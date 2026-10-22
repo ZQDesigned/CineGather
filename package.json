@@ -51,7 +51,10 @@
     "test:container": "bun tools/container-smoke.ts",
     "release:manifest": "bun tools/release-manifest.ts",
     "format": "prettier --write apps packages tests tools infra .github package.json tsconfig.json tsconfig.base.json eslint.config.mjs playwright.config.ts --ignore-unknown",
-    "format:check": "prettier --check apps packages tests tools infra .github package.json tsconfig.json tsconfig.base.json eslint.config.mjs playwright.config.ts --ignore-unknown"
+    "format:check": "prettier --check apps packages tests tools infra .github package.json tsconfig.json tsconfig.base.json eslint.config.mjs playwright.config.ts --ignore-unknown",
+    "native:build": "python3 native/capture/build-macos.py",
+    "test:native": "bun test native/capture/test",
+    "test:native-host": "bun tools/native-host-smoke.ts"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

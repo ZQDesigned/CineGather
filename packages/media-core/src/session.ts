@@ -9,7 +9,12 @@ import {
   type RemoteParticipant,
   type LocalTrackPublication,
 } from "livekit-client";
-import { qualityPresets, type Quality } from "@cinegather/contracts";
+import {
+  nativeOwner,
+  qualityPresets,
+  type Quality,
+} from "@cinegather/contracts";
+import { MoviePlayback } from "./movie";
 import { AudioMixer } from "./mixer";
 export interface ParticipantSummary {
   id: string;
@@ -34,6 +39,8 @@ export class MediaSession {
   private videoTrack?: Track;
   private audioElements = new Map<string, HTMLMediaElement[]>();
   private mixer = new AudioMixer();
+  private movie = new MoviePlayback();
+  private movieAudio?: { sid: string; track: RemoteAudioTrack };
   private watching = true;
   private microphoneRevision = 0;
   private microphoneWanted = false;
@@ -150,31 +157,34 @@ export class MediaSession {
     );
     const publication = sharer?.getTrackPublication(Track.Source.ScreenShare);
     const next = publication?.track;
-    if (next !== this.videoTrack) {
-      if (this.video && this.videoTrack) this.videoTrack.detach(this.video);
-      this.videoTrack = next;
-      if (this.video && next) {
-        next.attach(this.video);
-        this.video.muted = true;
-        void this.video.play().catch(() => {});
-      }
-    }
+    this.videoTrack = next;
+    const filmAudio = sharer?.getTrackPublication(
+      Track.Source.ScreenShareAudio,
+    )?.track;
+    this.movie.tracks(
+      next,
+      filmAudio === this.movieAudio?.track ? this.movieAudio?.track : undefined,
+    );
     this.changed({
       revision: this.revision,
       state: room.state,
-      participants: participants.map((p) => ({
-        id: p.identity,
-        name: p.name || "朋友",
-        local: p === room.localParticipant,
-        microphone: p.isMicrophoneEnabled,
-        speaking: p.isSpeaking,
-        quality: p.connectionQuality,
-      })),
+      participants: participants
+        .filter((p) => !nativeOwner(p.identity))
+        .map((p) => ({
+          id: p.identity,
+          name: p.name || "朋友",
+          local: p === room.localParticipant,
+          microphone: p.isMicrophoneEnabled,
+          speaking: p.isSpeaking,
+          quality: p.connectionQuality,
+        })),
       sharer: sharer
         ? {
-            id: sharer.identity,
+            id: nativeOwner(sharer.identity) ?? sharer.identity,
             name: sharer.name || "朋友",
-            local: sharer === room.localParticipant,
+            local:
+              sharer === room.localParticipant ||
+              nativeOwner(sharer.identity) === room.localParticipant.identity,
           }
         : undefined,
       audioBlocked: !room.canPlaybackAudio,
@@ -197,6 +207,23 @@ export class MediaSession {
       pub.setSubscribed(false);
       return;
     }
+    if (
+      track instanceof RemoteAudioTrack &&
+      pub.source === Track.Source.ScreenShareAudio &&
+      nativeOwner(participant.identity) === this.room?.localParticipant.identity
+    ) {
+      pub.setSubscribed(false);
+      return;
+    }
+    if (
+      track instanceof RemoteAudioTrack &&
+      pub.source === Track.Source.ScreenShareAudio
+    ) {
+      this.movieAudio = { sid: pub.trackSid, track };
+      this.mixer.attach(pub.trackSid, participant.identity, "screen", track);
+      this.emit();
+      return;
+    }
     if (track instanceof RemoteAudioTrack) {
       const el = track.attach();
       el.dataset.cinegatherAudio = pub.source;
@@ -214,6 +241,17 @@ export class MediaSession {
     this.emit();
   }
   private detach(track: Track, sid: string) {
+    if (this.movieAudio?.sid === sid) {
+      this.movieAudio = undefined;
+      this.movie.tracks(this.videoTrack);
+      this.mixer.remove(sid);
+      return;
+    }
+    if (track === this.videoTrack) {
+      this.videoTrack = undefined;
+      this.movie.tracks(undefined, this.movieAudio?.track);
+      return;
+    }
     const elements = new Set([
       ...track.detach(),
       ...(this.audioElements.get(sid) ?? []),
@@ -227,7 +265,8 @@ export class MediaSession {
     this.mixer.remove(sid);
   }
   private clearElements() {
-    this.videoTrack?.detach();
+    this.movie.tracks();
+    this.movieAudio = undefined;
     this.videoTrack = undefined;
     if (this.video) this.video.srcObject = null;
     for (const elements of this.audioElements.values())
@@ -236,13 +275,8 @@ export class MediaSession {
     this.mixer.clear();
   }
   setVideoElement(element?: HTMLVideoElement) {
-    if (this.video && this.videoTrack) this.videoTrack.detach(this.video);
     this.video = element;
-    if (element && this.videoTrack) {
-      this.videoTrack.attach(element);
-      element.muted = true;
-      void element.play().catch(() => {});
-    }
+    this.movie.bind(element);
   }
   async microphone(enabled: boolean, deviceId?: string) {
     const room = this.room;

@@ -195,3 +195,16 @@ export const idempotency = pgTable(
   },
   (t) => [primaryKey({ columns: [t.userId, t.key] })],
 );
+
+export const nativePublications = pgTable("native_publications", {
+  roomId: uuid("room_id")
+    .primaryKey()
+    .references(() => rooms.id, { onDelete: "cascade" }),
+  leaseId: uuid("lease_id").notNull(),
+  revision: integer("revision").notNull(),
+  holderUserId: uuid("holder_user_id")
+    .notNull()
+    .references(() => users.id),
+  ingressId: text("ingress_id").notNull().unique(),
+  identity: text("identity").notNull().unique(),
+});

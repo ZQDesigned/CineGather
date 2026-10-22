@@ -25,7 +25,7 @@
     "dev:renderer": "vite --host 127.0.0.1 --port 5173 --config vite.renderer.config.ts",
     "build": "electron-vite build",
     "dist:win": "electron-vite build && bun ../../tools/third-party.ts win32 x64 && electron-builder --win --x64 --publish never",
-    "dist:mac": "electron-vite build && bun ../../tools/third-party.ts darwin arm64 && electron-builder --mac --arm64 --publish never"
+    "dist:mac": "python3 ../../native/capture/build-macos.py && electron-vite build && bun ../../tools/third-party.ts darwin arm64 && electron-builder --mac --arm64 --publish never"
   },
   "version": "0.1.0",
   "private": true,

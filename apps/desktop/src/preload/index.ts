@@ -2,6 +2,12 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  nativeCapture: process.platform === "darwin",
+  startNativeCapture: (request) =>
+    ipcRenderer.invoke("desktop:native-start", request),
+  renewNativeCapture: (lease) =>
+    ipcRenderer.invoke("desktop:native-renew", lease),
+  stopNativeCapture: () => ipcRenderer.invoke("desktop:native-stop"),
   takeInvitation: () => ipcRenderer.invoke("desktop:take-invitation"),
   sources: () => ipcRenderer.invoke("desktop:sources"),
   selectSource: (selection) =>

@@ -366,3 +366,141 @@ test("media token issuance failures are observable without counting rejected inv
     media.issue = original;
   }
 });
+
+test("an unavailable ingress registry cannot prevent expired browser permission revocation", async () => {
+  const { media } = await import("../../apps/api/src/media");
+  const { reconcileRoom } = await import("../../apps/api/src/rooms");
+  const { leases } = await import("@cinegather/database");
+  const user = await guest("过期授权隔离");
+  const created = await room(user.token);
+  await db
+    .update(leases)
+    .set({
+      holderUserId: user.id,
+      leaseId: crypto.randomUUID(),
+      revision: 1,
+      expiresAt: new Date(Date.now() - 1000),
+    })
+    .where(eq(leases.roomId, created.id));
+  const list = media.participants,
+    set = media.setShare,
+    ingressList = media.ingress.listIngress;
+  const permissions: boolean[] = [];
+  try {
+    media.participants = async () =>
+      [
+        { identity: user.id, permission: { canPublishSources: [2, 3, 4] } },
+      ] as Awaited<ReturnType<typeof list>>;
+    media.setShare = async (_roomId, _userId, allow) => {
+      permissions.push(allow);
+    };
+    media.ingress.listIngress = async () => {
+      throw new Error("registry unavailable");
+    };
+    await expect(reconcileRoom(created.id)).rejects.toThrow(
+      "registry unavailable",
+    );
+    expect(permissions).toEqual([false]);
+  } finally {
+    media.participants = list;
+    media.setShare = set;
+    media.ingress.listIngress = ingressList;
+  }
+});
+
+test("logout waits for in-flight native issuance and revokes the key committed by that request", async () => {
+  const { media } = await import("../../apps/api/src/media");
+  const r = await import("../../apps/api/src/rooms");
+  const { revokeSession } = await import("../../apps/api/src/auth");
+  const user = await guest("原生撤销并发");
+  const created = await room(user.token);
+  const originalList = media.participants,
+    originalSet = media.setShare,
+    originalCreate = media.createNative;
+  let unblock!: () => void, reached!: () => void;
+  const gate = new Promise<void>((resolve) => {
+    unblock = resolve;
+  });
+  const entered = new Promise<void>((resolve) => {
+    reached = resolve;
+  });
+  let issuance: Promise<unknown> | undefined, logout: Promise<void> | undefined;
+  try {
+    media.participants = async () =>
+      [
+        { identity: user.id, permission: { canPublishSources: [2] } },
+      ] as Awaited<ReturnType<typeof originalList>>;
+    media.setShare = async () => {};
+    media.createNative = async (...args) => {
+      const value = await originalCreate.apply(media, args);
+      reached();
+      await gate;
+      return value;
+    };
+    const person = { id: user.id, displayName: "原生撤销并发" };
+    const lease = await r.acquireLease(person, created.id);
+    issuance = r.nativePublication(person, created.id, lease);
+    await entered;
+    let loggedOut = false;
+    logout = revokeSession(`Bearer ${user.token}`).then(() => {
+      loggedOut = true;
+    });
+    for (let i = 0; i < 50; i++) {
+      const [credential] = await db
+        .select()
+        .from(credentials)
+        .where(eq(credentials.userId, user.id));
+      if (credential?.revokedAt) break;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    expect(loggedOut).toBe(false);
+    unblock();
+    await issuance;
+    await logout;
+    expect(
+      (await media.ingress.listIngress({ roomName: created.id })).length,
+    ).toBe(0);
+  } finally {
+    unblock();
+    await issuance?.catch(() => {});
+    await logout?.catch(() => {});
+    media.participants = originalList;
+    media.setShare = originalSet;
+    media.createNative = originalCreate;
+    for (const entry of await media.ingress.listIngress({
+      roomName: created.id,
+    }))
+      await media.ingress.deleteIngress(entry.ingressId);
+  }
+});
+
+test("separate ingress creation attempts within one lease cannot revoke each other's publisher identity", async () => {
+  const { media } = await import("../../apps/api/src/media");
+  const user = await guest("推流重试隔离");
+  const created = await room(user.token);
+  const entries: { ingressId: string; participantIdentity: string }[] = [];
+  try {
+    const leaseId = crypto.randomUUID();
+    entries.push(
+      await media.createNative(
+        created.id,
+        { id: user.id, displayName: "推流重试隔离" },
+        leaseId,
+      ),
+    );
+    entries.push(
+      await media.createNative(
+        created.id,
+        { id: user.id, displayName: "推流重试隔离" },
+        leaseId,
+      ),
+    );
+    expect(
+      entries[0]!.participantIdentity === entries[1]!.participantIdentity,
+    ).toBe(false);
+  } finally {
+    for (const entry of entries)
+      await media.ingress.deleteIngress(entry.ingressId);
+  }
+});

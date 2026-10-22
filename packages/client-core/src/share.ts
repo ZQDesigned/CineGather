@@ -4,7 +4,7 @@ export interface ShareDependencies {
   renew(lease: ShareLease): Promise<ShareLease>;
   release(lease: ShareLease): Promise<void>;
   select(): Promise<boolean>;
-  publish(): Promise<void>;
+  publish(lease: ShareLease): Promise<void>;
   stop(): Promise<void>;
   changed(state: ShareState, revision: number): void;
   error(error: unknown): void;
@@ -16,6 +16,7 @@ export class ShareCoordinator {
   private timer?: ReturnType<typeof setInterval>;
   private starting = false;
   private renewing = false;
+  private stopping?: Promise<void>;
   constructor(private readonly deps: ShareDependencies) {}
   private change(state: ShareState) {
     this.state = state;
@@ -42,7 +43,7 @@ export class ShareCoordinator {
         return;
       }
       this.change("publishing");
-      await this.deps.publish();
+      await this.deps.publish(this.lease!);
       if (revision !== this.revision) {
         await this.deps.stop();
         return;
@@ -75,6 +76,16 @@ export class ShareCoordinator {
     }
   }
   async stop() {
+    if (this.stopping) return this.stopping;
+    const stopping = this.stopInternal();
+    this.stopping = stopping;
+    try {
+      await stopping;
+    } finally {
+      if (this.stopping === stopping) this.stopping = undefined;
+    }
+  }
+  private async stopInternal() {
     ++this.revision;
     clearInterval(this.timer);
     this.timer = undefined;

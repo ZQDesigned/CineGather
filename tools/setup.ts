@@ -25,7 +25,12 @@ if (!env.LIVEKIT_API_KEY || !env.LIVEKIT_API_SECRET)
   throw new Error("Missing LiveKit secrets in .env");
 writeFileSync(
   ".local/livekit.yaml",
-  `port: 7880\nbind_addresses: ["0.0.0.0"]\nrtc:\n  tcp_port: 7881\n  port_range_start: 50000\n  port_range_end: 50100\n  node_ip: 127.0.0.1\n  use_external_ip: false\nkeys:\n  ${env.LIVEKIT_API_KEY}: ${env.LIVEKIT_API_SECRET}\nlogging:\n  level: warn\n`,
+  `port: 7880\nbind_addresses: ["0.0.0.0"]\nrtc:\n  tcp_port: 7881\n  port_range_start: 50000\n  port_range_end: 50100\n  node_ip: 127.0.0.1\n  use_external_ip: false\nredis:\n  address: redis:6379\ningress:\n  whip_base_url: http://127.0.0.1:7885/w\nkeys:\n  ${env.LIVEKIT_API_KEY}: ${env.LIVEKIT_API_SECRET}\nlogging:\n  level: warn\n`,
+  { mode: 0o600 },
+);
+writeFileSync(
+  ".local/ingress.yaml",
+  `api_key: ${env.LIVEKIT_API_KEY}\napi_secret: ${env.LIVEKIT_API_SECRET}\nws_url: ws://livekit:7880\nredis:\n  address: redis:6379\nwhip_port: 7885\nrtmp_port: -1\nhealth_port: 7887\nrtc_config:\n  udp_port: 7886\n  tcp_port: 7888\n  node_ip: 127.0.0.1\n  use_external_ip: false\n  enable_loopback_candidate: false\nlogging:\n  level: warn\n`,
   { mode: 0o600 },
 );
 writeFileSync(

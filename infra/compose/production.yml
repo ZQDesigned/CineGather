@@ -49,6 +49,37 @@ services:
       postgres:
         condition: service_healthy
     networks: [private]
+  redis:
+    image: registry-1.docker.io/library/redis:7-alpine
+    command:
+      [
+        "redis-server",
+        "--requirepass",
+        "${REDIS_PASSWORD:?Set a strong Redis password}",
+        "--appendonly",
+        "yes",
+        "--maxmemory",
+        "256mb",
+        "--maxmemory-policy",
+        "noeviction",
+      ]
+    ports: ["127.0.0.1:6379:6379"]
+    volumes: [redis-data:/data]
+    networks: [private]
+    restart: unless-stopped
+  ingress:
+    image: registry-1.docker.io/livekit/ingress:v1.5.0
+    command: ["--config", "/etc/ingress.yaml"]
+    volumes:
+      - ${INGRESS_CONFIG_PATH:?Generate a production Ingress config}:/etc/ingress.yaml:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+      - "7886:7886/udp"
+      - "7888:7888"
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    networks: [private, public]
+    depends_on: [livekit, redis]
+    restart: unless-stopped
   livekit:
     image: registry-1.docker.io/livekit/livekit-server:v1.13.10
     network_mode: host
@@ -62,6 +93,7 @@ services:
     environment:
       API_DOMAIN: ${API_DOMAIN:?Set the API domain}
       MEDIA_DOMAIN: ${MEDIA_DOMAIN:?Set the media domain}
+      WHIP_DOMAIN: ${WHIP_DOMAIN:?Set the WHIP domain}
     ports:
       - "80:80"
       - "443:443"
@@ -76,6 +108,7 @@ services:
     restart: unless-stopped
     networks: [public]
 volumes:
+  redis-data:
   postgres-data:
   caddy-data:
   caddy-config:

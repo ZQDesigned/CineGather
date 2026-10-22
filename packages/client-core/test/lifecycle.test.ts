@@ -75,3 +75,47 @@ test("a publishing failure stops partial media and releases the lease", async ()
   expect(h.releases).toEqual(["lease-one"]);
   expect(share.state).toBe("failed");
 });
+
+test("concurrent stop requests share cleanup and cannot expose idle before media has stopped", async () => {
+  const h = harness();
+  h.deps.select = async () => true;
+  let finish!: () => void;
+  let stops = 0;
+  h.deps.stop = async () => {
+    stops++;
+    await new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+  };
+  const share = new ShareCoordinator(h.deps);
+  await share.start();
+  const first = share.stop();
+  const second = share.stop();
+  expect(share.state).toBe("stopping");
+  expect(stops).toBe(1);
+  finish();
+  await Promise.all([first, second]);
+  expect(h.releases).toHaveLength(1);
+  expect(share.state).toBe("idle");
+});
+
+test("a late native publish after stop is immediately torn down without reactivating the lease", async () => {
+  const h = harness();
+  h.deps.select = async () => true;
+  let finish!: () => void;
+  h.deps.publish = async () => {
+    await new Promise<void>((resolve) => {
+      finish = resolve;
+    });
+  };
+  const share = new ShareCoordinator(h.deps);
+  const start = share.start();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(share.state).toBe("publishing");
+  await share.stop();
+  finish();
+  await start;
+  expect(h.stops).toHaveLength(2);
+  expect(h.releases).toEqual(["lease-one"]);
+  expect(share.state).toBe("idle");
+});

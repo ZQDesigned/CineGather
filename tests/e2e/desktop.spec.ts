@@ -143,14 +143,27 @@ test("packaged capture permissions require source approval while camera capture 
       );
     expect(await requestCapture()).toBe("NotAllowedError");
     expect(await requestCount()).toBe(0);
-    await page.evaluate(() =>
-      window.desktop!.selectSource({
-        sourceId: "screen:permission-regression",
-        systemAudio: false,
-      }),
-    );
-    await requestCapture();
-    expect(await requestCount()).toBe(1);
+    // Native macOS capture never opens browser display-media permission.
+    if (await page.evaluate(() => window.desktop?.nativeCapture)) {
+      await expect(
+        page.evaluate(() =>
+          window.desktop!.selectSource({
+            sourceId: "screen:permission-regression",
+            systemAudio: false,
+          }),
+        ),
+      ).rejects.toThrow();
+      expect(await requestCount()).toBe(0);
+    } else {
+      await page.evaluate(() =>
+        window.desktop!.selectSource({
+          sourceId: "screen:permission-regression",
+          systemAudio: false,
+        }),
+      );
+      await requestCapture();
+      expect(await requestCount()).toBe(1);
+    }
     expect(
       await page.evaluate(async () => {
         try {
@@ -166,7 +179,9 @@ test("packaged capture permissions require source approval while camera capture 
     ).toBe("NotAllowedError");
     await page.evaluate(() => window.desktop!.cancelCapture());
     await requestCapture();
-    expect(await requestCount()).toBe(1);
+    expect(await requestCount()).toBe(
+      await page.evaluate(() => (window.desktop?.nativeCapture ? 0 : 1)),
+    );
   } finally {
     await app.close();
     await rm(profile, { recursive: true, force: true });
@@ -366,6 +381,9 @@ test("packaged global hold uses the native state boundary, combines foreground h
       page.getByRole("button", { name: "关闭麦克风", exact: true }),
     ).toBeVisible();
     await app.evaluate(({ powerMonitor }) => powerMonitor.emit("lock-screen"));
+    await expect(
+      page.evaluate(() => window.desktop!.sources()),
+    ).rejects.toThrow("锁定");
     await expect(
       page.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeVisible();

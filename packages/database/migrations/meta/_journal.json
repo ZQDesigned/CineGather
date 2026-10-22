@@ -15,6 +15,13 @@
       "when": 1792303894052,
       "tag": "0001_vengeful_firedrake",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1792666800000,
+      "tag": "0002_native_publications",
+      "breakpoints": true
     }
   ]
 }

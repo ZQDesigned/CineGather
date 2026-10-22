@@ -1,0 +1,16 @@
+api_key: REPLACE_API_KEY
+api_secret: REPLACE_32_CHARACTER_MINIMUM_SECRET
+ws_url: ws://host.docker.internal:7880
+redis:
+  address: redis:6379
+  password: REPLACE_REDIS_PASSWORD
+whip_port: 8080
+rtmp_port: -1
+health_port: 8081
+rtc_config:
+  udp_port: 7886
+  tcp_port: 7888
+  use_external_ip: true
+  enable_loopback_candidate: false
+logging:
+  level: warn

@@ -125,8 +125,14 @@ export type CaptureSource = {
   name: string;
   thumbnail: string;
   kind: "screen" | "window";
+  application?: string;
+  applicationId?: string;
 };
-export type CaptureSelection = { sourceId: string; systemAudio: boolean };
+export type CaptureSelection = {
+  sourceId: string;
+  systemAudio: boolean;
+  audioApplication?: string;
+};
 export interface DesktopSettings {
   minimizeToTray: boolean;
   pushToTalk: boolean;
@@ -138,6 +144,10 @@ export interface DesktopSettings {
 }
 export interface DesktopBridge {
   platform: string;
+  nativeCapture?: boolean;
+  startNativeCapture?(request: NativeCaptureRequest): Promise<void>;
+  renewNativeCapture?(lease: ShareLease): Promise<ShareLease>;
+  stopNativeCapture?(): Promise<void>;
   sources(): Promise<CaptureSource[]>;
   takeInvitation(): Promise<string | undefined>;
   selectSource(selection: CaptureSelection): Promise<void>;
@@ -159,4 +169,28 @@ export interface DesktopBridge {
     ) => void,
   ): () => void;
   setSharing(active: boolean): Promise<void>;
+}
+
+const nativeIdentityPattern =
+  /^cg-native:([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}):([0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/;
+export function nativeIdentity(userId: string, publicationId: string) {
+  return `cg-native:${userId}:${publicationId}`;
+}
+export function nativeOwner(identity: string): string | undefined {
+  return nativeIdentityPattern.exec(identity)?.[1];
+}
+export const nativePublicationSchema = z.object({
+  url: z.url(),
+  token: z.string(),
+  identity: z.string(),
+  expiresAt: z.string(),
+});
+export type NativePublication = z.infer<typeof nativePublicationSchema>;
+
+export interface NativeCaptureRequest {
+  apiUrl: string;
+  sessionToken: string;
+  roomId: string;
+  lease: ShareLease;
+  quality: Quality;
 }

@@ -1,3 +1,5 @@
+import { revokeNative } from "./rooms";
+import { nativePublications, rooms } from "@cinegather/database";
 import { users, credentials, members, leases } from "@cinegather/database";
 import { and, eq, gt, isNull } from "drizzle-orm";
 import { randomUUID } from "node:crypto";
@@ -56,6 +58,44 @@ export async function revokeSession(authorization: string) {
     .where(eq(credentials.secretHash, hash(authorization.slice(7))))
     .returning({ userId: credentials.userId });
   if (!revoked) return;
+  const affected = new Set([
+    ...(
+      await db
+        .select({ roomId: members.roomId })
+        .from(members)
+        .where(eq(members.userId, revoked.userId))
+    ).map((r) => r.roomId),
+    ...(
+      await db
+        .select({ roomId: nativePublications.roomId })
+        .from(nativePublications)
+        .where(eq(nativePublications.holderUserId, revoked.userId))
+    ).map((r) => r.roomId),
+  ]);
+  // Serialize with lease issuance and moderation, including an ingress whose
+  // external creation has finished while its DB transaction is still pending.
+  for (const roomId of [...affected].sort()) {
+    await db.transaction(async (tx) => {
+      await tx.select().from(rooms).where(eq(rooms.id, roomId)).for("update");
+      await revokeNative(tx, roomId, revoked.userId);
+      await media.remove(roomId, revoked.userId);
+      await tx
+        .update(members)
+        .set({ admittedUntil: null })
+        .where(
+          and(eq(members.roomId, roomId), eq(members.userId, revoked.userId)),
+        );
+      await tx
+        .update(leases)
+        .set({ holderUserId: null, leaseId: null, expiresAt: null })
+        .where(
+          and(
+            eq(leases.roomId, roomId),
+            eq(leases.holderUserId, revoked.userId),
+          ),
+        );
+    });
+  }
   for (const room of await media.client.listRooms()) {
     if (
       (await media.participants(room.name)).some(
@@ -65,14 +105,6 @@ export async function revokeSession(authorization: string) {
       await media.remove(room.name, revoked.userId);
   }
   await db.transaction(async (tx) => {
-    await tx
-      .update(members)
-      .set({ admittedUntil: null })
-      .where(eq(members.userId, revoked.userId));
-    await tx
-      .update(leases)
-      .set({ holderUserId: null, leaseId: null, expiresAt: null })
-      .where(eq(leases.holderUserId, revoked.userId));
     await audit(tx, revoked.userId, "session.revoked", revoked.userId);
   });
 }

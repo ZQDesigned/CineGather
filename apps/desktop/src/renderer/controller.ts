@@ -78,7 +78,7 @@ export const media = new MediaSession(
     void stopShare();
   },
 );
-export const shareSession = new ShareCoordinator({
+export const shareSession: ShareCoordinator = new ShareCoordinator({
   acquire: async () =>
     unwrap(
       await api.POST("/api/v1/rooms/{roomId}/share-lease", {
@@ -86,12 +86,15 @@ export const shareSession = new ShareCoordinator({
       }),
     ),
   renew: async (lease) =>
-    unwrap(
-      await api.POST("/api/v1/rooms/{roomId}/share-lease/renew", {
-        params: { path: { roomId: state().room!.id } },
-        body: { leaseId: lease.leaseId, revision: lease.revision },
-      }),
-    ),
+    window.desktop?.nativeCapture &&
+    ["publishing", "active"].includes(shareSession.state)
+      ? window.desktop.renewNativeCapture!(lease)
+      : unwrap(
+          await api.POST("/api/v1/rooms/{roomId}/share-lease/renew", {
+            params: { path: { roomId: state().room!.id } },
+            body: { leaseId: lease.leaseId, revision: lease.revision },
+          }),
+        ),
   release: async (lease) => {
     if (state().room)
       unwrap(
@@ -103,7 +106,13 @@ export const shareSession = new ShareCoordinator({
   },
   select: async () => {
     if (!window.desktop) return true;
+    const revision = state().shareRevision;
     const sources = await window.desktop.sources();
+    if (
+      revision !== state().shareRevision ||
+      state().shareState !== "selectingSource"
+    )
+      return false;
     if (!sources.length)
       throw new Error("未找到共享来源，请检查系统屏幕录制权限后重试");
     update({ sources, modal: "source" });
@@ -111,14 +120,26 @@ export const shareSession = new ShareCoordinator({
       selectResolve = resolve;
     });
   },
-  publish: async () => {
+  publish: async (lease) => {
     try {
+      if (window.desktop?.nativeCapture) {
+        if (!sessionToken || !state().room) throw new Error("请先进入房间");
+        await window.desktop.startNativeCapture!({
+          apiUrl: baseUrl,
+          sessionToken,
+          roomId: state().room!.id,
+          lease,
+          quality: state().settings.quality,
+        });
+        return;
+      }
       await media.share(state().settings.quality, state().systemAudio);
     } finally {
       await window.desktop?.cancelCapture();
     }
   },
   stop: async () => {
+    await window.desktop?.stopNativeCapture?.();
     await media.stopShare();
     await window.desktop?.cancelCapture();
   },
