@@ -1,3 +1,4 @@
+import { Button } from "./Controls";
 import {
   ArrowUpRight,
   Plus,
@@ -20,10 +21,10 @@ export function Home() {
           </h1>
           <p>挑一部好片，叫上那些想见的人。</p>
         </div>
-        <button className="secondary" onClick={() => update({ modal: "join" })}>
+        <Button className="secondary" onClick={() => update({ modal: "join" })}>
           <ArrowUpRight size={16} />
           加入房间
-        </button>
+        </Button>
       </div>
       <section className="home-hero">
         <div>
@@ -41,13 +42,13 @@ export function Home() {
             <br />
             从一个属于你们的放映室开始。
           </p>
-          <button
+          <Button
             className="primary"
             onClick={() => update({ modal: "create" })}
           >
             <Plus size={18} />
             创建私人房间
-          </button>
+          </Button>
         </div>
         <div className="hero-cinema">
           <div className="hero-screen">
@@ -73,7 +74,7 @@ export function Home() {
       </div>
       <div className="room-grid">
         {app.rooms.map((room) => (
-          <button
+          <Button
             className="room-card"
             key={room.id}
             onClick={() =>
@@ -91,9 +92,9 @@ export function Home() {
                 最多 {room.maxMembers} 人<ArrowUpRight size={18} />
               </span>
             </div>
-          </button>
+          </Button>
         ))}
-        <button
+        <Button
           className="room-card new-room"
           onClick={() => update({ modal: "create" })}
         >
@@ -102,7 +103,7 @@ export function Home() {
           </div>
           <h3>为相聚留个位置</h3>
           <p>创建一个新的私人房间</p>
-        </button>
+        </Button>
       </div>
       <div className="home-note">
         <Headphones size={19} />

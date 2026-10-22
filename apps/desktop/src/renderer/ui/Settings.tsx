@@ -1,3 +1,5 @@
+import { Select, Checkbox, Progress } from "antd";
+import { Button, Input } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, Mic, Volume2, Monitor, Check, Server } from "lucide-react";
 import { useApp } from "../store";
@@ -146,24 +148,26 @@ export function Settings() {
             </h3>
             <label>
               麦克风
-              <select
+              <Select
+                aria-label="麦克风"
                 value={settings.inputDevice}
-                onChange={(event) => change("inputDevice", event.target.value)}
-              >
-                <option value="">系统默认麦克风</option>
-                {devices
-                  .filter(
-                    (d) => d.kind === "audioinput" && d.deviceId !== "default",
-                  )
-                  .map((d, i) => (
-                    <option key={d.deviceId} value={d.deviceId}>
-                      {d.label || `麦克风 ${i + 1}`}
-                    </option>
-                  ))}
-              </select>
+                onChange={(value) => change("inputDevice", value)}
+                options={[
+                  { value: "", label: "系统默认麦克风" },
+                  ...devices
+                    .filter(
+                      (d) =>
+                        d.kind === "audioinput" && d.deviceId !== "default",
+                    )
+                    .map((d, i) => ({
+                      value: d.deviceId,
+                      label: d.label || `麦克风 ${i + 1}`,
+                    })),
+                ]}
+              />
             </label>
             <div className="device-test">
-              <button
+              <Button
                 type="button"
                 className="secondary"
                 disabled={requesting}
@@ -175,37 +179,43 @@ export function Settings() {
                   : testing
                     ? "停止测试"
                     : "测试麦克风"}
-              </button>
-              <div className="meter">
-                <span style={{ width: `${level * 100}%` }} />
-              </div>
+              </Button>
+              <Progress
+                className="meter"
+                percent={Math.round(level * 100)}
+                showInfo={false}
+                size="small"
+                aria-label="麦克风输入电平"
+              />
             </div>
             <label>
               扬声器 / 耳机
-              <select
+              <Select
+                aria-label="扬声器 / 耳机"
                 value={settings.outputDevice}
-                onChange={(event) => change("outputDevice", event.target.value)}
-              >
-                <option value="">系统默认输出</option>
-                {devices
-                  .filter(
-                    (d) => d.kind === "audiooutput" && d.deviceId !== "default",
-                  )
-                  .map((d, i) => (
-                    <option key={d.deviceId} value={d.deviceId}>
-                      {d.label || `输出设备 ${i + 1}`}
-                    </option>
-                  ))}
-              </select>
+                onChange={(value) => change("outputDevice", value)}
+                options={[
+                  { value: "", label: "系统默认输出" },
+                  ...devices
+                    .filter(
+                      (d) =>
+                        d.kind === "audiooutput" && d.deviceId !== "default",
+                    )
+                    .map((d, i) => ({
+                      value: d.deviceId,
+                      label: d.label || `扬声器 / 耳机 ${i + 1}`,
+                    })),
+                ]}
+              />
             </label>
-            <button
+            <Button
               type="button"
               className="secondary"
               onClick={() => void beep().catch(actions.report)}
             >
               <Volume2 size={15} />
               播放测试音
-            </button>
+            </Button>
           </section>
           <section>
             <h3>
@@ -214,37 +224,29 @@ export function Settings() {
             </h3>
             <label>
               默认共享画质
-              <select
+              <Select
+                aria-label="默认共享画质"
                 value={settings.quality}
-                onChange={(event) =>
-                  change(
-                    "quality",
-                    event.target.value as DesktopSettings["quality"],
-                  )
-                }
-              >
-                {Object.entries(qualityPresets).map(([key, p]) => (
-                  <option key={key} value={key}>
-                    {p.label} · {p.width === 1920 ? "1080p" : "720p"} /{" "}
-                    {p.frameRate} fps
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="check-label">
-              <input
-                type="checkbox"
-                checked={settings.pushToTalk}
-                onChange={(event) => change("pushToTalk", event.target.checked)}
+                onChange={(value) => change("quality", value)}
+                options={Object.entries(qualityPresets).map(([value, p]) => ({
+                  value: value as DesktopSettings["quality"],
+                  label: `${p.label} · ${p.width === 1920 ? "1080p" : "720p"} / ${p.frameRate} fps`,
+                }))}
               />
+            </label>
+            <Checkbox
+              className="check-label"
+              checked={settings.pushToTalk}
+              onChange={(event) => change("pushToTalk", event.target.checked)}
+            >
               <span>
                 按键说话
                 <small>窗口内按住空格；后台按住全局组合键，松开即静音。</small>
               </span>
-            </label>
+            </Checkbox>
             <label>
               全局按住说话
-              <input
+              <Input
                 value={settings.pttShortcut}
                 onChange={(event) => change("pttShortcut", event.target.value)}
                 maxLength={64}
@@ -252,35 +254,34 @@ export function Settings() {
             </label>
             <label>
               全局麦克风静音
-              <input
+              <Input
                 value={settings.muteShortcut}
                 onChange={(event) => change("muteShortcut", event.target.value)}
                 maxLength={64}
               />
             </label>
-            <label className="check-label">
-              <input
-                type="checkbox"
-                checked={settings.minimizeToTray}
-                onChange={(event) =>
-                  change("minimizeToTray", event.target.checked)
-                }
-              />
+            <Checkbox
+              className="check-label"
+              checked={settings.minimizeToTray}
+              onChange={(event) =>
+                change("minimizeToTray", event.target.checked)
+              }
+            >
               <span>
                 关闭窗口后保留在托盘
                 <small>语音继续运行，可从托盘停止共享或退出。</small>
               </span>
-            </label>
+            </Checkbox>
           </section>
         </div>
         <p className="form-note">
           1080p / 60fps 为目标档位，实际帧率会随设备和网络调整。快捷键使用
           Electron Accelerator 格式。
         </p>
-        <button className="primary wide" type="submit">
+        <Button className="primary wide" type="submit">
           保存设置
           <Check size={17} />
-        </button>
+        </Button>
       </form>
       <div className="server-config">
         <h3>
@@ -289,13 +290,13 @@ export function Settings() {
         </h3>
         <label>
           API 地址
-          <input
+          <Input
             value={server}
             onChange={(event) => setServer(event.target.value)}
             placeholder="https://api.example.com"
           />
         </label>
-        <button
+        <Button
           className="secondary"
           onClick={() => {
             try {
@@ -306,7 +307,7 @@ export function Settings() {
           }}
         >
           保存地址并重新建立身份
-        </button>
+        </Button>
       </div>
     </ModalShell>
   );

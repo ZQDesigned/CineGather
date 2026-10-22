@@ -1,3 +1,5 @@
+import { Slider, Alert } from "antd";
+import { Button } from "./Controls";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Shield,
@@ -59,39 +61,37 @@ export function Room() {
               私密
             </span>
           </h1>
-          <button
+          <Button
             className="room-id"
             title="复制房间 ID"
             onClick={() =>
-              void navigator.clipboard
-                .writeText(app.room!.id)
-                .then(() =>
-                  update({ notice: "房间 ID 已复制；新朋友仍需要有效邀请" }),
-                )
+              void actions
+                .copyText(app.room!.id, "房间 ID 已复制；新朋友仍需要有效邀请")
+                .catch(actions.report)
             }
           >
             房间 {app.room!.id.slice(0, 8).toUpperCase()}
             <Copy size={12} />
-          </button>
+          </Button>
         </div>
         <div className="heading-actions">
           {app.room!.role === "owner" && (
-            <button
+            <Button
               className="secondary"
               onClick={() => void actions.run(actions.createInvite)}
             >
               <UserPlus size={16} />
               邀请朋友
-            </button>
+            </Button>
           )}
-          <button
+          <Button
             className="icon-button"
             title="影院模式"
             aria-label="影院模式"
             onClick={() => update({ cinema: !app.cinema })}
           >
             {app.cinema ? <Minimize size={20} /> : <Maximize size={20} />}
-          </button>
+          </Button>
         </div>
       </div>
       <div className="room-layout">
@@ -118,14 +118,14 @@ export function Room() {
                 <span className="eyebrow">THE SCREEN IS YOURS</span>
                 <h2>好戏，等你开场</h2>
                 <p>共享屏幕，与朋友一起看到同一个世界。</p>
-                <button
+                <Button
                   className="primary"
                   disabled={!connected || sharing}
                   onClick={() => void actions.shareSession.start()}
                 >
                   <MonitorUp size={17} />
                   选择屏幕开始共享
-                </button>
+                </Button>
                 <span className="stage-hint">
                   屏幕 / 应用窗口 · {qualityPresets[app.settings.quality].label}
                   画质
@@ -144,35 +144,45 @@ export function Room() {
                 )}
               </div>
             )}
-            <button
+            <Button
               className="stage-fullscreen icon-button"
               title="全屏画面"
               aria-label="全屏画面"
               onClick={fullscreen}
             >
               <Maximize size={17} />
-            </button>
+            </Button>
           </div>
           {app.shareState === "active" && (
-            <div className="sharing-banner">
-              <span>
-                <span className="live-dot" />
-                你正在共享屏幕，请留意画面中的私人信息。
-              </span>
-              <button onClick={() => void actions.stopShare()}>停止共享</button>
-            </div>
+            <Alert
+              className="sharing-banner"
+              type="info"
+              showIcon
+              title="你正在共享屏幕，请留意画面中的私人信息。"
+              action={
+                <Button type="button" onClick={() => void actions.stopShare()}>
+                  停止共享
+                </Button>
+              }
+            />
           )}
           {app.roomState === "failed" && (
-            <div className="reconnect-banner">
-              <span>连接已断开</span>
-              <button
-                className="secondary"
-                onClick={() => void actions.run(actions.retryRoom)}
-              >
-                <RefreshCw size={15} />
-                重新连接
-              </button>
-            </div>
+            <Alert
+              className="reconnect-banner"
+              type="error"
+              showIcon
+              title="连接已断开"
+              action={
+                <Button
+                  type="button"
+                  className="secondary"
+                  onClick={() => void actions.run(actions.retryRoom)}
+                >
+                  <RefreshCw size={15} />
+                  重新连接
+                </Button>
+              }
+            />
           )}
           <div className="stage-meta">
             <span>
@@ -209,7 +219,7 @@ export function Room() {
           </div>
           <div className="controls">
             <div className="control-group">
-              <button
+              <Button
                 className={`control-button ${!local?.microphone ? "muted-control" : ""}`}
                 disabled={!connected}
                 onClick={() => void actions.toggleMicrophone()}
@@ -223,18 +233,18 @@ export function Room() {
                       ? "麦克风已开启"
                       : "麦克风已关闭"}
                 </span>
-              </button>
-              <button
+              </Button>
+              <Button
                 className="control-settings icon-button"
                 title="音频设备设置"
                 aria-label="音频设备设置"
                 onClick={() => update({ modal: "settings" })}
               >
                 <Settings size={15} />
-              </button>
+              </Button>
             </div>
             <div className="control-divider" />
-            <button
+            <Button
               className={`control-button ${sharing ? "sharing-control" : ""}`}
               disabled={!connected}
               onClick={() => {
@@ -250,8 +260,8 @@ export function Room() {
                     : "取消共享"
                   : "共享屏幕"}
               </span>
-            </button>
-            <button
+            </Button>
+            <Button
               className="control-button"
               disabled={!app.media.sharer || app.media.sharer.local}
               onClick={() => {
@@ -261,9 +271,9 @@ export function Room() {
             >
               {app.watching ? <Eye size={21} /> : <EyeOff size={21} />}
               <span>{app.watching ? "暂停观看" : "恢复观看"}</span>
-            </button>
+            </Button>
             <span className="control-spacer" />
-            <button
+            <Button
               className="leave-button"
               onClick={() =>
                 void actions.run(() => actions.roomSession.leave())
@@ -271,34 +281,34 @@ export function Room() {
             >
               <LogOut size={18} />
               <span>离开房间</span>
-            </button>
+            </Button>
           </div>
           {app.media.audioBlocked && (
-            <button
+            <Button
               className="audio-unlock secondary"
               onClick={() => void actions.media.startAudio()}
             >
               <Volume2 size={16} />
               点击启用房间声音
-            </button>
+            </Button>
           )}
         </div>
         <aside className="room-panel">
           <div className="panel-tabs">
-            <button
+            <Button
               className={tab === "members" ? "selected" : ""}
               onClick={() => setTab("members")}
             >
               <Users size={16} />
               成员 <span>{app.media.participants.length}</span>
-            </button>
-            <button
+            </Button>
+            <Button
               className={tab === "chat" ? "selected" : ""}
               onClick={() => setTab("chat")}
             >
               <MessageCircle size={16} />
               聊天
-            </button>
+            </Button>
           </div>
           {tab === "members" ? (
             <>
@@ -327,17 +337,13 @@ export function Room() {
                             : "麦克风已关闭"}
                       </small>
                       {!p.local && (
-                        <input
-                          aria-label={`${p.name}的音量`}
-                          type="range"
-                          min="0"
-                          max="100"
-                          defaultValue="100"
-                          onChange={(event) =>
-                            actions.media.memberVolume(
-                              p.id,
-                              Number(event.target.value) / 100,
-                            )
+                        <Slider
+                          ariaLabelForHandle={`${p.name}的音量`}
+                          min={0}
+                          max={100}
+                          defaultValue={100}
+                          onChange={(value) =>
+                            actions.media.memberVolume(p.id, value / 100)
                           }
                         />
                       )}
@@ -353,7 +359,7 @@ export function Room() {
                     </span>
                     {!p.local && (
                       <div className="member-actions">
-                        <button
+                        <Button
                           className="icon-button"
                           title="添加好友"
                           aria-label={`添加${p.name}为好友`}
@@ -369,9 +375,9 @@ export function Room() {
                           }
                         >
                           <UserPlus size={13} />
-                        </button>
+                        </Button>
                         {app.room!.role === "owner" && (
-                          <button
+                          <Button
                             className="text-button danger"
                             onClick={() =>
                               void actions.run(async () => {
@@ -393,7 +399,7 @@ export function Room() {
                             }
                           >
                             移出
-                          </button>
+                          </Button>
                         )}
                       </div>
                     )}
@@ -410,13 +416,13 @@ export function Room() {
                 </p>
               </div>
               {app.room!.role === "owner" && (
-                <button
+                <Button
                   className="text-button ban-link"
                   onClick={() => update({ modal: "bans" })}
                 >
                   <Shield size={13} />
                   管理房间黑名单
-                </button>
+                </Button>
               )}
             </>
           ) : (
@@ -452,12 +458,12 @@ function Volume({
         {icon}
         {label}
       </span>
-      <input
-        type="range"
-        min="0"
-        max="100"
+      <Slider
+        ariaLabelForHandle={label}
+        min={0}
+        max={100}
         value={Math.round(value * 100)}
-        onChange={(event) => onChange(Number(event.target.value) / 100)}
+        onChange={(value) => onChange(value / 100)}
       />
       <small>{Math.round(value * 100)}%</small>
     </label>

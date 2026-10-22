@@ -475,7 +475,10 @@ test("a removed output device does not leave the speaker test audio context open
   await page.getByRole("button", { name: "设置与设备", exact: true }).click();
   await page
     .getByRole("combobox", { name: "扬声器 / 耳机", exact: true })
-    .selectOption("removed-speaker");
+    .click();
+  await page
+    .getByRole("option", { name: "已拔出的测试扬声器", exact: true })
+    .click();
   await page.getByRole("button", { name: "播放测试音", exact: true }).click();
   await expect
     .poll(() =>
@@ -492,7 +495,7 @@ test("a removed output device does not leave the speaker test audio context open
     .toBe(true);
 });
 
-test("a rejected join displays its actionable error inside the active dialog", async ({
+test("a rejected join displays an actionable notification above the active dialog", async ({
   page,
 }) => {
   await guest(page, "加入失败提示");
@@ -501,9 +504,9 @@ test("a rejected join displays its actionable error inside the active dialog", a
     .getByLabel("邀请链接或完整房间码")
     .fill("00000000-0000-4000-8000-000000000000");
   await page.getByRole("button", { name: "进入房间", exact: true }).click();
-  await expect(page.getByRole("dialog").getByRole("alert")).toContainText(
-    "房间不存在",
-  );
+  await expect(
+    page.locator(".ant-notification").getByRole("alert"),
+  ).toContainText("房间不存在");
   await expect(
     page.getByRole("button", { name: "进入房间", exact: true }),
   ).toBeEnabled();
@@ -541,15 +544,12 @@ test("switching a selected microphone back to system default updates the active 
       .getByRole("button", { name: "音频设备设置", exact: true })
       .click();
     const select = page.getByRole("combobox", { name: "麦克风", exact: true });
+    await select.click();
     await expect
-      .poll(() => select.locator("option").count())
+      .poll(() => page.getByRole("option").count())
       .toBeGreaterThan(1);
-    const specific = await select
-      .locator("option")
-      .last()
-      .getAttribute("value");
     const before = await calls();
-    await select.selectOption(specific!);
+    await page.getByRole("option").last().click();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect.poll(calls).toBeGreaterThan(before);
@@ -557,9 +557,10 @@ test("switching a selected microphone back to system default updates the active 
     await page
       .getByRole("button", { name: "音频设备设置", exact: true })
       .click();
+    await page.getByRole("combobox", { name: "麦克风", exact: true }).click();
     await page
-      .getByRole("combobox", { name: "麦克风", exact: true })
-      .selectOption("");
+      .getByRole("option", { name: "系统默认麦克风", exact: true })
+      .click();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect.poll(calls).toBeGreaterThan(selectedCalls);
@@ -587,6 +588,26 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
     await expect(
       page.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeVisible();
+    await page.getByRole("slider", { name: "语音音量", exact: true }).focus();
+    await page.keyboard.down("Space");
+    const sliderStayedMuted = await page.evaluate(
+      () =>
+        new Promise<boolean>((resolve) => {
+          let frames = 0;
+          const sample = () => {
+            if (document.querySelector('[aria-label="关闭麦克风"]'))
+              resolve(false);
+            else if (++frames >= 30) resolve(true);
+            else requestAnimationFrame(sample);
+          };
+          sample();
+        }),
+    );
+    await page.keyboard.up("Space");
+    expect(
+      sliderStayedMuted,
+      "Space on an Ant Design slider must not start push-to-talk",
+    ).toBe(true);
     await page.locator(".stage").click({ position: { x: 8, y: 8 } });
     for (const modifier of ["Control", "Alt", "Meta", "Shift"]) {
       await page.keyboard.down(modifier);

@@ -54,11 +54,13 @@
     "format:check": "prettier --check apps packages tests tools infra .github package.json tsconfig.json tsconfig.base.json eslint.config.mjs playwright.config.ts --ignore-unknown",
     "native:build": "python3 native/capture/build-macos.py",
     "test:native": "bun test native/capture/test",
-    "test:native-host": "bun tools/native-host-smoke.ts"
+    "test:native-host": "bun tools/native-host-smoke.ts",
+    "icons:build": "bun tools/icons.ts"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",
     "@playwright/test": "1.64.1",
+    "@resvg/resvg-js": "2.6.2",
     "@types/bun": "1.4.3",
     "@types/express": "5.0.6",
     "@types/node": "24.10.1",

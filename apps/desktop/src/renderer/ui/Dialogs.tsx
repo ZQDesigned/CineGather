@@ -1,3 +1,5 @@
+import { Select, Checkbox } from "antd";
+import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
 import { useEffect, useState, type FormEvent } from "react";
 import {
@@ -42,7 +44,7 @@ function CreateRoom() {
       >
         <label>
           房间名称
-          <input
+          <Input
             autoFocus
             required
             maxLength={64}
@@ -52,25 +54,24 @@ function CreateRoom() {
         </label>
         <label>
           房间人数
-          <select
+          <Select
+            aria-label="房间人数"
             value={max}
-            onChange={(event) => setMax(Number(event.target.value))}
-          >
-            {Array.from({ length: 9 }, (_, i) => i + 2).map((n) => (
-              <option key={n} value={n}>
-                {n} 人{n === 5 ? " · 默认" : ""}
-              </option>
-            ))}
-          </select>
+            onChange={setMax}
+            options={Array.from({ length: 9 }, (_, i) => ({
+              value: i + 2,
+              label: `${i + 2} 人${i + 2 === 5 ? " · 默认" : ""}`,
+            }))}
+          />
         </label>
         <div className="form-note">
           <Shield size={16} />
           只有受邀朋友可以加入，默认不录制。
         </div>
-        <button className="primary wide" disabled={busy || !name.trim()}>
+        <Button className="primary wide" disabled={busy || !name.trim()}>
           {busy ? "正在创建并连接…" : "创建并进入"}
           <ArrowRight size={17} />
-        </button>
+        </Button>
       </form>
     </ModalShell>
   );
@@ -91,7 +92,7 @@ function JoinRoom() {
       >
         <label>
           邀请链接或完整房间码
-          <textarea
+          <TextArea
             autoFocus
             required
             rows={3}
@@ -104,10 +105,10 @@ function JoinRoom() {
           完整房间码格式：房间 UUID / 邀请 token。已加入的房间可直接使用完整
           UUID。
         </p>
-        <button className="primary wide" disabled={busy || !value.trim()}>
+        <Button className="primary wide" disabled={busy || !value.trim()}>
           {busy ? "正在连接…" : "进入房间"}
           <ArrowRight size={17} />
-        </button>
+        </Button>
       </form>
     </ModalShell>
   );
@@ -126,25 +127,25 @@ function Invite() {
       </div>
       <label>
         房间邀请
-        <textarea readOnly rows={3} value={invite} />
+        <TextArea readOnly rows={3} value={invite} />
       </label>
-      <button
+      <Button
         className="primary wide"
         onClick={() =>
-          void navigator.clipboard
-            .writeText(invite)
+          void actions
+            .copyText(invite)
             .then(() => setCopied(true))
             .catch(actions.report)
         }
       >
         {copied ? <Check size={17} /> : <Copy size={17} />}{" "}
         {copied ? "已复制，发给朋友吧" : "复制邀请链接"}
-      </button>
+      </Button>
       <p className="form-note">
         邀请包含私密加入凭证，请只分享给你信任的朋友。
       </p>
       {app.inviteId && app.room && (
-        <button
+        <Button
           className="text-button danger"
           onClick={() =>
             void actions.run(async () => {
@@ -168,7 +169,7 @@ function Invite() {
           }
         >
           撤销这条邀请
-        </button>
+        </Button>
       )}
     </ModalShell>
   );
@@ -200,7 +201,7 @@ function SourcePicker() {
       wide
     >
       <div className="source-tabs">
-        <button
+        <Button
           className={kind === "screen" ? "selected" : ""}
           onClick={() => {
             setKind("screen");
@@ -209,8 +210,8 @@ function SourcePicker() {
         >
           <Monitor size={16} />
           整个屏幕
-        </button>
-        <button
+        </Button>
+        <Button
           className={kind === "window" ? "selected" : ""}
           onClick={() => {
             setKind("window");
@@ -219,13 +220,13 @@ function SourcePicker() {
         >
           <AppWindow size={16} />
           应用窗口
-        </button>
+        </Button>
       </div>
       <div className="source-grid">
         {app.sources
           .filter((s) => s.kind === kind)
           .map((source) => (
-            <button
+            <Button
               className={`source-card ${source.id === selected ? "selected" : ""}`}
               key={source.id}
               onClick={() => setSelected(source.id)}
@@ -246,15 +247,14 @@ function SourcePicker() {
                 {source.name}
                 {source.id === selected && <Check size={15} />}
               </span>
-            </button>
+            </Button>
           ))}
       </div>
-      <label className="check-label">
-        <input
-          type="checkbox"
-          checked={app.systemAudio}
-          onChange={(event) => update({ systemAudio: event.target.checked })}
-        />
+      <Checkbox
+        className="check-label"
+        checked={app.systemAudio}
+        onChange={(event) => update({ systemAudio: event.target.checked })}
+      >
         <span>
           {window.desktop?.nativeCapture
             ? selectedScreen
@@ -263,22 +263,20 @@ function SourcePicker() {
             : "共享系统声音"}
           <small>与麦克风独立传输，观看端可单独调节。</small>
         </span>
-      </label>
+      </Checkbox>
       {window.desktop?.nativeCapture && selectedScreen && app.systemAudio && (
         <label>
           声音来源应用
-          <select
+          <Select
             aria-label="声音来源应用"
-            value={audioApplication}
-            onChange={(e) => setAudioApplication(e.target.value)}
-          >
-            <option value="">请选择应用</option>
-            {audioApplications.map(([id, name]) => (
-              <option key={id} value={id}>
-                {name}
-              </option>
-            ))}
-          </select>
+            value={audioApplication || undefined}
+            placeholder="请选择应用"
+            onChange={setAudioApplication}
+            options={audioApplications.map(([value, label]) => ({
+              value,
+              label,
+            }))}
+          />
         </label>
       )}
       <p className="form-note">
@@ -286,7 +284,7 @@ function SourcePicker() {
           ? "macOS 在映聚内选择屏幕或窗口。请保持共享窗口展开，最小化或隐藏可能暂停画面。开启声音后会采集该应用的声音，包括同一应用的其他窗口或标签页；映聚语音不会被采集。首次使用需授予录屏与系统录音权限。"
           : "共享的是系统声音，并非仅此窗口的声音。建议佩戴耳机；Windows 的语音回采隔离仍待实机验证。"}
       </p>
-      <button
+      <Button
         className="primary wide"
         disabled={
           !selected ||
@@ -314,7 +312,7 @@ function SourcePicker() {
       >
         <Monitor size={17} />
         确认共享
-      </button>
+      </Button>
     </ModalShell>
   );
 }
@@ -350,30 +348,30 @@ function Friends() {
   };
   return (
     <ModalShell title="朋友们" subtitle="把熟悉的名字，留在身边。">
-      <button
+      <Button
         className="id-copy"
         onClick={() =>
-          void navigator.clipboard
-            .writeText(user.id)
-            .then(() => update({ notice: "你的用户 ID 已复制" }))
+          void actions
+            .copyText(user.id, "你的用户 ID 已复制")
+            .catch(actions.report)
         }
       >
         <span>
           我的用户 ID<small>{user.id}</small>
         </span>
         <Copy size={16} />
-      </button>
+      </Button>
       <form className="inline-form" onSubmit={submit}>
-        <input
+        <Input
           aria-label="好友用户 ID"
           placeholder="粘贴朋友的完整用户 ID"
           value={target}
           onChange={(event) => setTarget(event.target.value)}
           required
         />
-        <button className="primary" aria-label="发送好友请求">
+        <Button className="primary" aria-label="发送好友请求">
           <UserPlus size={17} />
-        </button>
+        </Button>
       </form>
       <div className="friends-list">
         {!items.length && (
@@ -395,7 +393,7 @@ function Friends() {
               </small>
             </span>
             {friend.status === "pending" && friend.incoming && (
-              <button
+              <Button
                 className="secondary"
                 onClick={() =>
                   void actions.run(async () => {
@@ -410,9 +408,9 @@ function Friends() {
                 }
               >
                 接受
-              </button>
+              </Button>
             )}
-            <button
+            <Button
               className="icon-button"
               title="移除关系"
               aria-label={`移除${friend.displayName}`}
@@ -428,7 +426,7 @@ function Friends() {
               }
             >
               <X size={15} />
-            </button>
+            </Button>
           </div>
         ))}
       </div>
@@ -497,20 +495,20 @@ function Diagnostics() {
         不等同于端到端音画延迟。
       </p>
       <div className="dialog-actions">
-        <button
+        <Button
           className="secondary"
           onClick={() => void refresh().catch(actions.report)}
         >
           <RefreshCw size={16} />
           刷新
-        </button>
-        <button
+        </Button>
+        <Button
           className="primary"
           onClick={() => void exportData().catch(actions.report)}
         >
           <Download size={16} />
           导出诊断
-        </button>
+        </Button>
       </div>
     </ModalShell>
   );
@@ -556,16 +554,16 @@ function Bans() {
           });
         }}
       >
-        <input
+        <Input
           aria-label="要封禁的用户 ID"
           placeholder="输入完整用户 ID"
           value={target}
           onChange={(event) => setTarget(event.target.value)}
           required
         />
-        <button className="primary" aria-label="封禁成员">
+        <Button className="primary" aria-label="封禁成员">
           <Shield size={17} />
-        </button>
+        </Button>
       </form>
       <div className="friends-list">
         {!items.length && <p className="empty-list">没有被禁止加入的成员。</p>}
@@ -573,7 +571,7 @@ function Bans() {
           <div className="friend" key={member.userId}>
             <div className="avatar amber">{member.displayName[0]}</div>
             <span>{member.displayName}</span>
-            <button
+            <Button
               className="secondary"
               onClick={() =>
                 void actions.run(async () => {
@@ -592,7 +590,7 @@ function Bans() {
               }
             >
               解除封禁
-            </button>
+            </Button>
           </div>
         ))}
       </div>

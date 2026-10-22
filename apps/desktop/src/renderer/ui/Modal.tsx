@@ -1,8 +1,7 @@
 import { useEffect, useRef, type ReactNode } from "react";
-import { X } from "lucide-react";
+import { Modal } from "antd";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
-import { MessageBanner } from "./MessageBanner";
 export function ModalShell({
   title,
   subtitle,
@@ -14,47 +13,45 @@ export function ModalShell({
   children: ReactNode;
   wide?: boolean;
 }) {
-  const ref = useRef<HTMLDialogElement>(null);
+  const trigger = useRef(
+    document.activeElement instanceof HTMLElement
+      ? document.activeElement
+      : null,
+  );
+  const restoreFrame = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (restoreFrame.current !== undefined)
+      cancelAnimationFrame(restoreFrame.current);
+    return () => {
+      restoreFrame.current = requestAnimationFrame(() => {
+        if (trigger.current?.isConnected) trigger.current.focus();
+      });
+    };
+  }, []);
   const close = () => {
     if (useApp.getState().modal === "source") void actions.chooseSource();
     else update({ modal: null });
   };
-  useEffect(() => {
-    const el = ref.current!;
-    el.showModal();
-    return () => {
-      el.close();
-    };
-  }, []);
   return (
-    <dialog
-      ref={ref}
-      className={`dialog ${wide ? "wide-dialog" : ""}`}
-      onCancel={(event) => {
-        event.preventDefault();
-        close();
-      }}
-      onClick={(event) => {
-        if (event.target === event.currentTarget) close();
-      }}
-    >
-      <div className="dialog-inner">
-        <header className="dialog-header">
+    <Modal
+      open
+      centered
+      width={wide ? 720 : 460}
+      footer={null}
+      onCancel={close}
+      destroyOnHidden
+      getContainer={false}
+      closable={{ "aria-label": "关闭对话框" }}
+      title={
+        <div className="dialog-header">
           <div>
             <h2>{title}</h2>
             {subtitle && <p>{subtitle}</p>}
           </div>
-          <button
-            className="icon-button"
-            aria-label="关闭对话框"
-            onClick={close}
-          >
-            <X size={20} />
-          </button>
-        </header>
-        <MessageBanner />
-        {children}
-      </div>
-    </dialog>
+        </div>
+      }
+    >
+      <div className="dialog-inner">{children}</div>
+    </Modal>
   );
 }

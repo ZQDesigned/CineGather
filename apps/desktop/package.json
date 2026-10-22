@@ -2,16 +2,19 @@
   "name": "@cinegather/desktop",
   "main": "out/main/index.cjs",
   "dependencies": {
-    "@cinegather/contracts": "workspace:*",
     "@cinegather/api-client": "workspace:*",
     "@cinegather/client-core": "workspace:*",
+    "@cinegather/contracts": "workspace:*",
     "@cinegather/media-core": "workspace:*",
-    "react": "catalog:",
-    "react-dom": "catalog:",
-    "zustand": "5.0.15",
+    "@emotion/react": "11.14.0",
+    "@emotion/styled": "11.14.1",
+    "antd": "6.6.7",
+    "koffi": "3.3.3",
     "livekit-client": "catalog:",
     "lucide-react": "1.59.0",
-    "koffi": "3.3.3"
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "zustand": "5.0.15"
   },
   "devDependencies": {
     "electron": "44.9.0",
@@ -24,8 +27,8 @@
     "dev": "electron-vite dev",
     "dev:renderer": "vite --host 127.0.0.1 --port 5173 --config vite.renderer.config.ts",
     "build": "electron-vite build",
-    "dist:win": "electron-vite build && bun ../../tools/third-party.ts win32 x64 && electron-builder --win --x64 --publish never",
-    "dist:mac": "python3 ../../native/capture/build-macos.py && electron-vite build && bun ../../tools/third-party.ts darwin arm64 && electron-builder --mac --arm64 --publish never"
+    "dist:win": "bun ../../tools/icons.ts && electron-vite build && bun ../../tools/third-party.ts win32 x64 && electron-builder --win --x64 --publish never",
+    "dist:mac": "bun ../../tools/icons.ts && python3 ../../native/capture/build-macos.py && electron-vite build && bun ../../tools/third-party.ts darwin arm64 && electron-builder --mac --arm64 --publish never"
   },
   "version": "0.1.0",
   "private": true,

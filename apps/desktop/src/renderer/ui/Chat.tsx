@@ -1,3 +1,4 @@
+import { Button, Input } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import { MessageCircle, Send } from "lucide-react";
 import { useApp } from "../store";
@@ -88,20 +89,20 @@ export function Chat() {
             .finally(() => setSending(false));
         }}
       >
-        <input
+        <Input
           aria-label="聊天消息"
           placeholder="和朋友说点什么…"
           value={body}
           onChange={(event) => setBody(event.target.value)}
           maxLength={2000}
         />
-        <button
+        <Button
           className="icon-button"
           aria-label="发送消息"
           disabled={!body.trim() || sending}
         >
           <Send size={17} />
-        </button>
+        </Button>
       </form>
     </div>
   );

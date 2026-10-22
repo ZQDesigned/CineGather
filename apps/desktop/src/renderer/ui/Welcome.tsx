@@ -1,3 +1,4 @@
+import { Button, Input } from "./Controls";
 import { useState } from "react";
 import {
   SlidersHorizontal,
@@ -64,7 +65,7 @@ export function Welcome() {
         <p>无需注册，用熟悉的昵称见面。</p>
         <label>
           你的昵称
-          <input
+          <Input
             autoFocus
             placeholder="朋友们怎么称呼你？"
             value={name}
@@ -73,21 +74,21 @@ export function Welcome() {
             required
           />
         </label>
-        <button className="primary wide" disabled={busy || !name.trim()}>
+        <Button className="primary wide" disabled={busy || !name.trim()}>
           {busy ? "正在准备…" : "进入映聚"}
           <ArrowRight size={18} />
-        </button>
+        </Button>
         <small className="muted">
           访客身份保留 30 天。请勿在公共电脑上保留登录。
         </small>
-        <button
+        <Button
           className="text-button"
           type="button"
           onClick={() => update({ modal: "settings" })}
         >
           <SlidersHorizontal size={14} />
           连接自托管服务器
-        </button>
+        </Button>
       </form>
     </section>
   );

@@ -14,6 +14,14 @@ const baseUrl =
   "http://127.0.0.1:14310";
 export const api = createApi(baseUrl, () => sessionToken);
 let selectResolve: ((accepted: boolean) => void) | undefined;
+export async function copyText(value: string, notice?: string) {
+  try {
+    await navigator.clipboard.writeText(value);
+  } catch {
+    throw new Error("无法写入剪贴板，请检查剪贴板权限后重试");
+  }
+  if (notice) update({ notice });
+}
 export function report(error: unknown) {
   if (error instanceof ApiError && error.status === 401) {
     const connected = Boolean(sessionToken && state().room);

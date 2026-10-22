@@ -1,3 +1,4 @@
+import { Button } from "./Controls";
 import { useEffect } from "react";
 import {
   Signal,
@@ -15,7 +16,8 @@ import { Dialogs } from "./Dialogs";
 import { Welcome } from "./Welcome";
 import { Home } from "./Home";
 import { Room } from "./Room";
-import { MessageBanner } from "./MessageBanner";
+import { Feedback } from "./Feedback";
+import { AppSurface } from "./styles";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
   authenticating: "正在验证身份",
@@ -46,8 +48,11 @@ export function App() {
         !event.metaKey &&
         !event.shiftKey &&
         !event.repeat &&
-        !["INPUT", "TEXTAREA", "SELECT", "BUTTON"].includes(
-          (event.target as HTMLElement).tagName,
+        !(
+          event.target instanceof Element &&
+          event.target.closest(
+            'input, textarea, select, button, [role="combobox"], [role="slider"], [contenteditable="true"]',
+          )
         ) &&
         !current.modal
       ) {
@@ -82,7 +87,7 @@ export function App() {
     };
   }, []);
   return (
-    <div className={`app ${app.cinema ? "cinema" : ""}`}>
+    <AppSurface className={`app ${app.cinema ? "cinema" : ""}`}>
       <aside className="sidebar">
         <a className="brand" href="#" aria-label="映聚首页">
           <span className="brand-icon">
@@ -93,26 +98,26 @@ export function App() {
           </span>
         </a>
         <span className="nav-label">你的放映空间</span>
-        <button
+        <Button
           className="nav-item active"
           onClick={() => update({ modal: null })}
         >
           <Film size={18} />
           我的房间<span className="small-count">{app.rooms.length}</span>
-        </button>
-        <button
+        </Button>
+        <Button
           className="nav-item"
           onClick={() => update({ modal: "friends" })}
           disabled={!app.user}
         >
           <Users size={18} />
           好友
-        </button>
+        </Button>
         <span className="nav-label room-label">最近加入</span>
         <div className="recent-rooms">
           {app.rooms.length ? (
             app.rooms.map((room) => (
-              <button
+              <Button
                 key={room.id}
                 className={`recent-room ${app.room?.id === room.id ? "selected" : ""}`}
                 onClick={() =>
@@ -128,7 +133,7 @@ export function App() {
                   </small>
                 </span>
                 {app.room?.id === room.id && <span className="live-dot" />}
-              </button>
+              </Button>
             ))
           ) : (
             <p className="sidebar-empty">
@@ -145,20 +150,20 @@ export function App() {
               只为彼此的私人空间<small>默认不录制 · 无广告</small>
             </span>
           </div>
-          <button
+          <Button
             className="nav-item"
             onClick={() => update({ modal: "settings" })}
           >
             <Settings size={18} />
             设置与设备
-          </button>
-          <button
+          </Button>
+          <Button
             className="nav-item"
             onClick={() => update({ modal: "diagnostics" })}
           >
             <Radio size={18} />
             连接诊断
-          </button>
+          </Button>
         </div>
         <div className="profile">
           <div className="avatar purple">
@@ -169,14 +174,14 @@ export function App() {
             <small>{app.user ? "访客身份" : "等待你的加入"}</small>
           </span>
           {app.user && (
-            <button
+            <Button
               className="icon-button"
               title="退出访客身份"
               aria-label="退出访客身份"
               onClick={() => void actions.run(actions.logout)}
             >
               <LogOut size={16} />
-            </button>
+            </Button>
           )}
         </div>
       </aside>
@@ -208,7 +213,7 @@ export function App() {
             <span className="version">v0.1.0</span>
           </div>
         </header>
-        {!app.modal && <MessageBanner />}
+        <Feedback />
         {!app.user ? <Welcome /> : app.room ? <Room /> : <Home />}
         <footer className="app-footer">
           <span>
@@ -222,6 +227,6 @@ export function App() {
         </footer>
       </main>
       <Dialogs />
-    </div>
+    </AppSurface>
   );
 }

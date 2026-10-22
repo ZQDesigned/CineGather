@@ -62,9 +62,9 @@ test("friends and owner moderation work across independent real room clients", a
     await expect(friend.locator(".connection")).toContainText("断开");
     await friend.getByRole("button", { name: "离开房间", exact: true }).click();
     await join(friend, invitation);
-    await expect(friend.getByRole("dialog").getByRole("alert")).toContainText(
-      "你已被此房间禁止加入",
-    );
+    await expect(
+      friend.locator(".ant-notification").getByRole("alert"),
+    ).toContainText("你已被此房间禁止加入");
     await page.getByRole("button", { name: "解除封禁", exact: true }).click();
     await expect(page.locator(".friend")).toHaveCount(0);
     await page.getByRole("button", { name: "关闭对话框" }).click();
@@ -109,9 +109,9 @@ test("revoking an invitation in the client prevents a new guest from using it", 
     const outsider = await context.newPage();
     await guest(outsider, "撤销后访客");
     await join(outsider, invitation);
-    await expect(outsider.getByRole("dialog").getByRole("alert")).toContainText(
-      "邀请无效",
-    );
+    await expect(
+      outsider.locator(".ant-notification").getByRole("alert"),
+    ).toContainText("邀请无效");
     await expect(outsider.locator(".members-list .member")).toHaveCount(0);
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   } finally {
