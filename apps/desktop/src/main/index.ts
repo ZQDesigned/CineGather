@@ -196,6 +196,10 @@ function registerIPC() {
             kind: source.id.startsWith("screen:") ? "screen" : "window",
           })),
   );
+  handle("desktop:source-thumbnails", async (input) => {
+    const ids = z.array(z.string().max(256)).min(1).max(4).parse(input);
+    return nativeCapture ? nativeCapture.sourceThumbnails(ids) : [];
+  });
   handle("desktop:select-source", async (input) => {
     const choice = z
       .strictObject({

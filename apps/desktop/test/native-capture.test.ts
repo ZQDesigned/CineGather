@@ -195,3 +195,58 @@ test("development capture excludes the Electron application hosting the room pla
     ),
   ).toThrow();
 });
+
+test("source thumbnails preserve native identity, stay bounded and cannot capture unlisted or own sources", async () => {
+  const { NativeCapture } = await import("../src/main/native-capture");
+  const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
+    "node:fs/promises"
+  );
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "cg-thumbnails-"));
+  const work = join(root, "state");
+  await mkdir(join(root, "Contents/MacOS"), { recursive: true });
+  const thumbnail = "data:image/jpeg;base64,/9j/2Q==";
+  await writeFile(
+    join(root, "Contents/MacOS/CGScreenCaptureHost"),
+    `#!/usr/bin/env node
+const fs=require('node:fs');require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data={screenPermission:true};if(c.type==='windows')data={windows:[{windowId:12,pid:34,title:'Movie',application:'Player',bundleId:'org.player'},{windowId:7,pid:8,title:'Own',application:'Own',bundleId:'com.github.Electron'}],displays:[{displayId:1,name:'显示器 1'}]};if(c.type==='thumbnails'){fs.appendFileSync(process.argv[2]+'/requests',JSON.stringify(c)+'\\n');data=c.sources.map(s=>({id:s.id,thumbnail:s.windowId===12?${JSON.stringify(thumbnail)}:''}));}console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});
+`,
+    { mode: 0o755 },
+  );
+  const capture = new NativeCapture(
+    root,
+    work,
+    () => {},
+    "com.github.Electron",
+  );
+  try {
+    await capture.sources();
+    const previews = await capture.sourceThumbnails([
+      "native:12:34",
+      "native-screen:1",
+    ]);
+    expect(previews).toEqual([
+      { id: "native:12:34", thumbnail },
+      { id: "native-screen:1", thumbnail: "" },
+    ]);
+    expect(
+      await capture.sourceThumbnails([
+        "native:7:8",
+        "native:12:999",
+        "native-screen:999",
+      ]),
+    ).toEqual([]);
+    expect(
+      (await readFile(join(work, "requests"), "utf8")).trim().split("\n"),
+    ).toHaveLength(1);
+    await expect(
+      capture.sourceThumbnails(Array(5).fill("native:12:34")),
+    ).rejects.toThrow();
+    capture.cancelSelection();
+    expect(await capture.sourceThumbnails(["native:12:34"])).toEqual([]);
+  } finally {
+    await capture.shutdown();
+    await rm(root, { recursive: true, force: true });
+  }
+});

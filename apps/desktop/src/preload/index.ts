@@ -10,6 +10,8 @@ const bridge: DesktopBridge = {
   stopNativeCapture: () => ipcRenderer.invoke("desktop:native-stop"),
   takeInvitation: () => ipcRenderer.invoke("desktop:take-invitation"),
   sources: () => ipcRenderer.invoke("desktop:sources"),
+  sourceThumbnails: (ids) =>
+    ipcRenderer.invoke("desktop:source-thumbnails", ids),
   selectSource: (selection) =>
     ipcRenderer.invoke("desktop:select-source", selection),
   cancelCapture: () => ipcRenderer.invoke("desktop:cancel-capture"),

@@ -6,6 +6,7 @@ import {
   leaseSchema,
   nativePublicationSchema,
   type CaptureSelection,
+  type CaptureThumbnail,
   type CaptureSource,
   type NativeCaptureRequest,
   type ShareLease,
@@ -45,6 +46,10 @@ export class NativeCapture {
   private activeWindow?: NativeWindow;
   private activeDisplayId?: number;
   private checks = 0;
+  private previewSources = new Map<
+    string,
+    { id: string; windowId?: number; pid?: number; displayId?: number }
+  >();
   private abort?: AbortController;
   constructor(
     private readonly bundle: string,
@@ -98,6 +103,7 @@ export class NativeCapture {
     }
   }
   async sources(): Promise<CaptureSource[]> {
+    const epoch = this.selectionEpoch;
     const pipe = await this.ensure();
     const status = await pipe.call<Status>({ type: "status" });
     if (!status.screenPermission) {
@@ -112,6 +118,18 @@ export class NativeCapture {
         displays: z.array(displaySchema),
       })
       .parse(await pipe.call({ type: "windows" }));
+    if (epoch !== this.selectionEpoch) return [];
+    this.previewSources.clear();
+    for (const d of data.displays) {
+      const id = `native-screen:${d.displayId}`;
+      this.previewSources.set(id, { id, displayId: d.displayId });
+    }
+    for (const w of data.windows.filter(
+      (w) => w.bundleId !== this.ownApplication,
+    )) {
+      const id = `native:${w.windowId}:${w.pid}`;
+      this.previewSources.set(id, { id, windowId: w.windowId, pid: w.pid });
+    }
     return [
       ...data.displays.map((d) => ({
         id: `native-screen:${d.displayId}`,
@@ -130,6 +148,37 @@ export class NativeCapture {
           applicationId: w.bundleId,
         })),
     ];
+  }
+  async sourceThumbnails(sourceIds: string[]): Promise<CaptureThumbnail[]> {
+    const ids = z.array(z.string().max(256)).min(1).max(4).parse(sourceIds);
+    const epoch = this.selectionEpoch;
+    const sources = [...new Set(ids)].flatMap((id) => {
+      const source = this.previewSources.get(id);
+      return source ? [source] : [];
+    });
+    if (!sources.length) return [];
+    const pipe = await this.ensure();
+    if (epoch !== this.selectionEpoch) return [];
+    const data = z
+      .array(
+        z.object({
+          id: z.string().max(256),
+          thumbnail: z
+            .string()
+            .max(55000)
+            .refine(
+              (value) =>
+                value === "" ||
+                /^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/.test(value),
+            ),
+        }),
+      )
+      .max(4)
+      .parse(await pipe.call({ type: "thumbnails", sources }));
+    if (epoch !== this.selectionEpoch) return [];
+    return data.filter((preview) =>
+      sources.some((source) => source.id === preview.id),
+    );
   }
   async select(selection: CaptureSelection) {
     const epoch = ++this.selectionEpoch;
@@ -150,6 +199,7 @@ export class NativeCapture {
   }
 
   cancelSelection() {
+    this.previewSources.clear();
     ++this.selectionEpoch;
     this.selection = undefined;
   }

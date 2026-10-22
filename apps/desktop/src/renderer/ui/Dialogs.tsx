@@ -13,6 +13,7 @@ import {
   Collapse,
   Statistic,
   Space,
+  Spin,
 } from "antd";
 import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
@@ -31,6 +32,7 @@ import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { unwrap } from "@cinegather/api-client";
 import { ModalShell } from "./Modal";
+import { useSourcePreviews } from "./useSourcePreviews";
 export function Dialogs() {
   const modal = useApp((s) => s.modal);
   if (modal === "create") return <CreateRoom />;
@@ -221,6 +223,7 @@ function SourcePicker() {
   const app = useApp();
   const native = Boolean(window.desktop?.nativeCapture);
   const [kind, setKind] = useState(native ? "window" : "screen");
+  const previews = useSourcePreviews(app.sources, kind);
   const [selected, setSelected] = useState(
     app.sources.find((s) => s.kind === (native ? "window" : "screen"))?.id ??
       "",
@@ -267,8 +270,22 @@ function SourcePicker() {
               className="source-option"
               cover={
                 <div className="source-preview">
-                  {source.thumbnail ? (
-                    <img alt="" src={source.thumbnail} />
+                  {source.thumbnail || previews.images[source.id] ? (
+                    <img
+                      alt=""
+                      src={source.thumbnail || previews.images[source.id]}
+                    />
+                  ) : previews.enabled ? (
+                    <div className="source-placeholder" role="status">
+                      {previews.images[source.id] === undefined ? (
+                        <>
+                          <Spin size="small" />
+                          <small>正在获取预览</small>
+                        </>
+                      ) : (
+                        <small>预览不可用，请展开窗口后刷新</small>
+                      )}
+                    </div>
                   ) : (
                     <div className="source-placeholder">
                       {source.kind === "screen" ? (
@@ -330,6 +347,18 @@ function SourcePicker() {
     >
       <Tabs
         className="capture-tabs"
+        tabBarExtraContent={
+          previews.enabled ? (
+            <Button
+              type="text"
+              size="small"
+              icon={<RefreshCw size={14} />}
+              onClick={previews.refresh}
+            >
+              刷新预览
+            </Button>
+          ) : undefined
+        }
         activeKey={kind}
         onChange={(value) => {
           setKind(value);

@@ -128,6 +128,7 @@ export type CaptureSource = {
   application?: string;
   applicationId?: string;
 };
+export type CaptureThumbnail = { id: string; thumbnail: string };
 export type CaptureSelection = {
   sourceId: string;
   systemAudio: boolean;
@@ -149,6 +150,7 @@ export interface DesktopBridge {
   renewNativeCapture?(lease: ShareLease): Promise<ShareLease>;
   stopNativeCapture?(): Promise<void>;
   sources(): Promise<CaptureSource[]>;
+  sourceThumbnails?(sourceIds: string[]): Promise<CaptureThumbnail[]>;
   takeInvitation(): Promise<string | undefined>;
   selectSource(selection: CaptureSelection): Promise<void>;
   cancelCapture(): Promise<void>;

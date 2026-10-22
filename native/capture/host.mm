@@ -1,5 +1,7 @@
 #import <AppKit/AppKit.h>
 #import <ScreenCaptureKit/ScreenCaptureKit.h>
+#import <CoreMedia/CoreMedia.h>
+#import <CoreVideo/CoreVideo.h>
 #include <atomic>
 #include <chrono>
 #include <dlfcn.h>
@@ -155,7 +157,7 @@ static NSDictionary *status() {
     @"nativeAllocationCount" : @(bnum_allocs())
   };
 }
-static NSArray *enumerateWindows() {
+static SCShareableContent *shareableContent(int seconds = 10) {
   __block SCShareableContent *content;
   __block NSError *error;
   dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
@@ -169,11 +171,15 @@ static NSArray *enumerateWindows() {
                                  dispatch_semaphore_signal(semaphore);
                                }];
   check(dispatch_semaphore_wait(
-            semaphore, dispatch_time(DISPATCH_TIME_NOW, 10 * NSEC_PER_SEC)) ==
+            semaphore, dispatch_time(DISPATCH_TIME_NOW, int64_t(seconds) * NSEC_PER_SEC)) ==
             0,
         "Window enumeration timed out");
   if (error)
     throw std::runtime_error(error.localizedDescription.UTF8String);
+  return content;
+}
+static NSArray *enumerateWindows() {
+  SCShareableContent *content = shareableContent();
   NSMutableArray *result = [NSMutableArray array];
   for (SCWindow *w in content.windows)
     if (w.title.length && w.owningApplication.bundleIdentifier.length &&
@@ -200,6 +206,132 @@ static NSArray *enumerateDisplays() {
       @"name" : [NSString stringWithFormat:@"显示器 %u", i + 1]
     }];
   return result;
+}
+// Preview images are single, audio-free frames, never OBS scene sources or files.
+static NSData *encodeThumbnail(CGImageRef image) {
+  if (!image) return nil;
+  NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc] initWithCGImage:image];
+  NSData *data = [bitmap representationUsingType:NSBitmapImageFileTypeJPEG
+                                    properties:@{NSImageCompressionFactor: @0.65}];
+  if (data.length > 40000)
+    data = [bitmap representationUsingType:NSBitmapImageFileTypeJPEG
+                                properties:@{NSImageCompressionFactor: @0.35}];
+  return data.length && data.length <= 40000 ? data : nil;
+}
+// macOS 13 fallback: stop the short-lived stream after its first complete frame.
+@interface CGThumbnailFrame : NSObject <SCStreamOutput>
+@property(nonatomic, strong) NSData *image;
+@property(nonatomic, strong) dispatch_semaphore_t ready;
+@end
+@implementation CGThumbnailFrame
+- (instancetype)init {
+  if ((self = [super init])) _ready = dispatch_semaphore_create(0);
+  return self;
+}
+- (void)stream:(SCStream *)stream didOutputSampleBuffer:(CMSampleBufferRef)sample
+       ofType:(SCStreamOutputType)type {
+  if (type != SCStreamOutputTypeScreen || !CMSampleBufferIsValid(sample)) return;
+  CFArrayRef attachments = CMSampleBufferGetSampleAttachmentsArray(sample, false);
+  if (!attachments || !CFArrayGetCount(attachments)) return;
+  NSDictionary *info = (__bridge NSDictionary *)CFArrayGetValueAtIndex(attachments, 0);
+  if ([info[SCStreamFrameInfoStatus] integerValue] != SCFrameStatusComplete) return;
+  @synchronized(self) {
+    if (self.image) return;
+    CVPixelBufferRef pixels = CMSampleBufferGetImageBuffer(sample);
+    if (!pixels || CVPixelBufferLockBaseAddress(pixels, kCVPixelBufferLock_ReadOnly) != kCVReturnSuccess) return;
+    CGColorSpaceRef color = CGColorSpaceCreateDeviceRGB();
+    CGContextRef context = CGBitmapContextCreate(CVPixelBufferGetBaseAddress(pixels), CVPixelBufferGetWidth(pixels), CVPixelBufferGetHeight(pixels), 8, CVPixelBufferGetBytesPerRow(pixels), color, kCGBitmapByteOrder32Little | kCGImageAlphaPremultipliedFirst);
+    CGImageRef image = context ? CGBitmapContextCreateImage(context) : nil;
+    self.image = encodeThumbnail(image);
+    if (image) CGImageRelease(image);
+    if (context) CGContextRelease(context);
+    CGColorSpaceRelease(color);
+    CVPixelBufferUnlockBaseAddress(pixels, kCVPixelBufferLock_ReadOnly);
+    if (self.image) dispatch_semaphore_signal(self.ready);
+  }
+}
+@end
+static NSString *captureThumbnail(SCContentFilter *filter, CGSize size) {
+  if (size.width <= 0 || size.height <= 0) return @"";
+  double scale = fmin(400.0 / size.width, 225.0 / size.height);
+  SCStreamConfiguration *config = [SCStreamConfiguration new];
+  config.width = (size_t)fmax(1, round(size.width * scale));
+  config.height = (size_t)fmax(1, round(size.height * scale));
+  config.showsCursor = NO;
+  config.capturesAudio = NO;
+  config.pixelFormat = kCVPixelFormatType_32BGRA;
+  config.scalesToFit = YES;
+  __block NSData *data;
+  dispatch_semaphore_t ready = dispatch_semaphore_create(0);
+  if (@available(macOS 14.0, *)) {
+    config.ignoreShadowsSingleWindow = YES;
+    config.preservesAspectRatio = YES;
+    [SCScreenshotManager captureImageWithFilter:filter configuration:config
+      completionHandler:^(CGImageRef image, NSError *error) {
+        if (!error) data = encodeThumbnail(image);
+        dispatch_semaphore_signal(ready);
+      }];
+    if (dispatch_semaphore_wait(ready, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC))) return @"";
+  } else {
+    CGThumbnailFrame *frame = [CGThumbnailFrame new];
+    SCStream *stream = [[SCStream alloc] initWithFilter:filter configuration:config delegate:nil];
+    NSError *error;
+    if (![stream addStreamOutput:frame type:SCStreamOutputTypeScreen sampleHandlerQueue:dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0) error:&error]) return @"";
+    [stream startCaptureWithCompletionHandler:^(NSError *e) { if (e) dispatch_semaphore_signal(frame.ready); }];
+    dispatch_semaphore_wait(frame.ready, dispatch_time(DISPATCH_TIME_NOW, 3 * NSEC_PER_SEC));
+    @synchronized(frame) { data = frame.image; }
+    [stream stopCaptureWithCompletionHandler:^(NSError *) { dispatch_semaphore_signal(ready); }];
+    dispatch_semaphore_wait(ready, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+  }
+  return data ? [@"data:image/jpeg;base64," stringByAppendingString:[data base64EncodedStringWithOptions:0]] : @"";
+}
+static NSArray *sourceThumbnails(NSArray *sources) {
+  check([sources isKindOfClass:[NSArray class]] && sources.count > 0 && sources.count <= 4, "Invalid preview batch");
+  check(CGPreflightScreenCaptureAccess(), "Screen recording permission required");
+  check(!output, "Stop sharing before refreshing previews");
+  SCShareableContent *content = shareableContent(3);
+  NSMutableArray *result = [NSMutableArray array];
+  dispatch_group_t group = dispatch_group_create();
+  for (NSDictionary *source in sources) {
+    check([source isKindOfClass:[NSDictionary class]] && [source[@"id"] isKindOfClass:[NSString class]], "Invalid preview source");
+    NSString *identifier = source[@"id"];
+    SCContentFilter *filter;
+    CGSize size = CGSizeZero;
+    if (source[@"windowId"]) {
+      for (SCWindow *w in content.windows) {
+        if (w.windowID == [source[@"windowId"] unsignedIntValue] &&
+            w.owningApplication.processID == [source[@"pid"] intValue] &&
+            ![w.owningApplication.bundleIdentifier hasPrefix:@"city.zqdesigned.cinegather"]) {
+          filter = [[SCContentFilter alloc] initWithDesktopIndependentWindow:w];
+          size = w.frame.size;
+          break;
+        }
+      }
+    } else if (source[@"displayId"]) {
+      for (SCDisplay *d in content.displays) {
+        if (d.displayID == [source[@"displayId"] unsignedIntValue]) {
+          filter = [[SCContentFilter alloc] initWithDisplay:d excludingWindows:@[]];
+          size = CGSizeMake(d.width, d.height);
+          break;
+        }
+      }
+    }
+    NSUInteger index;
+    @synchronized(result) {
+      index = result.count;
+      [result addObject:@{ @"id":identifier, @"thumbnail":@"" }];
+    }
+    if (!filter) continue;
+    dispatch_group_async(group, dispatch_get_global_queue(QOS_CLASS_USER_INITIATED, 0), ^{
+      @autoreleasepool {
+        NSString *image = @"";
+        @try { image = captureThumbnail(filter, size); } @catch (NSException *) {}
+        @synchronized(result) { result[index] = @{ @"id":identifier, @"thumbnail":image }; }
+      }
+    });
+  }
+  dispatch_group_wait(group, dispatch_time(DISPATCH_TIME_NOW, 7 * NSEC_PER_SEC));
+  @synchronized(result) { return [result copy]; }
 }
 static void rtcLog(int, const char *) {}
 static void initEngine() {
@@ -386,7 +518,7 @@ static void startCapture(NSDictionary *config) {
   obs_output_set_service(output, service);
   check(obs_output_start(output), "WHIP output did not start");
 }
-static NSDictionary *handle(NSDictionary *command) {
+static id handle(NSDictionary *command) {
   NSString *type = command[@"type"];
   if ([type isEqual:@"status"])
     return status();
@@ -400,6 +532,8 @@ static NSDictionary *handle(NSDictionary *command) {
   if ([type isEqual:@"windows"])
     return
         @{@"windows" : enumerateWindows(), @"displays" : enumerateDisplays()};
+  if ([type isEqual:@"thumbnails"])
+    return sourceThumbnails(command[@"sources"]);
   if ([type isEqual:@"renew"]) {
     int timeout = [command[@"remainingMs"] intValue];
     check(output && timeout > 0 && timeout <= 30000, "Invalid renewal");
@@ -487,7 +621,7 @@ static void serve() {
               response = @{@"ok" : @NO, @"error" : @"Native capture failed"};
             }
             NSData *encoded = [NSJSONSerialization dataWithJSONObject:response
-                                                              options:0
+                                                              options:NSJSONWritingWithoutEscapingSlashes
                                                                 error:nil];
             fwrite(encoded.bytes, 1, encoded.length, stdout);
             fputc('\n', stdout);
