@@ -366,6 +366,9 @@ test("packaged global hold uses the native state boundary, combines foreground h
         { type: "keyDown", code: "KeyK", key: "k", control: true, alt: true },
       );
     });
+    await expect(
+      page.getByRole("button", { name: "全局按住说话", exact: true }),
+    ).toContainText("⌃ + ⌥ + K");
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "开启麦克风", exact: true }),

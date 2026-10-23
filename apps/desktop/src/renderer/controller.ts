@@ -5,7 +5,12 @@ import {
   parseInvitation,
 } from "@cinegather/client-core";
 import { MediaSession } from "@cinegather/media-core";
-import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
+import { DisconnectReason } from "livekit-client";
+import type {
+  CaptureSelection,
+  DesktopSettings,
+  RoomInfo,
+} from "@cinegather/contracts";
 import { state, update, defaults } from "./store";
 import { serverOrigin } from "./server-address";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
@@ -75,18 +80,52 @@ export const media = new MediaSession(
       update({ roomState: "reconnecting" });
     if (summary.state === "connected" && state().room)
       update({ roomState: "connected" });
-    if (
-      summary.state === "disconnected" &&
-      state().room &&
-      !["idle", "leaving"].includes(state().roomState)
-    )
-      update({ roomState: "failed", error: "媒体连接已断开，请重新连接房间" });
   },
   report,
   () => {
     void stopShare();
   },
+  (reason) => {
+    if (!state().room || ["idle", "leaving"].includes(state().roomState))
+      return;
+    if (reason === DisconnectReason.PARTICIPANT_REMOVED)
+      void handleRemoteRemoval().catch(report);
+    else
+      update({ roomState: "failed", error: "媒体连接已断开，请重新连接房间" });
+  },
 );
+async function handleRemoteRemoval() {
+  const { room, roomRevision } = state();
+  if (!room) return;
+  update({ roomState: "leaving", modal: null, cinema: false });
+  // The API read locks the room, so it observes the completed moderation transaction.
+  const status = api
+    .GET("/api/v1/rooms/{roomId}", {
+      params: { path: { roomId: room.id } },
+      signal: AbortSignal.timeout(5000),
+    })
+    .catch(() => undefined);
+  await roomSession.leave(false);
+  const result = await status;
+  if (state().room || state().roomRevision !== roomRevision + 1) return;
+  if (
+    result?.error?.code === "SESSION_EXPIRED" ||
+    result?.response.status === 401
+  ) {
+    report(new ApiError("SESSION_EXPIRED", "身份已过期，请重新进入映聚", 401));
+    return;
+  }
+  const code = result?.error?.code;
+  update({
+    warning:
+      code === "FORBIDDEN" || code === "ROOM_BANNED"
+        ? "你已被房主移出房间"
+        : code === "ROOM_NOT_FOUND"
+          ? "房间已关闭"
+          : "你已被服务器移出房间",
+  });
+  await refreshRooms();
+}
 export const shareSession: ShareCoordinator = new ShareCoordinator({
   acquire: async () =>
     unwrap(
@@ -105,13 +144,13 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
           }),
         ),
   release: async (lease) => {
-    if (state().room)
-      unwrap(
-        await api.DELETE("/api/v1/rooms/{roomId}/share-lease", {
-          params: { path: { roomId: state().room!.id } },
-          body: { leaseId: lease.leaseId, revision: lease.revision },
-        }),
-      );
+    if (state().room) {
+      const result = await api.DELETE("/api/v1/rooms/{roomId}/share-lease", {
+        params: { path: { roomId: state().room!.id } },
+        body: { leaseId: lease.leaseId, revision: lease.revision },
+      });
+      if (![401, 403, 404].includes(result.response.status)) unwrap(result);
+    }
   },
   select: async () => {
     if (!window.desktop) return true;
@@ -160,11 +199,11 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
 });
 const pttHolds = new Set<"window" | "global">();
 export const roomSession = new RoomCoordinator({
-  join: async (roomId, inviteToken) =>
+  join: async (roomId, inviteToken, password) =>
     unwrap(
       await api.POST("/api/v1/rooms/{roomId}/join", {
         params: { path: { roomId } },
-        body: { inviteToken },
+        body: { inviteToken, password },
       }),
     ),
   leave: async (roomId) => {
@@ -261,24 +300,50 @@ export async function guest(displayName: string) {
 export async function refreshRooms() {
   update({ rooms: unwrap(await api.GET("/api/v1/rooms")).items });
 }
-export async function createRoom(name: string, maxMembers: number) {
+export async function createRoom(
+  name: string,
+  maxMembers: number,
+  access: "normal" | "password" = "normal",
+  password?: string,
+) {
   const room = unwrap(
     await api.POST("/api/v1/rooms", {
-      body: { name, maxMembers },
+      body: {
+        name,
+        maxMembers,
+        access,
+        ...(access === "password" ? { password } : {}),
+      },
       headers: { "Idempotency-Key": crypto.randomUUID() },
     }),
   );
   await refreshRooms();
   await roomSession.enter(room.id);
 }
-export async function joinRoom(value: string) {
+export async function joinRoom(value: string, password?: string) {
   const { roomId, inviteToken } = parseInvitation(value);
-  await roomSession.enter(roomId, inviteToken);
+  await roomSession.enter(
+    roomId,
+    inviteToken,
+    inviteToken ? undefined : password || undefined,
+  );
   await refreshRooms();
 }
 export async function retryRoom() {
-  const room = state().room;
-  if (room) await roomSession.enter(room.id);
+  await roomSession.retry();
+}
+export async function enterKnownRoom(room: RoomInfo): Promise<boolean> {
+  if (
+    state().room?.id === room.id &&
+    ["connected", "reconnecting"].includes(state().roomState)
+  )
+    return true;
+  if (room.access === "password" && room.role !== "owner") {
+    update({ joinValue: room.code, modal: "join" });
+    return false;
+  }
+  await roomSession.enter(room.id);
+  return state().roomState === "connected";
 }
 export async function toggleMicrophone() {
   try {

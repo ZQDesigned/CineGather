@@ -10,7 +10,7 @@ async function guest(page: Page, name: string) {
 }
 async function join(page: Page, invitation: string) {
   await page.getByRole("button", { name: "加入房间", exact: true }).click();
-  await page.getByLabel("邀请链接或完整房间码").fill(invitation);
+  await page.getByLabel("房间号或邀请链接").fill(invitation);
   await page.getByRole("button", { name: "进入房间", exact: true }).click();
 }
 
@@ -64,11 +64,20 @@ test("friends and owner moderation work across independent real room clients", a
     await page.getByLabel("要封禁的用户 ID").fill(friendId!);
     await page.getByRole("button", { name: "封禁成员", exact: true }).click();
     await expect(page.locator(".friend")).toContainText("社交成员");
-    await expect(friend.locator(".connection")).toContainText("断开");
-    await friend.getByRole("button", { name: "离开房间", exact: true }).click();
+    await expect(
+      friend
+        .locator(".ant-notification")
+        .getByRole("alert")
+        .filter({ hasText: "你已被房主移出房间" }),
+    ).toContainText("你已被房主移出房间");
+    await expect(friend.locator(".home")).toBeVisible();
+    await expect(friend.locator(".room-page")).toHaveCount(0);
     await join(friend, invitation);
     await expect(
-      friend.locator(".ant-notification").getByRole("alert"),
+      friend
+        .locator(".ant-notification")
+        .getByRole("alert")
+        .filter({ hasText: "你已被此房间禁止加入" }),
     ).toContainText("你已被此房间禁止加入");
     await page.getByRole("button", { name: "解除封禁", exact: true }).click();
     await expect(page.locator(".friend")).toHaveCount(0);
@@ -92,7 +101,16 @@ test("friends and owner moderation work across independent real room clients", a
       .click();
     await page.getByRole("menuitem", { name: "移出房间", exact: true }).click();
     await expect(page.locator(".members-list .member")).toHaveCount(1);
-    await expect(friend.locator(".connection")).toContainText("断开");
+    await expect(
+      friend
+        .locator(".ant-notification")
+        .getByRole("alert")
+        .filter({ hasText: "你已被房主移出房间" }),
+    ).toContainText("你已被房主移出房间");
+    await expect(friend.locator(".home")).toBeVisible();
+    await expect(
+      friend.getByRole("button", { name: "重新连接", exact: true }),
+    ).toHaveCount(0);
     await expect(friend.locator("audio[data-cinegather-audio]")).toHaveCount(0);
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   } finally {

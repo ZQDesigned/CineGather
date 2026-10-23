@@ -10,14 +10,28 @@ import {
   credentials,
   type Transaction,
 } from "@cinegather/database";
-import { eq, and, gt, isNull, desc, or, lt, inArray } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
+import { eq, and, gt, isNull, desc, or, lt, inArray, sql } from "drizzle-orm";
+import { randomUUID, randomBytes } from "node:crypto";
 import { db, hash, token, audit, dedup } from "./context";
 import { fail, uuid } from "./errors";
 import { media } from "./media";
 import type { User, RoomInfo, ShareLease } from "@cinegather/contracts";
 import { nativeOwner, requireNativeLease } from "./native-authority";
 import { config } from "./config";
+import { hashRoomPassword, verifyRoomPassword } from "./passwords";
+
+function roomInfo(room: typeof rooms.$inferSelect, userId: string): RoomInfo {
+  return {
+    id: room.id,
+    code: room.code,
+    access: room.passwordHash ? "password" : "normal",
+    name: room.name,
+    ownerUserId: room.ownerUserId,
+    maxMembers: room.maxMembers,
+    role: room.ownerUserId === userId ? "owner" : "member",
+  };
+}
+const passwordFailures = new Map<string, { count: number; until: number }>();
 
 async function requireActiveSession(tx: Transaction, userId: string) {
   const [session] = await tx
@@ -57,39 +71,66 @@ export async function requireMember(
     .where(and(eq(members.roomId, roomId), eq(members.userId, userId)));
   if (!member || (ownerOnly && room.ownerUserId !== userId))
     fail(403, "FORBIDDEN", "没有此房间的操作权限");
-  return {
-    id: room.id,
-    name: room.name,
-    ownerUserId: room.ownerUserId,
-    maxMembers: room.maxMembers,
-    role: room.ownerUserId === userId ? "owner" : "member",
-  };
+  return roomInfo(room, userId);
 }
 export async function createRoom(
   user: User,
-  input: { name: string; maxMembers: number },
+  input: {
+    name: string;
+    maxMembers: number;
+    access: "normal" | "password";
+    password?: string;
+  },
   key?: string,
 ) {
+  const passwordHash =
+    input.access === "password"
+      ? await hashRoomPassword(input.password!)
+      : null;
   return db.transaction((tx) =>
     dedup(tx, user.id, key, "room.create", input, async () => {
       const id = randomUUID();
-      await tx.insert(rooms).values({ id, ownerUserId: user.id, ...input });
+      let created: typeof rooms.$inferSelect | undefined;
+      for (let attempt = 0; attempt < 10 && !created; attempt++) {
+        const code =
+          attempt === 0
+            ? id.slice(0, 8).toUpperCase()
+            : randomBytes(4).toString("hex").toUpperCase();
+        [created] = await tx
+          .insert(rooms)
+          .values({
+            id,
+            code,
+            ownerUserId: user.id,
+            name: input.name,
+            maxMembers: input.maxMembers,
+            passwordHash,
+          })
+          .onConflictDoNothing({ target: rooms.code })
+          .returning();
+      }
+      if (!created)
+        fail(503, "ROOM_CODE_UNAVAILABLE", "无法生成房间号，请重试");
       await tx
         .insert(members)
         .values({ roomId: id, userId: user.id, role: "owner" });
       await tx.insert(leases).values({ roomId: id });
       await audit(tx, user.id, "room.created", id);
-      return { id, ownerUserId: user.id, ...input, role: "owner" as const };
+      return roomInfo(created, user.id);
     }),
   );
 }
 export async function getRoom(user: User, roomId: string) {
-  return db.transaction((tx) => requireMember(tx, roomId, user.id));
+  return db.transaction((tx) => requireMember(tx, roomId, user.id, false, true));
 }
 export async function listRooms(user: User) {
   const rows = await db
     .select({
       id: rooms.id,
+      code: rooms.code,
+      access: sql<
+        "normal" | "password"
+      >`CASE WHEN ${rooms.passwordHash} IS NULL THEN 'normal' ELSE 'password' END`,
       name: rooms.name,
       ownerUserId: rooms.ownerUserId,
       maxMembers: rooms.maxMembers,
@@ -150,17 +191,18 @@ export async function revokeInvite(
 export async function joinRoom(
   user: User,
   roomId: string,
-  inviteToken?: string,
+  input: { inviteToken?: string; password?: string } = {},
+  clientAddress?: string,
 ) {
-  roomId = uuid(roomId);
+  const reference = roomId.trim();
+  const condition = /^[a-f0-9]{8}$/i.test(reference)
+    ? eq(rooms.code, reference.toUpperCase())
+    : eq(rooms.id, uuid(reference));
   return db.transaction(async (tx) => {
-    const [room] = await tx
-      .select()
-      .from(rooms)
-      .where(eq(rooms.id, roomId))
-      .for("update");
+    const [room] = await tx.select().from(rooms).where(condition).for("update");
     if (!room || room.status !== "active")
       fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
+    roomId = room.id;
     await requireActiveSession(tx, user.id);
     const [ban] = await tx
       .select()
@@ -171,27 +213,52 @@ export async function joinRoom(
       .select()
       .from(members)
       .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
-    if (!member) {
-      if (!inviteToken)
-        fail(403, "INVITE_REQUIRED", "加入私密房间需要有效邀请");
+    if (input.inviteToken) {
       const [invite] = await tx
         .select()
         .from(invites)
         .where(
           and(
             eq(invites.roomId, roomId),
-            eq(invites.tokenHash, hash(inviteToken)),
+            eq(invites.tokenHash, hash(input.inviteToken)),
             isNull(invites.revokedAt),
             gt(invites.expiresAt, new Date()),
           ),
         )
         .for("update");
-      if (!invite || invite.useCount >= invite.maxUses)
+      if (!invite || (!member && invite.useCount >= invite.maxUses))
         fail(403, "INVITE_INVALID", "邀请无效、已用完或已过期");
-      await tx
-        .update(invites)
-        .set({ useCount: invite.useCount + 1 })
-        .where(eq(invites.id, invite.id));
+      if (!member)
+        await tx
+          .update(invites)
+          .set({ useCount: invite.useCount + 1 })
+          .where(eq(invites.id, invite.id));
+    } else if (room.passwordHash && room.ownerUserId !== user.id) {
+      if (!input.password)
+        fail(403, "ROOM_PASSWORD_REQUIRED", "请输入房间密码");
+      const key = `${room.id}:${clientAddress ?? user.id}`;
+      const now = Date.now();
+      if (passwordFailures.size >= 10000) {
+        for (const [k, entry] of passwordFailures)
+          if (entry.until <= now) passwordFailures.delete(k);
+        if (passwordFailures.size >= 10000)
+          passwordFailures.delete(passwordFailures.keys().next().value!);
+      }
+      const previous = passwordFailures.get(key);
+      const entry =
+        previous && previous.until > now
+          ? previous
+          : { count: 0, until: now + 60_000 };
+      if (entry.count >= 8)
+        fail(429, "ROOM_PASSWORD_RATE_LIMITED", "密码尝试过于频繁，请稍后重试");
+      if (!(await verifyRoomPassword(input.password, room.passwordHash))) {
+        entry.count++;
+        passwordFailures.set(key, entry);
+        fail(403, "ROOM_PASSWORD_INVALID", "房间密码不正确");
+      }
+      passwordFailures.delete(key);
+    }
+    if (!member) {
       await tx
         .insert(members)
         .values({ roomId, userId: user.id, role: "member" });
@@ -218,16 +285,7 @@ export async function joinRoom(
       .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
     await audit(tx, user.id, "room.joined", roomId);
     return {
-      room: {
-        id: roomId,
-        ownerUserId: room.ownerUserId,
-        name: room.name,
-        maxMembers: room.maxMembers,
-        role:
-          room.ownerUserId === user.id
-            ? ("owner" as const)
-            : ("member" as const),
-      },
+      room: roomInfo(room, user.id),
       token: await media.issue(roomId, user),
       url: config.livekitUrl,
     };

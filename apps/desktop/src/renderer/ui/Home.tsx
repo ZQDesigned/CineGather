@@ -1,10 +1,11 @@
-import { Button, Card } from "antd";
+import { Avatar, Button, Card, Tag } from "antd";
 import {
   ArrowUpRight,
   Plus,
   Clapperboard,
   Headphones,
   Film,
+  LockKeyhole,
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -67,43 +68,63 @@ export function Home({ onEnterRoom }: { onEnterRoom: () => void }) {
         <h2>
           你的房间 <span>{app.rooms.length}</span>
         </h2>
-        <span>凭邀请加入，每间最多 10 位朋友</span>
+        <span>凭房间号加入，每间最多 10 位朋友</span>
       </div>
       <div className="room-grid">
         {app.rooms.map((room) => (
           <Card className="room-card" key={room.id} hoverable>
-            <div className="room-card-art">
-              <Film size={32} strokeWidth={1} />
-              <span>{room.role === "owner" ? "我的房间" : "朋友的房间"}</span>
+            <div className="room-card-top">
+              <Avatar
+                size={42}
+                shape="square"
+                icon={<Film size={23} strokeWidth={1.5} />}
+              />
+              <div className="room-card-info">
+                <h3 title={room.name}>{room.name}</h3>
+                <div className="room-card-details">
+                  <Tag
+                    icon={
+                      room.access === "password" ? (
+                        <LockKeyhole size={10} />
+                      ) : undefined
+                    }
+                  >
+                    {room.access === "password" ? "加密房" : "普通房"}
+                  </Tag>
+                  <span>{room.code}</span>
+                </div>
+              </div>
             </div>
-            <div className="room-card-copy">
-              <h3>{room.name}</h3>
-              <span>最多 {room.maxMembers} 人</span>
+            <div className="room-card-footer">
+              <span>
+                {room.role === "owner" ? "我创建的" : "朋友的房间"}，最多{" "}
+                {room.maxMembers} 人
+              </span>
               <Button
-                type="text"
+                type="link"
+                size="small"
                 aria-label={`进入${room.name}`}
-                icon={<ArrowUpRight size={18} />}
                 onClick={() =>
                   void actions.run(async () => {
-                    if (app.room?.id !== room.id)
-                      await actions.roomSession.enter(room.id);
-                    onEnterRoom();
+                    if (await actions.enterKnownRoom(room)) onEnterRoom();
                   })
                 }
                 disabled={app.busy || app.roomState === "joining"}
               >
                 进入房间
+                <ArrowUpRight size={15} />
               </Button>
             </div>
           </Card>
         ))}
         <Card className="room-card new-room">
-          <div className="new-plus">
-            <Plus size={25} />
-          </div>
-          <h3>为相聚留个位置</h3>
-          <p>创建一个新的私人房间</p>
-          <Button onClick={() => update({ modal: "create" })}>新建房间</Button>
+          <Button
+            type="text"
+            icon={<Plus size={19} />}
+            onClick={() => update({ modal: "create" })}
+          >
+            新建房间
+          </Button>
         </Card>
       </div>
       <div className="home-note">

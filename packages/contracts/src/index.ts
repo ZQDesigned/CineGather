@@ -3,12 +3,30 @@ import { z } from "zod";
 export const guestInput = z.strictObject({
   displayName: z.string().trim().min(1).max(32),
 });
-export const roomInput = z.strictObject({
-  name: z.string().trim().min(1).max(64),
-  maxMembers: z.number().int().min(2).max(10).default(5),
-});
+export const roomInput = z
+  .strictObject({
+    name: z.string().trim().min(1).max(64),
+    maxMembers: z.number().int().min(2).max(10).default(5),
+    access: z.enum(["normal", "password"]).default("normal"),
+    password: z.string().min(4).max(64).optional(),
+  })
+  .superRefine((value, ctx) => {
+    if (value.access === "password" && !value.password?.trim())
+      ctx.addIssue({
+        code: "custom",
+        path: ["password"],
+        message: "请设置 4–64 位房间密码",
+      });
+    if (value.access === "normal" && value.password !== undefined)
+      ctx.addIssue({
+        code: "custom",
+        path: ["password"],
+        message: "普通房不需要密码",
+      });
+  });
 export const joinInput = z.strictObject({
   inviteToken: z.string().min(32).max(128).optional(),
+  password: z.string().min(1).max(64).optional(),
 });
 export const inviteInput = z.strictObject({
   expiresInHours: z.number().int().min(1).max(168).default(24),
@@ -28,6 +46,8 @@ export const moderationInput = z.strictObject({
 export const userSchema = z.object({ id: z.uuid(), displayName: z.string() });
 export const roomSchema = z.object({
   id: z.uuid(),
+  code: z.string().regex(/^[A-F0-9]{8}$/),
+  access: z.enum(["normal", "password"]),
   ownerUserId: z.uuid(),
   name: z.string(),
   maxMembers: z.number(),

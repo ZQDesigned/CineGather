@@ -29,7 +29,7 @@ test("two independent clients join a real LiveKit room, synchronize microphone a
   try {
     await guest(friend, "小聚");
     await friend.getByRole("button", { name: "加入房间", exact: true }).click();
-    await friend.getByLabel("邀请链接或完整房间码").fill(invite);
+    await friend.getByLabel("房间号或邀请链接").fill(invite);
     await friend.getByRole("button", { name: "进入房间", exact: true }).click();
     await expect(
       friend.getByRole("heading", { name: "周末放映室" }),
@@ -179,7 +179,7 @@ test("a real screen publisher holds the only server lease and stopping removes i
   try {
     await guest(viewer, "观看者");
     await viewer.getByRole("button", { name: "加入房间", exact: true }).click();
-    await viewer.getByLabel("邀请链接或完整房间码").fill(invite.toString());
+    await viewer.getByLabel("房间号或邀请链接").fill(invite.toString());
     await viewer.getByRole("button", { name: "进入房间", exact: true }).click();
     await expect(
       viewer.getByRole("heading", { name: "共享权限测试" }),
@@ -345,6 +345,13 @@ test("revoking an active guest session disconnects its existing media identity",
       timeout: 12000,
     })
     .toBe(0);
+  await expect(page.getByLabel("你的昵称")).toBeVisible();
+  await expect(
+    page.locator(".ant-notification").getByRole("alert"),
+  ).toContainText("身份已过期");
+  await expect(
+    page.locator(".ant-notification").getByRole("alert"),
+  ).not.toContainText("房主移出");
 });
 test("an SFU restart produces an honest reconnecting state and restores the microphone", async ({
   page,
@@ -567,7 +574,7 @@ test("a rejected join displays an actionable notification above the active dialo
   await guest(page, "加入失败提示");
   await page.getByRole("button", { name: "加入房间", exact: true }).click();
   await page
-    .getByLabel("邀请链接或完整房间码")
+    .getByLabel("房间号或邀请链接")
     .fill("00000000-0000-4000-8000-000000000000");
   await page.getByRole("button", { name: "进入房间", exact: true }).click();
   await expect(

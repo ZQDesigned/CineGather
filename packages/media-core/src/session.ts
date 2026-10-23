@@ -3,6 +3,7 @@ import {
   RoomEvent,
   Track,
   ConnectionState,
+  type DisconnectReason,
   RemoteAudioTrack,
   type RemoteTrack,
   type RemoteTrackPublication,
@@ -49,6 +50,7 @@ export class MediaSession {
     private readonly changed: (summary: MediaSummary) => void,
     private readonly error: (error: unknown) => void,
     private readonly shareEnded: () => void,
+    private readonly disconnected?: (reason?: DisconnectReason) => void,
   ) {}
   async connect(url: string, token: string) {
     await this.disconnect();
@@ -116,9 +118,11 @@ export class MediaSession {
       RoomEvent.ParticipantPermissionsChanged,
     ])
       room.on(event, emit);
-    room.on(RoomEvent.Disconnected, () => {
+    room.on(RoomEvent.Disconnected, (reason) => {
+      if (this.room !== room) return;
       this.clearElements();
       emit();
+      this.disconnected?.(reason);
       this.shareEnded();
     });
     room.on(RoomEvent.MediaDevicesError, this.error);

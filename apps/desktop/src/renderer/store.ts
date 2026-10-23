@@ -40,6 +40,7 @@ interface State {
   busy: boolean;
   error?: string;
   notice?: string;
+  warning?: string;
   cinema: boolean;
   settings: DesktopSettings;
   voiceVolume: number;

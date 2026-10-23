@@ -23,7 +23,7 @@ test("film audio/video share one presentation element and removing audio keeps t
   try {
     await guest(viewer, "同步接收者");
     await viewer.getByRole("button", { name: "加入房间", exact: true }).click();
-    await viewer.getByLabel("邀请链接或完整房间码").fill(invite);
+    await viewer.getByLabel("房间号或邀请链接").fill(invite);
     await viewer.getByRole("button", { name: "进入房间", exact: true }).click();
     await expect(
       viewer.getByRole("button", { name: "关闭麦克风", exact: true }),

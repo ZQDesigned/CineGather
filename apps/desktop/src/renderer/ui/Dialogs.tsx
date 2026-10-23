@@ -31,6 +31,7 @@ import {
 import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { unwrap } from "@cinegather/api-client";
+import { parseInvitation } from "@cinegather/client-core";
 import { ModalShell } from "./Modal";
 import { useSourcePreviews } from "./useSourcePreviews";
 export function Dialogs() {
@@ -47,6 +48,8 @@ export function Dialogs() {
 }
 function CreateRoom() {
   const busy = useApp((s) => s.busy);
+  const [form] = Form.useForm();
+  const access = Form.useWatch("access", form);
   return (
     <ModalShell
       title="创建私人房间"
@@ -67,10 +70,23 @@ function CreateRoom() {
     >
       <Form
         id="create-room"
+        form={form}
         layout="vertical"
-        initialValues={{ name: "今晚一起看", max: 5 }}
-        onFinish={({ name, max }: { name: string; max: number }) =>
-          void actions.run(() => actions.createRoom(name.trim(), max))
+        initialValues={{ name: "今晚一起看", max: 5, access: "normal" }}
+        onFinish={({
+          name,
+          max,
+          access,
+          password,
+        }: {
+          name: string;
+          max: number;
+          access: "normal" | "password";
+          password?: string;
+        }) =>
+          void actions.run(() =>
+            actions.createRoom(name.trim(), max, access, password),
+          )
         }
       >
         <Form.Item
@@ -90,10 +106,33 @@ function CreateRoom() {
             }))}
           />
         </Form.Item>
-        <p className="form-note">
-          <Shield size={16} />
-          只有受邀朋友可以加入，默认不录制。
-        </p>
+        <Form.Item name="access" label="房间类型">
+          <Radio.Group
+            optionType="button"
+            buttonStyle="solid"
+            options={[
+              { value: "normal", label: "普通房" },
+              { value: "password", label: "加密房" },
+            ]}
+          />
+        </Form.Item>
+        {access === "password" && (
+          <Form.Item
+            name="password"
+            label="房间密码"
+            preserve={false}
+            rules={[
+              { required: true, whitespace: true, message: "请设置房间密码" },
+              { min: 4, max: 64, message: "密码需为 4–64 个字符" },
+            ]}
+          >
+            <Input.Password
+              maxLength={64}
+              autoComplete="new-password"
+              placeholder="设置 4–64 位密码"
+            />
+          </Form.Item>
+        )}
       </Form>
     </ModalShell>
   );
@@ -104,7 +143,6 @@ function JoinRoom() {
   return (
     <ModalShell
       title="加入朋友的房间"
-      subtitle="把邀请粘贴到这里，见面只差一步。"
       footer={
         <>
           <Button onClick={() => update({ modal: null })}>取消</Button>
@@ -112,6 +150,7 @@ function JoinRoom() {
             type="primary"
             htmlType="submit"
             form="join-room"
+            aria-label="进入房间"
             loading={busy}
           >
             进入房间
@@ -126,31 +165,40 @@ function JoinRoom() {
         onValuesChange={(_, values: { invite: string }) =>
           update({ joinValue: values.invite })
         }
-        onFinish={({ invite }: { invite: string }) =>
-          void actions.run(() => actions.joinRoom(invite))
-        }
+        onFinish={({
+          invite,
+          password,
+        }: {
+          invite: string;
+          password?: string;
+        }) => void actions.run(() => actions.joinRoom(invite, password))}
       >
         <Form.Item
-          label="邀请链接或完整房间码"
+          label="房间号或邀请链接"
           name="invite"
           rules={[
             {
               required: true,
               whitespace: true,
-              message: "请粘贴邀请链接或完整房间码",
+              message: "请输入房间号或邀请链接",
             },
           ]}
         >
-          <TextArea
-            autoFocus
-            rows={3}
-            placeholder="cinegather://join?room=…&invite=…"
-          />
+          <Input autoFocus placeholder="输入 8 位房间号或粘贴邀请链接" />
         </Form.Item>
-        <p className="form-note">
-          完整房间码格式：房间 UUID / 邀请 token。已加入的房间可直接使用完整
-          UUID。
-        </p>
+        {!parseInvitation(value).inviteToken && (
+          <Form.Item
+            name="password"
+            label="房间密码（加密房必填）"
+            preserve={false}
+          >
+            <Input.Password
+              maxLength={64}
+              autoComplete="off"
+              placeholder="普通房可留空"
+            />
+          </Form.Item>
+        )}
       </Form>
     </ModalShell>
   );

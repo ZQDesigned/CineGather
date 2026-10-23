@@ -828,6 +828,9 @@ export interface operations {
                         items: {
                             /** Format: uuid */
                             id: string;
+                            code: string;
+                            /** @enum {string} */
+                            access: "normal" | "password";
                             /** Format: uuid */
                             ownerUserId: string;
                             name: string;
@@ -939,6 +942,12 @@ export interface operations {
                     name: string;
                     /** @default 5 */
                     maxMembers?: number;
+                    /**
+                     * @default normal
+                     * @enum {string}
+                     */
+                    access?: "normal" | "password";
+                    password?: string;
                 };
             };
         };
@@ -951,6 +960,9 @@ export interface operations {
                     "application/json": {
                         /** Format: uuid */
                         id: string;
+                        code: string;
+                        /** @enum {string} */
+                        access: "normal" | "password";
                         /** Format: uuid */
                         ownerUserId: string;
                         name: string;
@@ -1065,6 +1077,9 @@ export interface operations {
                     "application/json": {
                         /** Format: uuid */
                         id: string;
+                        code: string;
+                        /** @enum {string} */
+                        access: "normal" | "password";
                         /** Format: uuid */
                         ownerUserId: string;
                         name: string;
@@ -1165,6 +1180,7 @@ export interface operations {
             query?: never;
             header?: never;
             path: {
+                /** @description 8 位房间号或完整房间 UUID */
                 roomId: string;
             };
             cookie?: never;
@@ -1173,6 +1189,7 @@ export interface operations {
             content: {
                 "application/json": {
                     inviteToken?: string;
+                    password?: string;
                 };
             };
         };
@@ -1186,6 +1203,9 @@ export interface operations {
                         room: {
                             /** Format: uuid */
                             id: string;
+                            code: string;
+                            /** @enum {string} */
+                            access: "normal" | "password";
                             /** Format: uuid */
                             ownerUserId: string;
                             name: string;

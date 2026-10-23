@@ -225,7 +225,7 @@ try {
   await owner.getByRole("button", { name: "关闭对话框" }).click();
   for (const page of pages.slice(1)) {
     await page.getByRole("button", { name: "加入房间", exact: true }).click();
-    await page.getByLabel("邀请链接或完整房间码").fill(invite);
+    await page.getByLabel("房间号或邀请链接").fill(invite);
     await page.getByRole("button", { name: "进入房间", exact: true }).click();
     await page
       .getByRole("button", { name: "关闭麦克风", exact: true })

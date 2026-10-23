@@ -27,7 +27,34 @@ describe("untrusted client input", () => {
     expect(roomInput.parse({ name: "影院" })).toEqual({
       name: "影院",
       maxMembers: 5,
+      access: "normal",
     });
+  });
+  test("password rooms require bounded passwords and normal rooms cannot accidentally store one", () => {
+    expect(roomInput.safeParse({ name: "普通房" }).success).toBe(true);
+    expect(
+      roomInput.safeParse({ name: "加密房", access: "password" }).success,
+    ).toBe(false);
+    expect(
+      roomInput.safeParse({
+        name: "加密房",
+        access: "password",
+        password: "    ",
+      }).success,
+    ).toBe(false);
+    expect(
+      roomInput.safeParse({
+        name: "加密房",
+        access: "password",
+        password: "1234",
+      }).success,
+    ).toBe(true);
+    expect(
+      roomInput.safeParse({ name: "普通房", password: "1234" }).success,
+    ).toBe(false);
+    expect(joinInput.safeParse({ password: "x".repeat(65) }).success).toBe(
+      false,
+    );
   });
   test("does not accept malformed invitations, stale lease references or empty chat", () => {
     expect(joinInput.safeParse({ inviteToken: "short" }).success).toBe(false);

@@ -39,6 +39,8 @@ export const rooms = pgTable(
   "rooms",
   {
     id: uuid("id").primaryKey(),
+    code: text("code").notNull().unique(),
+    passwordHash: text("password_hash"),
     ownerUserId: uuid("owner_user_id")
       .notNull()
       .references(() => users.id),
@@ -48,6 +50,7 @@ export const rooms = pgTable(
     createdAt: time("created_at").notNull().defaultNow(),
   },
   (t) => [
+    check("rooms_code_check", sql`${t.code} ~ '^[A-F0-9]{8}$'`),
     check("rooms_capacity_check", sql`${t.maxMembers} BETWEEN 2 AND 10`),
     check("rooms_status_check", sql`${t.status} IN ('active', 'closed')`),
   ],

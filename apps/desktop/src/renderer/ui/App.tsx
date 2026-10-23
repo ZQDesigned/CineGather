@@ -153,9 +153,9 @@ export function App() {
                 label: room.name,
                 disabled: app.busy || app.roomState === "joining",
                 onClick: () => {
-                  setHome(false);
-                  if (app.room?.id !== room.id)
-                    void actions.run(() => actions.roomSession.enter(room.id));
+                  void actions.run(async () => {
+                    if (await actions.enterKnownRoom(room)) setHome(false);
+                  });
                 },
               }))}
             />

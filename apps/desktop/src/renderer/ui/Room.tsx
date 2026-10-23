@@ -3,6 +3,7 @@ import { Button } from "./Controls";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Shield,
+  LockKeyhole,
   Copy,
   UserPlus,
   Maximize,
@@ -56,34 +57,36 @@ export function Room() {
   return (
     <div className="room-page">
       <div className="room-heading">
-        <div>
-          <span className="eyebrow">
-            <span className="live-dot" />
-            你们的私人放映厅
-          </span>
-          <h1>
-            {app.room!.name}
-            <Tag icon={<Shield size={11} />}>私密</Tag>
-          </h1>
-          <Tooltip title="复制房间 ID">
+        <div className="room-title-row">
+          <h1 title={app.room!.name}>{app.room!.name}</h1>
+          <Tooltip title="复制房间号">
             <Button
               type="text"
               size="small"
               className="room-id"
-              title="复制房间 ID"
+              title="复制房间号"
+              aria-label="复制房间号"
               onClick={() =>
                 void actions
-                  .copyText(
-                    app.room!.id,
-                    "房间 ID 已复制；新朋友仍需要有效邀请",
-                  )
+                  .copyText(app.room!.code, "房间号已复制")
                   .catch(actions.report)
               }
             >
-              房间 {app.room!.id.slice(0, 8).toUpperCase()}
+              {app.room!.code}
               <Copy size={12} />
             </Button>
           </Tooltip>
+          <Tag
+            icon={
+              app.room!.access === "password" ? (
+                <LockKeyhole size={11} />
+              ) : (
+                <Shield size={11} />
+              )
+            }
+          >
+            {app.room!.access === "password" ? "加密房" : "普通房"}
+          </Tag>
         </div>
         <div className="heading-actions">
           {app.room!.role === "owner" && (

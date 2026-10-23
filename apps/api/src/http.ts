@@ -96,7 +96,15 @@ export function Endpoint(
           }),
         ]
       : []),
-    ...params.map((name) => ApiParam({ name, type: "string", format: "uuid" })),
+    ...params.map((name) =>
+      ApiParam({
+        name,
+        type: "string",
+        ...(operationId === "joinRoom" && name === "roomId"
+          ? { description: "8 位房间号或完整房间 UUID" }
+          : { format: "uuid" }),
+      }),
+    ),
   );
 }
 export class AuthGuard implements CanActivate {

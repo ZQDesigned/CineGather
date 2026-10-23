@@ -103,7 +103,8 @@ export class ApiController {
       return await r.joinRoom(
         req.user,
         roomId,
-        parse(c.joinInput, body).inviteToken,
+        parse(c.joinInput, body),
+        req.ip,
       );
     } catch (error) {
       if (!(error instanceof HttpException) || error.getStatus() >= 500)

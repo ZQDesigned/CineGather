@@ -219,7 +219,7 @@ test("real Mac system mix excludes CineGather playback, stays synchronized and w
     // Launch the second CineGather instance AFTER capture starts to exercise exclusion updates.
     const b = await launch("系统音频测试 B");
     await b.page.getByRole("button", { name: "加入房间", exact: true }).click();
-    await b.page.getByLabel("邀请链接或完整房间码").fill(invite);
+    await b.page.getByLabel("房间号或邀请链接").fill(invite);
     await b.page.getByRole("button", { name: "进入房间", exact: true }).click();
     await b.page
       .getByRole("button", { name: "关闭麦克风", exact: true })

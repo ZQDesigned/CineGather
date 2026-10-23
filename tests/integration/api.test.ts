@@ -16,6 +16,7 @@ import {
 import { eq, inArray, or } from "drizzle-orm";
 import { AccessToken } from "livekit-server-sdk";
 import { createHash } from "node:crypto";
+import type { RoomInfo } from "@cinegather/contracts";
 let app: Awaited<ReturnType<typeof createApp>>;
 let base: string;
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
@@ -53,7 +54,7 @@ async function room(token: string, maxMembers = 5, key?: string) {
     key,
   );
   expect(r.status).toBe(201);
-  return r.body as { id: string; name: string; maxMembers: number };
+  return r.body as RoomInfo;
 }
 beforeAll(async () => {
   app = await createApp();
@@ -91,6 +92,219 @@ afterAll(async () => {
 });
 
 describe("real PostgreSQL and LiveKit API boundaries", () => {
+  test("normal rooms admit new guests by public code and preserve a single canonical media room", async () => {
+    const a = await guest();
+    const b = await guest();
+    const r = await room(a.token);
+    expect(r.code).toMatch(/^[A-F0-9]{8}$/);
+    expect(r.access).toBe("normal");
+    const joined = await req(
+      `/rooms/${r.code.toLowerCase()}/join`,
+      b.token,
+      {},
+    );
+    expect(joined.status).toBe(201);
+    expect(joined.body.room).toMatchObject({
+      id: r.id,
+      code: r.code,
+      access: "normal",
+      role: "member",
+    });
+    const claims = JSON.parse(
+      Buffer.from(joined.body.token.split(".")[1], "base64url").toString(),
+    );
+    expect(claims.video.room).toBe(r.id);
+    const [stored] = await db.select().from(rooms).where(eq(rooms.id, r.id));
+    expect(stored?.passwordHash).toBeNull();
+    await req(`/rooms/${r.id}/leave`, b.token, {});
+  });
+  test("password rooms verify on every manual admission, owners and valid invitations can enter without passwords", async () => {
+    const a = await guest();
+    const b = await guest();
+    const c = await guest();
+    const password = " only-in-memory-123 ";
+    const key = crypto.randomUUID();
+    const created = await req(
+      "/rooms",
+      a.token,
+      { name: "加密放映室", access: "password", password },
+      "POST",
+      key,
+    );
+    expect(created.status).toBe(201);
+    const r = created.body as RoomInfo;
+    expect(r.access).toBe("password");
+    expect(created.body.passwordHash).toBeUndefined();
+    expect(created.body.password).toBeUndefined();
+    const [stored] = await db.select().from(rooms).where(eq(rooms.id, r.id));
+    expect(stored?.passwordHash).toStartWith("scrypt-v1$");
+    expect(stored?.passwordHash).not.toContain(password);
+    expect((await req(`/rooms/${r.code}/join`, b.token, {})).body.code).toBe(
+      "ROOM_PASSWORD_REQUIRED",
+    );
+    expect(
+      (await req(`/rooms/${r.id}/join`, b.token, { password: password.trim() }))
+        .body.code,
+    ).toBe("ROOM_PASSWORD_INVALID");
+    expect(
+      (await req(`/rooms/${r.code}/join`, b.token, { password })).status,
+    ).toBe(201);
+    await req(`/rooms/${r.id}/leave`, b.token, {});
+    expect((await req(`/rooms/${r.code}/join`, b.token, {})).body.code).toBe(
+      "ROOM_PASSWORD_REQUIRED",
+    );
+    expect((await req(`/rooms/${r.code}/join`, a.token, {})).status).toBe(201);
+    const invitation = await req(`/rooms/${r.id}/invites`, a.token, {
+      maxUses: 1,
+    });
+    expect(
+      (
+        await req(`/rooms/${r.code}/join`, c.token, {
+          inviteToken: invitation.body.token,
+        })
+      ).status,
+    ).toBe(201);
+    await req(`/rooms/${r.id}/leave`, c.token, {});
+    expect(
+      (
+        await req(`/rooms/${r.code}/join`, c.token, {
+          inviteToken: invitation.body.token,
+        })
+      ).status,
+    ).toBe(201);
+    const outsider = await guest();
+    expect(
+      (
+        await req(`/rooms/${r.code}/join`, outsider.token, {
+          inviteToken: invitation.body.token,
+        })
+      ).body.code,
+    ).toBe("INVITE_INVALID");
+    await req(
+      `/rooms/${r.id}/invites/${invitation.body.id}`,
+      a.token,
+      undefined,
+      "DELETE",
+    );
+    expect(
+      (
+        await req(`/rooms/${r.code}/join`, c.token, {
+          inviteToken: invitation.body.token,
+          password,
+        })
+      ).body.code,
+    ).toBe("INVITE_INVALID");
+    expect(
+      (await req(`/rooms/${r.code}/join`, c.token, { password })).status,
+    ).toBe(201);
+    const listed = await req("/rooms", c.token);
+    expect(listed.body.items).toContainEqual({ ...r, role: "member" });
+    const [deduplicated] = await db
+      .select()
+      .from(idempotency)
+      .where(eq(idempotency.key, key));
+    const logs = await db
+      .select()
+      .from(auditLogs)
+      .where(eq(auditLogs.targetId, r.id));
+    expect(
+      JSON.stringify([deduplicated, logs, listed.body, created.body]),
+    ).not.toContain(password);
+    for (const user of [a, c])
+      await req(`/rooms/${r.id}/leave`, user.token, {});
+  });
+  test("encrypted admission preserves capacity, invitation revocation, expiry and bans", async () => {
+    const a = await guest();
+    const b = await guest();
+    const c = await guest();
+    const password = "local-123";
+    const created = await req("/rooms", a.token, {
+      name: "权限边界",
+      maxMembers: 2,
+      access: "password",
+      password,
+    });
+    const r = created.body as RoomInfo;
+    expect(created.status).toBe(201);
+    await req(`/rooms/${r.id}/join`, a.token, {});
+    await req(`/rooms/${r.code}/join`, b.token, { password });
+    const invitation = await req(`/rooms/${r.id}/invites`, a.token, {
+      maxUses: 1,
+    });
+    const full = await req(`/rooms/${r.code}/join`, c.token, {
+      inviteToken: invitation.body.token,
+    });
+    expect(full.body.code).toBe("ROOM_FULL");
+    const [unused] = await db
+      .select()
+      .from(invites)
+      .where(eq(invites.id, invitation.body.id));
+    expect(unused?.useCount).toBe(0);
+    const membership = await db
+      .select()
+      .from(members)
+      .where(eq(members.userId, c.id));
+    expect(membership).toHaveLength(0);
+    await req(`/rooms/${r.id}/leave`, b.token, {});
+    await db
+      .update(invites)
+      .set({ expiresAt: new Date(Date.now() - 1000) })
+      .where(eq(invites.id, invitation.body.id));
+    expect(
+      (
+        await req(`/rooms/${r.code}/join`, c.token, {
+          inviteToken: invitation.body.token,
+        })
+      ).body.code,
+    ).toBe("INVITE_INVALID");
+    const fresh = await req(`/rooms/${r.id}/invites`, a.token, {});
+    await req(
+      `/rooms/${r.id}/members/${c.id}`,
+      a.token,
+      { ban: true },
+      "DELETE",
+    );
+    expect(
+      (await req(`/rooms/${r.code}/join`, c.token, { password })).body.code,
+    ).toBe("ROOM_BANNED");
+    expect(
+      (
+        await req(`/rooms/${r.code}/join`, c.token, {
+          inviteToken: fresh.body.token,
+        })
+      ).body.code,
+    ).toBe("ROOM_BANNED");
+    await req(`/rooms/${r.id}/leave`, a.token, {});
+  });
+  test("wrong room passwords are rate limited without blocking valid invitations", async () => {
+    const a = await guest();
+    const b = await guest();
+    const created = await req("/rooms", a.token, {
+      name: "尝试次数",
+      access: "password",
+      password: "local-123",
+    });
+    const r = created.body as RoomInfo;
+    for (let n = 0; n < 8; n++)
+      expect(
+        (await req(`/rooms/${r.code}/join`, b.token, { password: "wrong" }))
+          .body.code,
+      ).toBe("ROOM_PASSWORD_INVALID");
+    const limited = await req(`/rooms/${r.code}/join`, b.token, {
+      password: "local-123",
+    });
+    expect(limited.status).toBe(429);
+    expect(limited.body.code).toBe("ROOM_PASSWORD_RATE_LIMITED");
+    const invitation = await req(`/rooms/${r.id}/invites`, a.token, {});
+    expect(
+      (
+        await req(`/rooms/${r.code}/join`, b.token, {
+          inviteToken: invitation.body.token,
+        })
+      ).status,
+    ).toBe(201);
+    await req(`/rooms/${r.id}/leave`, b.token, {});
+  });
   test("health actually checks database and SFU; anonymous room operations are rejected", async () => {
     expect((await req("/health")).status).toBe(200);
     expect((await req("/rooms", undefined, { name: "forged" })).status).toBe(
@@ -346,7 +560,11 @@ test("media token issuance failures are observable without counting rejected inv
   const before = await req("/diagnostics", owner.token);
   expect(typeof before.body.tokenIssueFailures).toBe("number");
   expect(
-    (await req(`/rooms/${target.id}/join`, outsider.token, {})).status,
+    (
+      await req(`/rooms/${target.id}/join`, outsider.token, {
+        inviteToken: "x".repeat(43),
+      })
+    ).status,
   ).toBe(403);
   expect((await req("/diagnostics", owner.token)).body.tokenIssueFailures).toBe(
     before.body.tokenIssueFailures,
