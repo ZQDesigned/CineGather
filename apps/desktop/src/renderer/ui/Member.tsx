@@ -68,6 +68,7 @@ export function Member({
   onVolumeChange(value: number): void;
 }) {
   const [open, setOpen] = useState(false);
+  const [focusVolume, setFocusVolume] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
   const items: MenuProps["items"] = [
     { key: "friend", label: "添加好友", icon: <UserPlus size={15} /> },
@@ -111,6 +112,7 @@ export function Member({
             (event.shiftKey && event.key === "F10"))
         ) {
           event.preventDefault();
+          setFocusVolume(true);
           setOpen(true);
         }
       }}
@@ -151,7 +153,10 @@ export function Member({
             aria-label={`${p.name}的成员操作`}
             aria-haspopup="menu"
             aria-expanded={open}
-            onClick={() => setOpen(!open)}
+            onClick={(event) => {
+              setFocusVolume(event.detail === 0);
+              setOpen(!open);
+            }}
             icon={<Ellipsis size={16} />}
           />
         )}
@@ -163,7 +168,10 @@ export function Member({
     <Dropdown
       trigger={["contextMenu"]}
       open={open}
-      onOpenChange={setOpen}
+      onOpenChange={(nextOpen) => {
+        setFocusVolume(false);
+        setOpen(nextOpen);
+      }}
       destroyOnHidden
       menu={{ items, onClick: select }}
       popupRender={(menu) => (
@@ -203,7 +211,7 @@ export function Member({
               </span>
             </div>
             <Slider
-              autoFocus
+              autoFocus={focusVolume}
               ariaLabelForHandle={`${p.name}的音量`}
               min={0}
               max={100}

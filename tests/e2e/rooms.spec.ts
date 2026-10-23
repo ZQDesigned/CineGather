@@ -73,9 +73,22 @@ test("two independent clients join a real LiveKit room, synchronize microphone a
     );
     await page.setViewportSize({ width: 980, height: 680 });
     await page
+      .getByRole("button", { name: "小聚的成员操作", exact: true })
+      .click();
+    await expect(memberVolume).toBeVisible();
+    await expect(memberVolume).not.toBeFocused();
+    await expect(page.locator(".ant-slider-tooltip:visible")).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(memberVolume).toHaveCount(0);
+    await page
       .locator(".member")
       .filter({ hasText: "小聚" })
       .click({ button: "right" });
+    await expect(memberVolume).toBeVisible();
+    await expect(memberVolume).not.toBeFocused();
+    await expect(page.locator(".ant-slider-tooltip:visible")).toHaveCount(0);
+    await memberVolume.hover();
+    await expect(page.locator(".ant-slider-tooltip:visible")).toHaveText("100");
     await memberVolume.press("Home");
     await memberVolume.press("ArrowRight");
     await expect(memberVolume).toHaveAttribute("aria-valuenow", "1");
