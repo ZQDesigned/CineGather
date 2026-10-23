@@ -1,9 +1,15 @@
 import { readdir, writeFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
 const root = "apps/desktop/release";
+const desktop = await Bun.file("apps/desktop/package.json").json();
+const api = await Bun.file("apps/api/package.json").json();
 const names = (await readdir(root)).filter(
-  (n) => /\.(exe|zip|dmg|blockmap)$/.test(n) && !n.includes("__"),
+  (n) =>
+    n.startsWith(`CineGather-${desktop.version}-`) &&
+    /\.(exe|zip|dmg|blockmap)$/.test(n) &&
+    !n.includes("__"),
 );
+if (!names.length) throw new Error(`No artifacts for ${desktop.version}.`);
 const artifacts = [];
 for (const name of names) {
   const file = Bun.file(`${root}/${name}`);
@@ -28,10 +34,10 @@ const manifest = {
   gitSha,
   dirty,
   versions: {
-    desktop: "0.1.0",
-    api: "0.1.0",
+    desktop: desktop.version,
+    api: api.version,
     bun: Bun.version,
-    electron: "44.9.0",
+    electron: desktop.devDependencies.electron,
     node: (await Bun.$`node -p process.versions.node`.text()).trim(),
     livekit: "1.13.10",
   },

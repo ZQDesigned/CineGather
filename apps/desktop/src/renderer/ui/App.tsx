@@ -1,3 +1,4 @@
+import { version } from "../../../package.json";
 import { Button, Menu, Avatar, Badge, Breadcrumb, Tooltip, Space } from "antd";
 import { useEffect, useState } from "react";
 import {
@@ -358,7 +359,7 @@ export function App() {
               <span />
               {roomStates[app.roomState]}
             </span>
-            <span className="version">v0.1.0</span>
+            <span className="version">v{version}</span>
           </div>
         </header>
         <Feedback />

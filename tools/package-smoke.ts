@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 
+const { version } = await Bun.file("apps/desktop/package.json").json();
 const platform = process.argv[2] ?? process.platform;
 if (platform !== process.platform || !["darwin", "win32"].includes(platform))
   throw new Error(
@@ -33,7 +34,9 @@ try {
     args: [`--user-data-dir=${profile}`],
     timeout: 30000,
   });
+  expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version);
   const page = await app.firstWindow();
+  await expect(page.locator(".version")).toHaveText(`v${version}`);
   await expect(
     page.getByRole("heading", { name: "欢迎来到映聚", exact: true }),
   ).toBeVisible();
