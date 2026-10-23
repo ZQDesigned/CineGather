@@ -375,6 +375,17 @@ test("revoking an active account session disconnects its existing media identity
     process.env.LIVEKIT_API_SECRET!,
   );
   expect((await livekit.listParticipants(roomId)).length).toBe(1);
+  let releaseCleanup!: () => void;
+  const cleanup = new Promise<void>((resolve) => {
+    releaseCleanup = resolve;
+  });
+  // Reproduce a removal cleanup request dispatched after credentials are cleared.
+  await page.route(`**/api/v1/rooms/${roomId}`, async (route) => {
+    await cleanup;
+    const headers = { ...route.request().headers() };
+    delete headers.authorization;
+    await route.continue({ headers }).catch(() => {});
+  });
   const revoked = await request.delete(
     "http://127.0.0.1:14310/api/v1/session",
     { headers: { Authorization: `Bearer ${token}` } },
@@ -397,6 +408,11 @@ test("revoking an active account session disconnects its existing media identity
     )
     .toBe(0);
   await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
+  releaseCleanup();
+  await page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/rooms/${roomId}`) && response.status() === 401,
+  );
   await expect(
     page.locator(".ant-notification").getByRole("alert"),
   ).toContainText("登录已失效");

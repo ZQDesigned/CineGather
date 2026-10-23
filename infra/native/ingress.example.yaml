@@ -8,7 +8,14 @@ whip_port: 8085
 rtmp_port: -1
 health_port: 8086
 http_relay_port: 9095
+# The SFU WHIP proxy synthesizes camera/microphone tracks and ignores ingress
+# screen-share source options. Keep the ingress SDK path for correct track types.
 whip_proxy_enabled: false
+cpu_cost:
+  rtmp_cpu_cost: 2
+  whip_cpu_cost: 2
+  whip_bypass_transcoding_cpu_cost: 0.1
+  url_cpu_cost: 2
 rtc_config:
   udp_port: 7886
   tcp_port: 7888

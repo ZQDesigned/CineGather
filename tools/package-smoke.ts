@@ -35,8 +35,15 @@ try {
   });
   const page = await app.firstWindow();
   await expect(
-    page.getByRole("heading", { name: "给自己一个名字" }),
+    page.getByRole("heading", { name: "欢迎来到映聚", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("tab", { name: "登录", exact: true }),
+  ).toBeVisible();
+  await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "访客体验", exact: true }),
+  ).toHaveCount(0);
   expect(await page.evaluate(() => window.desktop!.hotkeyStatus!())).toEqual({
     error: undefined,
   });

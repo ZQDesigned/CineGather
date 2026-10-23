@@ -47,7 +47,9 @@ export async function copyText(value: string, notice?: string) {
 export function report(error: unknown) {
   if (
     error instanceof ApiError &&
-    (error.staleSession || (changingCredentials && error.status === 401))
+    (error.staleSession ||
+      (changingCredentials && error.status === 401) ||
+      (!sessionToken && error.code === "UNAUTHENTICATED"))
   )
     return;
   if (error instanceof ApiError && error.status === 401) {
@@ -118,7 +120,8 @@ export const media = new MediaSession(
 );
 async function handleRemoteRemoval() {
   const { room, roomRevision } = state();
-  if (!room) return;
+  const identity = sessionToken;
+  if (!room || !identity) return;
   update({ roomState: "leaving", modal: null, cinema: false });
   // The API read locks the room, so it observes the completed moderation transaction.
   const status = api
@@ -129,7 +132,12 @@ async function handleRemoteRemoval() {
     .catch(() => undefined);
   await roomSession.leave(false);
   const result = await status;
-  if (state().room || state().roomRevision !== roomRevision + 1) return;
+  if (
+    identity !== sessionToken ||
+    state().room ||
+    state().roomRevision !== roomRevision + 1
+  )
+    return;
   if (
     result?.error?.code === "SESSION_EXPIRED" ||
     result?.response.status === 401
