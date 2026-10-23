@@ -251,7 +251,7 @@ export function Room() {
               >
                 {local?.microphone ? <Mic size={21} /> : <MicOff size={21} />}
                 <span>
-                  {app.settings.pushToTalk
+                  {capabilities().pushToTalk && app.settings.pushToTalk
                     ? "按住空格说话"
                     : local?.microphone
                       ? "麦克风已开启"

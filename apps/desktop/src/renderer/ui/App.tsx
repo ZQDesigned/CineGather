@@ -70,17 +70,9 @@ export function App() {
           void actions.toggleMicrophone();
           return;
         }
-        if (
-          current.settings.pushToTalk &&
-          matchesShortcut(current.settings.pttShortcut, key, platform.platform)
-        ) {
-          event.preventDefault();
-          holdActive = true;
-          void actions.ptt(true);
-          return;
-        }
       }
       if (
+        platform.pushToTalk &&
         current.settings.pushToTalk &&
         current.roomState === "connected" &&
         event.code === "Space" &&

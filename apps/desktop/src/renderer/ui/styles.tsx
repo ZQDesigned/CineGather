@@ -1718,6 +1718,9 @@ export const AppSurface = styled.div`
     grid-template-columns: 1fr 1fr;
     gap: 18px;
   }
+  .shortcut-fields.single-shortcut {
+    grid-template-columns: minmax(0, 1fr);
+  }
   .identity-card {
     margin-bottom: 24px;
   }

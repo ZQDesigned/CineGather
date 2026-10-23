@@ -1,6 +1,28 @@
 import { test, expect, type Page } from "@playwright/test";
 import { RoomServiceClient, TrackSource } from "livekit-server-sdk";
 import pg from "pg";
+import { defaultSettings } from "../../apps/desktop/src/shared/settings";
+
+// These renderer tests exercise desktop PTT through a desktop bridge; browser
+// sessions intentionally support free-mic only.
+async function desktopTalkBridge(page: Page) {
+  await page.addInitScript((defaults) => {
+    Object.assign(window, {
+      desktop: {
+        platform: "darwin",
+        loadSettings: async () =>
+          JSON.parse(localStorage.getItem("cinegather.settings") ?? "null") ??
+          defaults,
+        saveSettings: async (settings: typeof defaults) =>
+          localStorage.setItem("cinegather.settings", JSON.stringify(settings)),
+        takeInvitation: async () => undefined,
+        onAction: () => () => {},
+        setSharing: async () => {},
+        cancelCapture: async () => {},
+      },
+    });
+  }, defaultSettings);
+}
 async function guest(page: Page, name: string) {
   await page.goto("/");
   await page.getByLabel("你的昵称").fill(name);
@@ -650,6 +672,7 @@ test("switching a selected microphone back to system default updates the active 
 test("enabling push-to-talk mutes immediately and chat typing cannot release a latched microphone", async ({
   page,
 }) => {
+  await desktopTalkBridge(page);
   await guest(page, "按键说话回归");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("按键说话行为测试");
@@ -738,6 +761,7 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
 test("a microphone grant arriving after push-to-talk release cannot leave the microphone live", async ({
   page,
 }) => {
+  await desktopTalkBridge(page);
   await page.addInitScript(() => {
     localStorage.setItem(
       "cinegather.settings",
@@ -837,6 +861,7 @@ test("a microphone grant arriving after push-to-talk release cannot leave the mi
 test("push-to-talk released during an SFU outage stays muted after reconnection", async ({
   page,
 }) => {
+  await desktopTalkBridge(page);
   const { execFile } = await import("node:child_process");
   const { promisify } = await import("node:util");
   await guest(page, "重连按键说话");

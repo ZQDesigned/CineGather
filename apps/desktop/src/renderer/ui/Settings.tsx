@@ -15,7 +15,7 @@ import { serverOrigin, verifyServer } from "../server-address";
 import { capabilities } from "../platform";
 export function Settings() {
   const platform = capabilities();
-  const pttLabel = platform.globalShortcuts ? "全局按住说话" : "页面内按住说话";
+  const pttLabel = "全局按住说话";
   const muteLabel = platform.globalShortcuts
     ? "全局麦克风静音"
     : "页面内麦克风静音";
@@ -370,23 +370,29 @@ export function Settings() {
                     }))}
                   />
                 </Form.Item>
-                <Form.Item>
-                  <Checkbox
-                    checked={settings.pushToTalk}
-                    onChange={(e) => change("pushToTalk", e.target.checked)}
-                  >
-                    按键说话
-                  </Checkbox>
-                </Form.Item>
-                <div className="shortcut-fields">
-                  <Form.Item label={pttLabel}>
-                    <ShortcutRecorder
-                      label={pttLabel}
-                      value={settings.pttShortcut}
-                      active={open && tab === "sharing"}
-                      onChange={(value) => change("pttShortcut", value)}
-                    />
+                {platform.pushToTalk && (
+                  <Form.Item>
+                    <Checkbox
+                      checked={settings.pushToTalk}
+                      onChange={(e) => change("pushToTalk", e.target.checked)}
+                    >
+                      按键说话
+                    </Checkbox>
                   </Form.Item>
+                )}
+                <div
+                  className={`shortcut-fields${platform.pushToTalk ? "" : " single-shortcut"}`}
+                >
+                  {platform.pushToTalk && (
+                    <Form.Item label={pttLabel}>
+                      <ShortcutRecorder
+                        label={pttLabel}
+                        value={settings.pttShortcut}
+                        active={open && tab === "sharing"}
+                        onChange={(value) => change("pttShortcut", value)}
+                      />
+                    </Form.Item>
+                  )}
                   <Form.Item label={muteLabel}>
                     <ShortcutRecorder
                       label={muteLabel}

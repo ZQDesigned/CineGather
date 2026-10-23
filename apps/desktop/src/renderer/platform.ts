@@ -1,5 +1,13 @@
 import { serverOrigin } from "./server-address";
 import { parseInvitation } from "@cinegather/client-core";
+import type { DesktopSettings } from "@cinegather/contracts";
+
+export function platformSettings(
+  settings: DesktopSettings,
+  desktop: boolean,
+): DesktopSettings {
+  return desktop ? settings : { ...settings, pushToTalk: false };
+}
 
 export function defaultServer(
   stored: string | null | undefined,
@@ -27,6 +35,7 @@ export function capabilities() {
     nativeCapture: Boolean(bridge?.nativeCapture),
     sourcePicker: Boolean(bridge?.sources),
     globalShortcuts: Boolean(bridge),
+    pushToTalk: Boolean(bridge),
     tray: Boolean(bridge),
     microphone: Boolean(secure && navigator.mediaDevices?.getUserMedia),
     displayCapture: Boolean(

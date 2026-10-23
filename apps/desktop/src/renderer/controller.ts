@@ -13,7 +13,12 @@ import type {
 } from "@cinegather/contracts";
 import { state, update, defaults } from "./store";
 import { serverOrigin } from "./server-address";
-import { capabilities, defaultServer, readWebInvitation } from "./platform";
+import {
+  capabilities,
+  defaultServer,
+  readWebInvitation,
+  platformSettings,
+} from "./platform";
 import { settingsSchema } from "../shared/settings";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
 const baseUrl = defaultServer(
@@ -233,7 +238,7 @@ export const roomSession = new RoomCoordinator({
     await media.connect(url, token);
     try {
       await media.microphone(
-        !state().settings.pushToTalk,
+        !(capabilities().pushToTalk && state().settings.pushToTalk),
         state().settings.inputDevice,
       );
       await media.devices(
@@ -271,13 +276,16 @@ function receiveInvitation(value: string) {
 }
 export async function initialize() {
   try {
-    const settings = window.desktop
+    const loaded = window.desktop
       ? await window.desktop.loadSettings()
       : settingsSchema.parse(
           JSON.parse(localStorage.getItem("cinegather.settings") ?? "null") ??
             defaults,
         );
+    const settings = platformSettings(loaded, capabilities().desktop);
     update({ settings });
+    if (!window.desktop && loaded.pushToTalk)
+      localStorage.setItem("cinegather.settings", JSON.stringify(settings));
   } catch {
     update({ settings: defaults });
   }
@@ -378,6 +386,7 @@ export async function ptt(
   enabled: boolean,
   source: "window" | "global" = "window",
 ) {
+  if (!capabilities().pushToTalk) return;
   if (
     enabled &&
     state().settings.pushToTalk &&
@@ -445,6 +454,7 @@ export async function stopShare() {
   await shareSession.stop();
 }
 export async function saveSettings(settings: DesktopSettings) {
+  settings = platformSettings(settings, capabilities().desktop);
   const held = pttHolds.size > 0;
   pttHolds.clear();
   if (

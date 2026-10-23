@@ -1,7 +1,27 @@
 import { test, expect } from "bun:test";
-import { defaultServer, readWebInvitation } from "../src/renderer/platform";
+import {
+  defaultServer,
+  readWebInvitation,
+  platformSettings,
+} from "../src/renderer/platform";
+import { defaultSettings } from "../src/shared/settings";
 import { matchesShortcut } from "../src/shared/shortcuts";
 import { parseInvitation } from "@cinegather/client-core";
+
+test("browser settings discard legacy push-to-talk while desktop settings remain intact", () => {
+  const saved = {
+    ...defaultSettings,
+    pushToTalk: true,
+    quality: "game" as const,
+    muteShortcut: "Control+Shift+K",
+  };
+  expect(platformSettings(saved, false)).toEqual({
+    ...saved,
+    pushToTalk: false,
+  });
+  expect(platformSettings(saved, true)).toEqual(saved);
+  expect(saved.pushToTalk).toBe(true);
+});
 
 test("web defaults to its own origin while native keeps the local API and configured addresses win", () => {
   expect(defaultServer(undefined, "", "https://watch.example.com", false)).toBe(

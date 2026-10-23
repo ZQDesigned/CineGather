@@ -160,7 +160,7 @@ test("Chrome settings have page-only shortcuts, no tray controls, and mute works
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "页面内按住说话", exact: true }),
-    ).toBeVisible();
+    ).toHaveCount(0);
     await expect(
       page.getByText("关闭窗口后保留在托盘", { exact: true }),
     ).toHaveCount(0);
@@ -189,6 +189,96 @@ test("Chrome settings have page-only shortcuts, no tray controls, and mute works
     await expect(
       page.getByRole("button", { name: "关闭麦克风", exact: true }),
     ).toBeEnabled();
+  } finally {
+    await leave(page);
+  }
+});
+
+test("Chrome ignores saved push-to-talk and keeps free-mic or manual mute across keys and settings saves", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["microphone"]);
+  await page.addInitScript(() => {
+    if (!localStorage.getItem("cinegather.settings"))
+      localStorage.setItem(
+        "cinegather.settings",
+        JSON.stringify({
+          minimizeToTray: true,
+          pushToTalk: true,
+          quality: "cinema",
+          pttShortcut: "Control+Alt+K",
+          muteShortcut: "CommandOrControl+Shift+M",
+          inputDevice: "",
+          outputDevice: "",
+        }),
+      );
+  });
+  await create(page);
+  try {
+    const mic = (muted: boolean) =>
+      page.getByRole("button", {
+        name: muted ? "开启麦克风" : "关闭麦克风",
+        exact: true,
+      });
+    await expect(mic(false)).toBeEnabled();
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("cinegather.settings")!).pushToTalk,
+      ),
+    ).toBe(false);
+    for (const muted of [false, true]) {
+      if (muted) await mic(false).click();
+      await page.locator(".stage").click({ position: { x: 8, y: 8 } });
+      for (const key of ["Space", "Control+Alt+K"]) {
+        for (const part of key.split("+")) await page.keyboard.down(part);
+        const unchanged = await page.evaluate(
+          (label) =>
+            new Promise<boolean>((resolve) => {
+              let frames = 0;
+              const sample = () => {
+                if (!document.querySelector(`[aria-label="${label}"]`))
+                  resolve(false);
+                else if (++frames >= 20) resolve(true);
+                else requestAnimationFrame(sample);
+              };
+              sample();
+            }),
+          muted ? "开启麦克风" : "关闭麦克风",
+        );
+        for (const part of key.split("+").reverse())
+          await page.keyboard.up(part);
+        expect(unchanged).toBe(true);
+        await expect(mic(muted)).toBeEnabled();
+      }
+    }
+    await page
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
+      .click();
+    await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
+    await expect(
+      page.getByRole("checkbox", { name: "按键说话", exact: true }),
+    ).toHaveCount(0);
+    await expect(page.getByRole("button", { name: /按住说话/ })).toHaveCount(0);
+    await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(mic(true)).toBeEnabled();
+    expect(
+      await page.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("cinegather.settings")!).pushToTalk,
+      ),
+    ).toBe(false);
+    await leave(page);
+    await page.reload();
+    await page
+      .getByRole("button", { name: "进入Chrome 共享界面验证", exact: true })
+      .click();
+    await expect(mic(false)).toBeEnabled();
+    await expect(page.getByText("按住空格说话", { exact: true })).toHaveCount(
+      0,
+    );
   } finally {
     await leave(page);
   }
