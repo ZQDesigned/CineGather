@@ -3,14 +3,18 @@ import type { CaptureSource } from "@cinegather/contracts";
 
 // Frames belong to this mounted picker only. Ignore late results after a tab
 // change, refresh or close, and keep each native response below the pipe limit.
-export function useSourcePreviews(sources: CaptureSource[], kind: string) {
+export function useSourcePreviews(
+  sources: CaptureSource[],
+  kind: string,
+  active = true,
+) {
   const [images, setImages] = useState<Record<string, string>>({});
   const [revision, setRevision] = useState(0);
   const enabled = Boolean(
     window.desktop?.nativeCapture && window.desktop.sourceThumbnails,
   );
   useEffect(() => {
-    if (!enabled) return;
+    if (!enabled || !active) return;
     let current = true;
     const load = async () => {
       const ids = sources
@@ -45,7 +49,7 @@ export function useSourcePreviews(sources: CaptureSource[], kind: string) {
     return () => {
       current = false;
     };
-  }, [sources, kind, revision, enabled]);
+  }, [sources, kind, revision, enabled, active]);
   return {
     images,
     enabled,

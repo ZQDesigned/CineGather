@@ -358,6 +358,28 @@ function registerIPC() {
         state: z.string().optional(),
         watching: z.boolean().optional(),
         tracks: z.array(z.record(z.string(), z.unknown())).max(200).optional(),
+        mediaCheck: z.enum(["available", "unavailable"]).optional(),
+        serverCheck: z
+          .enum(["available", "unavailable", "notSignedIn"])
+          .optional(),
+        shareState: z.string().max(32).optional(),
+        connection: z
+          .object({
+            status: z.enum(["checking", "available", "unavailable"]),
+            checkedAt: z.string().max(64).optional(),
+          })
+          .optional(),
+        server: z
+          .object({
+            uptimeSeconds: z.number().nonnegative(),
+            requests: z.number().nonnegative(),
+            errors: z.number().nonnegative(),
+            authDenied: z.number().nonnegative(),
+            tokenIssueFailures: z.number().nonnegative(),
+            averageDurationMs: z.number().nonnegative(),
+            activeRooms: z.number().nonnegative(),
+          })
+          .optional(),
       })
       .parse(input);
     const safeTracks = data.tracks?.map((track) =>

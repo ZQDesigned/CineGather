@@ -10,32 +10,50 @@ import {
   Tooltip,
   Typography,
   Alert,
-  Collapse,
-  Statistic,
   Space,
   Spin,
 } from "antd";
 import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
+import { Diagnostics } from "./Diagnostics";
 import { useEffect, useState } from "react";
 import {
   Copy,
   Monitor,
   AppWindow,
-  Download,
   RefreshCw,
   UserPlus,
   Shield,
   X,
 } from "lucide-react";
-import { useApp, update } from "../store";
+import { useApp, update, type Modal } from "../store";
 import * as actions from "../controller";
 import { unwrap } from "@cinegather/api-client";
 import { parseInvitation } from "@cinegather/client-core";
-import { ModalShell } from "./Modal";
+import { DialogLifecycle, ModalShell, useDialogOpen } from "./Modal";
 import { useSourcePreviews } from "./useSourcePreviews";
 export function Dialogs() {
   const modal = useApp((s) => s.modal);
+  const [shown, setShown] = useState<Modal>(modal);
+  useEffect(() => {
+    if (!shown && modal) setShown(modal);
+  }, [modal, shown]);
+  if (!shown) return null;
+  return (
+    <DialogLifecycle.Provider
+      value={{
+        open: modal === shown,
+        afterClose: () => {
+          const next = useApp.getState().modal;
+          if (next !== shown) setShown(next);
+        },
+      }}
+    >
+      <DialogContent key={shown} modal={shown} />
+    </DialogLifecycle.Provider>
+  );
+}
+function DialogContent({ modal }: { modal: Modal }) {
   if (modal === "create") return <CreateRoom />;
   if (modal === "join") return <JoinRoom />;
   if (modal === "settings") return <Settings />;
@@ -53,7 +71,6 @@ function CreateRoom() {
   return (
     <ModalShell
       title="创建私人房间"
-      subtitle="给今晚的相聚，取个好名字。"
       footer={
         <>
           <Button onClick={() => update({ modal: null })}>取消</Button>
@@ -268,10 +285,11 @@ function Invite() {
   );
 }
 function SourcePicker() {
+  const open = useDialogOpen();
   const app = useApp();
   const native = Boolean(window.desktop?.nativeCapture);
   const [kind, setKind] = useState(native ? "window" : "screen");
-  const previews = useSourcePreviews(app.sources, kind);
+  const previews = useSourcePreviews(app.sources, kind, open);
   const [selected, setSelected] = useState(
     app.sources.find((s) => s.kind === (native ? "window" : "screen"))?.id ??
       "",
@@ -422,7 +440,7 @@ function SourcePicker() {
   );
 }
 function Friends() {
-  const user = useApp((s) => s.user)!;
+  const [user] = useState(() => useApp.getState().user!);
   const [items, setItems] = useState<
     {
       userId: string;
@@ -553,110 +571,8 @@ function Friends() {
     </ModalShell>
   );
 }
-function Diagnostics() {
-  const [data, setData] = useState<Record<string, unknown>>({});
-  const [server, setServer] = useState<{
-    uptimeSeconds: number;
-    requests: number;
-    errors: number;
-    activeRooms: number;
-  }>();
-  const user = useApp((s) => s.user);
-  const refresh = async () => {
-    setData(await actions.media.diagnostics());
-    if (user) setServer(unwrap(await actions.api.GET("/api/v1/diagnostics")));
-  };
-  useEffect(() => {
-    void refresh().catch(actions.report);
-  }, []);
-  const exportData = async () => {
-    const current = await actions.media.diagnostics();
-    if (window.desktop) {
-      if (await window.desktop.exportDiagnostics(current))
-        update({ notice: "诊断已导出" });
-    } else {
-      const url = URL.createObjectURL(
-        new Blob([JSON.stringify(current, null, 2)], {
-          type: "application/json",
-        }),
-      );
-      const link = document.createElement("a");
-      link.href = url;
-      link.download = "cinegather-diagnostics.json";
-      link.click();
-      URL.revokeObjectURL(url);
-    }
-  };
-  return (
-    <ModalShell
-      title="连接诊断"
-      subtitle="仅包含连接和设备指标，不包含媒体内容或访问凭证。"
-      wide
-    >
-      <div className="diagnostic-cards">
-        <Card size="small">
-          <Statistic
-            title="媒体状态"
-            value={
-              (
-                {
-                  connected: "已连接",
-                  disconnected: "未连接",
-                  reconnecting: "重新连接中",
-                  connecting: "连接中",
-                } as Record<string, string>
-              )[String(data.state)] ?? "未连接"
-            }
-          />
-        </Card>
-        <Card size="small">
-          <Statistic
-            title="服务器活跃房间"
-            value={server?.activeRooms ?? "—"}
-          />
-        </Card>
-        <Card size="small">
-          <Statistic
-            title="API 请求 / 错误"
-            value={server ? `${server.requests} / ${server.errors}` : "—"}
-          />
-        </Card>
-      </div>
-      <Collapse
-        items={[
-          {
-            key: "details",
-            label: "查看详细诊断数据",
-            children: (
-              <pre className="diagnostic-json">
-                {JSON.stringify(data, null, 2)}
-              </pre>
-            ),
-          },
-        ]}
-      />
-      <p className="form-note">
-        RTT、丢包、帧率等指标在轨道传输后可见。WebRTC RTT
-        不等同于端到端音画延迟。
-      </p>
-      <div className="dialog-actions">
-        <Button onClick={() => void refresh().catch(actions.report)}>
-          <RefreshCw size={16} />
-          刷新
-        </Button>
-        <Button
-          type="primary"
-          onClick={() => void exportData().catch(actions.report)}
-        >
-          <Download size={16} />
-          导出诊断
-        </Button>
-      </div>
-    </ModalShell>
-  );
-}
 function Bans() {
-  const room = useApp((s) => s.room)!;
+  const [room] = useState(() => useApp.getState().room!);
   const [items, setItems] = useState<{ userId: string; displayName: string }[]>(
     [],
   );

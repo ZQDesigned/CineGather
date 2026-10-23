@@ -9,23 +9,24 @@ import {
   qualityLabel,
   type DesktopSettings,
 } from "@cinegather/contracts";
-import { ModalShell } from "./Modal";
+import { ModalShell, useDialogOpen } from "./Modal";
 import { ShortcutRecorder } from "./ShortcutRecorder";
 import { serverOrigin, verifyServer } from "../server-address";
 export function Settings() {
+  const open = useDialogOpen();
   const { modal } = App.useApp();
   const serverRequest = useRef<AbortController | undefined>(undefined);
   const confirmation = useRef<ReturnType<typeof modal.confirm> | undefined>(
     undefined,
   );
   const [verifying, setVerifying] = useState(false);
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    if (!open) setVerifying(false);
+    return () => {
       serverRequest.current?.abort();
       confirmation.current?.destroy();
-    },
-    [],
-  );
+    };
+  }, [open]);
   const saveServer = async () => {
     if (serverRequest.current) return;
     let origin: string;
@@ -105,19 +106,27 @@ export function Settings() {
       .catch(actions.report);
   };
   useEffect(() => {
+    if (!open) {
+      setTesting(false);
+      setRequesting(false);
+      setLevel(0);
+      return;
+    }
     refresh();
     navigator.mediaDevices.addEventListener("devicechange", refresh);
     return () => {
       ++testRevision.current;
+      capturePending.current = false;
       navigator.mediaDevices.removeEventListener("devicechange", refresh);
       const active = audioRef.current;
+      audioRef.current = undefined;
       if (active) {
         cancelAnimationFrame(active.frame);
         active.stream.getTracks().forEach((t) => t.stop());
         void active.context.close();
       }
     };
-  }, []);
+  }, [open]);
   const testMicrophone = async () => {
     if (capturePending.current) return;
     if (audioRef.current) {
@@ -174,8 +183,10 @@ export function Settings() {
       audioRef.current = undefined;
       if (revision === testRevision.current) throw error;
     } finally {
-      capturePending.current = false;
-      if (revision === testRevision.current) setRequesting(false);
+      if (revision === testRevision.current) {
+        capturePending.current = false;
+        setRequesting(false);
+      }
     }
   };
   const beep = async () => {
@@ -355,7 +366,7 @@ export function Settings() {
                     <ShortcutRecorder
                       label="全局按住说话"
                       value={settings.pttShortcut}
-                      active={tab === "sharing"}
+                      active={open && tab === "sharing"}
                       onChange={(value) => change("pttShortcut", value)}
                     />
                   </Form.Item>
@@ -363,7 +374,7 @@ export function Settings() {
                     <ShortcutRecorder
                       label="全局麦克风静音"
                       value={settings.muteShortcut}
-                      active={tab === "sharing"}
+                      active={open && tab === "sharing"}
                       onChange={(value) => change("muteShortcut", value)}
                     />
                   </Form.Item>

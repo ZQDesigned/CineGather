@@ -1787,22 +1787,18 @@ export const AppSurface = styled.div`
     font-size: 12px;
     margin-top: 5px;
   }
-  .diagnostic-cards {
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 12px;
-    margin-bottom: 20px;
+  .diagnostic-overview {
+    margin-bottom: 16px;
   }
-  .diagnostic-cards .ant-statistic-content {
-    font-size: 21px;
+  .diagnostic-status-card .ant-descriptions-item-label {
+    width: 100px;
+    color: #c4c7d2;
   }
-  .diagnostic-json {
+  .diagnostic-status-card .ant-typography {
+    font-size: 12px;
+  }
+  .diagnostic-status-card .ant-tag {
     margin: 0;
-    max-height: 280px;
-    overflow: auto;
-    font-size: 11px;
-    line-height: 1.8;
-    color: #9298a9;
   }
   .dialog-actions {
     display: flex;
