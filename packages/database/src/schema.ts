@@ -239,3 +239,12 @@ export const nativePublications = pgTable("native_publications", {
   ingressId: text("ingress_id").notNull().unique(),
   identity: text("identity").notNull().unique(),
 });
+
+export const registrationPolicy = pgTable(
+  "registration_policy",
+  {
+    id: integer("id").primaryKey().default(1),
+    enabled: boolean("enabled").notNull().default(false),
+  },
+  (t) => [check("registration_policy_singleton", sql`${t.id} = 1`)],
+);

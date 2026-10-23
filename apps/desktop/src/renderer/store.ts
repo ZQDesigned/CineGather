@@ -22,6 +22,7 @@ export type Modal =
 export const defaults = defaultSettings;
 interface State {
   user?: User;
+  registrationEnabled?: boolean;
   room?: RoomInfo;
   roomRevision: number;
   shareRevision: number;

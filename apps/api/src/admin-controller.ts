@@ -11,6 +11,10 @@ import {
 import { ApiBearerAuth, ApiQuery } from "@nestjs/swagger";
 import * as c from "@cinegather/contracts";
 import * as admin from "./admin";
+import {
+  readRegistrationPolicy,
+  updateRegistrationPolicy,
+} from "./registration";
 import * as roles from "./roles";
 import {
   Endpoint,
@@ -24,6 +28,28 @@ import {
 @Controller("api/v1/admin")
 @UseGuards(AdminGuard)
 export class AdminController {
+  @Get("registration")
+  @SuperAdminOnly()
+  @Endpoint("adminRegistrationPolicy", c.registrationPolicySchema)
+  registrationPolicy() {
+    return readRegistrationPolicy();
+  }
+  @Post("registration")
+  @SuperAdminOnly()
+  @Endpoint(
+    "adminUpdateRegistrationPolicy",
+    c.registrationPolicySchema,
+    c.registrationPolicyInput,
+    [],
+    201,
+  )
+  updateRegistration(@Req() req: AuthRequest, @Body() body: unknown) {
+    return updateRegistrationPolicy(
+      req.user,
+      parse(c.registrationPolicyInput, body),
+    );
+  }
+
   @Get("overview")
   @RequireAdminPermission("overview.read")
   @Endpoint("adminOverview", c.adminOverviewSchema)

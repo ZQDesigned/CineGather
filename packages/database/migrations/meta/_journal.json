@@ -50,6 +50,13 @@
       "when": 1792804000000,
       "tag": "0006_admin_roles",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1792810000000,
+      "tag": "0007_registration_policy",
+      "breakpoints": true
     }
   ]
 }

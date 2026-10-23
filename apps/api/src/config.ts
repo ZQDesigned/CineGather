@@ -1,3 +1,4 @@
+import { registrationDefault } from "./registration-config";
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -10,6 +11,7 @@ function required(name: string, min = 1) {
   return value;
 }
 export const config = {
+  registrationEnabled: registrationDefault(process.env.REGISTRATION_ENABLED),
   databaseUrl: required("DATABASE_URL"),
   sessionSecret: required("SESSION_SECRET", 32),
   livekitKey: required("LIVEKIT_API_KEY"),

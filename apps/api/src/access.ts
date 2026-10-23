@@ -71,5 +71,5 @@ export async function requireSuperAdmin(tx: Transaction, id: string) {
     .where(eq(users.id, id))
     .for("share");
   if (!user?.username || user.disabledAt || !user.isSuperAdmin)
-    fail(403, "SUPERADMIN_REQUIRED", "仅超级管理员可以管理角色和授权");
+    fail(403, "SUPERADMIN_REQUIRED", "仅超级管理员可以执行此管理操作");
 }

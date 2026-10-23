@@ -19,6 +19,11 @@ export const registerInput = z.strictObject({
   displayName: z.string().trim().min(1).max(32),
   password: accountPassword,
 });
+export const registrationPolicySchema = z.object({ enabled: z.boolean() });
+export const registrationPolicyInput = z.strictObject({
+  enabled: z.boolean(),
+  reason: z.string().trim().min(1).max(500),
+});
 export const loginInput = z.strictObject({
   username: usernameInput,
   password: z.string().min(1).max(128),

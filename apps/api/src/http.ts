@@ -117,6 +117,7 @@ export class AuthGuard implements CanActivate {
     if (
       [
         "/api/v1/health",
+        "/api/v1/registration",
         "/api/v1/accounts/login",
         "/api/v1/livekit/webhook",
       ].includes(req.path)
@@ -147,7 +148,7 @@ export class AdminGuard implements CanActivate {
     const user = context.switchToHttp().getRequest<AuthRequest>().user;
     if (Reflect.getMetadata(superKey, context.getHandler())) {
       if (!user?.isSuperAdmin)
-        fail(403, "SUPERADMIN_REQUIRED", "仅超级管理员可以管理角色和授权");
+        fail(403, "SUPERADMIN_REQUIRED", "仅超级管理员可以执行此管理操作");
     } else {
       const permission = Reflect.getMetadata(
         permissionKey,

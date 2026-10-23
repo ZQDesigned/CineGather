@@ -25,6 +25,7 @@ services:
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET:?Set a 32-character minimum media secret}
       LIVEKIT_INTERNAL_URL: http://host.docker.internal:7880
       LIVEKIT_URL: wss://${MEDIA_DOMAIN:?Set the media domain}
+      REGISTRATION_ENABLED: ${REGISTRATION_ENABLED:-false}
       CORS_ORIGINS: ${CORS_ORIGINS:-}
     extra_hosts:
       - host.docker.internal:host-gateway

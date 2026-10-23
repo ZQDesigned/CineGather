@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import { users, credentials, type Transaction } from "@cinegather/database";
 import type { User } from "@cinegather/contracts";
 import { db, hash, token, audit } from "./context";
@@ -10,6 +10,7 @@ import {
   verifyAccountPassword,
   dummyAccountHash,
 } from "./account-passwords";
+import { readRegistrationPolicy, registrationLock } from "./registration";
 import { readAccess } from "./access";
 const failures = new Map<string, { count: number; until: number }>();
 async function session(tx: Transaction, user: User) {
@@ -47,9 +48,16 @@ export async function registerAccount(
   existing?: User,
 ) {
   if (existing) fail(409, "ALREADY_REGISTERED", "请先退出当前账号后再注册");
+  if (!(await readRegistrationPolicy()).enabled)
+    fail(403, "REGISTRATION_CLOSED", "当前暂未开放注册，请登录已有账号");
   const passwordHash = await hashAccountPassword(input.password);
   try {
     return await db.transaction(async (tx) => {
+      await tx.execute(
+        sql`SELECT pg_advisory_xact_lock_shared(${registrationLock})`,
+      );
+      if (!(await readRegistrationPolicy(tx)).enabled)
+        fail(403, "REGISTRATION_CLOSED", "当前暂未开放注册，请登录已有账号");
       const [stored] = await tx
         .insert(users)
         .values({

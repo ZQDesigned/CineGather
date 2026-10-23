@@ -8,7 +8,7 @@ if (!existsSync(".env")) {
   const lk = secret();
   writeFileSync(
     ".env",
-    `DATABASE_URL=postgres://cinegather:${pg}@127.0.0.1:55432/cinegather\nPOSTGRES_PASSWORD=${pg}\nLIVEKIT_API_KEY=${key}\nLIVEKIT_API_SECRET=${lk}\nLIVEKIT_URL=ws://127.0.0.1:7880\nLIVEKIT_INTERNAL_URL=http://127.0.0.1:7880\nSESSION_SECRET=${secret()}\nAPI_HOST=127.0.0.1\nAPI_PORT=14310\nCORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173\nVITE_API_URL=http://127.0.0.1:14310\n`,
+    `DATABASE_URL=postgres://cinegather:${pg}@127.0.0.1:55432/cinegather\nPOSTGRES_PASSWORD=${pg}\nLIVEKIT_API_KEY=${key}\nLIVEKIT_API_SECRET=${lk}\nLIVEKIT_URL=ws://127.0.0.1:7880\nLIVEKIT_INTERNAL_URL=http://127.0.0.1:7880\nSESSION_SECRET=${secret()}\nAPI_HOST=127.0.0.1\nAPI_PORT=14310\nREGISTRATION_ENABLED=true\nCORS_ORIGINS=http://localhost:5173,http://127.0.0.1:5173\nVITE_API_URL=http://127.0.0.1:14310\n`,
     { mode: 0o600 },
   );
 }

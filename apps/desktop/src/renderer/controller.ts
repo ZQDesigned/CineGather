@@ -411,6 +411,10 @@ export async function register(
     );
     await acceptSession(result);
     update({ notice: "账号已创建" });
+  } catch (error) {
+    if (error instanceof ApiError && error.code === "REGISTRATION_CLOSED")
+      update({ registrationEnabled: false });
+    throw error;
   } finally {
     changingCredentials = false;
   }

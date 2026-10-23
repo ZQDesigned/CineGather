@@ -28,6 +28,7 @@ import type {
   AdminUser,
 } from "@cinegather/contracts";
 import { hasAdminAccess, hasAdminPermission } from "@cinegather/contracts";
+import { AdminRegistration } from "./AdminRegistration";
 import { RoleManagement, UserRolesDialog } from "./AdminRoles";
 import { api, report, copyText } from "../controller";
 import { useApp } from "../store";
@@ -122,6 +123,7 @@ const Surface = styled.section`
   }
 `;
 const actionNames: Record<string, string> = {
+  "admin.registration_updated": "更新注册设置",
   "admin.user_disable": "停用账号",
   "admin.user_enable": "启用账号",
   "admin.user_revoke_sessions": "撤销登录",
@@ -176,7 +178,12 @@ function AdminPanel() {
     ...(canUsers ? [{ key: "users", label: "用户管理" }] : []),
     ...(canRooms ? [{ key: "rooms", label: "房间管理" }] : []),
     ...(canAudit ? [{ key: "audit", label: "操作记录" }] : []),
-    ...(isSuper ? [{ key: "roles", label: "角色管理" }] : []),
+    ...(isSuper
+      ? [
+          { key: "roles", label: "角色管理" },
+          { key: "registration", label: "注册设置" },
+        ]
+      : []),
   ];
   if (!allowedTabs.length && canOverview)
     allowedTabs.push({ key: "overview", label: "概览" });
@@ -580,7 +587,7 @@ function AdminPanel() {
             setDraft("");
           }}
         />
-        {activeTab !== "overview" && (
+        {activeTab !== "overview" && activeTab !== "registration" && (
           <Input.Search
             aria-label="搜索管理数据"
             placeholder={
@@ -604,7 +611,9 @@ function AdminPanel() {
         )}
       </div>
       <div className="admin-table" ref={tableRef}>
-        {activeTab === "roles" ? (
+        {activeTab === "registration" ? (
+          <AdminRegistration revision={revision} />
+        ) : activeTab === "roles" ? (
           <RoleManagement
             revision={revision}
             search={search}

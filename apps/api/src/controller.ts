@@ -29,6 +29,7 @@ import { db } from "./context";
 import { media } from "./media";
 import { Endpoint, parse, type AuthRequest } from "./http";
 import { fail } from "./errors";
+import { readRegistrationPolicy } from "./registration";
 import { Metrics } from "./metrics";
 
 @ApiBearerAuth()
@@ -65,6 +66,11 @@ export class ApiController {
   @Endpoint("me", c.userSchema)
   me(@Req() req: AuthRequest) {
     return req.user;
+  }
+  @Get("registration")
+  @Endpoint("registrationPolicy", c.registrationPolicySchema)
+  registrationPolicy() {
+    return readRegistrationPolicy();
   }
   @Post("accounts/register")
   @Endpoint("registerAccount", c.sessionSchema, c.registerInput, [], 201)
