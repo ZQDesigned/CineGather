@@ -314,6 +314,7 @@ export function Room() {
         <aside className="room-panel">
           <Tabs
             className="room-tabs"
+            classNames={{ body: "room-tab-body", content: "room-tab-content" }}
             defaultActiveKey="members"
             destroyOnHidden
             items={[

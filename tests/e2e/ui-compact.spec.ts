@@ -47,6 +47,17 @@ test("room controls, sound sliders and chat compose fit the minimum and default 
       }
       await page.getByRole("tab", { name: "聊天", exact: true }).click();
       await expect(page.locator(".chat-compose")).toBeInViewport({ ratio: 1 });
+      await expect
+        .poll(() =>
+          page.locator(".chat-compose").evaluate((composer) => {
+            const panel = composer.closest(".room-panel")!;
+            return Math.abs(
+              panel.getBoundingClientRect().bottom -
+                composer.getBoundingClientRect().bottom,
+            );
+          }),
+        )
+        .toBeLessThanOrEqual(2);
       await page.getByRole("tab", { name: /成员/ }).click();
     }
     await expect(
@@ -56,6 +67,41 @@ test("room controls, sound sliders and chat compose fit the minimum and default 
     await page.screenshot({ path: ".local/ui-compact/room-wide.png" });
     await page.setViewportSize({ width: 980, height: 680 });
     await page.screenshot({ path: ".local/ui-compact/room-min.png" });
+    await page.route("**/api/v1/rooms/*/messages", (route) =>
+      route.fulfill({
+        json: {
+          items: Array.from({ length: 40 }, (_, i) => ({
+            id: crypto.randomUUID(),
+            userId: "00000000-0000-4000-8000-000000000001",
+            displayName: "聊天布局回归",
+            body: `第 ${i + 1} 条消息：较长的聊天记录应该在消息列表内部滚动，输入框始终贴底。`,
+            createdAt: new Date().toISOString(),
+          })),
+          nextCursor: null,
+        },
+      }),
+    );
+    await page.getByRole("tab", { name: "聊天", exact: true }).click();
+    await expect(page.locator(".chat-message")).toHaveCount(40);
+    await expect
+      .poll(() =>
+        page.locator(".chat-compose").evaluate((composer) => {
+          const panel = composer.closest(".room-panel")!;
+          return Math.abs(
+            panel.getBoundingClientRect().bottom -
+              composer.getBoundingClientRect().bottom,
+          );
+        }),
+      )
+      .toBeLessThanOrEqual(2);
+    expect(
+      await page
+        .locator(".chat-messages")
+        .evaluate((el) => el.scrollHeight > el.clientHeight),
+    ).toBe(true);
+    await expect(page.locator(".chat-message").last()).toBeInViewport();
+    await page.screenshot({ path: ".local/chat-bottom/many-messages-min.png" });
+    await page.getByRole("tab", { name: /成员/ }).click();
     await page.getByRole("button", { name: "影院模式", exact: true }).click();
     await expect(page.locator(".controls")).toBeInViewport({ ratio: 1 });
     await expect(page.locator(".stage")).toBeInViewport({ ratio: 1 });

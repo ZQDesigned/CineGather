@@ -1022,11 +1022,13 @@ export const AppSurface = styled.div`
   }
   .chat-messages {
     flex: 1;
+    min-height: 0;
     overflow: auto;
     padding: 18px 15px;
   }
   .chat-empty {
     height: 100%;
+    margin: 0;
     min-height: 0;
     display: flex;
     flex-direction: column;
@@ -1517,18 +1519,22 @@ export const AppSurface = styled.div`
     display: flex;
     flex-direction: column;
   }
-  .room-tabs .ant-tabs-content-holder {
+  .room-tabs > .ant-tabs-body-holder {
+    display: flex;
     flex: 1;
     min-height: 0;
   }
-  .room-tabs .ant-tabs-content {
-    height: 100%;
-  }
-  .room-tabs .ant-tabs-tabpane {
-    height: 100%;
+  .room-tab-body {
+    display: flex;
+    flex-direction: column;
+    flex: 1;
     min-height: 0;
   }
-  .room-tabs .ant-tabs-tabpane-active {
+  .room-tab-content {
+    flex: 1;
+    min-height: 0;
+  }
+  .room-tab-content[aria-hidden="false"] {
     display: flex;
     flex-direction: column;
   }
