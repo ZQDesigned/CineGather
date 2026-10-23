@@ -7,6 +7,94 @@ import { join } from "node:path";
 const executablePath = resolve(
   "apps/desktop/release/mac-arm64/CineGather.app/Contents/MacOS/CineGather",
 );
+test("packaged shortcut recording suspends global actions, captures the native input boundary and restores shortcuts after cancellation or blur", async () => {
+  test.skip(
+    process.platform !== "darwin" || !existsSync(executablePath),
+    "Requires a local Mac package.",
+  );
+  const profile = await mkdtemp(
+    join(tmpdir(), "cinegather-shortcut-recorder-"),
+  );
+  const app = await electron.launch({
+    executablePath,
+    args: [`--user-data-dir=${profile}`],
+  });
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows()[0]!;
+      w.show();
+      w.focus();
+    });
+    await page
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
+      .click();
+    await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
+    const recorder = page.getByRole("button", {
+      name: "全局麦克风静音",
+      exact: true,
+    });
+    const registered = () =>
+      app.evaluate(({ globalShortcut }) =>
+        globalShortcut.isRegistered("CommandOrControl+Shift+M"),
+      );
+    expect(await registered()).toBe(true);
+    await recorder.click();
+    await expect.poll(registered).toBe(false);
+    await app.evaluate(({ BrowserWindow }) => {
+      const contents = BrowserWindow.getAllWindows()[0]!.webContents;
+      // CDP/sendInputEvent bypass Electron's OS before-input-event path.
+      // Drive that boundary here; real Mac key entry is checked separately.
+      contents.emit(
+        "before-input-event",
+        { preventDefault() {} },
+        { type: "keyDown", code: "KeyK", key: "k", meta: true, alt: true },
+      );
+    });
+    await expect(recorder).toContainText("⌘ + ⌥ + K");
+    await expect.poll(registered).toBe(true);
+    // Cancelling does not replace the draft or close the settings modal.
+    await recorder.click();
+    await expect.poll(registered).toBe(false);
+    await app.evaluate(({ BrowserWindow }) => {
+      BrowserWindow.getAllWindows()[0]!.webContents.emit(
+        "before-input-event",
+        { preventDefault() {} },
+        { type: "keyDown", code: "Escape" },
+      );
+    });
+    await expect(recorder).toContainText("⌘ + ⌥ + K");
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect.poll(registered).toBe(true);
+    await recorder.click();
+    await expect.poll(registered).toBe(false);
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()[0]!.hide(),
+    );
+    await expect.poll(registered).toBe(true);
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows()[0]!;
+      w.show();
+      w.focus();
+    });
+    await expect(recorder).toHaveAttribute("aria-pressed", "false");
+    await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    expect(
+      await page.evaluate(
+        async () => (await window.desktop!.loadSettings()).muteShortcut,
+      ),
+    ).toBe("Command+Alt+K");
+    expect(
+      await app.evaluate(({ globalShortcut }) =>
+        globalShortcut.isRegistered("Command+Alt+K"),
+      ),
+    ).toBe(true);
+    await page.screenshot({ path: ".local/ui-compact/native-key-capture.png" });
+  } finally {
+    await app.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
 test("packaged desktop starts with a sandboxed renderer and the minimal typed bridge", async () => {
   test.skip(
     process.platform !== "darwin" || !existsSync(executablePath),
@@ -267,7 +355,17 @@ test("packaged global hold uses the native state boundary, combines foreground h
       .click();
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await page.getByRole("checkbox", { name: "按键说话" }).check();
-    await page.getByLabel(/全局.*说话/).fill("Control+Alt+K");
+    await page
+      .getByRole("button", { name: "全局按住说话", exact: true })
+      .click();
+    await app.evaluate(({ BrowserWindow }) => {
+      const contents = BrowserWindow.getAllWindows()[0]!.webContents;
+      contents.emit(
+        "before-input-event",
+        { preventDefault() {} },
+        { type: "keyDown", code: "KeyK", key: "k", control: true, alt: true },
+      );
+    });
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "开启麦克风", exact: true }),

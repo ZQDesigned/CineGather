@@ -101,6 +101,10 @@ export const qualityPresets = {
   },
 } as const;
 export type Quality = keyof typeof qualityPresets;
+export function qualityLabel(quality: Quality): string {
+  const preset = qualityPresets[quality];
+  return `${preset.label}（${preset.height}p/${preset.frameRate}fps）`;
+}
 export type User = z.infer<typeof userSchema>;
 export type RoomInfo = z.infer<typeof roomSchema>;
 export type ShareLease = z.infer<typeof leaseSchema>;
@@ -156,6 +160,8 @@ export interface DesktopBridge {
   openExternal(url: string): Promise<void>;
   loadSettings(): Promise<DesktopSettings>;
   hotkeyStatus?(): Promise<{ error?: string }>;
+  recordShortcut?(): Promise<string | undefined>;
+  cancelShortcutRecording?(): Promise<void>;
   saveSettings(settings: DesktopSettings): Promise<void>;
   exportDiagnostics(data: Record<string, unknown>): Promise<boolean>;
   onAction(

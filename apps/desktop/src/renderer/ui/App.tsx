@@ -171,7 +171,7 @@ export function App() {
           <div className="privacy-note">
             <Shield size={17} />
             <span>
-              只为彼此的私人空间<small>默认不录制 · 无广告</small>
+              只为彼此的私人空间<small>默认不录制，无广告</small>
             </span>
           </div>
           <Menu
@@ -250,23 +250,13 @@ export function App() {
         ) : (
           <>
             {app.room && (
-              <div hidden={home}>
+              <div className="room-slot" hidden={home}>
                 <Room />
               </div>
             )}
             {(!app.room || home) && <Home onEnterRoom={() => setHome(false)} />}
           </>
         )}
-        <footer className="app-footer">
-          <span>
-            <Shield size={12} /> PRIVATE ROOMS, SHARED MOMENTS.
-          </span>
-          <span>
-            {window.desktop
-              ? `${window.desktop.platform === "darwin" ? "macOS" : "Windows"} 桌面客户端`
-              : "浏览器预览 · 系统采集能力请使用桌面客户端"}
-          </span>
-        </footer>
       </main>
       <Dialogs />
     </AppSurface>

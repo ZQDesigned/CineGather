@@ -86,7 +86,7 @@ function CreateRoom() {
           <Select
             options={Array.from({ length: 9 }, (_, i) => ({
               value: i + 2,
-              label: `${i + 2} 人${i + 2 === 5 ? " · 默认" : ""}`,
+              label: `${i + 2} 人${i + 2 === 5 ? "（默认）" : ""}`,
             }))}
           />
         </Form.Item>
@@ -309,7 +309,6 @@ function SourcePicker() {
   return (
     <ModalShell
       title="你想分享哪个画面？"
-      subtitle="朋友们只会看到你选择的屏幕或应用窗口。"
       wide
       footer={
         <>
@@ -370,15 +369,7 @@ function SourcePicker() {
               : "共享此应用的声音"
             : "共享系统声音"}
         </Checkbox>
-        <p className="field-help">与麦克风独立传输，观看端可单独调节。</p>
       </div>
-      <p className="form-note">
-        {window.desktop?.platform === "darwin"
-          ? selectedScreen
-            ? "共享系统正在播放的声音；映聚的房间语音和播放声音不会被采集。麦克风仍由语音开关单独控制。"
-            : "请保持共享窗口展开。开启声音会采集该应用的所有窗口或标签页；映聚语音不会被采集。"
-          : "共享声音包含系统正在播放的声音，建议佩戴耳机。"}
-      </p>
     </ModalShell>
   );
 }

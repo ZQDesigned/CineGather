@@ -24,7 +24,7 @@ import {
   Signal,
   MessageCircle,
 } from "lucide-react";
-import { qualityPresets } from "@cinegather/contracts";
+import { qualityLabel } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -121,7 +121,6 @@ export function Room() {
                   <Clapperboard size={46} strokeWidth={1.3} />
                   <span className="sparkle">✦</span>
                 </div>
-                <span className="eyebrow">THE SCREEN IS YOURS</span>
                 <h2>好戏，等你开场</h2>
                 <p>共享屏幕，与朋友一起看到同一个世界。</p>
                 <Button
@@ -133,8 +132,7 @@ export function Room() {
                   选择屏幕开始共享
                 </Button>
                 <span className="stage-hint">
-                  屏幕 / 应用窗口 · {qualityPresets[app.settings.quality].label}
-                  画质
+                  {qualityLabel(app.settings.quality)}
                 </span>
               </div>
             )}
@@ -199,8 +197,9 @@ export function Room() {
             <span>
               <ScreenShare size={15} />
               {app.media.sharer ? "实时共享" : "等待共享"}
-              <span className="meta-dot">·</span>
-              {qualityPresets[app.settings.quality].label}预设
+              <span className="quality-label">
+                {qualityLabel(app.settings.quality)}
+              </span>
             </span>
             <span>
               <Users size={14} />
@@ -445,15 +444,7 @@ export function Room() {
                         </div>
                       ))}
                     </div>
-                    <div className="panel-note">
-                      <Headphones size={23} />
-                      <strong>在这里，声音也有座位。</strong>
-                      <p>
-                        可单独调整每位朋友的音量，
-                        <br />
-                        聊天声与共享声音互不影响。
-                      </p>
-                    </div>
+
                     {app.room!.role === "owner" && (
                       <Button
                         type="link"

@@ -1,7 +1,7 @@
 import { createRequire } from "node:module";
 import { join } from "node:path";
 
-// Called only in Electron Main when global hold-to-talk is enabled. The bridge
+// Called only in Electron Main for hold-to-talk or explicit shortcut recording. The bridge
 // never exposes native calls, key codes or keyboard events to the renderer.
 export function nativeKeyState(
   platform: NodeJS.Platform,

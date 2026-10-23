@@ -142,7 +142,7 @@ export class NativeCapture {
         .filter((w) => w.bundleId !== this.ownApplication)
         .map((w) => ({
           id: `native:${w.windowId}:${w.pid}`,
-          name: `${w.application} · ${w.title}`,
+          name: `${w.application}：${w.title}`,
           thumbnail: "",
           kind: "window" as const,
           application: w.application,

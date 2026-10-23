@@ -25,6 +25,7 @@ import { leaseSchema } from "@cinegather/contracts";
 import { configureDisplayCapture } from "./capture";
 import { HoldToTalk, shortcutKeys } from "./push-to-talk";
 import { nativeKeyState } from "./key-state";
+import { recordedShortcut } from "../shared/shortcuts";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 protocol.registerSchemesAsPrivileged([
   {
@@ -57,6 +58,29 @@ let globalHold: HoldToTalk | undefined;
 let hotkeyFailure: string | undefined;
 let screenLocked = false;
 let suspended = false;
+let recording:
+  | {
+      resolve(value?: string): void;
+      timer: ReturnType<typeof setTimeout>;
+      poll: ReturnType<typeof setInterval>;
+      candidate?: { code: string; value: string };
+    }
+  | undefined;
+function finishRecording(value?: string) {
+  const active = recording;
+  if (!active) return;
+  recording = undefined;
+  clearTimeout(active.timer);
+  clearInterval(active.poll);
+  if (!quitting) {
+    try {
+      shortcuts(settings);
+    } catch {
+      hotkeyFailure = "全局快捷键不可用，请在设置中重新保存组合键。";
+    }
+  }
+  active.resolve(value);
+}
 function shortcuts(next: DesktopSettings) {
   hotkeyFailure = undefined;
   globalHold?.release();
@@ -88,11 +112,11 @@ function showWindow() {
   win?.focus();
 }
 function updateTray() {
-  tray?.setToolTip(sharing ? "映聚 · 正在共享屏幕" : "映聚 CineGather");
+  tray?.setToolTip(sharing ? "映聚：正在共享屏幕" : "映聚 CineGather");
   tray?.setContextMenu(
     Menu.buildFromTemplate([
       {
-        label: sharing ? "正在共享 · 打开映聚" : "打开映聚",
+        label: sharing ? "正在共享，打开映聚" : "打开映聚",
         click: showWindow,
       },
       { label: "麦克风静音 / 开启", click: () => sendAction("toggle-mute") },
@@ -133,6 +157,18 @@ async function createWindow() {
     if (allowedExternal(url)) void shell.openExternal(url);
     return { action: "deny" };
   });
+  win.webContents.on("before-input-event", (event, input) => {
+    if (!recording) return;
+    event.preventDefault();
+    if (input.type === "keyDown") {
+      if (input.code === "Escape") return finishRecording();
+      const value = recordedShortcut(input);
+      if (value) recording.candidate = { code: input.code, value };
+    }
+  });
+  win.on("blur", () => finishRecording());
+  win.on("hide", () => finishRecording());
+  win.webContents.on("did-start-navigation", () => finishRecording());
   win.webContents.on("will-navigate", (event, url) => {
     if (!trustedURL(url, devURL)) event.preventDefault();
   });
@@ -143,6 +179,7 @@ async function createWindow() {
     }
   });
   win.webContents.on("render-process-gone", () => {
+    finishRecording();
     pending = undefined;
     void nativeCapture?.stop().catch(() => {});
     sharing = false;
@@ -261,7 +298,43 @@ function registerIPC() {
   });
   handle("desktop:settings-load", () => settings);
   handle("desktop:hotkey-status", () => ({ error: hotkeyFailure }));
+  handle("desktop:shortcut-record", () => {
+    if (!win?.isFocused() || screenLocked || suspended || quitting)
+      throw new Error("请在映聚窗口中录入快捷键");
+    finishRecording();
+    const keyDown = nativeKeyState(
+      process.platform,
+      app.isPackaged ? process.resourcesPath : undefined,
+    );
+    globalHold?.release();
+    globalShortcut.unregisterAll();
+    return new Promise<string | undefined>((resolve) => {
+      recording = {
+        resolve,
+        timer: setTimeout(() => finishRecording(), 30_000),
+        // macOS Command combinations do not consistently deliver keyUp to
+        // Chromium. Read physical state, including modifiers, before restoring
+        // global shortcuts so recording the old shortcut cannot activate it.
+        poll: setInterval(() => {
+          const candidate = recording?.candidate;
+          if (!candidate) return;
+          try {
+            if (
+              shortcutKeys(candidate.value, process.platform).every((group) =>
+                group.every((key) => !keyDown(key)),
+              )
+            )
+              finishRecording(candidate.value);
+          } catch {
+            finishRecording();
+          }
+        }, 20),
+      };
+    });
+  });
+  handle("desktop:shortcut-cancel", () => finishRecording());
   handle("desktop:settings-save", async (input) => {
+    finishRecording();
     const next = settingsSchema.parse(input);
     try {
       shortcuts(next);
@@ -275,7 +348,7 @@ function registerIPC() {
   handle("desktop:sharing", (input) => {
     sharing = z.boolean().parse(input);
     updateTray();
-    win?.setTitle(sharing ? "正在共享 · 映聚 CineGather" : "映聚 CineGather");
+    win?.setTitle(sharing ? "正在共享：映聚 CineGather" : "映聚 CineGather");
   });
   handle("desktop:diagnostics", async (input) => {
     // Whitelist renderer exports: never write tokens, invitations, IP addresses or raw media.
@@ -429,6 +502,7 @@ else {
     }
     globalHold?.release();
     quitting = true;
+    finishRecording();
   });
   app.on("will-quit", () => {
     globalShortcut.unregisterAll();
@@ -471,6 +545,7 @@ else {
       capturePermissions();
       powerMonitor.on("suspend", () => {
         suspended = true;
+        finishRecording();
         void nativeCapture?.stop().catch(() => {});
         sendAction("stop-share");
         globalHold?.release();
@@ -480,6 +555,7 @@ else {
       });
       powerMonitor.on("lock-screen", () => {
         screenLocked = true;
+        finishRecording();
         void nativeCapture?.stop().catch(() => {});
         sendAction("stop-share");
         globalHold?.release();

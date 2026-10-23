@@ -1,12 +1,86 @@
-import { Select, Checkbox, Progress, Form, Tabs } from "antd";
+import { App, Select, Checkbox, Progress, Form, Tabs } from "antd";
 import { Button, Input } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, Mic, Volume2, Monitor, Check, Server } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
-import { qualityPresets, type DesktopSettings } from "@cinegather/contracts";
+import {
+  qualityPresets,
+  qualityLabel,
+  type DesktopSettings,
+} from "@cinegather/contracts";
 import { ModalShell } from "./Modal";
+import { ShortcutRecorder } from "./ShortcutRecorder";
+import { serverOrigin, verifyServer } from "../server-address";
 export function Settings() {
+  const { modal } = App.useApp();
+  const serverRequest = useRef<AbortController | undefined>(undefined);
+  const confirmation = useRef<ReturnType<typeof modal.confirm> | undefined>(
+    undefined,
+  );
+  const [verifying, setVerifying] = useState(false);
+  useEffect(
+    () => () => {
+      serverRequest.current?.abort();
+      confirmation.current?.destroy();
+    },
+    [],
+  );
+  const saveServer = async () => {
+    if (serverRequest.current) return;
+    let origin: string;
+    try {
+      origin = serverOrigin(server);
+    } catch (error) {
+      actions.report(error);
+      return;
+    }
+    const request = new AbortController();
+    serverRequest.current = request;
+    setVerifying(true);
+    let verified = true;
+    try {
+      try {
+        await verifyServer(origin, request.signal);
+      } catch (error) {
+        verified = false;
+        if (request.signal.aborted) return;
+        confirmation.current = modal.confirm({
+          title: "无法验证服务器",
+          content: (
+            <div className="server-confirmation">
+              <p>{origin}</p>
+              <p>
+                {error instanceof Error ? error.message : "连接失败"}
+                。仍要保存该地址并重新建立访客身份吗？
+              </p>
+            </div>
+          ),
+          okText: "仍然保存",
+          cancelText: "取消保存",
+          centered: true,
+          focusable: { autoFocusButton: "cancel" },
+        });
+        const confirmed = await confirmation.current;
+        confirmation.current = undefined;
+        if (!confirmed || request.signal.aborted) return;
+      }
+      if (request.signal.aborted) return;
+      if (origin === serverOrigin(actions.baseUrl))
+        update({
+          notice: verified ? "服务器连接正常" : "服务器地址未变更",
+          modal: null,
+        });
+      else actions.configureServer(origin);
+    } catch (error) {
+      if (!request.signal.aborted) actions.report(error);
+    } finally {
+      if (serverRequest.current === request) {
+        serverRequest.current = undefined;
+        if (!request.signal.aborted) setVerifying(false);
+      }
+    }
+  };
   const current = useApp((s) => s.settings);
   const [settings, setSettings] = useState<DesktopSettings>({ ...current });
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
@@ -132,14 +206,18 @@ export function Settings() {
   return (
     <ModalShell
       title="设置与设备"
-      subtitle="让声音、画面和你的习惯刚刚好。"
       wide
       footer={
         <>
           <Button onClick={() => update({ modal: null })}>取消</Button>
           {tab === "server" ? (
-            <Button type="primary" htmlType="submit" form="server-settings">
-              保存地址并重新建立身份
+            <Button
+              type="primary"
+              htmlType="submit"
+              form="server-settings"
+              loading={verifying}
+            >
+              {verifying ? "正在验证…" : "保存地址"}
             </Button>
           ) : (
             <Button
@@ -155,6 +233,7 @@ export function Settings() {
       }
     >
       <Tabs
+        className="settings-tabs"
         activeKey={tab}
         onChange={setTab}
         items={[
@@ -257,15 +336,13 @@ export function Settings() {
                     aria-label="默认共享画质"
                     value={settings.quality}
                     onChange={(v) => change("quality", v)}
-                    options={Object.entries(qualityPresets).map(
-                      ([value, p]) => ({
-                        value: value as DesktopSettings["quality"],
-                        label: `${p.label} · ${p.width === 1920 ? "1080p" : "720p"} / ${p.frameRate} fps`,
-                      }),
-                    )}
+                    options={Object.entries(qualityPresets).map(([value]) => ({
+                      value: value as DesktopSettings["quality"],
+                      label: qualityLabel(value as DesktopSettings["quality"]),
+                    }))}
                   />
                 </Form.Item>
-                <Form.Item extra="窗口内按住空格；后台按住全局组合键，松开即静音。">
+                <Form.Item>
                   <Checkbox
                     checked={settings.pushToTalk}
                     onChange={(e) => change("pushToTalk", e.target.checked)}
@@ -275,23 +352,23 @@ export function Settings() {
                 </Form.Item>
                 <div className="shortcut-fields">
                   <Form.Item label="全局按住说话">
-                    <Input
-                      aria-label="全局按住说话"
+                    <ShortcutRecorder
+                      label="全局按住说话"
                       value={settings.pttShortcut}
-                      onChange={(e) => change("pttShortcut", e.target.value)}
-                      maxLength={64}
+                      active={tab === "sharing"}
+                      onChange={(value) => change("pttShortcut", value)}
                     />
                   </Form.Item>
                   <Form.Item label="全局麦克风静音">
-                    <Input
-                      aria-label="全局麦克风静音"
+                    <ShortcutRecorder
+                      label="全局麦克风静音"
                       value={settings.muteShortcut}
-                      onChange={(e) => change("muteShortcut", e.target.value)}
-                      maxLength={64}
+                      active={tab === "sharing"}
+                      onChange={(value) => change("muteShortcut", value)}
                     />
                   </Form.Item>
                 </div>
-                <Form.Item extra="语音继续运行，可从托盘停止共享或退出。">
+                <Form.Item>
                   <Checkbox
                     checked={settings.minimizeToTray}
                     onChange={(e) => change("minimizeToTray", e.target.checked)}
@@ -299,9 +376,6 @@ export function Settings() {
                     关闭窗口后保留在托盘
                   </Checkbox>
                 </Form.Item>
-                <p className="form-note">
-                  实际帧率会随设备和网络调整。快捷键示例：CommandOrControl+Shift+M。
-                </p>
               </Form>
             ),
           },
@@ -313,13 +387,7 @@ export function Settings() {
               <Form
                 id="server-settings"
                 layout="vertical"
-                onFinish={() => {
-                  try {
-                    actions.configureServer(server);
-                  } catch (error) {
-                    actions.report(error);
-                  }
-                }}
+                onFinish={() => void saveServer()}
               >
                 <Form.Item
                   label="API 地址"
@@ -328,6 +396,7 @@ export function Settings() {
                   <Input
                     aria-label="API 地址"
                     value={server}
+                    disabled={verifying}
                     onChange={(e) => setServer(e.target.value)}
                     placeholder="https://api.example.com"
                     required

@@ -94,20 +94,39 @@ test("settings tabs preserve draft fields and keep the matching submit action vi
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await page
-    .getByLabel("全局麦克风静音", { exact: true })
-    .fill("CommandOrControl+Shift+K");
+    .getByRole("button", { name: "全局麦克风静音", exact: true })
+    .click();
+  await page.keyboard.press("Control+Shift+K");
   await page.getByRole("tab", { name: "音频设备", exact: true }).click();
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
-  await expect(page.getByLabel("全局麦克风静音", { exact: true })).toHaveValue(
-    "CommandOrControl+Shift+K",
-  );
+  await expect(
+    page.getByRole("button", { name: "全局麦克风静音", exact: true }),
+  ).toContainText("Ctrl + Shift + K");
+  await page
+    .getByRole("button", { name: "全局麦克风静音", exact: true })
+    .click();
+  await page.keyboard.press("A");
+  await expect(
+    page.getByRole("button", { name: "全局麦克风静音", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "全局麦克风静音", exact: true }),
+  ).toContainText("Ctrl + Shift + K");
+  expect(
+    await page
+      .locator(".ant-modal-body")
+      .evaluate((el) => el.scrollHeight <= el.clientHeight),
+  ).toBe(true);
+  await page.screenshot({ path: ".local/ui-compact/settings-sharing-min.png" });
   const save = await page
     .getByRole("button", { name: "保存设置", exact: true })
     .boundingBox();
   expect(save && save.y + save.height < 680).toBeTruthy();
   await page.getByRole("tab", { name: "自托管服务器", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "保存地址并重新建立身份", exact: true }),
+    page.getByRole("button", { name: "保存地址", exact: true }),
   ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "保存设置", exact: true }),
@@ -273,8 +292,8 @@ test("native screen audio is a system mix and window audio remains app-scoped", 
     await expect(
       page.getByRole("combobox", { name: "声音来源应用" }),
     ).toHaveCount(0);
-    await expect(page.getByRole("dialog")).toContainText(
-      "映聚的房间语音和播放声音不会被采集",
+    await expect(page.getByRole("dialog")).not.toContainText(
+      "与麦克风独立传输",
     );
     await page.getByRole("tab", { name: "应用窗口", exact: true }).click();
     await expect(

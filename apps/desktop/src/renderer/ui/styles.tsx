@@ -77,7 +77,8 @@ export function GlobalStyles() {
 export const AppSurface = styled.div`
   & {
     display: flex;
-    min-height: 100vh;
+    height: 100dvh;
+    min-height: 0;
     background:
       radial-gradient(ellipse at 70% -30%, #29213b2b, transparent 60%),
       var(--bg);
@@ -199,12 +200,14 @@ export const AppSurface = styled.div`
   .workspace {
     margin-left: 222px;
     width: calc(100% - 222px);
-    min-height: 100vh;
+    height: 100dvh;
+    min-height: 0;
     display: flex;
     flex-direction: column;
   }
   .topbar {
-    height: 78px;
+    height: 56px;
+    flex-shrink: 0;
     border-bottom: 1px solid var(--line);
     display: flex;
     align-items: center;
@@ -415,8 +418,9 @@ export const AppSurface = styled.div`
   }
   .home,
   .room-page {
-    padding: 35px;
+    padding: 20px 24px;
     flex: 1;
+    min-height: 0;
   }
   .page-heading,
   .room-heading {
@@ -479,7 +483,7 @@ export const AppSurface = styled.div`
     color: #8a849b;
     font-size: 11px;
     line-height: 1.9;
-    margin-bottom: 22px;
+    margin-bottom: 16px;
   }
   .hero-cinema {
     position: relative;
@@ -672,7 +676,7 @@ export const AppSurface = styled.div`
     gap: 12px;
     font-size: 25px;
     font-weight: 500;
-    margin-top: 12px;
+    margin-top: 4px;
   }
   .room-id {
     display: inline-flex;
@@ -682,7 +686,7 @@ export const AppSurface = styled.div`
     font-size: 9px;
     letter-spacing: 1px;
     padding: 0;
-    margin-top: 12px;
+    margin-top: 4px;
   }
   .heading-actions {
     display: flex;
@@ -692,22 +696,36 @@ export const AppSurface = styled.div`
   .room-layout {
     display: grid;
     grid-template-columns: minmax(0, 1fr) 250px;
-    gap: 22px;
-    margin-top: 27px;
+    gap: 16px;
+    margin-top: 16px;
+    flex: 1;
+    min-height: 0;
+    grid-template-rows: minmax(0, 1fr);
   }
+  .room-slot,
+  .room-page,
   .view-column {
+    display: flex;
+    flex-direction: column;
     min-width: 0;
+    min-height: 0;
+  }
+  .room-slot {
+    flex: 1;
+  }
+  .room-heading {
+    flex-shrink: 0;
   }
   .stage {
     width: 100%;
-    aspect-ratio: 16/9;
+    flex: 1;
+    min-height: 0;
     position: relative;
     overflow: hidden;
     border: 1px solid #ffffff0b;
     border-radius: 12px;
     background:
       radial-gradient(ellipse at 50% 32%, #29223750, transparent 60%), #101116;
-    min-height: 270px;
   }
   .stage > video {
     width: 100%;
@@ -730,7 +748,7 @@ export const AppSurface = styled.div`
   .stage-icon {
     position: relative;
     color: #b19acb;
-    margin-bottom: 23px;
+    margin-bottom: 12px;
   }
   .stage-icon > svg {
     filter: drop-shadow(0 0 23px #ac84df35);
@@ -756,7 +774,7 @@ export const AppSurface = styled.div`
   .stage-empty p {
     font-size: 10px;
     color: #6c7180;
-    margin-bottom: 23px;
+    margin-bottom: 12px;
   }
   .stage-empty .ant-btn-primary {
     padding: 11px 17px;
@@ -797,7 +815,8 @@ export const AppSurface = styled.div`
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin: 14px 0 23px;
+    margin: 10px 0;
+    flex-shrink: 0;
     color: #646c7c;
     font-size: 9px;
   }
@@ -806,9 +825,10 @@ export const AppSurface = styled.div`
     align-items: center;
     gap: 7px;
   }
-  .meta-dot {
-    padding: 0 3px;
-    color: #343b49;
+  .quality-label {
+    margin-left: 8px;
+    padding-left: 12px;
+    border-left: 1px solid #343b49;
   }
   .mixer-card {
     border: 1px solid #ffffff0b;
@@ -816,7 +836,8 @@ export const AppSurface = styled.div`
     background: #15171e;
     display: flex;
     align-items: center;
-    padding: 18px 20px;
+    padding: 10px 14px;
+    flex-shrink: 0;
     gap: 20px;
   }
   .volume {
@@ -851,8 +872,9 @@ export const AppSurface = styled.div`
     display: flex;
     align-items: center;
     gap: 15px;
-    margin-top: 22px;
-    padding: 17px 19px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    flex-shrink: 0;
     border: 1px solid #ffffff0b;
     border-radius: 12px;
     background: #181a22;
@@ -899,10 +921,13 @@ export const AppSurface = styled.div`
     background: #13151b;
     display: flex;
     flex-direction: column;
-    min-height: 510px;
+    min-height: 0;
     overflow: hidden;
   }
   .members-list {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
     padding: 12px;
   }
   .member {
@@ -993,8 +1018,7 @@ export const AppSurface = styled.div`
     display: flex;
     flex-direction: column;
     flex: 1;
-    min-height: 440px;
-    max-height: 620px;
+    min-height: 0;
   }
   .chat-messages {
     flex: 1;
@@ -1003,7 +1027,7 @@ export const AppSurface = styled.div`
   }
   .chat-empty {
     height: 100%;
-    min-height: 300px;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     align-items: center;
@@ -1049,6 +1073,7 @@ export const AppSurface = styled.div`
     display: flex;
     align-items: center;
     padding: 12px;
+    flex-shrink: 0;
     border-top: 1px solid var(--line);
     gap: 4px;
   }
@@ -1078,9 +1103,7 @@ export const AppSurface = styled.div`
   }
   &.cinema .stage {
     min-height: 0;
-    max-height: calc(100vh - 265px);
     aspect-ratio: auto;
-    height: 65vh;
   }
   &.cinema .room-heading {
     margin-bottom: 10px;
@@ -1104,14 +1127,11 @@ export const AppSurface = styled.div`
   @media (min-width: 1550px) {
     .home,
     .room-page {
-      padding: 40px 50px;
+      padding: 20px 32px;
     }
     .room-layout {
       grid-template-columns: minmax(0, 1fr) 290px;
       gap: 27px;
-    }
-    .stage {
-      min-height: 380px;
     }
     .home-hero {
       min-height: 360px;
@@ -1137,7 +1157,7 @@ export const AppSurface = styled.div`
     }
     .home,
     .room-page {
-      padding: 25px;
+      padding: 20px;
     }
     .topbar {
       padding: 0 25px;
@@ -1148,13 +1168,13 @@ export const AppSurface = styled.div`
     }
     .controls {
       gap: 6px;
-      padding: 14px 11px;
+      padding: 8px 10px;
     }
     .control-button {
       padding: 5px;
     }
     .mixer-card {
-      padding: 16px 13px;
+      padding: 10px;
       gap: 12px;
     }
     .volume {
@@ -1261,6 +1281,136 @@ export const AppSurface = styled.div`
       padding: 15px 25px;
     }
   }
+  .home {
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+  }
+  .home .page-heading {
+    flex-shrink: 0;
+  }
+  .home-hero {
+    min-height: 0;
+    flex-shrink: 0;
+    margin-top: 20px;
+    padding: 20px 28px;
+  }
+  .home-hero h2 {
+    font-size: 28px;
+    margin: 8px 0;
+  }
+  .home-hero p {
+    margin-bottom: 14px;
+  }
+  .hero-screen {
+    height: 125px;
+  }
+  .seats {
+    margin-top: 16px;
+  }
+  .hero-caption {
+    margin-top: 12px;
+  }
+  .section-heading {
+    flex-shrink: 0;
+    margin: 20px 0 12px;
+  }
+  .room-grid {
+    min-height: 0;
+    overflow-y: auto;
+    padding: 2px;
+  }
+  .room-card,
+  .new-room {
+    min-height: 170px;
+  }
+  .room-card-art {
+    height: 75px;
+  }
+  .home-note {
+    display: none;
+  }
+  .welcome {
+    min-height: 0;
+    padding: 24px 32px;
+  }
+  .welcome-art {
+    min-height: 0;
+  }
+  .orbital {
+    height: clamp(100px, 22vh, 230px);
+  }
+  .shortcut-recorder.ant-btn {
+    width: 100%;
+    justify-content: space-between;
+  }
+  .shortcut-recorder.recording {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
+  .settings-tabs .ant-form-item {
+    margin-bottom: 18px;
+  }
+  .settings-tabs .ant-form-item:last-child {
+    margin-bottom: 0;
+  }
+  .ban-link {
+    flex-shrink: 0;
+    margin: 8px 12px 12px;
+  }
+  @media (max-height: 760px) {
+    .sidebar {
+      padding-top: 36px;
+    }
+    .brand {
+      margin-bottom: 24px;
+    }
+    .room-label {
+      margin-top: 20px;
+    }
+    .privacy-note {
+      display: none;
+    }
+    .sidebar-bottom {
+      padding-top: 12px;
+    }
+    .profile {
+      margin-top: 8px;
+      padding: 12px 1px;
+    }
+    .room-page .eyebrow {
+      display: none;
+    }
+    .stage-icon {
+      margin-bottom: 8px;
+    }
+    .stage-empty h2 {
+      margin: 4px 0 8px;
+      font-size: 20px;
+    }
+    .stage-empty p {
+      margin-bottom: 12px;
+    }
+    .stage-hint {
+      margin-top: 8px;
+    }
+    .home-hero {
+      padding: 16px 24px;
+    }
+    .home-hero h2 {
+      font-size: 23px;
+    }
+    .home-hero .pill,
+    .hero-caption {
+      display: none;
+    }
+    .home-hero p br {
+      display: none;
+    }
+    .welcome-art .orbital {
+      display: none;
+    }
+  }
   @media (prefers-reduced-motion: reduce) {
     * {
       transition: none !important;
@@ -1363,6 +1513,24 @@ export const AppSurface = styled.div`
   .room-tabs {
     flex: 1;
     min-width: 0;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+  .room-tabs .ant-tabs-content-holder {
+    flex: 1;
+    min-height: 0;
+  }
+  .room-tabs .ant-tabs-content {
+    height: 100%;
+  }
+  .room-tabs .ant-tabs-tabpane {
+    height: 100%;
+    min-height: 0;
+  }
+  .room-tabs .ant-tabs-tabpane-active {
+    display: flex;
+    flex-direction: column;
   }
   .room-tabs > .ant-tabs-nav {
     padding: 0 16px;
@@ -1425,12 +1593,12 @@ export const AppSurface = styled.div`
     display: flex;
     flex-direction: column;
     max-height: calc(100dvh - 48px);
-    padding: 28px;
+    padding: 24px;
   }
   .cinema-dialog .ant-modal-header {
     flex-shrink: 0;
     padding-right: 28px;
-    margin-bottom: 22px;
+    margin-bottom: 16px;
   }
   .cinema-dialog .ant-modal-body {
     min-height: 0;
@@ -1439,7 +1607,7 @@ export const AppSurface = styled.div`
   }
   .cinema-dialog .ant-modal-footer {
     flex-shrink: 0;
-    margin-top: 22px;
+    margin-top: 16px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
   }
@@ -1480,7 +1648,7 @@ export const AppSurface = styled.div`
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 14px;
-    max-height: 310px;
+    max-height: min(280px, calc(100dvh - 300px));
     overflow-y: auto;
     padding: 3px;
   }
@@ -1550,7 +1718,7 @@ export const AppSurface = styled.div`
     display: flex;
   }
   .capture-audio {
-    margin-top: 22px;
+    margin-top: 16px;
   }
   .capture-audio .ant-select {
     width: 100%;
@@ -1631,9 +1799,6 @@ export const AppSurface = styled.div`
     margin-top: 22px;
   }
   @media (max-width: 1050px) {
-    .controls {
-      flex-wrap: wrap;
-    }
     .control-button.ant-btn {
       padding: 5px;
     }

@@ -18,6 +18,8 @@ const bridge: DesktopBridge = {
   openExternal: (url) => ipcRenderer.invoke("desktop:external", url),
   loadSettings: () => ipcRenderer.invoke("desktop:settings-load"),
   hotkeyStatus: () => ipcRenderer.invoke("desktop:hotkey-status"),
+  recordShortcut: () => ipcRenderer.invoke("desktop:shortcut-record"),
+  cancelShortcutRecording: () => ipcRenderer.invoke("desktop:shortcut-cancel"),
   saveSettings: (settings) =>
     ipcRenderer.invoke("desktop:settings-save", settings),
   exportDiagnostics: (data) => ipcRenderer.invoke("desktop:diagnostics", data),

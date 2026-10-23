@@ -7,6 +7,7 @@ import {
 import { MediaSession } from "@cinegather/media-core";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 import { state, update, defaults } from "./store";
+import { serverOrigin } from "./server-address";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
 const baseUrl =
   localStorage.getItem("cinegather.api") ??
@@ -362,16 +363,7 @@ export async function logout() {
   update({ user: undefined, rooms: [] });
 }
 export function configureServer(url: string) {
-  const parsed = new URL(url);
-  if (
-    !["http:", "https:"].includes(parsed.protocol) ||
-    parsed.username ||
-    parsed.password ||
-    parsed.search ||
-    parsed.hash
-  )
-    throw new Error("请输入有效的 API HTTP(S) 地址");
-  localStorage.setItem("cinegather.api", parsed.origin);
+  localStorage.setItem("cinegather.api", serverOrigin(url));
   localStorage.removeItem("cinegather.session");
   location.reload();
 }
