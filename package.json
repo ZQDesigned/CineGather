@@ -54,6 +54,7 @@
     "test:runtime": "bun tools/runtime-check.ts && bun tools/runtime-check.ts node",
     "test:container": "bun tools/container-smoke.ts",
     "release:manifest": "bun tools/release-manifest.ts",
+    "release:server": "bun tools/source-release.ts",
     "format": "prettier --write apps packages tests tools infra .github package.json tsconfig.json tsconfig.base.json eslint.config.mjs playwright.config.ts playwright.web.config.ts --ignore-unknown",
     "format:check": "prettier --check apps packages tests tools infra .github package.json tsconfig.json tsconfig.base.json eslint.config.mjs playwright.config.ts playwright.web.config.ts --ignore-unknown",
     "native:build": "python3 native/capture/build-macos.py",

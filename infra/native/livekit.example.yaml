@@ -1,0 +1,30 @@
+port: 7880
+bind_addresses: [127.0.0.1]
+rtc:
+  tcp_port: 7881
+  port_range_start: 50000
+  port_range_end: 50100
+  use_external_ip: true
+redis:
+  address: 127.0.0.1:6381
+  password: REPLACE_REDIS_PASSWORD
+ingress:
+  whip_base_url: https://whip.example.com/w
+turn:
+  enabled: true
+  domain: turn.example.com
+  bind_addresses: [127.0.0.1]
+  tls_port: 5348
+  udp_port: 0
+  cert_file: /etc/cinegather/tls/fullchain.pem
+  key_file: /etc/cinegather/tls/privkey.pem
+  proxy_protocol: true
+  proxy_protocol_trusted_cidrs: [127.0.0.1/32]
+keys:
+  REPLACE_API_KEY: REPLACE_API_SECRET
+webhook:
+  api_key: REPLACE_API_KEY
+  urls:
+    - https://app.example.com/api/v1/livekit/webhook
+logging:
+  level: warn

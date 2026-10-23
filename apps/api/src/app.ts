@@ -43,12 +43,15 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
   providers: [Metrics, Reconciler],
 })
 class AppModule {}
-export async function createApp() {
+export async function createApp({
+  trustedProxies = config.trustedProxies,
+}: { trustedProxies?: string[] } = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false,
     rawBody: true,
     bodyParser: true,
   });
+  app.set("trust proxy", trustedProxies.length ? trustedProxies : false);
   app.enableCors({
     origin: [...config.corsOrigins, "app://cinegather"],
     methods: ["GET", "POST", "DELETE"],

@@ -19,4 +19,8 @@ export const config = {
   port: Number(process.env.API_PORT ?? 14310),
   host: process.env.API_HOST ?? "127.0.0.1",
   corsOrigins: (process.env.CORS_ORIGINS ?? "").split(",").filter(Boolean),
+  trustedProxies: (process.env.TRUST_PROXY ?? "")
+    .split(",")
+    .map((value) => value.trim())
+    .filter(Boolean),
 };

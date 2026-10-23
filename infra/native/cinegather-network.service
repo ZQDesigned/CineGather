@@ -1,0 +1,12 @@
+[Unit]
+Description=CineGather private ingress port isolation
+Before=cinegather@ingress.service
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh /opt/cinegather/current/infra/native/private-ports.sh start
+ExecStop=/bin/sh /opt/cinegather/current/infra/native/private-ports.sh stop
+
+[Install]
+WantedBy=multi-user.target

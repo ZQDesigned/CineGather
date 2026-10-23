@@ -1,0 +1,15 @@
+[Unit]
+Description=CineGather native PostgreSQL backup
+
+[Service]
+Type=oneshot
+User=cinegather
+Group=cinegather
+EnvironmentFile=/etc/cinegather/backup.env
+ExecStart=/bin/sh /opt/cinegather/current/tools/native-backup.sh
+UMask=0077
+NoNewPrivileges=true
+ProtectHome=true
+ProtectSystem=strict
+PrivateTmp=true
+ReadWritePaths=/var/backups/cinegather
