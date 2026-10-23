@@ -1,4 +1,4 @@
-import { Button, Menu, Avatar, Badge, Breadcrumb, Tooltip } from "antd";
+import { Button, Menu, Avatar, Badge, Breadcrumb, Tooltip, Space } from "antd";
 import { useEffect, useState } from "react";
 import {
   Signal,
@@ -7,7 +7,6 @@ import {
   Users,
   Settings,
   Radio,
-  Shield,
   LogOut,
 } from "lucide-react";
 import { useApp, update } from "../store";
@@ -149,9 +148,7 @@ export function App() {
           <span className="brand-icon">
             <Clapperboard size={23} />
           </span>
-          <span>
-            映聚<small>CINEGATHER</small>
-          </span>
+          <span>映聚</span>
         </a>
         <span className="nav-label">你的放映空间</span>
         <Menu
@@ -214,12 +211,6 @@ export function App() {
           )}
         </div>
         <div className="sidebar-bottom">
-          <div className="privacy-note">
-            <Shield size={17} />
-            <span>
-              只为彼此的私人空间<small>默认不录制，无广告</small>
-            </span>
-          </div>
           <Menu
             className="sidebar-menu"
             mode="inline"
@@ -269,6 +260,41 @@ export function App() {
             ]}
           />
           <div className="topbar-right">
+            {home && app.room && (
+              <Space.Compact
+                className="current-room"
+                role="group"
+                aria-label="当前加入的房间"
+                size="small"
+              >
+                <Tooltip title={`返回房间：${app.room.name}`}>
+                  <Button
+                    className="current-room-link"
+                    icon={<Film size={14} />}
+                    aria-label="返回当前房间"
+                    disabled={app.busy || app.roomState === "leaving"}
+                    onClick={() => setHome(false)}
+                  >
+                    <span className="current-room-name">{app.room.name}</span>
+                  </Button>
+                </Tooltip>
+                <Tooltip title="退出当前房间">
+                  <Button
+                    danger
+                    className="current-room-exit"
+                    icon={<LogOut size={14} />}
+                    aria-label="退出当前房间"
+                    loading={app.roomState === "leaving"}
+                    disabled={app.busy || app.roomState === "leaving"}
+                    onClick={() =>
+                      void actions.run(() => actions.roomSession.leave())
+                    }
+                  >
+                    退出
+                  </Button>
+                </Tooltip>
+              </Space.Compact>
+            )}
             {app.roomState === "connected" &&
               app.media.participants.some(
                 (p) => p.quality === "poor" || p.quality === "lost",

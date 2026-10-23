@@ -104,14 +104,6 @@ export const AppSurface = styled.div`
     letter-spacing: 2px;
     font-weight: 650;
   }
-  .brand small {
-    display: block;
-    font-size: 8px;
-    font-weight: 500;
-    letter-spacing: 2.5px;
-    color: #8f91a0;
-    margin-top: 4px;
-  }
   .brand-icon {
     width: 41px;
     height: 41px;
@@ -144,23 +136,6 @@ export const AppSurface = styled.div`
   .sidebar-bottom {
     margin-top: auto;
     padding-top: 24px;
-  }
-  .privacy-note {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 16px 12px 20px;
-    color: #797d8b;
-    font-size: 10px;
-  }
-  .privacy-note svg {
-    color: #9284b0;
-  }
-  .privacy-note small {
-    display: block;
-    font-size: 9px;
-    color: #515764;
-    margin-top: 6px;
   }
   .profile {
     display: flex;
@@ -232,6 +207,27 @@ export const AppSurface = styled.div`
     display: flex;
     align-items: center;
     gap: 20px;
+  }
+  .current-room {
+    min-width: 0;
+    -webkit-app-region: no-drag;
+  }
+  .current-room .ant-btn {
+    height: 30px;
+    font-size: 12px;
+    padding-inline: 10px;
+  }
+  .current-room-link.ant-btn {
+    min-width: 0;
+    max-width: clamp(120px, 22vw, 260px);
+  }
+  .current-room-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .current-room-exit.ant-btn {
+    flex-shrink: 0;
   }
   .connection {
     display: flex;
@@ -458,17 +454,6 @@ export const AppSurface = styled.div`
     position: relative;
     min-height: 315px;
   }
-  .pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    font-size: 9px;
-    color: #b09ec9;
-    background: #bc9fff09;
-    border: 1px solid #bc9fff13;
-    padding: 6px 9px;
-    border-radius: 30px;
-  }
   .home-hero h2 {
     font-weight: 450;
     font-size: 35px;
@@ -544,12 +529,6 @@ export const AppSurface = styled.div`
     background: linear-gradient(#3b3247, #251f2f);
     border-top: 1px solid #b494cc20;
     box-shadow: inset 3px 0 #ffffff03;
-  }
-  .hero-caption {
-    font-size: 7px;
-    letter-spacing: 2px;
-    color: #635568;
-    margin-top: 19px;
   }
   .section-heading {
     display: flex;
@@ -1333,9 +1312,6 @@ export const AppSurface = styled.div`
   .seats {
     margin-top: 16px;
   }
-  .hero-caption {
-    margin-top: 12px;
-  }
   .section-heading {
     flex-shrink: 0;
     margin: 20px 0 12px;
@@ -1390,9 +1366,6 @@ export const AppSurface = styled.div`
     .room-label {
       margin-top: 20px;
     }
-    .privacy-note {
-      display: none;
-    }
     .sidebar-bottom {
       padding-top: 12px;
     }
@@ -1421,10 +1394,6 @@ export const AppSurface = styled.div`
     }
     .home-hero h2 {
       font-size: 23px;
-    }
-    .home-hero .pill,
-    .hero-caption {
-      display: none;
     }
     .home-hero p br {
       display: none;

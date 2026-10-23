@@ -15,7 +15,6 @@ export function Home({ onEnterRoom }: { onEnterRoom: () => void }) {
     <div className="home">
       <div className="page-heading">
         <div>
-          <span className="eyebrow">A LITTLE CLOSER, EVERY NIGHT</span>
           <h1>
             晚上好，{app.user?.displayName}
             <span className="heading-spark">✦</span>
@@ -29,10 +28,6 @@ export function Home({ onEnterRoom }: { onEnterRoom: () => void }) {
       </div>
       <section className="home-hero">
         <div>
-          <span className="pill">
-            <span className="live-dot" />
-            为朋友留一排好座位
-          </span>
           <h2>
             好时光，
             <br />
@@ -61,7 +56,6 @@ export function Home({ onEnterRoom }: { onEnterRoom: () => void }) {
             <i />
             <i />
           </div>
-          <span className="hero-caption">THE BEST SEAT IS NEXT TO YOU.</span>
         </div>
       </section>
       <div className="section-heading">
