@@ -23,6 +23,12 @@ test("packaged superadmin uses the shared role editor, preserves edit fields and
   });
   expect(response.ok()).toBe(true);
   const account = await response.json();
+  const memberUsername = `macmember_${suffix}_longaccount`.padEnd(32, "x");
+  const memberResponse = await request.post(`${api}/accounts/register`, {
+    data: { username: memberUsername, displayName: "长账号复制验证", password },
+  });
+  expect(memberResponse.ok()).toBe(true);
+  const member = await memberResponse.json();
   execFileSync("bun", ["tools/superadmin.ts", "grant", account.user.id], {
     stdio: "pipe",
   });
@@ -43,6 +49,20 @@ test("packaged superadmin uses the shared role editor, preserves edit fields and
     await page.getByLabel("密码", { exact: true }).fill(password);
     await page.getByRole("button", { name: "登录映聚", exact: true }).click();
     await page.getByRole("menuitem", { name: "管理后台", exact: true }).click();
+    const search = page.getByLabel("搜索管理数据", { exact: true });
+    await search.fill(memberUsername);
+    await search.press("Enter");
+    const copy = page
+      .getByRole("row")
+      .filter({ hasText: memberUsername })
+      .getByRole("button", { name: "复制用户 ID", exact: true });
+    await expect(copy).toBeInViewport({ ratio: 1 });
+    await copy.click();
+    await expect
+      .poll(() => app.evaluate(({ clipboard }) => clipboard.readText()))
+      .toBe(member.user.id);
+    await search.clear();
+    await search.press("Enter");
     await page.getByRole("tab", { name: "角色管理", exact: true }).click();
     const roleName = `Mac 审计 ${suffix}`;
     await page.getByRole("button", { name: "创建角色", exact: true }).click();

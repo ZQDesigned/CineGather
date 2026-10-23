@@ -85,6 +85,21 @@ const Surface = styled.section`
   .admin-user-name {
     display: block;
   }
+  .admin-account-identifier {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    min-width: 0;
+  }
+  .admin-account-text {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .admin-account-identifier .ant-btn {
+    flex: none;
+  }
   .admin-muted {
     font-size: 12px;
     color: #9298a9;
@@ -294,9 +309,16 @@ function AdminPanel() {
       ellipsis: true,
       render: (_, u) => (
         <>
-          <strong className="admin-user-name">{u.displayName}</strong>
-          <span className="admin-muted">
-            {u.username}
+          <strong
+            className="admin-user-name admin-account-text"
+            title={u.displayName}
+          >
+            {u.displayName}
+          </strong>
+          <span className="admin-muted admin-account-identifier">
+            <span className="admin-account-text" title={u.username}>
+              {u.username}
+            </span>
             <Tooltip title={u.id}>
               <Button
                 size="small"

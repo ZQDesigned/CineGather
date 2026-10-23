@@ -26,13 +26,17 @@ test("account-only onboarding and ordinary-user admin denial", async ({
 });
 test("admin can search users, confirm account actions, close rooms and inspect audit at compact size", async ({
   page,
+  context,
 }) => {
   const suffix = crypto.randomUUID().slice(0, 8);
   const password = "Admin browser fixture 123!";
   const create = async (name: string) => {
     const res = await page.request.post(`${api}/accounts/register`, {
       data: {
-        username: `adminui_${suffix}_${name}`,
+        username:
+          name === "member"
+            ? `adminui_${suffix}_member`.padEnd(32, "x")
+            : `adminui_${suffix}_${name}`,
         displayName: `管理界面${name}`,
         password,
       },
@@ -64,6 +68,19 @@ test("admin can search users, confirm account actions, close rooms and inspect a
   await expect(
     page.getByRole("row").filter({ hasText: member.user.username }),
   ).toBeVisible();
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  const assertCopy = async () => {
+    const copy = page
+      .getByRole("row")
+      .filter({ hasText: member.user.username })
+      .getByRole("button", { name: "复制用户 ID", exact: true });
+    await expect(copy).toBeInViewport({ ratio: 1 });
+    await copy.click();
+    await expect
+      .poll(() => page.evaluate(() => navigator.clipboard.readText()))
+      .toBe(member.user.id);
+  };
+  await assertCopy();
   await page.screenshot({ path: ".local/admin-account-only/admin-users.png" });
   await page.setViewportSize({ width: 980, height: 680 });
   const search = page.getByLabel("搜索管理数据", { exact: true });
@@ -71,6 +88,7 @@ test("admin can search users, confirm account actions, close rooms and inspect a
   await search.press("Enter");
   const row = page.getByRole("row").filter({ hasText: member.user.username });
   await expect(row).toBeVisible();
+  await assertCopy();
   await row.getByRole("button", { name: "停用", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "取消", exact: true }).click();
