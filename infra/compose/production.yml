@@ -89,8 +89,11 @@ services:
       - ${TLS_CERT_DIR:?Provide TURN certificate directory}:/etc/livekit-certs:ro
     restart: unless-stopped
   proxy:
-    image: registry-1.docker.io/library/caddy:2.10.2-alpine
+    build:
+      context: ../..
+      dockerfile: apps/web/Dockerfile
     environment:
+      WEB_DOMAIN: ${WEB_DOMAIN:?Set the browser application domain}
       API_DOMAIN: ${API_DOMAIN:?Set the API domain}
       MEDIA_DOMAIN: ${MEDIA_DOMAIN:?Set the media domain}
       WHIP_DOMAIN: ${WHIP_DOMAIN:?Set the WHIP domain}

@@ -13,11 +13,20 @@ import type {
 } from "@cinegather/contracts";
 import { state, update, defaults } from "./store";
 import { serverOrigin } from "./server-address";
+import { capabilities, defaultServer, readWebInvitation } from "./platform";
+import { settingsSchema } from "../shared/settings";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
-const baseUrl =
-  localStorage.getItem("cinegather.api") ??
-  import.meta.env.VITE_API_URL ??
-  "http://127.0.0.1:14310";
+const baseUrl = defaultServer(
+  localStorage.getItem("cinegather.api"),
+  import.meta.env.VITE_API_URL,
+  location.origin,
+  capabilities().desktop,
+);
+let webInvitation = !window.desktop
+  ? readWebInvitation(location.href, (clean) =>
+      history.replaceState(null, "", clean),
+    )
+  : undefined;
 export const api = createApi(baseUrl, () => sessionToken);
 let selectResolve: ((accepted: boolean) => void) | undefined;
 export async function copyText(value: string, notice?: string) {
@@ -153,9 +162,14 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     }
   },
   select: async () => {
-    if (!window.desktop) return true;
+    if (!capabilities().sourcePicker) {
+      update({ modal: "source", sources: [] });
+      return new Promise<boolean>((resolve) => {
+        selectResolve = resolve;
+      });
+    }
     const revision = state().shareRevision;
-    const sources = await window.desktop.sources();
+    const sources = await window.desktop!.sources();
     if (
       revision !== state().shareRevision ||
       state().shareState !== "selectingSource"
@@ -181,7 +195,9 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
         });
         return;
       }
-      await media.share(state().settings.quality, state().systemAudio);
+      if (capabilities().sourcePicker)
+        await media.share(state().settings.quality, state().systemAudio);
+      else await media.publishBrowserShare(state().settings.quality);
     } finally {
       await window.desktop?.cancelCapture();
     }
@@ -257,8 +273,10 @@ export async function initialize() {
   try {
     const settings = window.desktop
       ? await window.desktop.loadSettings()
-      : (JSON.parse(localStorage.getItem("cinegather.settings") ?? "null") ??
-        defaults);
+      : settingsSchema.parse(
+          JSON.parse(localStorage.getItem("cinegather.settings") ?? "null") ??
+            defaults,
+        );
     update({ settings });
   } catch {
     update({ settings: defaults });
@@ -274,7 +292,8 @@ export async function initialize() {
   } catch {
     update({ error: "无法检查全局快捷键状态；已保留你的按键说话设置。" });
   }
-  const initial = await window.desktop?.takeInvitation();
+  const initial = (await window.desktop?.takeInvitation()) ?? webInvitation;
+  webInvitation = undefined;
   if (initial) receiveInvitation(initial);
   return window.desktop?.onAction((action, value) => {
     if (action === "invite" && value) {
@@ -384,6 +403,38 @@ export async function chooseSource(selection?: CaptureSelection) {
   selectResolve = undefined;
   resolve?.(Boolean(selection));
 }
+export async function chooseBrowserSource() {
+  const revision = state().shareRevision;
+  try {
+    const selected = await media.selectBrowserShare(
+      state().settings.quality,
+      state().systemAudio,
+    );
+    if (
+      revision !== state().shareRevision ||
+      state().shareState !== "selectingSource"
+    )
+      return;
+    update({ modal: null });
+    const resolve = selectResolve;
+    selectResolve = undefined;
+    resolve?.(selected);
+    if (selected && media.browserAudioNotice)
+      update({
+        warning: media.browserAudioNotice,
+        warningTitle: "共享声音不可用",
+      });
+  } catch (error) {
+    if (revision !== state().shareRevision) return;
+    await chooseSource();
+    if (
+      error instanceof DOMException &&
+      ["NotAllowedError", "AbortError"].includes(error.name)
+    )
+      update({ notice: "未开始共享，可重新选择或检查 Chrome 的共享权限" });
+    else report(error);
+  }
+}
 export async function stopShare() {
   if (selectResolve) {
     const resolve = selectResolve;
@@ -415,10 +466,22 @@ export async function createInvite() {
     }),
   );
   update({
-    invite: `cinegather://join?room=${roomId}&invite=${invite.token}`,
+    invite: invitationLink(roomId, invite.token),
     inviteId: invite.id,
     modal: "invite",
   });
+}
+function invitationLink(roomId: string, token: string) {
+  const web = !window.desktop ? location.origin : import.meta.env.VITE_WEB_URL;
+  if (web) {
+    const url = new URL(web);
+    if (["https:", "http:"].includes(url.protocol)) {
+      url.searchParams.set("room", roomId);
+      url.hash = new URLSearchParams({ invite: token }).toString();
+      return url.href;
+    }
+  }
+  return `cinegather://join?room=${roomId}&invite=${token}`;
 }
 export async function logout() {
   await roomSession.leave();

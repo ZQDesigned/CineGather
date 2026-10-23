@@ -18,6 +18,8 @@ import { Home } from "./Home";
 import { Room } from "./Room";
 import { Feedback } from "./Feedback";
 import { AppSurface } from "./styles";
+import { capabilities } from "../platform";
+import { matchesShortcut } from "../../shared/shortcuts";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
   authenticating: "正在验证身份",
@@ -41,6 +43,44 @@ export function App() {
     let holdActive = false;
     const down = (event: KeyboardEvent) => {
       const current = useApp.getState();
+      const platform = capabilities();
+      if (
+        !platform.globalShortcuts &&
+        !current.modal &&
+        current.roomState === "connected" &&
+        !(
+          event.target instanceof Element &&
+          event.target.closest(
+            'input, textarea, select, [role="combobox"], [contenteditable="true"]',
+          )
+        )
+      ) {
+        const key = {
+          code: event.code,
+          control: event.ctrlKey,
+          meta: event.metaKey,
+          alt: event.altKey,
+          shift: event.shiftKey,
+          isAutoRepeat: event.repeat,
+          isComposing: event.isComposing,
+        };
+        if (
+          matchesShortcut(current.settings.muteShortcut, key, platform.platform)
+        ) {
+          event.preventDefault();
+          void actions.toggleMicrophone();
+          return;
+        }
+        if (
+          current.settings.pushToTalk &&
+          matchesShortcut(current.settings.pttShortcut, key, platform.platform)
+        ) {
+          event.preventDefault();
+          holdActive = true;
+          void actions.ptt(true);
+          return;
+        }
+      }
       if (
         current.settings.pushToTalk &&
         current.roomState === "connected" &&
@@ -69,16 +109,21 @@ export function App() {
       void actions.ptt(false);
     };
     const up = (event: KeyboardEvent) => {
-      if (event.code === "Space") releaseHold();
+      if (event.code === "Space" || !capabilities().globalShortcuts)
+        releaseHold();
     };
     const blur = releaseHold;
     const exit = () => {
       void actions.roomSession.leave();
     };
+    const visibility = () => {
+      if (document.hidden) releaseHold();
+    };
     window.addEventListener("keydown", down);
     window.addEventListener("keyup", up);
     window.addEventListener("blur", blur);
     window.addEventListener("beforeunload", exit);
+    document.addEventListener("visibilitychange", visibility);
     return () => {
       ended = true;
       dispose?.();
@@ -86,6 +131,7 @@ export function App() {
       window.removeEventListener("keyup", up);
       window.removeEventListener("blur", blur);
       window.removeEventListener("beforeunload", exit);
+      document.removeEventListener("visibilitychange", visibility);
     };
   }, []);
   return (

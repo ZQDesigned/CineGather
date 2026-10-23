@@ -2,6 +2,7 @@ import { Button, App } from "antd";
 import { Keyboard } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { displayShortcut, recordedShortcut } from "../../shared/shortcuts";
+import { capabilities } from "../platform";
 
 function browserRecording(signal: AbortSignal): Promise<string | undefined> {
   return new Promise((resolve) => {
@@ -117,7 +118,7 @@ export function ShortcutRecorder({
       <span>
         {recording
           ? "请按组合键，Esc 取消"
-          : displayShortcut(value, window.desktop?.platform ?? "browser")}
+          : displayShortcut(value, capabilities().platform)}
       </span>
       <Keyboard size={16} />
     </Button>

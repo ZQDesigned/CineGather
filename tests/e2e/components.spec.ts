@@ -94,26 +94,30 @@ test("settings tabs preserve draft fields and keep the matching submit action vi
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await page
-    .getByRole("button", { name: "全局麦克风静音", exact: true })
+    .getByRole("button", { name: "页面内麦克风静音", exact: true })
     .click();
   await page.keyboard.press("Control+Shift+K");
   await page.getByRole("tab", { name: "音频设备", exact: true }).click();
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "全局麦克风静音", exact: true }),
-  ).toContainText("Ctrl + Shift + K");
+    page.getByRole("button", { name: "页面内麦克风静音", exact: true }),
+  ).toContainText(
+    process.platform === "darwin" ? "⌃ + ⇧ + K" : "Ctrl + Shift + K",
+  );
   await page
-    .getByRole("button", { name: "全局麦克风静音", exact: true })
+    .getByRole("button", { name: "页面内麦克风静音", exact: true })
     .click();
   await page.keyboard.press("A");
   await expect(
-    page.getByRole("button", { name: "全局麦克风静音", exact: true }),
+    page.getByRole("button", { name: "页面内麦克风静音", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toBeVisible();
   await expect(
-    page.getByRole("button", { name: "全局麦克风静音", exact: true }),
-  ).toContainText("Ctrl + Shift + K");
+    page.getByRole("button", { name: "页面内麦克风静音", exact: true }),
+  ).toContainText(
+    process.platform === "darwin" ? "⌃ + ⇧ + K" : "Ctrl + Shift + K",
+  );
   expect(
     await page
       .locator(".ant-modal-body")

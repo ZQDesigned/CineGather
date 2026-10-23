@@ -24,16 +24,22 @@ jobs:
       - run: bun run test:integration
       - run: bun run api:generate && git diff --exit-code packages/api-client/src/schema.ts
       - run: bun run build
+      - run: bun run build:web
       - run: docker build -t cinegather-api:0.1.0 -f apps/api/Dockerfile .
+      - run: docker build -t cinegather-web:0.1.0 -f apps/web/Dockerfile .
       - run: bun run test:container
-      - run: bunx playwright install --with-deps chromium
+      - run: bunx playwright install --with-deps chromium chrome
       - run: bun run test:e2e
+      - run: bun run test:web
       - run: bun tools/check-git.ts
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
           name: test-diagnostics
-          path: test-results/
+          include-hidden-files: true
+          path: |
+            test-results/
+            .local/chrome-support/web-results/
   package-windows:
     runs-on: windows-latest
     steps:

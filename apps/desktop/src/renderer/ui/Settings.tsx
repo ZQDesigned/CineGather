@@ -1,4 +1,4 @@
-import { App, Select, Checkbox, Progress, Form, Tabs } from "antd";
+import { App, Select, Checkbox, Progress, Form, Tabs, Alert } from "antd";
 import { Button, Input } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, Mic, Volume2, Monitor, Check, Server } from "lucide-react";
@@ -12,7 +12,13 @@ import {
 import { ModalShell, useDialogOpen } from "./Modal";
 import { ShortcutRecorder } from "./ShortcutRecorder";
 import { serverOrigin, verifyServer } from "../server-address";
+import { capabilities } from "../platform";
 export function Settings() {
+  const platform = capabilities();
+  const pttLabel = platform.globalShortcuts ? "全局按住说话" : "页面内按住说话";
+  const muteLabel = platform.globalShortcuts
+    ? "全局麦克风静音"
+    : "页面内麦克风静音";
   const open = useDialogOpen();
   const { modal } = App.useApp();
   const serverRequest = useRef<AbortController | undefined>(undefined);
@@ -100,6 +106,7 @@ export function Settings() {
     value: DesktopSettings[K],
   ) => setSettings((previous) => ({ ...previous, [key]: value }));
   const refresh = () => {
+    if (!navigator.mediaDevices?.enumerateDevices) return;
     void navigator.mediaDevices
       .enumerateDevices()
       .then(setDevices)
@@ -113,11 +120,11 @@ export function Settings() {
       return;
     }
     refresh();
-    navigator.mediaDevices.addEventListener("devicechange", refresh);
+    navigator.mediaDevices?.addEventListener("devicechange", refresh);
     return () => {
       ++testRevision.current;
       capturePending.current = false;
-      navigator.mediaDevices.removeEventListener("devicechange", refresh);
+      navigator.mediaDevices?.removeEventListener("devicechange", refresh);
       const active = audioRef.current;
       audioRef.current = undefined;
       if (active) {
@@ -260,9 +267,17 @@ export function Settings() {
                   void actions.run(() => actions.saveSettings(settings))
                 }
               >
+                {!platform.microphone && (
+                  <Alert
+                    type="warning"
+                    showIcon
+                    title="麦克风需要使用 HTTPS 或本机地址，并允许浏览器访问"
+                  />
+                )}
                 <Form.Item label="麦克风">
                   <Select
                     aria-label="麦克风"
+                    disabled={!platform.microphone}
                     value={settings.inputDevice}
                     onChange={(v) => change("inputDevice", v)}
                     options={[
@@ -283,6 +298,7 @@ export function Settings() {
                 </Form.Item>
                 <div className="device-test">
                   <Button
+                    disabled={!platform.microphone}
                     loading={requesting}
                     icon={<Mic size={15} />}
                     onClick={() => void testMicrophone().catch(actions.report)}
@@ -304,6 +320,7 @@ export function Settings() {
                 <Form.Item label="扬声器 / 耳机">
                   <Select
                     aria-label="扬声器 / 耳机"
+                    disabled={!platform.outputSelection}
                     value={settings.outputDevice}
                     onChange={(v) => change("outputDevice", v)}
                     options={[
@@ -362,31 +379,35 @@ export function Settings() {
                   </Checkbox>
                 </Form.Item>
                 <div className="shortcut-fields">
-                  <Form.Item label="全局按住说话">
+                  <Form.Item label={pttLabel}>
                     <ShortcutRecorder
-                      label="全局按住说话"
+                      label={pttLabel}
                       value={settings.pttShortcut}
                       active={open && tab === "sharing"}
                       onChange={(value) => change("pttShortcut", value)}
                     />
                   </Form.Item>
-                  <Form.Item label="全局麦克风静音">
+                  <Form.Item label={muteLabel}>
                     <ShortcutRecorder
-                      label="全局麦克风静音"
+                      label={muteLabel}
                       value={settings.muteShortcut}
                       active={open && tab === "sharing"}
                       onChange={(value) => change("muteShortcut", value)}
                     />
                   </Form.Item>
                 </div>
-                <Form.Item>
-                  <Checkbox
-                    checked={settings.minimizeToTray}
-                    onChange={(e) => change("minimizeToTray", e.target.checked)}
-                  >
-                    关闭窗口后保留在托盘
-                  </Checkbox>
-                </Form.Item>
+                {platform.tray && (
+                  <Form.Item>
+                    <Checkbox
+                      checked={settings.minimizeToTray}
+                      onChange={(e) =>
+                        change("minimizeToTray", e.target.checked)
+                      }
+                    >
+                      关闭窗口后保留在托盘
+                    </Checkbox>
+                  </Form.Item>
+                )}
               </Form>
             ),
           },

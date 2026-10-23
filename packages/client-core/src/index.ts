@@ -7,9 +7,13 @@ export function parseInvitation(value: string): {
   const input = value.trim();
   try {
     const url = new URL(input);
-    if (url.protocol !== "cinegather:") throw new Error("unsupported");
+    if (!["cinegather:", "https:", "http:"].includes(url.protocol))
+      throw new Error("unsupported");
     const roomId = url.searchParams.get("room");
-    const inviteToken = url.searchParams.get("invite") ?? undefined;
+    const inviteToken =
+      new URLSearchParams(url.hash.slice(1)).get("invite") ??
+      url.searchParams.get("invite") ??
+      undefined;
     if (!roomId) throw new Error("missing");
     return { roomId, inviteToken };
   } catch {

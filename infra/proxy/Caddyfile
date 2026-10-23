@@ -6,6 +6,23 @@
     Referrer-Policy no-referrer
   }
 }
+{$WEB_DOMAIN} {
+  encode zstd gzip
+  handle /api/* {
+    reverse_proxy api:14310
+  }
+  handle {
+    root * /srv/cinegather
+    try_files {path} /index.html
+    file_server
+  }
+  header {
+    X-Content-Type-Options nosniff
+    Referrer-Policy no-referrer
+    Permissions-Policy "camera=(), microphone=(self), display-capture=(self)"
+    Cache-Control no-cache
+  }
+}
 {$MEDIA_DOMAIN} {
   reverse_proxy host.docker.internal:7880
 }

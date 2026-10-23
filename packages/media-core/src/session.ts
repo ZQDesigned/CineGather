@@ -17,6 +17,7 @@ import {
 } from "@cinegather/contracts";
 import { MoviePlayback } from "./movie";
 import { AudioMixer } from "./mixer";
+import { BrowserCapture } from "./browser-capture";
 export interface ParticipantSummary {
   id: string;
   name: string;
@@ -46,6 +47,7 @@ export class MediaSession {
   private microphoneRevision = 0;
   private microphoneWanted = false;
   private poll?: ReturnType<typeof setInterval>;
+  private browserCapture = new BrowserCapture();
   constructor(
     private readonly changed: (summary: MediaSummary) => void,
     private readonly error: (error: unknown) => void,
@@ -290,6 +292,10 @@ export class MediaSession {
     let wanted = enabled;
     this.microphoneWanted = enabled;
     if (!room) return;
+    if (enabled && !navigator.mediaDevices?.getUserMedia)
+      throw new Error(
+        "语音需要使用 HTTPS 或本机地址，并允许 Chrome 使用麦克风",
+      );
     while (this.room === room) {
       let publication: LocalTrackPublication | undefined;
       try {
@@ -374,8 +380,70 @@ export class MediaSession {
     this.emit();
   }
   async stopShare() {
+    this.browserCapture.stop();
     if (this.room)
       await this.room.localParticipant.setScreenShareEnabled(false);
+    this.emit();
+  }
+  async selectBrowserShare(quality: Quality, audio: boolean) {
+    const selected = await this.browserCapture.select(quality, audio);
+    if (selected) {
+      const stream = this.browserCapture.current;
+      stream?.getVideoTracks()[0]?.addEventListener(
+        "ended",
+        () => {
+          if (this.browserCapture.current === stream) this.shareEnded();
+        },
+        { once: true },
+      );
+    }
+    return selected;
+  }
+  get browserAudioNotice() {
+    return this.browserCapture.audioNotice;
+  }
+  async publishBrowserShare(quality: Quality) {
+    const room = this.room;
+    const stream = this.browserCapture.current;
+    if (
+      !room ||
+      room.state !== ConnectionState.Connected ||
+      !stream ||
+      stream.getVideoTracks()[0]?.readyState !== "live"
+    )
+      throw new Error("共享已取消，请重新选择画面");
+    const preset = qualityPresets[quality];
+    const results = await Promise.allSettled(
+      stream.getTracks().map((track) =>
+        room.localParticipant.publishTrack(track, {
+          source:
+            track.kind === "video"
+              ? Track.Source.ScreenShare
+              : Track.Source.ScreenShareAudio,
+          screenShareEncoding: {
+            maxBitrate: preset.maxBitrate,
+            maxFramerate: preset.frameRate,
+          },
+          videoCodec: "h264",
+          simulcast: false,
+        }),
+      ),
+    );
+    const failed = results.find((result) => result.status === "rejected");
+    if (
+      failed ||
+      this.room !== room ||
+      this.browserCapture.current !== stream
+    ) {
+      stream.getTracks().forEach((track) => track.stop());
+      await Promise.allSettled(
+        stream
+          .getTracks()
+          .map((track) => room.localParticipant.unpublishTrack(track, true)),
+      );
+      if (failed?.status === "rejected") throw failed.reason;
+      return;
+    }
     this.emit();
   }
   voiceVolume(volume: number) {
@@ -402,7 +470,10 @@ export class MediaSession {
     if (!this.room) return;
     if (input !== undefined)
       await this.room.switchActiveDevice("audioinput", input || "default");
-    if (output !== undefined)
+    if (
+      output !== undefined &&
+      typeof HTMLMediaElement.prototype.setSinkId === "function"
+    )
       await this.room.switchActiveDevice("audiooutput", output || "default");
   }
   async startAudio() {
@@ -471,6 +542,7 @@ export class MediaSession {
     };
   }
   async disconnect() {
+    this.browserCapture.stop();
     ++this.revision;
     ++this.microphoneRevision;
     this.microphoneWanted = false;

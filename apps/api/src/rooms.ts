@@ -121,7 +121,9 @@ export async function createRoom(
   );
 }
 export async function getRoom(user: User, roomId: string) {
-  return db.transaction((tx) => requireMember(tx, roomId, user.id, false, true));
+  return db.transaction((tx) =>
+    requireMember(tx, roomId, user.id, false, true),
+  );
 }
 export async function listRooms(user: User) {
   const rows = await db

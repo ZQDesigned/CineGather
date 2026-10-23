@@ -185,6 +185,7 @@ test("a real screen publisher holds the only server lease and stopping removes i
       viewer.getByRole("heading", { name: "共享权限测试" }),
     ).toBeVisible();
     await page.getByRole("button", { name: "选择屏幕开始共享" }).click();
+    await page.getByRole("button", { name: "选择并共享", exact: true }).click();
     await expect(page.locator(".sharing-banner")).toBeVisible({
       timeout: 20000,
     });
@@ -220,6 +221,7 @@ test("a real screen publisher holds the only server lease and stopping removes i
       .click();
     await expect(viewer.locator(".video-label")).toHaveCount(0);
     await page.getByRole("button", { name: "选择屏幕开始共享" }).click();
+    await page.getByRole("button", { name: "选择并共享", exact: true }).click();
     await expect(page.locator(".sharing-banner")).toBeVisible();
     await expect(viewer.locator(".video-label")).toContainText(
       "共享者正在共享",
@@ -275,6 +277,9 @@ test("a real screen publisher holds the only server lease and stopping removes i
         ?.canPublishSources,
     ).toContain(TrackSource.SCREEN_SHARE);
     await viewer.getByRole("button", { name: "选择屏幕开始共享" }).click();
+    await viewer
+      .getByRole("button", { name: "选择并共享", exact: true })
+      .click();
     await expect(viewer.locator(".sharing-banner")).toBeVisible();
     await expect(page.locator(".video-label")).toContainText("观看者正在共享");
     const database = new pg.Pool({

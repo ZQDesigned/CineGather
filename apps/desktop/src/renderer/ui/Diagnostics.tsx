@@ -7,6 +7,7 @@ import * as actions from "../controller";
 import { verifyServer } from "../server-address";
 import { Button } from "./Controls";
 import { ModalShell, useDialogOpen } from "./Modal";
+import { capabilities } from "../platform";
 
 export function Diagnostics() {
   const open = useDialogOpen();
@@ -58,6 +59,14 @@ export function Diagnostics() {
       if (request.signal.aborted) return;
       const metrics = server.status === "fulfilled" ? server.value : undefined;
       const data = {
+        ...(!capabilities().desktop
+          ? {
+              browser: {
+                userAgent: navigator.userAgent,
+                capabilities: capabilities(),
+              },
+            }
+          : {}),
         ...(media.status === "fulfilled"
           ? media.value
           : { state: app.media.state, tracks: [] }),

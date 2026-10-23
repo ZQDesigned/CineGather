@@ -8,6 +8,7 @@ import type {
   CaptureSource,
 } from "@cinegather/contracts";
 import type { MediaSummary } from "@cinegather/media-core";
+import { defaultSettings } from "../shared/settings";
 export type Modal =
   | "create"
   | "join"
@@ -18,15 +19,7 @@ export type Modal =
   | "diagnostics"
   | "bans"
   | null;
-export const defaults: DesktopSettings = {
-  minimizeToTray: true,
-  pushToTalk: false,
-  pttShortcut: "CommandOrControl+Shift+Space",
-  muteShortcut: "CommandOrControl+Shift+M",
-  quality: "cinema",
-  inputDevice: "",
-  outputDevice: "",
-};
+export const defaults = defaultSettings;
 interface State {
   user?: User;
   room?: RoomInfo;
@@ -41,6 +34,7 @@ interface State {
   error?: string;
   notice?: string;
   warning?: string;
+  warningTitle?: string;
   cinema: boolean;
   settings: DesktopSettings;
   voiceVolume: number;

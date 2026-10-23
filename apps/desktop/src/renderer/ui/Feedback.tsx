@@ -6,6 +6,7 @@ export function Feedback() {
   const error = useApp((state) => state.error);
   const notice = useApp((state) => state.notice);
   const warning = useApp((state) => state.warning);
+  const warningTitle = useApp((state) => state.warningTitle);
   const { message, notification } = App.useApp();
   useEffect(() => {
     if (!notice) return;
@@ -31,14 +32,15 @@ export function Feedback() {
   useEffect(() => {
     if (!warning) return;
     notification.warning({
-      key: "room-exit",
-      title: "已离开房间",
+      key: "operation-warning",
+      title: warningTitle ?? "已离开房间",
       description: warning,
       role: "alert",
       duration: 8,
       pauseOnHover: true,
     });
-    if (useApp.getState().warning === warning) update({ warning: undefined });
-  }, [warning, notification]);
+    if (useApp.getState().warning === warning)
+      update({ warning: undefined, warningTitle: undefined });
+  }, [warning, warningTitle, notification]);
   return null;
 }

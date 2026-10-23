@@ -10,7 +10,8 @@
     "packages/**/*.ts",
     "tools/**/*.ts",
     "tests/**/*.ts",
-    "playwright.config.ts"
+    "playwright.config.ts",
+    "playwright.web.config.ts"
   ],
   "exclude": ["node_modules", "**/dist", "**/out"]
 }

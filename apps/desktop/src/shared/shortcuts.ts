@@ -47,3 +47,19 @@ export function displayShortcut(value: string, platform: string): string {
     .map((key) => names[key.toUpperCase()] ?? key)
     .join(" + ");
 }
+
+export function matchesShortcut(
+  value: string,
+  input: ShortcutInput,
+  platform: string,
+): boolean {
+  const normalized = value.replace(
+    /CommandOrControl/gi,
+    platform === "darwin" ? "Command" : "Control",
+  );
+  const captured = recordedShortcut(input);
+  if (!captured) return false;
+  const parts = (shortcut: string) =>
+    shortcut.toUpperCase().split("+").sort().join("+");
+  return parts(normalized) === parts(captured);
+}

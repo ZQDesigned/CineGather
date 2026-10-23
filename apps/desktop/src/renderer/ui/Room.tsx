@@ -29,6 +29,7 @@ import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { Chat } from "./Chat";
 import { Member } from "./Member";
+import { capabilities } from "../platform";
 export function Room() {
   const app = useApp();
   const stage = useRef<HTMLDivElement>(null);
@@ -50,9 +51,10 @@ export function Room() {
       void document.exitFullscreen().catch(actions.report);
   }, [sharingOwnScreen]);
   const fullscreen = () => {
-    if (sharingOwnScreen) return;
-    if (document.fullscreenElement) void document.exitFullscreen();
-    else void stage.current?.requestFullscreen();
+    if (sharingOwnScreen || !capabilities().fullscreen) return;
+    if (document.fullscreenElement)
+      void document.exitFullscreen().catch(actions.report);
+    else void stage.current?.requestFullscreen().catch(actions.report);
   };
   return (
     <div className="room-page">
@@ -156,7 +158,7 @@ export function Room() {
                 )}
               </div>
             )}
-            {!sharingOwnScreen && (
+            {!sharingOwnScreen && capabilities().fullscreen && (
               <Tooltip title="全屏画面">
                 <Button
                   type="text"
@@ -314,7 +316,9 @@ export function Room() {
           {app.media.audioBlocked && (
             <Button
               className="audio-unlock"
-              onClick={() => void actions.media.startAudio()}
+              onClick={() =>
+                void actions.media.startAudio().catch(actions.report)
+              }
             >
               <Volume2 size={16} />
               点击启用房间声音

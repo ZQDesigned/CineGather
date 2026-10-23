@@ -32,6 +32,7 @@ import { unwrap } from "@cinegather/api-client";
 import { parseInvitation } from "@cinegather/client-core";
 import { DialogLifecycle, ModalShell, useDialogOpen } from "./Modal";
 import { useSourcePreviews } from "./useSourcePreviews";
+import { capabilities } from "../platform";
 export function Dialogs() {
   const modal = useApp((s) => s.modal);
   const [shown, setShown] = useState<Modal>(modal);
@@ -288,6 +289,8 @@ function SourcePicker() {
   const open = useDialogOpen();
   const app = useApp();
   const native = Boolean(window.desktop?.nativeCapture);
+  const browser = !capabilities().sourcePicker;
+  const [picking, setPicking] = useState(false);
   const [kind, setKind] = useState(native ? "window" : "screen");
   const previews = useSourcePreviews(app.sources, kind, open);
   const [selected, setSelected] = useState(
@@ -382,48 +385,77 @@ function SourcePicker() {
           <Button
             type="primary"
             icon={<Monitor size={17} />}
-            disabled={!selected || app.busy}
-            onClick={choose}
+            disabled={
+              browser ? !capabilities().displayCapture : !selected || app.busy
+            }
+            loading={browser && picking}
+            onClick={
+              browser
+                ? () => {
+                    setPicking(true);
+                    void actions
+                      .chooseBrowserSource()
+                      .finally(() => setPicking(false));
+                  }
+                : choose
+            }
           >
-            确认共享
+            {browser ? "选择并共享" : "确认共享"}
           </Button>
         </>
       }
     >
-      <Tabs
-        className="capture-tabs"
-        tabBarExtraContent={
-          previews.enabled ? (
-            <Button
-              type="text"
-              size="small"
-              icon={<RefreshCw size={14} />}
-              onClick={previews.refresh}
-            >
-              刷新预览
-            </Button>
-          ) : undefined
-        }
-        activeKey={kind}
-        onChange={(value) => {
-          setKind(value);
-          setSelected(app.sources.find((s) => s.kind === value)?.id ?? "");
-        }}
-        items={[
-          {
-            key: "screen",
-            label: "整个屏幕",
-            icon: <Monitor size={16} />,
-            children: sources("screen"),
-          },
-          {
-            key: "window",
-            label: "应用窗口",
-            icon: <AppWindow size={16} />,
-            children: sources("window"),
-          },
-        ]}
-      />
+      {browser ? (
+        <Alert
+          type={capabilities().displayCapture ? "info" : "warning"}
+          showIcon
+          title={
+            capabilities().displayCapture
+              ? "在 Chrome 中选择屏幕、窗口或标签页"
+              : "当前地址无法共享画面，请使用 HTTPS 或本机地址打开"
+          }
+          description={
+            capabilities().displayCapture
+              ? "共享标签页时，可在 Chrome 选择器中开启声音。"
+              : undefined
+          }
+        />
+      ) : (
+        <Tabs
+          className="capture-tabs"
+          tabBarExtraContent={
+            previews.enabled ? (
+              <Button
+                type="text"
+                size="small"
+                icon={<RefreshCw size={14} />}
+                onClick={previews.refresh}
+              >
+                刷新预览
+              </Button>
+            ) : undefined
+          }
+          activeKey={kind}
+          onChange={(value) => {
+            setKind(value);
+            setSelected(app.sources.find((s) => s.kind === value)?.id ?? "");
+          }}
+          items={[
+            {
+              key: "screen",
+              label: "整个屏幕",
+              icon: <Monitor size={16} />,
+              children: sources("screen"),
+            },
+            {
+              key: "window",
+              label: "应用窗口",
+              icon: <AppWindow size={16} />,
+              children: sources("window"),
+            },
+          ]}
+        />
+      )}
       <div className="capture-audio">
         <Checkbox
           checked={app.systemAudio}
@@ -433,7 +465,9 @@ function SourcePicker() {
             ? selectedScreen
               ? "共享系统声音（排除映聚）"
               : "共享此应用的声音"
-            : "共享系统声音"}
+            : browser
+              ? "共享声音"
+              : "共享系统声音"}
         </Checkbox>
       </div>
     </ModalShell>
