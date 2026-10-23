@@ -60,8 +60,8 @@
     "test:native": "bun test native/capture/test",
     "test:native-host": "bun tools/native-host-smoke.ts",
     "icons:build": "bun tools/icons.ts",
-    "admin:grant": "bun tools/admin.ts grant",
-    "admin:revoke": "bun tools/admin.ts revoke"
+    "superadmin:grant": "bun tools/superadmin.ts grant",
+    "superadmin:revoke": "bun tools/superadmin.ts revoke"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

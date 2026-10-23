@@ -13,5 +13,5 @@
     "playwright.config.ts",
     "playwright.web.config.ts"
   ],
-  "exclude": ["node_modules", "**/dist", "**/out"]
+  "exclude": ["node_modules", "**/dist", "**/out", "**/release"]
 }

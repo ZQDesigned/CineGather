@@ -49,7 +49,9 @@ beforeAll(async () => {
   base = await app.getUrl();
   admin = await account("admin");
   regular = await account("regular");
-  await db.execute(`UPDATE users SET role='admin' WHERE id='${admin.user.id}'`);
+  await db.execute(
+    `UPDATE users SET is_super_admin=true WHERE id='${admin.user.id}'`,
+  );
 });
 afterAll(async () => {
   await app?.close();
@@ -120,7 +122,7 @@ test("only active administrators can list data or mutate it; signup cannot set r
       })
     ).status,
   ).toBe(400);
-  expect((await req("/me", admin.sessionToken)).body.role).toBe("admin");
+  expect((await req("/me", admin.sessionToken)).body.isSuperAdmin).toBe(true);
 });
 test("admin lists are paginated/searchable and never expose secrets", async () => {
   const r = await req(
@@ -285,9 +287,13 @@ test("closing a room invalidates invitations, leases and media, with an auditabl
   );
 });
 test("administrator status is checked on every request", async () => {
-  await db.execute(`UPDATE users SET role='user' WHERE id='${admin.user.id}'`);
+  await db.execute(
+    `UPDATE users SET is_super_admin=false WHERE id='${admin.user.id}'`,
+  );
   expect((await req("/admin/overview", admin.sessionToken)).status).toBe(403);
-  await db.execute(`UPDATE users SET role='admin' WHERE id='${admin.user.id}'`);
+  await db.execute(
+    `UPDATE users SET is_super_admin=true WHERE id='${admin.user.id}'`,
+  );
 });
 
 test("administrator share revocation removes native ingress and source permissions while retaining the room", async () => {

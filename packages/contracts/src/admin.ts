@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { accountRoleSchema, adminPermissionSchema } from "./permissions";
 export const adminQuery = z.object({
   q: z.string().trim().max(100).default(""),
   page: z.coerce.number().int().min(1).max(100000).default(1),
@@ -11,7 +12,8 @@ export const adminUserSchema = z.object({
   id: z.uuid(),
   username: z.string(),
   displayName: z.string(),
-  role: z.enum(["user", "admin"]),
+  isSuperAdmin: z.boolean(),
+  roles: z.array(accountRoleSchema),
   disabledAt: z.string().nullable(),
   createdAt: z.string(),
   activeSessions: z.number(),
@@ -61,3 +63,46 @@ export type AdminUser = z.infer<typeof adminUserSchema>;
 export type AdminRoom = z.infer<typeof adminRoomSchema>;
 export type AdminAudit = z.infer<typeof adminAuditSchema>;
 export type AdminOverview = z.infer<typeof adminOverviewSchema>;
+
+export const adminRoleSchema = z.object({
+  id: z.uuid(),
+  name: z.string(),
+  permissions: z.array(adminPermissionSchema),
+  builtIn: z.boolean(),
+  memberCount: z.number(),
+  createdAt: z.string(),
+});
+export const adminRolesSchema = z.object({ items: z.array(adminRoleSchema) });
+export const adminRoleInput = z
+  .strictObject({
+    name: z.string().trim().min(1).max(32),
+    permissions: z
+      .array(adminPermissionSchema)
+      .min(1)
+      .max(6)
+      .refine((p) => new Set(p).size === p.length, "权限不能重复"),
+    reason: adminReason.shape.reason,
+  })
+  .superRefine((value, ctx) => {
+    for (const [manage, read] of [
+      ["users.manage", "users.read"],
+      ["rooms.manage", "rooms.read"],
+    ] as const)
+      if (
+        value.permissions.includes(manage) &&
+        !value.permissions.includes(read)
+      )
+        ctx.addIssue({
+          code: "custom",
+          path: ["permissions"],
+          message: "管理权限需要同时包含对应的查看权限",
+        });
+  });
+export const adminRoleAssignment = z.strictObject({
+  roleIds: z
+    .array(z.uuid().toLowerCase())
+    .max(20)
+    .refine((ids) => new Set(ids).size === ids.length, "角色不能重复"),
+  reason: adminReason.shape.reason,
+});
+export type AdminRole = z.infer<typeof adminRoleSchema>;

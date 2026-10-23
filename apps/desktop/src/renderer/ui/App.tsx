@@ -19,6 +19,7 @@ import { Home } from "./Home";
 import { Room } from "./Room";
 import { Feedback } from "./Feedback";
 import { AppSurface } from "./styles";
+import { hasAdminAccess } from "@cinegather/contracts";
 import { capabilities } from "../platform";
 import { matchesShortcut } from "../../shared/shortcuts";
 const roomStates: Record<string, string> = {
@@ -174,7 +175,7 @@ export function App() {
           mode="inline"
           selectedKeys={admin ? ["admin"] : app.room && !home ? [] : ["home"]}
           items={[
-            ...(app.user?.role === "admin"
+            ...(hasAdminAccess(app.user)
               ? [
                   {
                     key: "admin",

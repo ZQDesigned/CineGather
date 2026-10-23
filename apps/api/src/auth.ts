@@ -5,6 +5,7 @@ import { and, eq, gt, isNull } from "drizzle-orm";
 import { db, hash, audit } from "./context";
 import { fail } from "./errors";
 import { media } from "./media";
+import { readAccess } from "./access";
 import type { User } from "@cinegather/contracts";
 export async function authenticate(
   authorization?: string,
@@ -16,7 +17,7 @@ export async function authenticate(
       id: users.id,
       displayName: users.displayName,
       username: users.username,
-      role: users.role,
+      isSuperAdmin: users.isSuperAdmin,
       disabledAt: users.disabledAt,
       kind: credentials.kind,
       revokedAt: credentials.revokedAt,
@@ -37,7 +38,7 @@ export async function authenticate(
     id: user.id,
     displayName: user.displayName,
     username: user.username,
-    role: user.role as "user" | "admin",
+    ...(await readAccess(db, user.id, user.isSuperAdmin)),
     credentialId: user.credentialId,
   };
 }

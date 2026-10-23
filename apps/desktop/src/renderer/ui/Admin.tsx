@@ -14,11 +14,12 @@ import {
   Tabs,
   Tag,
   Tooltip,
+  Descriptions,
 } from "antd";
 import type { TableColumnsType } from "antd";
 import styled from "@emotion/styled";
 import { useEffect, useRef, useState } from "react";
-import { RefreshCw } from "lucide-react";
+import { RefreshCw, Copy } from "lucide-react";
 import { unwrap } from "@cinegather/api-client";
 import type {
   AdminAudit,
@@ -26,7 +27,9 @@ import type {
   AdminRoom,
   AdminUser,
 } from "@cinegather/contracts";
-import { api, report } from "../controller";
+import { hasAdminAccess, hasAdminPermission } from "@cinegather/contracts";
+import { RoleManagement, UserRolesDialog } from "./AdminRoles";
+import { api, report, copyText } from "../controller";
 import { useApp } from "../store";
 const Surface = styled.section`
   flex: 1;
@@ -111,6 +114,12 @@ const actionNames: Record<string, string> = {
   "admin.share_revoked": "停止共享",
   "admin.role_granted": "授予管理员",
   "admin.role_revoked": "撤销管理员",
+  "admin.superadmin_granted": "授予超级管理员",
+  "admin.superadmin_revoked": "撤销超级管理员",
+  "admin.role_created": "创建角色",
+  "admin.role_updated": "更新角色",
+  "admin.role_deleted": "删除角色",
+  "admin.user_roles_assigned": "分配管理角色",
 };
 type Operation =
   | { kind: "disable" | "enable" | "revoke-sessions"; user: AdminUser }
@@ -127,7 +136,7 @@ const date = (value: string) =>
   new Date(value).toLocaleString("zh-CN", { hour12: false });
 export function Admin({ onHome }: { onHome: () => void }) {
   const user = useApp((s) => s.user);
-  return user?.role !== "admin" ? (
+  return !hasAdminAccess(user) ? (
     <Result
       status="403"
       title="需要管理员权限"
@@ -140,9 +149,31 @@ export function Admin({ onHome }: { onHome: () => void }) {
 }
 function AdminPanel() {
   const { message } = App.useApp();
+  const user = useApp((s) => s.user);
+  const canOverview = hasAdminPermission(user, "overview.read");
+  const canUsers = hasAdminPermission(user, "users.read"),
+    canManageUsers = hasAdminPermission(user, "users.manage");
+  const canRooms = hasAdminPermission(user, "rooms.read"),
+    canManageRooms = hasAdminPermission(user, "rooms.manage");
+  const canAudit = hasAdminPermission(user, "audit.read"),
+    isSuper = !!user?.isSuperAdmin;
+  const allowedTabs = [
+    ...(canUsers ? [{ key: "users", label: "用户管理" }] : []),
+    ...(canRooms ? [{ key: "rooms", label: "房间管理" }] : []),
+    ...(canAudit ? [{ key: "audit", label: "操作记录" }] : []),
+    ...(isSuper ? [{ key: "roles", label: "角色管理" }] : []),
+  ];
+  if (!allowedTabs.length && canOverview)
+    allowedTabs.push({ key: "overview", label: "概览" });
+  const accessKey = JSON.stringify([user?.isSuperAdmin, user?.permissions]);
+  const [roleTarget, setRoleTarget] = useState<AdminUser>(),
+    [rolesOpen, setRolesOpen] = useState(false);
   const [tab, setTab] = useState("users"),
     [search, setSearch] = useState(""),
     [draft, setDraft] = useState("");
+  const activeTab = allowedTabs.some((t) => t.key === tab)
+    ? tab
+    : (allowedTabs[0]?.key ?? "overview");
   const [page, setPage] = useState(1),
     [pageSize, setPageSize] = useState(20),
     [revision, setRevision] = useState(0);
@@ -175,19 +206,23 @@ function AdminPanel() {
     const params = { query: { q: search, page, pageSize } };
     async function load() {
       const [summary, result] = await Promise.all([
-        api.GET("/api/v1/admin/overview").then(unwrap),
-        tab === "users"
+        canOverview
+          ? api.GET("/api/v1/admin/overview").then(unwrap)
+          : Promise.resolve(undefined),
+        activeTab === "users"
           ? api.GET("/api/v1/admin/users", { params }).then(unwrap)
-          : tab === "rooms"
+          : activeTab === "rooms"
             ? api.GET("/api/v1/admin/rooms", { params }).then(unwrap)
-            : api.GET("/api/v1/admin/audit", { params }).then(unwrap),
+            : activeTab === "audit"
+              ? api.GET("/api/v1/admin/audit", { params }).then(unwrap)
+              : Promise.resolve({ items: [], total: 0 }),
       ]);
       if (!active) return;
       setOverview(summary);
       setTotal(result.total);
-      if (tab === "users") setAccounts(result.items as AdminUser[]);
-      else if (tab === "rooms") setRooms(result.items as AdminRoom[]);
-      else setLogs(result.items as AdminAudit[]);
+      if (activeTab === "users") setAccounts(result.items as AdminUser[]);
+      else if (activeTab === "rooms") setRooms(result.items as AdminRoom[]);
+      else if (activeTab === "audit") setLogs(result.items as AdminAudit[]);
     }
     void load()
       .catch((e) => {
@@ -202,7 +237,7 @@ function AdminPanel() {
     return () => {
       active = false;
     };
-  }, [tab, search, page, pageSize, revision]);
+  }, [activeTab, search, page, pageSize, revision, accessKey, canOverview]);
   const confirm = (op: Operation) => {
     form.resetFields();
     setOperation(op);
@@ -260,7 +295,20 @@ function AdminPanel() {
       render: (_, u) => (
         <>
           <strong className="admin-user-name">{u.displayName}</strong>
-          <span className="admin-muted">{u.username}</span>
+          <span className="admin-muted">
+            {u.username}
+            <Tooltip title={u.id}>
+              <Button
+                size="small"
+                type="text"
+                aria-label="复制用户 ID"
+                icon={<Copy size={12} />}
+                onClick={() =>
+                  void copyText(u.id, "用户 ID 已复制").catch(report)
+                }
+              />
+            </Tooltip>
+          </span>
         </>
       ),
     },
@@ -276,43 +324,75 @@ function AdminPanel() {
     },
     {
       title: "角色",
-      dataIndex: "role",
-      width: 95,
-      render: (r) => (r === "admin" ? "管理员" : "用户"),
+      key: "roles",
+      width: 160,
+      render: (_, u) =>
+        u.isSuperAdmin ? (
+          <Tag color="purple">超级管理员</Tag>
+        ) : u.roles.length ? (
+          <Tooltip title={u.roles.map((r) => r.name).join("、")}>
+            <span>
+              {u.roles.slice(0, 2).map((r) => (
+                <Tag key={r.id}>{r.name}</Tag>
+              ))}
+              {u.roles.length > 2 ? `+${u.roles.length - 2}` : null}
+            </span>
+          </Tooltip>
+        ) : (
+          "普通用户"
+        ),
     },
     { title: "有效登录", dataIndex: "activeSessions", width: 90 },
     { title: "注册时间", dataIndex: "createdAt", width: 175, render: date },
     {
       title: "操作",
       key: "actions",
-      width: 195,
+      width: isSuper ? 270 : 195,
       fixed: "right",
-      render: (_, u) =>
-        u.role === "admin" ? (
-          <Tooltip title="管理员权限通过本机命令维护">
-            <span className="admin-muted">管理账号</span>
-          </Tooltip>
-        ) : (
-          <Space size={0}>
+      render: (_, u) => (
+        <Space size={0}>
+          {isSuper && !u.isSuperAdmin && (
             <Button
               size="small"
               type="link"
-              danger={!u.disabledAt}
-              onClick={() =>
-                confirm({ kind: u.disabledAt ? "enable" : "disable", user: u })
-              }
+              onClick={() => {
+                setRoleTarget(u);
+                setRolesOpen(true);
+              }}
             >
-              {u.disabledAt ? "启用" : "停用"}
+              分配角色
             </Button>
-            <Button
-              size="small"
-              type="link"
-              onClick={() => confirm({ kind: "revoke-sessions", user: u })}
-            >
-              撤销登录
-            </Button>
-          </Space>
-        ),
+          )}
+          {u.isSuperAdmin ? (
+            <span className="admin-muted">服务端维护</span>
+          ) : !canManageUsers ? null : u.roles.length && !isSuper ? (
+            <span className="admin-muted">无权操作</span>
+          ) : (
+            <>
+              <Button
+                size="small"
+                type="link"
+                danger={!u.disabledAt}
+                onClick={() =>
+                  confirm({
+                    kind: u.disabledAt ? "enable" : "disable",
+                    user: u,
+                  })
+                }
+              >
+                {u.disabledAt ? "启用" : "停用"}
+              </Button>
+              <Button
+                size="small"
+                type="link"
+                onClick={() => confirm({ kind: "revoke-sessions", user: u })}
+              >
+                撤销登录
+              </Button>
+            </>
+          )}
+        </Space>
+      ),
     },
   ];
   const roomColumns: TableColumnsType<AdminRoom> = [
@@ -365,8 +445,10 @@ function AdminPanel() {
       fixed: "right",
       width: 195,
       render: (_, r) =>
-        r.status === "closed" ? (
-          <span className="admin-muted">已结束</span>
+        r.status === "closed" || !canManageRooms ? (
+          <span className="admin-muted">
+            {r.status === "closed" ? "已结束" : "仅可查看"}
+          </span>
         ) : (
           <Space size={0}>
             <Button
@@ -418,16 +500,18 @@ function AdminPanel() {
       <div className="admin-heading">
         <h1>管理后台</h1>
         <Space>
-          <Badge
-            status={overview?.service === "available" ? "success" : "warning"}
-            text={
-              overview?.service === "available"
-                ? "服务正常"
-                : overview
-                  ? "部分服务暂不可用"
-                  : "正在检查服务"
-            }
-          />
+          {canOverview && (
+            <Badge
+              status={overview?.service === "available" ? "success" : "warning"}
+              text={
+                overview?.service === "available"
+                  ? "服务正常"
+                  : overview
+                    ? "部分服务暂不可用"
+                    : "正在检查服务"
+              }
+            />
+          )}
           <Button
             icon={<RefreshCw size={15} />}
             loading={loading}
@@ -449,26 +533,24 @@ function AdminPanel() {
           }
         />
       )}
-      <div className="admin-stats">
-        {[
-          ["注册账号", overview?.accounts],
-          ["停用账号", overview?.disabledAccounts],
-          ["开放房间", overview?.activeRooms],
-          ["有效登录", overview?.activeSessions],
-        ].map(([title, value]) => (
-          <Card key={title}>
-            <Statistic title={title} value={value ?? "—"} />
-          </Card>
-        ))}
-      </div>
+      {canOverview && (
+        <div className="admin-stats">
+          {[
+            ["注册账号", overview?.accounts],
+            ["停用账号", overview?.disabledAccounts],
+            ["开放房间", overview?.activeRooms],
+            ["有效登录", overview?.activeSessions],
+          ].map(([title, value]) => (
+            <Card key={title}>
+              <Statistic title={title} value={value ?? "—"} />
+            </Card>
+          ))}
+        </div>
+      )}
       <div className="admin-toolbar">
         <Tabs
-          activeKey={tab}
-          items={[
-            { key: "users", label: "用户管理" },
-            { key: "rooms", label: "房间管理" },
-            { key: "audit", label: "操作记录" },
-          ]}
+          activeKey={activeTab}
+          items={allowedTabs}
           onChange={(key) => {
             setTab(key);
             setPage(1);
@@ -476,27 +558,56 @@ function AdminPanel() {
             setDraft("");
           }}
         />
-        <Input.Search
-          aria-label="搜索管理数据"
-          placeholder={
-            tab === "users"
-              ? "搜索用户名或昵称"
-              : tab === "rooms"
-                ? "搜索房间名或房间号"
-                : "搜索操作人或对象"
-          }
-          allowClear
-          value={draft}
-          maxLength={100}
-          onChange={(e) => setDraft(e.target.value)}
-          onSearch={(value) => {
-            setSearch(value.trim());
-            setPage(1);
-          }}
-        />
+        {activeTab !== "overview" && (
+          <Input.Search
+            aria-label="搜索管理数据"
+            placeholder={
+              activeTab === "users"
+                ? "搜索用户名或昵称"
+                : activeTab === "rooms"
+                  ? "搜索房间名或房间号"
+                  : activeTab === "roles"
+                    ? "搜索角色名称"
+                    : "搜索操作人或对象"
+            }
+            allowClear
+            value={draft}
+            maxLength={100}
+            onChange={(e) => setDraft(e.target.value)}
+            onSearch={(value) => {
+              setSearch(value.trim());
+              setPage(1);
+            }}
+          />
+        )}
       </div>
       <div className="admin-table" ref={tableRef}>
-        {tab === "users" ? (
+        {activeTab === "roles" ? (
+          <RoleManagement
+            revision={revision}
+            search={search}
+            height={tableHeight}
+            onChanged={() => setRevision((r) => r + 1)}
+          />
+        ) : activeTab === "overview" ? (
+          <Card title="服务状态">
+            <Descriptions
+              items={[
+                {
+                  key: "status",
+                  label: "服务",
+                  children:
+                    overview?.service === "available" ? "正常" : "暂不可用",
+                },
+                {
+                  key: "version",
+                  label: "版本",
+                  children: overview?.version ?? "—",
+                },
+              ]}
+            />
+          </Card>
+        ) : activeTab === "users" ? (
           <Table<AdminUser>
             rowKey="id"
             columns={userColumns}
@@ -504,9 +615,9 @@ function AdminPanel() {
             loading={loading}
             pagination={pagination}
             size="small"
-            scroll={{ x: 850, y: tableHeight }}
+            scroll={{ x: isSuper ? 1030 : 950, y: tableHeight }}
           />
-        ) : tab === "rooms" ? (
+        ) : activeTab === "rooms" ? (
           <Table<AdminRoom>
             rowKey="id"
             columns={roomColumns}
@@ -528,6 +639,13 @@ function AdminPanel() {
           />
         )}
       </div>
+      <UserRolesDialog
+        user={roleTarget}
+        open={rolesOpen && isSuper}
+        onClose={() => setRolesOpen(false)}
+        afterClose={() => setRoleTarget(undefined)}
+        onChanged={() => setRevision((r) => r + 1)}
+      />
       <Modal
         open={open}
         title={operation ? operationName(operation) : "确认操作"}

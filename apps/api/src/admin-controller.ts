@@ -11,17 +11,27 @@ import {
 import { ApiBearerAuth, ApiQuery } from "@nestjs/swagger";
 import * as c from "@cinegather/contracts";
 import * as admin from "./admin";
-import { Endpoint, parse, AdminGuard, type AuthRequest } from "./http";
+import * as roles from "./roles";
+import {
+  Endpoint,
+  parse,
+  AdminGuard,
+  RequireAdminPermission,
+  SuperAdminOnly,
+  type AuthRequest,
+} from "./http";
 @ApiBearerAuth()
 @Controller("api/v1/admin")
 @UseGuards(AdminGuard)
 export class AdminController {
   @Get("overview")
+  @RequireAdminPermission("overview.read")
   @Endpoint("adminOverview", c.adminOverviewSchema)
   overview() {
     return admin.overview();
   }
   @Get("users")
+  @RequireAdminPermission("users.read")
   @ApiQuery({ name: "q", required: false })
   @ApiQuery({ name: "page", required: false, type: Number })
   @ApiQuery({ name: "pageSize", required: false, type: Number })
@@ -30,6 +40,7 @@ export class AdminController {
     return admin.listUsers(parse(c.adminQuery, query));
   }
   @Get("rooms")
+  @RequireAdminPermission("rooms.read")
   @ApiQuery({ name: "q", required: false })
   @ApiQuery({ name: "page", required: false, type: Number })
   @ApiQuery({ name: "pageSize", required: false, type: Number })
@@ -38,6 +49,7 @@ export class AdminController {
     return admin.listRooms(parse(c.adminQuery, query));
   }
   @Get("audit")
+  @RequireAdminPermission("audit.read")
   @ApiQuery({ name: "q", required: false })
   @ApiQuery({ name: "page", required: false, type: Number })
   @ApiQuery({ name: "pageSize", required: false, type: Number })
@@ -46,6 +58,7 @@ export class AdminController {
     return admin.listAudit(parse(c.adminQuery, query));
   }
   @Post("users/:userId/disable")
+  @RequireAdminPermission("users.manage")
   @Endpoint("adminDisableUser", c.okSchema, c.adminReason, ["userId"], 201)
   disable(
     @Req() req: AuthRequest,
@@ -60,6 +73,7 @@ export class AdminController {
     );
   }
   @Post("users/:userId/enable")
+  @RequireAdminPermission("users.manage")
   @Endpoint("adminEnableUser", c.okSchema, c.adminReason, ["userId"], 201)
   enable(
     @Req() req: AuthRequest,
@@ -74,6 +88,7 @@ export class AdminController {
     );
   }
   @Post("users/:userId/revoke-sessions")
+  @RequireAdminPermission("users.manage")
   @Endpoint("adminRevokeSessions", c.okSchema, c.adminReason, ["userId"], 201)
   revoke(
     @Req() req: AuthRequest,
@@ -88,6 +103,7 @@ export class AdminController {
     );
   }
   @Post("rooms/:roomId/close")
+  @RequireAdminPermission("rooms.manage")
   @Endpoint("adminCloseRoom", c.okSchema, c.adminReason, ["roomId"], 201)
   close(
     @Req() req: AuthRequest,
@@ -102,6 +118,7 @@ export class AdminController {
     );
   }
   @Post("rooms/:roomId/revoke-share")
+  @RequireAdminPermission("rooms.manage")
   @Endpoint("adminRevokeShare", c.okSchema, c.adminReason, ["roomId"], 201)
   share(
     @Req() req: AuthRequest,
@@ -114,5 +131,59 @@ export class AdminController {
       "revoke-share",
       parse(c.adminReason, body).reason,
     );
+  }
+  @Get("roles")
+  @SuperAdminOnly()
+  @Endpoint("adminRoles", c.adminRolesSchema)
+  roles() {
+    return roles.listRoles();
+  }
+  @Post("roles")
+  @SuperAdminOnly()
+  @Endpoint("adminCreateRole", c.adminRoleSchema, c.adminRoleInput, [], 201)
+  createRole(@Req() req: AuthRequest, @Body() body: unknown) {
+    return roles.createRole(req.user, parse(c.adminRoleInput, body));
+  }
+  @Post("roles/:roleId")
+  @SuperAdminOnly()
+  @Endpoint(
+    "adminUpdateRole",
+    c.adminRoleSchema,
+    c.adminRoleInput,
+    ["roleId"],
+    201,
+  )
+  updateRole(
+    @Req() req: AuthRequest,
+    @Param("roleId") id: string,
+    @Body() body: unknown,
+  ) {
+    return roles.updateRole(req.user, id, parse(c.adminRoleInput, body));
+  }
+  @Post("roles/:roleId/delete")
+  @SuperAdminOnly()
+  @Endpoint("adminDeleteRole", c.okSchema, c.adminReason, ["roleId"], 201)
+  deleteRole(
+    @Req() req: AuthRequest,
+    @Param("roleId") id: string,
+    @Body() body: unknown,
+  ) {
+    return roles.deleteRole(req.user, id, parse(c.adminReason, body).reason);
+  }
+  @Post("users/:userId/roles")
+  @SuperAdminOnly()
+  @Endpoint(
+    "adminAssignRoles",
+    c.okSchema,
+    c.adminRoleAssignment,
+    ["userId"],
+    201,
+  )
+  assignRoles(
+    @Req() req: AuthRequest,
+    @Param("userId") id: string,
+    @Body() body: unknown,
+  ) {
+    return roles.assignRoles(req.user, id, parse(c.adminRoleAssignment, body));
   }
 }

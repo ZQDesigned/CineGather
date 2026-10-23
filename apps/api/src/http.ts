@@ -1,5 +1,6 @@
 import {
   applyDecorators,
+  SetMetadata,
   Catch,
   HttpException,
   type ArgumentsHost,
@@ -16,7 +17,11 @@ import {
 } from "@nestjs/swagger";
 import { z } from "zod";
 import type { Request, Response } from "express";
-import type { User } from "@cinegather/contracts";
+import {
+  hasAdminPermission,
+  type User,
+  type AdminPermission,
+} from "@cinegather/contracts";
 import { authenticate } from "./auth";
 import { fail } from "./errors";
 export type AuthRequest = Request & {
@@ -124,17 +129,33 @@ export class AuthGuard implements CanActivate {
       id: identity.id,
       displayName: identity.displayName,
       username: identity.username,
-      role: identity.role,
+      isSuperAdmin: identity.isSuperAdmin,
+      roles: identity.roles,
+      permissions: identity.permissions,
     };
     req.sessionId = identity.credentialId;
     return true;
   }
 }
+const permissionKey = "cinegather.admin.permission";
+const superKey = "cinegather.admin.super";
+export const RequireAdminPermission = (permission: AdminPermission) =>
+  SetMetadata(permissionKey, permission);
+export const SuperAdminOnly = () => SetMetadata(superKey, true);
 export class AdminGuard implements CanActivate {
   canActivate(context: ExecutionContext) {
-    const req = context.switchToHttp().getRequest<AuthRequest>();
-    if (req.user?.role !== "admin")
-      fail(403, "ADMIN_REQUIRED", "仅管理员可以访问管理端");
+    const user = context.switchToHttp().getRequest<AuthRequest>().user;
+    if (Reflect.getMetadata(superKey, context.getHandler())) {
+      if (!user?.isSuperAdmin)
+        fail(403, "SUPERADMIN_REQUIRED", "仅超级管理员可以管理角色和授权");
+    } else {
+      const permission = Reflect.getMetadata(
+        permissionKey,
+        context.getHandler(),
+      ) as AdminPermission | undefined;
+      if (!permission || !hasAdminPermission(user, permission))
+        fail(403, "PERMISSION_DENIED", "没有访问此管理功能的权限");
+    }
     return true;
   }
 }

@@ -6,9 +6,13 @@ import {
   members,
   leases,
   auditLogs,
-  type Transaction,
 } from "@cinegather/database";
-import type { AdminQuery, User } from "@cinegather/contracts";
+import {
+  hasAdminAccess,
+  type AdminQuery,
+  type User,
+} from "@cinegather/contracts";
+import { requireManagement, readAccess, rolesForUsers } from "./access";
 import { db, audit } from "./context";
 import { fail, uuid } from "./errors";
 import { clearUserMedia } from "./auth";
@@ -24,20 +28,6 @@ const activeCredentials = and(
 );
 // Escape LIKE syntax so a search is a literal substring, not a wildcard query.
 const pattern = (value: string) => `%${value.replace(/[\\%_]/g, "\\$&")}%`;
-async function requireAdmin(tx: Transaction, actor: User) {
-  const [current] = await tx
-    .select()
-    .from(users)
-    .where(eq(users.id, actor.id))
-    .for("share");
-  if (
-    !current ||
-    current.role !== "admin" ||
-    current.disabledAt ||
-    !current.username
-  )
-    fail(403, "ADMIN_REQUIRED", "仅管理员可以执行此操作");
-}
 export async function overview() {
   const [[accounts], [disabled], [activeRooms], [sessions], available] =
     await Promise.all([
@@ -82,7 +72,7 @@ export async function listUsers(query: AdminQuery) {
         id: users.id,
         username: users.username,
         displayName: users.displayName,
-        role: users.role,
+        isSuperAdmin: users.isSuperAdmin,
         disabledAt: users.disabledAt,
         createdAt: users.createdAt,
         activeSessions:
@@ -97,8 +87,15 @@ export async function listUsers(query: AdminQuery) {
       .offset((query.page - 1) * query.pageSize),
     db.select({ value: count }).from(users).where(where),
   ]);
+  const assigned = await rolesForUsers(
+    db,
+    items.map((u) => u.id),
+  );
   return {
     items: items.map((u) => ({
+      roles: assigned
+        .filter((r) => r.userId === u.id)
+        .map(({ id, name }) => ({ id, name })),
       ...u,
       createdAt: u.createdAt.toISOString(),
       disabledAt: u.disabledAt?.toISOString() ?? null,
@@ -202,21 +199,19 @@ export async function manageUser(
 ) {
   id = uuid(id);
   await db.transaction(async (tx) => {
-    const [protectedTarget] = await tx
-      .select({ role: users.role })
-      .from(users)
-      .where(eq(users.id, id));
-    if (protectedTarget?.role === "admin")
-      fail(409, "ADMIN_PROTECTED", "管理员账号请通过本机管理命令维护");
-    await requireAdmin(tx, actor);
+    const access = await requireManagement(tx, actor.id, "users.manage");
+    const [candidate] = await tx.select().from(users).where(eq(users.id, id));
+    if (!candidate?.username) fail(404, "USER_NOT_FOUND", "账号不存在");
+    const targetAccess = await readAccess(tx, id, candidate.isSuperAdmin);
+    if (candidate.isSuperAdmin)
+      fail(409, "SUPERADMIN_PROTECTED", "超级管理员只能通过服务端命令维护");
+    if (hasAdminAccess(targetAccess) && !access.isSuperAdmin)
+      fail(409, "ADMIN_PROTECTED", "普通管理员不能管理具有管理权限的账号");
     const [target] = await tx
       .select()
       .from(users)
       .where(eq(users.id, id))
       .for("update");
-    if (!target?.username) fail(404, "USER_NOT_FOUND", "账号不存在");
-    if (target.role === "admin")
-      fail(409, "ADMIN_PROTECTED", "管理员账号请通过本机管理命令维护");
     if (action !== "revoke-sessions")
       await tx
         .update(users)
@@ -228,7 +223,7 @@ export async function manageUser(
         .set({ revokedAt: new Date() })
         .where(and(eq(credentials.userId, id), isNull(credentials.revokedAt)));
     await audit(tx, actor.id, `admin.user_${action.replaceAll("-", "_")}`, id, {
-      targetName: target.username,
+      targetName: target!.username,
       reason,
     });
   });
@@ -245,7 +240,7 @@ export async function manageRoom(
 ) {
   id = uuid(id);
   await db.transaction(async (tx) => {
-    await requireAdmin(tx, actor);
+    await requireManagement(tx, actor.id, "rooms.manage");
     const [room] = await tx
       .select()
       .from(rooms)

@@ -42,11 +42,9 @@ test("admin can search users, confirm account actions, close rooms and inspect a
   };
   const administrator = await create("owner"),
     member = await create("member");
-  execFileSync(
-    "bun",
-    ["tools/admin.ts", "grant", administrator.user.username],
-    { stdio: "pipe" },
-  );
+  execFileSync("bun", ["tools/superadmin.ts", "grant", administrator.user.id], {
+    stdio: "pipe",
+  });
   const headers = { Authorization: `Bearer ${member.sessionToken}` };
   const room = await (
     await page.request.post(`${api}/rooms`, {
@@ -168,7 +166,9 @@ test("disabling an account removes its live media and explains why it must log i
       },
     })
   ).json();
-  execFileSync("bun", ["tools/admin.ts", "grant", username], { stdio: "pipe" });
+  execFileSync("bun", ["tools/superadmin.ts", "grant", administrator.user.id], {
+    stdio: "pipe",
+  });
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("在线停用验证");
   await page.getByRole("button", { name: "创建并进入", exact: true }).click();

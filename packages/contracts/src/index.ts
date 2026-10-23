@@ -1,4 +1,6 @@
 export * from "./admin";
+export * from "./permissions";
+import { accountRoleSchema, adminPermissionSchema } from "./permissions";
 import { z } from "zod";
 
 export const usernameInput = z
@@ -69,7 +71,9 @@ export const userSchema = z.object({
   id: z.uuid(),
   displayName: z.string(),
   username: z.string().nullable().optional(),
-  role: z.enum(["user", "admin"]).optional(),
+  isSuperAdmin: z.boolean().optional(),
+  roles: z.array(accountRoleSchema).optional(),
+  permissions: z.array(adminPermissionSchema).optional(),
 });
 export const roomSchema = z.object({
   id: z.uuid(),

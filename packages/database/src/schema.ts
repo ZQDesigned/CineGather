@@ -1,6 +1,7 @@
 import { sql } from "drizzle-orm";
 import {
   pgTable,
+  boolean,
   uuid,
   text,
   timestamp,
@@ -18,10 +19,33 @@ export const users = pgTable("users", {
   displayName: text("display_name").notNull(),
   username: text("username").unique(),
   passwordHash: text("password_hash"),
-  role: text("role").notNull().default("user"),
+  isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   disabledAt: time("disabled_at"),
   createdAt: time("created_at").notNull().defaultNow(),
 });
+export const adminRoles = pgTable("admin_roles", {
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull().unique(),
+  permissions: jsonb("permissions").$type<string[]>().notNull(),
+  builtIn: boolean("built_in").notNull().default(false),
+  createdAt: time("created_at").notNull().defaultNow(),
+  updatedAt: time("updated_at").notNull().defaultNow(),
+});
+export const userRoles = pgTable(
+  "user_roles",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    roleId: uuid("role_id")
+      .notNull()
+      .references(() => adminRoles.id, { onDelete: "cascade" }),
+  },
+  (t) => [
+    primaryKey({ columns: [t.userId, t.roleId] }),
+    index("user_roles_role_idx").on(t.roleId),
+  ],
+);
 export const credentials = pgTable("user_credentials", {
   id: uuid("id").primaryKey(),
   userId: uuid("user_id")

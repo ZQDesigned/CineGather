@@ -334,12 +334,18 @@ export async function initialize() {
     unsubscribe?.();
   };
 }
+let syncingRooms = false;
 async function syncRooms() {
-  if (!sessionToken || !state().user || changingCredentials) return;
+  if (syncingRooms || !sessionToken || !state().user || changingCredentials)
+    return;
+  syncingRooms = true;
   const identity = sessionToken;
   const { room, roomRevision } = state();
   try {
     await refreshRooms();
+    const user = unwrap(await api.GET("/api/v1/me"));
+    if (identity !== sessionToken) return;
+    update({ user });
     if (!room || !["connected", "reconnecting"].includes(state().roomState))
       return;
     const current = unwrap(
@@ -362,6 +368,8 @@ async function syncRooms() {
       [403, 404].includes(error.status)
     )
       await handleRemoteRemoval().catch(report);
+  } finally {
+    syncingRooms = false;
   }
 }
 async function acceptSession(data: { user: User; sessionToken: string }) {

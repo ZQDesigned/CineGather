@@ -10,6 +10,7 @@ import {
   verifyAccountPassword,
   dummyAccountHash,
 } from "./account-passwords";
+import { readAccess } from "./access";
 const failures = new Map<string, { count: number; until: number }>();
 async function session(tx: Transaction, user: User) {
   const sessionToken = token();
@@ -23,12 +24,15 @@ async function session(tx: Transaction, user: User) {
   });
   return { user, sessionToken, expiresAt: expiresAt.toISOString() };
 }
-function publicUser(user: typeof users.$inferSelect): User {
+async function publicUser(
+  tx: Transaction,
+  user: typeof users.$inferSelect,
+): Promise<User> {
   return {
     id: user.id,
     displayName: user.displayName,
     username: user.username,
-    role: user.role as "user" | "admin",
+    ...(await readAccess(tx, user.id, user.isSuperAdmin)),
   };
 }
 function uniqueConflict(error: unknown): boolean {
@@ -55,7 +59,7 @@ export async function registerAccount(
           passwordHash,
         })
         .returning();
-      const result = await session(tx, publicUser(stored!));
+      const result = await session(tx, await publicUser(tx, stored!));
       await audit(tx, stored!.id, "account.registered", stored!.id);
       return result;
     });
@@ -107,7 +111,7 @@ export async function loginAccount(
     if (current.disabledAt)
       fail(403, "ACCOUNT_DISABLED", "账号已停用，请联系管理员");
     failures.delete(key);
-    const result = await session(tx, publicUser(current));
+    const result = await session(tx, await publicUser(tx, current));
     await audit(tx, current.id, "account.logged_in", current.id);
     return result;
   });
@@ -147,7 +151,7 @@ export async function changeAccountPassword(
         and(eq(credentials.userId, user.id), isNull(credentials.revokedAt)),
       );
     await audit(tx, user.id, "account.password_changed", user.id);
-    return session(tx, publicUser(current!));
+    return session(tx, await publicUser(tx, current!));
   });
   await clearUserMedia(user.id);
   return result;

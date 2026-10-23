@@ -1,21 +1,21 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNotNull, isNull, sql } from "drizzle-orm";
+import { z } from "zod";
 import {
   createDatabase,
   users,
   credentials,
   auditLogs,
 } from "@cinegather/database";
-import { usernameInput } from "@cinegather/contracts";
 const [command, argument, ...extra] = process.argv.slice(2);
-const parsed = usernameInput.safeParse(argument);
+const parsed = z.uuid().toLowerCase().safeParse(argument);
 if (
   !["grant", "revoke"].includes(command ?? "") ||
   !parsed.success ||
   extra.length
 ) {
   console.error(
-    "用法：bun run admin:grant <已注册用户名>，或 node apps/api/dist/admin-cli.js grant|revoke <已注册用户名>",
+    "用法：bun run superadmin:grant <用户ID> 或 bun run superadmin:revoke <用户ID>；生产环境：node apps/api/dist/admin-cli.js grant|revoke <用户ID>",
   );
   process.exit(1);
 }
@@ -27,27 +27,30 @@ try {
     const [target] = await tx
       .select()
       .from(users)
-      .where(eq(users.username, parsed.data))
+      .where(eq(users.id, parsed.data))
       .for("update");
-    if (!target?.passwordHash || target.disabledAt)
-      throw new Error("找不到可用的已注册账号，请先注册后再授权");
-    if (command === "revoke" && target.role === "admin") {
+    if (!target?.username || !target.passwordHash)
+      throw new Error("用户 ID 对应的已注册账号不存在");
+    if (command === "grant" && target.disabledAt)
+      throw new Error("不能向已停用的账号授予超级管理员权限");
+    if (command === "revoke" && target.isSuperAdmin && !target.disabledAt) {
       const others = await tx
         .select({ id: users.id })
         .from(users)
         .where(
           and(
-            eq(users.role, "admin"),
+            eq(users.isSuperAdmin, true),
             isNull(users.disabledAt),
             isNotNull(users.username),
+            isNotNull(users.passwordHash),
           ),
         );
       if (!others.some((u) => u.id !== target.id))
-        throw new Error("不能撤销最后一位可用管理员");
+        throw new Error("不能撤销最后一位可用的超级管理员");
     }
     await tx
       .update(users)
-      .set({ role: command === "grant" ? "admin" : "user" })
+      .set({ isSuperAdmin: command === "grant" })
       .where(eq(users.id, target.id));
     if (command === "revoke")
       await tx
@@ -57,18 +60,21 @@ try {
     await tx.insert(auditLogs).values({
       id: randomUUID(),
       actorId: null,
-      action: command === "grant" ? "admin.role_granted" : "admin.role_revoked",
+      action:
+        command === "grant"
+          ? "admin.superadmin_granted"
+          : "admin.superadmin_revoked",
       targetId: target.id,
-      details: { targetName: target.username, reason: "本机管理员命令" },
+      details: { targetName: target.username, reason: "服务端用户 ID 命令" },
     });
   });
   console.log(
     command === "grant"
-      ? "管理员权限已授予，请重新打开管理端。"
-      : "管理员权限及登录会话已撤销。",
+      ? "已按用户 ID 授予超级管理员权限。"
+      : "已撤销超级管理员权限及其登录会话，普通角色保持不变。",
   );
 } catch (error) {
-  console.error(error instanceof Error ? error.message : "管理员命令失败");
+  console.error(error instanceof Error ? error.message : "超级管理员命令失败");
   process.exitCode = 1;
 } finally {
   await pool.end();
