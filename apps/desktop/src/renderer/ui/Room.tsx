@@ -43,8 +43,14 @@ export function Room() {
     "active",
     "stopping",
   ].includes(app.shareState);
+  const sharingOwnScreen = sharing || Boolean(app.media.sharer?.local);
   const connected = app.roomState === "connected";
+  useEffect(() => {
+    if (sharingOwnScreen && document.fullscreenElement === stage.current)
+      void document.exitFullscreen().catch(actions.report);
+  }, [sharingOwnScreen]);
   const fullscreen = () => {
+    if (sharingOwnScreen) return;
     if (document.fullscreenElement) void document.exitFullscreen();
     else void stage.current?.requestFullscreen();
   };
@@ -148,17 +154,19 @@ export function Room() {
                 )}
               </div>
             )}
-            <Tooltip title="全屏画面">
-              <Button
-                type="text"
-                className="stage-fullscreen"
-                title="全屏画面"
-                aria-label="全屏画面"
-                onClick={fullscreen}
-              >
-                <Maximize size={17} />
-              </Button>
-            </Tooltip>
+            {!sharingOwnScreen && (
+              <Tooltip title="全屏画面">
+                <Button
+                  type="text"
+                  className="stage-fullscreen"
+                  title="全屏画面"
+                  aria-label="全屏画面"
+                  onClick={fullscreen}
+                >
+                  <Maximize size={17} />
+                </Button>
+              </Tooltip>
+            )}
           </div>
           {app.shareState === "active" && (
             <Alert

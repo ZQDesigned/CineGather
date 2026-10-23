@@ -69,14 +69,57 @@ test("film audio/video share one presentation element and removing audio keeps t
         });
         return new MediaStream([video, audio]);
       };
+      const fullscreen = {
+        requests: 0,
+        exits: 0,
+        element: null as Element | null,
+      };
+      Object.assign(window, { fullscreenProbe: fullscreen });
+      Object.defineProperty(document, "fullscreenElement", {
+        configurable: true,
+        get: () => fullscreen.element,
+      });
+      Element.prototype.requestFullscreen = async function () {
+        fullscreen.requests++;
+        fullscreen.element = this;
+      };
+      Document.prototype.exitFullscreen = async function () {
+        fullscreen.exits++;
+        fullscreen.element = null;
+      };
     });
+    // Starting a share while viewing the empty stage fullscreen must exit it.
+    await page.getByRole("button", { name: "全屏画面", exact: true }).click();
     for (let cycle = 0; cycle < 2; cycle++) {
       await page
         .getByRole("button", { name: "选择屏幕开始共享", exact: true })
         .click();
+      await expect(
+        page.getByRole("button", { name: "全屏画面", exact: true }),
+      ).toHaveCount(0);
+      expect(
+        await page.evaluate(() => document.fullscreenElement === null),
+      ).toBe(true);
       await page.getByRole("checkbox", { name: "共享系统声音" }).check();
       await page.getByRole("button", { name: "确认共享", exact: true }).click();
       await expect(viewer.locator(".video-label")).toContainText("含共享声音");
+      await expect(
+        page.getByRole("button", { name: "全屏画面", exact: true }),
+      ).toHaveCount(0);
+      await expect(
+        viewer.getByRole("button", { name: "全屏画面", exact: true }),
+      ).toBeEnabled();
+      await page.locator(".stage").dblclick();
+      expect(
+        await page.evaluate(
+          () =>
+            (
+              window as unknown as {
+                fullscreenProbe: { requests: number; exits: number };
+              }
+            ).fullscreenProbe,
+        ),
+      ).toMatchObject({ requests: 1, exits: 1 });
       await expect
         .poll(() =>
           viewer
@@ -107,9 +150,13 @@ test("film audio/video share one presentation element and removing audio keeps t
         .click();
       await expect(viewer.locator(".video-label")).toHaveCount(0);
       await expect(viewer.locator("video")).toHaveCount(1);
+      await expect(
+        page.getByRole("button", { name: "全屏画面", exact: true }),
+      ).toBeVisible();
     }
   } finally {
     await context.close();
+    await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   }
 });
