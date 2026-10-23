@@ -8,9 +8,11 @@ import {
   Settings,
   Radio,
   LogOut,
+  ShieldCheck,
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
+import { Admin } from "./Admin";
 import { Dialogs } from "./Dialogs";
 import { Welcome } from "./Welcome";
 import { Home } from "./Home";
@@ -31,6 +33,30 @@ const roomStates: Record<string, string> = {
 export function App() {
   const app = useApp();
   const [home, setHome] = useState(false);
+  const [admin, setAdmin] = useState(
+    location.pathname.replace(/\/$/, "") === "/admin" ||
+      location.hash === "#/admin",
+  );
+  const showHome = () => {
+    setAdmin(false);
+    setHome(true);
+    history.replaceState(
+      null,
+      "",
+      location.pathname.replace(/\/$/, "") === "/admin"
+        ? "/"
+        : location.pathname,
+    );
+  };
+  useEffect(() => {
+    const changed = () =>
+      setAdmin(
+        location.hash === "#/admin" ||
+          location.pathname.replace(/\/$/, "") === "/admin",
+      );
+    window.addEventListener("hashchange", changed);
+    return () => window.removeEventListener("hashchange", changed);
+  }, []);
   useEffect(() => setHome(false), [app.room?.id]);
   useEffect(() => {
     let dispose: (() => void) | undefined;
@@ -134,7 +160,7 @@ export function App() {
           aria-label="映聚首页"
           onClick={(e) => {
             e.preventDefault();
-            setHome(true);
+            showHome();
           }}
         >
           <span className="brand-icon">
@@ -146,8 +172,22 @@ export function App() {
         <Menu
           className="sidebar-menu"
           mode="inline"
-          selectedKeys={app.room && !home ? [] : ["home"]}
+          selectedKeys={admin ? ["admin"] : app.room && !home ? [] : ["home"]}
           items={[
+            ...(app.user?.role === "admin"
+              ? [
+                  {
+                    key: "admin",
+                    icon: <ShieldCheck size={18} />,
+                    label: "管理后台",
+                    onClick: () => {
+                      setAdmin(true);
+                      location.hash = "/admin";
+                      update({ modal: null });
+                    },
+                  },
+                ]
+              : []),
             {
               key: "home",
               icon: <Film size={18} />,
@@ -158,7 +198,7 @@ export function App() {
                 </span>
               ),
               onClick: () => {
-                setHome(true);
+                showHome();
                 update({ modal: null });
               },
             },
@@ -189,7 +229,10 @@ export function App() {
                 disabled: app.busy || app.roomState === "joining",
                 onClick: () => {
                   void actions.run(async () => {
-                    if (await actions.enterKnownRoom(room)) setHome(false);
+                    if (await actions.enterKnownRoom(room)) {
+                      showHome();
+                      setHome(false);
+                    }
                   });
                 },
               }))}
@@ -227,16 +270,14 @@ export function App() {
           <Avatar className="purple">{app.user?.displayName[0] ?? "映"}</Avatar>
           <span>
             {app.user?.displayName ?? "欢迎来到映聚"}
-            <small>
-              {app.user?.username ?? (app.user ? "临时访客" : "等待你的加入")}
-            </small>
+            <small>{app.user?.username ?? "等待你的加入"}</small>
           </span>
           {app.user && (
-            <Tooltip title={app.user.username ? "退出登录" : "退出访客身份"}>
+            <Tooltip title={"退出登录"}>
               <Button
                 type="text"
-                title={app.user.username ? "退出登录" : "退出访客身份"}
-                aria-label={app.user.username ? "退出登录" : "退出访客身份"}
+                title={"退出登录"}
+                aria-label={"退出登录"}
                 onClick={() => void actions.run(actions.logout)}
               >
                 <LogOut size={16} />
@@ -250,11 +291,17 @@ export function App() {
           <Breadcrumb
             items={[
               { title: "我的空间" },
-              { title: app.room && !home ? app.room.name : "放映厅" },
+              {
+                title: admin
+                  ? "管理后台"
+                  : app.room && !home
+                    ? app.room.name
+                    : "放映厅",
+              },
             ]}
           />
           <div className="topbar-right">
-            {home && app.room && (
+            {(home || admin) && app.room && (
               <Space.Compact
                 className="current-room"
                 role="group"
@@ -267,7 +314,10 @@ export function App() {
                     icon={<Film size={14} />}
                     aria-label="返回当前房间"
                     disabled={app.busy || app.roomState === "leaving"}
-                    onClick={() => setHome(false)}
+                    onClick={() => {
+                      showHome();
+                      setHome(false);
+                    }}
                   >
                     <span className="current-room-name">{app.room.name}</span>
                   </Button>
@@ -316,11 +366,15 @@ export function App() {
         ) : (
           <>
             {app.room && (
-              <div className="room-slot" hidden={home}>
+              <div className="room-slot" hidden={home || admin}>
                 <Room />
               </div>
             )}
-            {(!app.room || home) && <Home onEnterRoom={() => setHome(false)} />}
+            {admin ? (
+              <Admin onHome={showHome} />
+            ) : (
+              (!app.room || home) && <Home onEnterRoom={() => setHome(false)} />
+            )}
           </>
         )}
       </main>

@@ -1,8 +1,6 @@
+export * from "./admin";
 import { z } from "zod";
 
-export const guestInput = z.strictObject({
-  displayName: z.string().trim().min(1).max(32),
-});
 export const usernameInput = z
   .string()
   .trim()
@@ -71,6 +69,7 @@ export const userSchema = z.object({
   id: z.uuid(),
   displayName: z.string(),
   username: z.string().nullable().optional(),
+  role: z.enum(["user", "admin"]).optional(),
 });
 export const roomSchema = z.object({
   id: z.uuid(),

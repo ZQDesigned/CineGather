@@ -1,3 +1,4 @@
+import { registerTestAccount } from "./helpers/account";
 import { test, expect, _electron as electron } from "@playwright/test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
 import { existsSync } from "node:fs";
@@ -107,9 +108,7 @@ test("room diagnostics show voice and sharing status while technical details rem
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill("通俗诊断回归");
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, "通俗诊断回归");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByRole("button", { name: "创建并进入", exact: true }).click();
   await page.getByRole("button", { name: "关闭麦克风", exact: true }).waitFor();

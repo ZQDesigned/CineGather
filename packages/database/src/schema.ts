@@ -18,6 +18,8 @@ export const users = pgTable("users", {
   displayName: text("display_name").notNull(),
   username: text("username").unique(),
   passwordHash: text("password_hash"),
+  role: text("role").notNull().default("user"),
+  disabledAt: time("disabled_at"),
   createdAt: time("created_at").notNull().defaultNow(),
 });
 export const credentials = pgTable("user_credentials", {

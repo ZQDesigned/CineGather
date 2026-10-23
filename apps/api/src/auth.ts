@@ -2,32 +2,10 @@ import { revokeNative, settleRoom } from "./rooms";
 import { nativePublications, rooms } from "@cinegather/database";
 import { users, credentials, members, leases } from "@cinegather/database";
 import { and, eq, gt, isNull } from "drizzle-orm";
-import { randomUUID } from "node:crypto";
-import { db, token, hash, audit } from "./context";
+import { db, hash, audit } from "./context";
 import { fail } from "./errors";
 import { media } from "./media";
 import type { User } from "@cinegather/contracts";
-export async function createGuest(displayName: string) {
-  const sessionToken = token();
-  const id = randomUUID();
-  const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60_000);
-  await db.transaction(async (tx) => {
-    await tx.insert(users).values({ id, displayName });
-    await tx.insert(credentials).values({
-      id: randomUUID(),
-      userId: id,
-      kind: "guest",
-      secretHash: hash(sessionToken),
-      expiresAt,
-    });
-    await audit(tx, id, "session.created", id);
-  });
-  return {
-    user: { id, displayName },
-    sessionToken,
-    expiresAt: expiresAt.toISOString(),
-  };
-}
 export async function authenticate(
   authorization?: string,
 ): Promise<User & { credentialId: string }> {
@@ -38,19 +16,30 @@ export async function authenticate(
       id: users.id,
       displayName: users.displayName,
       username: users.username,
+      role: users.role,
+      disabledAt: users.disabledAt,
+      kind: credentials.kind,
+      revokedAt: credentials.revokedAt,
+      expiresAt: credentials.expiresAt,
       credentialId: credentials.id,
     })
     .from(credentials)
     .innerJoin(users, eq(credentials.userId, users.id))
-    .where(
-      and(
-        eq(credentials.secretHash, hash(authorization.slice(7))),
-        isNull(credentials.revokedAt),
-        gt(credentials.expiresAt, new Date()),
-      ),
-    );
-  if (!user) fail(401, "SESSION_EXPIRED", "身份已过期，请重新进入");
-  return user;
+    .where(eq(credentials.secretHash, hash(authorization.slice(7))));
+  if (!user) fail(401, "SESSION_EXPIRED", "登录已失效，请重新登录账号");
+  if (!user.username || user.kind !== "account")
+    fail(401, "ACCOUNT_REQUIRED", "访客模式已关闭，请注册或登录账号");
+  if (user.disabledAt)
+    fail(401, "ACCOUNT_DISABLED", "账号已停用，请联系管理员");
+  if (user.revokedAt || user.expiresAt.getTime() <= Date.now())
+    fail(401, "SESSION_EXPIRED", "登录已失效，请重新登录账号");
+  return {
+    id: user.id,
+    displayName: user.displayName,
+    username: user.username,
+    role: user.role as "user" | "admin",
+    credentialId: user.credentialId,
+  };
 }
 export async function revokeSession(authorization: string) {
   const [revoked] = await db

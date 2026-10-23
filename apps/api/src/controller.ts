@@ -19,7 +19,7 @@ import type { Response } from "express";
 import * as c from "@cinegather/contracts";
 import * as r from "./rooms";
 import * as s from "./social";
-import { createGuest, revokeSession } from "./auth";
+import { revokeSession } from "./auth";
 import {
   registerAccount,
   loginAccount,
@@ -61,11 +61,6 @@ export class ApiController {
     };
   }
 
-  @Post("guests")
-  @Endpoint("createGuest", c.sessionSchema, c.guestInput, [], 201)
-  guest(@Body() body: unknown) {
-    return createGuest(parse(c.guestInput, body).displayName);
-  }
   @Get("me")
   @Endpoint("me", c.userSchema)
   me(@Req() req: AuthRequest) {

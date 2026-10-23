@@ -48,15 +48,19 @@ async function requireActiveSession(tx: Transaction, userId: string) {
   const [session] = await tx
     .select({ id: credentials.id })
     .from(credentials)
+    .innerJoin(users, eq(users.id, credentials.userId))
     .where(
       and(
         eq(credentials.userId, userId),
         isNull(credentials.revokedAt),
+        eq(credentials.kind, "account"),
+        isNotNull(users.username),
+        isNull(users.disabledAt),
         gt(credentials.expiresAt, new Date()),
       ),
     )
     .limit(1);
-  if (!session) fail(401, "SESSION_EXPIRED", "身份已过期，请重新进入");
+  if (!session) fail(401, "SESSION_EXPIRED", "登录已失效，请重新登录账号");
 }
 export async function requireMember(
   tx: Transaction,
@@ -100,6 +104,7 @@ export async function createRoom(
       : null;
   return db.transaction((tx) =>
     dedup(tx, user.id, key, "room.create", input, async () => {
+      await requireActiveSession(tx, user.id);
       const id = randomUUID();
       let created: typeof rooms.$inferSelect | undefined;
       for (let attempt = 0; attempt < 10 && !created; attempt++) {
@@ -380,6 +385,7 @@ export async function settleRoom(
     ? await tx
         .select({ userId: credentials.userId })
         .from(credentials)
+        .innerJoin(users, eq(users.id, credentials.userId))
         .where(
           and(
             inArray(
@@ -387,6 +393,9 @@ export async function settleRoom(
               candidates.map((c) => c.userId),
             ),
             isNull(credentials.revokedAt),
+            eq(credentials.kind, "account"),
+            isNotNull(users.username),
+            isNull(users.disabledAt),
             gt(credentials.expiresAt, new Date()),
           ),
         )
@@ -397,24 +406,7 @@ export async function settleRoom(
       sessions.some((s) => s.userId === c.userId),
   );
   if (!eligible.length) {
-    await revokeNative(tx, roomId);
-    await media.deleteRoom(roomId);
-    await tx
-      .update(rooms)
-      .set({ status: "closed" })
-      .where(eq(rooms.id, roomId));
-    await tx
-      .update(invites)
-      .set({ revokedAt: new Date() })
-      .where(eq(invites.roomId, roomId));
-    await tx
-      .update(leases)
-      .set({ holderUserId: null, leaseId: null, expiresAt: null })
-      .where(eq(leases.roomId, roomId));
-    await tx
-      .update(members)
-      .set({ admittedUntil: null })
-      .where(eq(members.roomId, roomId));
+    await closeRoom(tx, roomId);
     await audit(tx, null, "room.closed_empty", roomId);
   } else if (!eligible.some((c) => c.userId === room.ownerUserId)) {
     const owner = (eligible.find((candidate) =>
@@ -437,6 +429,24 @@ export async function settleRoom(
       owner,
     });
   }
+}
+// Caller holds the room row lock. Keep all room teardown paths identical.
+export async function closeRoom(tx: Transaction, roomId: string) {
+  await revokeNative(tx, roomId);
+  await media.deleteRoom(roomId);
+  await tx.update(rooms).set({ status: "closed" }).where(eq(rooms.id, roomId));
+  await tx
+    .update(invites)
+    .set({ revokedAt: new Date() })
+    .where(eq(invites.roomId, roomId));
+  await tx
+    .update(leases)
+    .set({ holderUserId: null, leaseId: null, expiresAt: null })
+    .where(eq(leases.roomId, roomId));
+  await tx
+    .update(members)
+    .set({ admittedUntil: null })
+    .where(eq(members.roomId, roomId));
 }
 function leaseResult(row: typeof leases.$inferSelect): ShareLease {
   return {
@@ -730,10 +740,14 @@ export async function reconcileRoom(roomId: string) {
       ? await tx
           .select({ userId: credentials.userId })
           .from(credentials)
+          .innerJoin(users, eq(users.id, credentials.userId))
           .where(
             and(
               inArray(credentials.userId, humanIds),
               isNull(credentials.revokedAt),
+              eq(credentials.kind, "account"),
+              isNotNull(users.username),
+              isNull(users.disabledAt),
               gt(credentials.expiresAt, new Date()),
             ),
           )

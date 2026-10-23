@@ -1,3 +1,4 @@
+import { registerTestAccount } from "./helpers/account";
 import {
   test,
   expect,
@@ -133,9 +134,7 @@ test("real Mac system mix excludes CineGather playback, stays synchronized and w
     });
     apps.push(app);
     const p = await app.firstWindow();
-    await p.getByRole("button", { name: "访客体验", exact: true }).click();
-    await p.getByLabel("你的昵称").fill(label);
-    await p.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await registerTestAccount(p, label);
     return { app, page: p };
   };
   const share = async (page: Page, screen: boolean) => {
@@ -241,7 +240,9 @@ test("real Mac system mix excludes CineGather playback, stays synchronized and w
       expiresInHours: 1,
       maxUses: 1,
     });
-    const guest = await req("/guests", undefined, {
+    const guest = await req("/accounts/register", undefined, {
+      username: `audio_${crypto.randomUUID().slice(0, 8)}`,
+      password: "Audio test password 123!",
       displayName: "系统声音测量接收端",
     });
     const joined = await req(`/rooms/${room.id}/join`, guest.sessionToken, {

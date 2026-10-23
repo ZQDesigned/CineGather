@@ -1,3 +1,4 @@
+import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 import { IngressClient, RoomServiceClient } from "livekit-server-sdk";
 import pg from "pg";
@@ -26,9 +27,7 @@ test("native ingress belongs to the live lease, rotates keys, and is revoked on 
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill("原生权限测试");
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, "原生权限测试");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("原生租约测试");
   await page.getByRole("button", { name: "创建并进入" }).click();
@@ -154,9 +153,7 @@ test("kick, session revocation and crash-orphan reconciliation revoke native pub
     process.env.LIVEKIT_API_SECRET!,
   );
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill("原生撤销房主");
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, "原生撤销房主");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("原生撤销测试");
   await page.getByRole("button", { name: "创建并进入" }).click();
@@ -178,9 +175,7 @@ test("kick, session revocation and crash-orphan reconciliation revoke native pub
   const friend = await context.newPage();
   try {
     await friend.goto("/");
-    await friend.getByRole("button", { name: "访客体验", exact: true }).click();
-    await friend.getByLabel("你的昵称").fill("原生撤销成员");
-    await friend.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await registerTestAccount(friend, "原生撤销成员");
     await friend.getByRole("button", { name: "加入房间", exact: true }).click();
     await friend
       .getByLabel("房间号或邀请链接")

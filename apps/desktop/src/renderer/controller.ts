@@ -134,7 +134,13 @@ async function handleRemoteRemoval() {
     result?.error?.code === "SESSION_EXPIRED" ||
     result?.response.status === 401
   ) {
-    report(new ApiError("SESSION_EXPIRED", "身份已过期，请重新进入映聚", 401));
+    report(
+      new ApiError(
+        result?.error?.code ?? "SESSION_EXPIRED",
+        result?.error?.message ?? "登录已失效，请重新登录账号",
+        401,
+      ),
+    );
     return;
   }
   const code = result?.error?.code;
@@ -280,7 +286,7 @@ function receiveInvitation(value: string) {
   update({
     joinValue: value,
     modal: state().user ? "join" : null,
-    notice: state().user ? undefined : "收到房间邀请，请先登录或使用访客体验",
+    notice: state().user ? undefined : "收到房间邀请，请先注册或登录账号",
   });
 }
 export async function initialize() {
@@ -410,16 +416,6 @@ export async function changePassword(
   } finally {
     changingCredentials = false;
   }
-}
-export async function guest(displayName: string) {
-  const data = unwrap(
-    await api.POST("/api/v1/guests", { body: { displayName } }),
-  );
-  sessionToken = data.sessionToken;
-  localStorage.setItem("cinegather.session", data.sessionToken);
-  update({ user: data.user });
-  await refreshRooms();
-  if (state().joinValue) update({ modal: "join" });
 }
 export async function refreshRooms() {
   const identity = sessionToken;

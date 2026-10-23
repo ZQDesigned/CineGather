@@ -30,6 +30,19 @@
       "tag": "0003_room_access",
       "breakpoints": true
     },
-    { "idx": 4, "version": "7", "when": 1792760000000, "tag": "0004_accounts", "breakpoints": true }
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1792760000000,
+      "tag": "0004_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1792800000000,
+      "tag": "0005_administration",
+      "breakpoints": true
+    }
   ]
 }

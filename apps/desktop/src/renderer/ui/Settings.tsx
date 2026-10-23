@@ -265,13 +265,9 @@ export function Settings() {
                   children: (
                     <>
                       <p className="account-identity">
-                        {user.username
-                          ? `用户名：${user.username}`
-                          : "升级账号后可跨设备登录，保留当前好友关系。"}
+                        用户名：{user.username}
                       </p>
-                      <AccountForm
-                        mode={user.username ? "password" : "upgrade"}
-                      />
+                      <AccountForm mode="password" />
                     </>
                   ),
                 },

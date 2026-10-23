@@ -1,3 +1,4 @@
+import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 async function userId(page: Page) {
   const token = await page.evaluate(() =>
@@ -11,9 +12,7 @@ async function userId(page: Page) {
 }
 async function temporary(page: Page, name: string) {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill(name);
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, name);
   await expect(
     page.getByRole("heading", { name: `晚上好，${name}` }),
   ).toBeVisible();
@@ -48,6 +47,9 @@ test("account login is the primary entrance, removed captions stay absent, and i
   await expect(
     page.getByRole("tab", { name: "登录", exact: true }),
   ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "访客体验", exact: true }),
+  ).toHaveCount(0);
   for (const text of [
     "YOUR PEOPLE. YOUR CINEMA.",
     "今晚的相聚，从这里开始",
@@ -72,28 +74,10 @@ test("account login is the primary entrance, removed captions stay absent, and i
     ),
   ).toBe(true);
 });
-test("guest upgrade preserves identity and supports password changes in the shared settings UI", async ({
+test("registered accounts support password changes in the shared settings UI", async ({
   page,
 }) => {
-  await temporary(page, "升级前昵称");
-  const id = await userId(page);
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
-  await page.getByRole("tab", { name: "账号与安全", exact: true }).click();
-  await page
-    .getByLabel("用户名", { exact: true })
-    .fill(`upgrade_ui_${crypto.randomUUID().slice(0, 8)}`);
-  await page.getByLabel("昵称", { exact: true }).fill("升级后的账号");
-  await page
-    .getByLabel("密码", { exact: true })
-    .fill("Local test password 123!");
-  await page
-    .getByLabel("确认密码", { exact: true })
-    .fill("Local test password 123!");
-  await page.getByRole("button", { name: "升级为账号", exact: true }).click();
-  await expect(
-    page.getByRole("heading", { name: "晚上好，升级后的账号" }),
-  ).toBeVisible();
-  expect(await userId(page)).toBe(id);
+  await temporary(page, "账号安全验证");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("账号安全保留房间");
   await page.getByRole("button", { name: "创建并进入", exact: true }).click();

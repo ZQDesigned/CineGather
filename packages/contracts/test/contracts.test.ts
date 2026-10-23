@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 import {
-  guestInput,
+  registerInput,
   roomInput,
   joinInput,
   leaseInput,
@@ -9,13 +9,23 @@ import {
 
 describe("untrusted client input", () => {
   test("rejects empty names and forged identities rather than trusting a userId", () => {
-    expect(guestInput.safeParse({ displayName: "   " }).success).toBe(false);
-    expect(
-      guestInput.safeParse({ displayName: "小映", userId: "forged" }).success,
-    ).toBe(false);
-    expect(guestInput.parse({ displayName: "  小映  " })).toEqual({
+    const valid = {
+      username: "viewer",
       displayName: "小映",
-    });
+      password: "Account password 123!",
+    };
+    expect(
+      registerInput.safeParse({ ...valid, displayName: "   " }).success,
+    ).toBe(false);
+    expect(
+      registerInput.safeParse({ ...valid, userId: "forged" }).success,
+    ).toBe(false);
+    expect(registerInput.safeParse({ ...valid, role: "admin" }).success).toBe(
+      false,
+    );
+    expect(
+      registerInput.parse({ ...valid, displayName: "  小映  " }).displayName,
+    ).toBe("小映");
   });
   test("enforces private room capacity between two and ten", () => {
     expect(roomInput.safeParse({ name: "影院", maxMembers: 11 }).success).toBe(

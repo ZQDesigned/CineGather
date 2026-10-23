@@ -1,3 +1,4 @@
+import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 import { RoomServiceClient, TrackSource } from "livekit-server-sdk";
 import pg from "pg";
@@ -25,9 +26,7 @@ async function desktopTalkBridge(page: Page) {
 }
 async function guest(page: Page, name: string) {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill(name);
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, name);
   await expect(
     page.getByRole("heading", { name: `晚上好，${name}` }),
   ).toBeVisible();
@@ -354,7 +353,7 @@ test("a real screen publisher holds the only server lease and stopping removes i
     await page.getByRole("button", { name: "离开房间" }).click();
   }
 });
-test("revoking an active guest session disconnects its existing media identity", async ({
+test("revoking an active account session disconnects its existing media identity", async ({
   page,
   request,
 }) => {
@@ -400,7 +399,7 @@ test("revoking an active guest session disconnects its existing media identity",
   await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
   await expect(
     page.locator(".ant-notification").getByRole("alert"),
-  ).toContainText("身份已过期");
+  ).toContainText("登录已失效");
   await expect(
     page.locator(".ant-notification").getByRole("alert"),
   ).not.toContainText("房主移出");

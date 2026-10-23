@@ -1,10 +1,9 @@
+import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 
 async function guest(page: Page, name: string) {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill(name);
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, name);
   await expect(
     page.getByRole("heading", { name: `晚上好，${name}` }),
   ).toBeVisible();
@@ -46,7 +45,9 @@ test("friends and owner moderation work across independent real room clients", a
       .click({ button: "right" });
     await page.getByRole("menuitem", { name: "添加好友", exact: true }).click();
     await expect(page.locator(".member-context-popup")).toHaveCount(0);
-    await expect(page.getByRole("status")).toContainText("好友请求已发送");
+    await expect(
+      page.getByRole("status").filter({ hasText: "好友请求已发送" }),
+    ).toContainText("好友请求已发送");
     await friend.getByRole("menuitem", { name: "好友", exact: true }).click();
     const friendId = await friend.locator(".identity-card code").textContent();
     await expect(friend.locator(".friend")).toContainText("社交房主");
@@ -139,7 +140,9 @@ test("revoking an invitation in the client prevents a new guest from using it", 
     await page
       .getByRole("button", { name: "撤销这条邀请", exact: true })
       .click();
-    await expect(page.getByRole("status")).toContainText("此邀请已撤销");
+    await expect(
+      page.getByRole("status").filter({ hasText: "此邀请已撤销" }),
+    ).toContainText("此邀请已撤销");
     const outsider = await context.newPage();
     await guest(outsider, "撤销后访客");
     await join(outsider, invitation);

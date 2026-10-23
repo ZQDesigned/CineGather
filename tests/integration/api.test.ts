@@ -39,8 +39,12 @@ async function req(
   });
   return { status: response.status, body: await response.json() };
 }
-async function guest(name = "集成测试") {
-  const r = await req("/guests", undefined, { displayName: name });
+async function account(name = "集成测试") {
+  const r = await req("/accounts/register", undefined, {
+    displayName: name,
+    username: `it_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    password: "Integration account 123!",
+  });
   expect(r.status).toBe(201);
   createdUsers.push(r.body.user.id);
   return { id: r.body.user.id as string, token: r.body.sessionToken as string };
@@ -92,9 +96,9 @@ afterAll(async () => {
 });
 
 describe("real PostgreSQL and LiveKit API boundaries", () => {
-  test("normal rooms admit new guests by public code and preserve a single canonical media room", async () => {
-    const a = await guest();
-    const b = await guest();
+  test("normal rooms admit new accounts by public code and preserve a single canonical media room", async () => {
+    const a = await account();
+    const b = await account();
     const r = await room(a.token);
     expect(r.code).toMatch(/^[A-F0-9]{8}$/);
     expect(r.access).toBe("normal");
@@ -119,9 +123,9 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     await req(`/rooms/${r.id}/leave`, b.token, {});
   });
   test("password rooms verify on every manual admission, owners and valid invitations can enter without passwords", async () => {
-    const a = await guest();
-    const b = await guest();
-    const c = await guest();
+    const a = await account();
+    const b = await account();
+    const c = await account();
     const password = " only-in-memory-123 ";
     const key = crypto.randomUUID();
     const created = await req(
@@ -172,7 +176,7 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
         })
       ).status,
     ).toBe(201);
-    const outsider = await guest();
+    const outsider = await account();
     expect(
       (
         await req(`/rooms/${r.code}/join`, outsider.token, {
@@ -214,9 +218,9 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
       await req(`/rooms/${r.id}/leave`, user.token, {});
   });
   test("encrypted admission preserves capacity, invitation revocation, expiry and bans", async () => {
-    const a = await guest();
-    const b = await guest();
-    const c = await guest();
+    const a = await account();
+    const b = await account();
+    const c = await account();
     const password = "local-123";
     const created = await req("/rooms", a.token, {
       name: "权限边界",
@@ -277,8 +281,8 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     await req(`/rooms/${r.id}/leave`, a.token, {});
   });
   test("wrong room passwords are rate limited without blocking valid invitations", async () => {
-    const a = await guest();
-    const b = await guest();
+    const a = await account();
+    const b = await account();
     const created = await req("/rooms", a.token, {
       name: "尝试次数",
       access: "password",
@@ -311,11 +315,17 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
       401,
     );
     expect(
-      (await req("/guests", undefined, { displayName: "   " })).status,
+      (
+        await req("/accounts/register", undefined, {
+          username: "invalid",
+          displayName: "   ",
+          password: "Integration account 123!",
+        })
+      ).status,
     ).toBe(400);
   });
   test("malformed JSON is a bounded client error with a correlation ID", async () => {
-    const response = await fetch(`${base}/api/v1/guests`, {
+    const response = await fetch(`${base}/api/v1/accounts/register`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: '{"displayName":',
@@ -331,9 +341,9 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     };
     expect(body.content["application/json"]!.schema.required).toEqual(["name"]);
   });
-  test("guest identity and invite secrets are never stored in plaintext; private rooms do not leak", async () => {
-    const a = await guest();
-    const b = await guest();
+  test("account identity and invite secrets are never stored in plaintext; private rooms do not leak", async () => {
+    const a = await account();
+    const b = await account();
     const r = await room(a.token);
     const stored = await db
       .select()
@@ -360,7 +370,7 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     );
     expect(claims.sub).toBe(b.id);
     expect(claims.video.canPublishSources).toEqual(["microphone"]);
-    const c = await guest();
+    const c = await account();
     expect(
       (
         await req(`/rooms/${r.id}/join`, c.token, {
@@ -371,7 +381,7 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     expect((await req(`/rooms/${r.id}/join`, b.token, {})).status).toBe(201);
   });
   test("alternate UUID casing cannot split a business room into multiple media rooms", async () => {
-    const a = await guest();
+    const a = await account();
     const r = await room(a.token);
     const joined = await req(`/rooms/${r.id.toUpperCase()}/join`, a.token, {});
     expect(joined.status).toBe(201);
@@ -383,7 +393,7 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     await req(`/rooms/${r.id}/leave`, a.token, {});
   });
   test("idempotency survives retries and rejects using the same key for a different request", async () => {
-    const a = await guest();
+    const a = await account();
     const key = crypto.randomUUID();
     const first = await room(a.token, 5, key);
     const again = await room(a.token, 5, key);
@@ -394,9 +404,9 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     ).toBe(409);
   });
   test("parallel joins cannot exceed capacity, and a leave frees its admission", async () => {
-    const a = await guest();
-    const b = await guest();
-    const c = await guest();
+    const a = await account();
+    const b = await account();
+    const c = await account();
     const r = await room(a.token, 2);
     const invitation = await req(`/rooms/${r.id}/invites`, a.token, {});
     expect((await req(`/rooms/${r.id}/join`, a.token, {})).status).toBe(201);
@@ -419,8 +429,8 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     ).toBe(201);
   });
   test("moderation, chat and invite revocation enforce room membership and owner permissions", async () => {
-    const a = await guest();
-    const b = await guest();
+    const a = await account();
+    const b = await account();
     const r = await room(a.token);
     const invitation = await req(`/rooms/${r.id}/invites`, a.token, {});
     await req(`/rooms/${r.id}/join`, b.token, {
@@ -471,7 +481,7 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
         )
       ).status,
     ).toBe(200);
-    const c = await guest();
+    const c = await account();
     expect(
       (
         await req(`/rooms/${r.id}/join`, c.token, {
@@ -481,8 +491,8 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     ).toBe(403);
   });
   test("friend requests require recipient acceptance and may be removed by either party", async () => {
-    const a = await guest();
-    const b = await guest();
+    const a = await account();
+    const b = await account();
     expect((await req("/friends", a.token, { userId: b.id })).status).toBe(201);
     expect((await req(`/friends/${b.id}/accept`, a.token, {})).status).toBe(
       404,
@@ -506,7 +516,7 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     expect((await req("/friends", a.token, { userId: a.id })).status).toBe(400);
   });
   test("LiveKit webhook media type preserves the raw body for signature verification", async () => {
-    const a = await guest();
+    const a = await account();
     const r = await room(a.token);
     const body = JSON.stringify({
       event: "participant_joined",
@@ -539,8 +549,8 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     });
     expect(forged.status).toBe(401);
   });
-  test("revoking a guest session invalidates its bearer immediately", async () => {
-    const a = await guest();
+  test("revoking an account session invalidates its bearer immediately", async () => {
+    const a = await account();
     expect((await req("/me", a.token)).status).toBe(200);
     expect((await req("/session", a.token, undefined, "DELETE")).status).toBe(
       200,
@@ -554,8 +564,8 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
 
 test("media token issuance failures are observable without counting rejected invitations", async () => {
   const { media } = await import("../../apps/api/src/media");
-  const owner = await guest();
-  const outsider = await guest();
+  const owner = await account();
+  const outsider = await account();
   const target = await room(owner.token);
   const before = await req("/diagnostics", owner.token);
   expect(typeof before.body.tokenIssueFailures).toBe("number");
@@ -589,7 +599,7 @@ test("an unavailable ingress registry cannot prevent expired browser permission 
   const { media } = await import("../../apps/api/src/media");
   const { reconcileRoom } = await import("../../apps/api/src/rooms");
   const { leases } = await import("@cinegather/database");
-  const user = await guest("过期授权隔离");
+  const user = await account("过期授权隔离");
   const created = await room(user.token);
   await db
     .update(leases)
@@ -630,7 +640,7 @@ test("logout waits for in-flight native issuance and revokes the key committed b
   const { media } = await import("../../apps/api/src/media");
   const r = await import("../../apps/api/src/rooms");
   const { revokeSession } = await import("../../apps/api/src/auth");
-  const user = await guest("原生撤销并发");
+  const user = await account("原生撤销并发");
   const created = await room(user.token);
   const originalList = media.participants,
     originalSet = media.setShare,
@@ -695,7 +705,7 @@ test("logout waits for in-flight native issuance and revokes the key committed b
 
 test("separate ingress creation attempts within one lease cannot revoke each other's publisher identity", async () => {
   const { media } = await import("../../apps/api/src/media");
-  const user = await guest("推流重试隔离");
+  const user = await account("推流重试隔离");
   const created = await room(user.token);
   const entries: { ingressId: string; participantIdentity: string }[] = [];
   try {

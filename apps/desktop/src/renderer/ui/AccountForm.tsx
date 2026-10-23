@@ -5,11 +5,11 @@ import * as actions from "../controller";
 export function AccountForm({
   mode,
 }: {
-  mode: "login" | "register" | "upgrade" | "password";
+  mode: "login" | "register" | "password";
 }) {
   const busy = useApp((s) => s.busy);
   const user = useApp((s) => s.user);
-  const registering = mode === "register" || mode === "upgrade";
+  const registering = mode === "register";
   return (
     <Form
       layout="vertical"
@@ -108,11 +108,9 @@ export function AccountForm({
       <Button type="primary" htmlType="submit" block loading={busy}>
         {mode === "login"
           ? "登录映聚"
-          : mode === "upgrade"
-            ? "升级为账号"
-            : mode === "password"
-              ? "修改密码"
-              : "注册并登录"}
+          : mode === "password"
+            ? "修改密码"
+            : "注册并登录"}
       </Button>
     </Form>
   );

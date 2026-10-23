@@ -47,7 +47,6 @@ function openSchema(
   return result as SchemaObject;
 }
 const examples: Record<string, unknown> = {
-  createGuest: { displayName: "小映" },
   createRoom: { name: "今晚一起看", maxMembers: 5 },
   joinRoom: {
     inviteToken: "replace_with_your_valid_43_character_invite_token",
@@ -113,7 +112,6 @@ export class AuthGuard implements CanActivate {
     if (
       [
         "/api/v1/health",
-        "/api/v1/guests",
         "/api/v1/accounts/login",
         "/api/v1/livekit/webhook",
       ].includes(req.path)
@@ -126,8 +124,17 @@ export class AuthGuard implements CanActivate {
       id: identity.id,
       displayName: identity.displayName,
       username: identity.username,
+      role: identity.role,
     };
     req.sessionId = identity.credentialId;
+    return true;
+  }
+}
+export class AdminGuard implements CanActivate {
+  canActivate(context: ExecutionContext) {
+    const req = context.switchToHttp().getRequest<AuthRequest>();
+    if (req.user?.role !== "admin")
+      fail(403, "ADMIN_REQUIRED", "仅管理员可以访问管理端");
     return true;
   }
 }

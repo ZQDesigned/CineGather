@@ -1,12 +1,11 @@
+import { registerTestAccount } from "./helpers/account";
 import { test, expect } from "@playwright/test";
 
 test("capture categories are tabs and sources are keyboard-selectable single-choice preview cards", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill("组件回归");
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, "组件回归");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("采集组件回归");
   await page.getByRole("button", { name: "创建并进入" }).click();
@@ -142,9 +141,7 @@ test("native preview loading ignores stale category and closed-picker results an
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill("预览交互回归");
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, "预览交互回归");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("预览更新回归");
   await page.getByRole("button", { name: "创建并进入" }).click();
@@ -213,7 +210,9 @@ test("native preview loading ignores stale category and closed-picker results an
   try {
     await page.getByRole("button", { name: "选择屏幕开始共享" }).click();
     await expect.poll(requests).toBe(1);
-    await expect(page.getByRole("status")).toContainText("正在获取预览");
+    await expect(
+      page.getByRole("radiogroup", { name: "共享来源" }).getByRole("status"),
+    ).toContainText("正在获取预览");
     await page.getByRole("tab", { name: "整个屏幕", exact: true }).click();
     await expect.poll(requests).toBe(2);
     await complete(0, "blue");
@@ -250,9 +249,7 @@ test("native screen audio is a system mix and window audio remains app-scoped", 
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill("系统声音组件回归");
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, "系统声音组件回归");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("系统声音组件回归");
   await page.getByRole("button", { name: "创建并进入", exact: true }).click();

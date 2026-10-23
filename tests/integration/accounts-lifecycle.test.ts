@@ -37,8 +37,12 @@ async function request(
   });
   return { status: response.status, body: await response.json() };
 }
-async function guest(name = "临时观众") {
-  const result = await request("/guests", undefined, { displayName: name });
+async function account(name = "临时观众") {
+  const result = await request("/accounts/register", undefined, {
+    displayName: name,
+    username: `life_${crypto.randomUUID().replaceAll("-", "").slice(0, 20)}`,
+    password,
+  });
   ids.push(result.body.user.id);
   return result.body;
 }
@@ -138,51 +142,44 @@ test("accounts have normalized unique usernames, hashed secrets and stable ident
   ).toBe(200);
   expect((await request("/me", login.body.sessionToken)).status).toBe(200);
 });
-test("upgrading a guest keeps user ID and friendships; changing password revokes previous sessions", async () => {
-  const legacy = await guest();
-  const friend = await guest();
-  await request("/friends", legacy.sessionToken, { userId: friend.user.id });
-  const username = `upgrade_${suffix}`;
-  const upgraded = await request("/accounts/register", legacy.sessionToken, {
-    username,
-    displayName: "长久的名字",
-    password,
-  });
-  expect(upgraded.status).toBe(201);
-  expect(upgraded.body.user.id).toBe(legacy.user.id);
-  expect(
-    (await request("/friends", upgraded.body.sessionToken)).body.items[0]
-      .userId,
-  ).toBe(friend.user.id);
-  expect((await request("/me", legacy.sessionToken)).status).toBe(401);
+test("password changes revoke previous sessions and preserve account friendships", async () => {
+  const a = await account(),
+    friend = await account();
+  await request("/friends", a.sessionToken, { userId: friend.user.id });
   expect(
     (
-      await request("/accounts/password", upgraded.body.sessionToken, {
-        currentPassword: "not correct",
-        password: "Brand new password 456!",
+      await request("/accounts/password", a.sessionToken, {
+        currentPassword: "wrong",
+        password: "New long password 456!",
       })
     ).status,
   ).toBe(403);
-  const changed = await request(
-    "/accounts/password",
-    upgraded.body.sessionToken,
-    { currentPassword: password, password: "Brand new password 456!" },
-  );
+  const changed = await request("/accounts/password", a.sessionToken, {
+    currentPassword: password,
+    password: "New long password 456!",
+  });
   expect(changed.status).toBe(201);
-  expect((await request("/me", upgraded.body.sessionToken)).status).toBe(401);
-  expect((await request("/me", changed.body.sessionToken)).status).toBe(200);
+  expect(changed.body.user.id).toBe(a.user.id);
+  expect((await request("/me", a.sessionToken)).status).toBe(401);
   expect(
-    (await request("/accounts/login", undefined, { username, password }))
-      .status,
+    (await request("/friends", changed.body.sessionToken)).body.items[0].userId,
+  ).toBe(friend.user.id);
+  expect(
+    (
+      await request("/accounts/login", undefined, {
+        username: a.user.username,
+        password,
+      })
+    ).status,
   ).toBe(401);
   expect(
     (
       await request("/accounts/login", undefined, {
-        username,
-        password: "Brand new password 456!",
+        username: a.user.username,
+        password: "New long password 456!",
       })
     ).body.user.id,
-  ).toBe(legacy.user.id);
+  ).toBe(a.user.id);
 });
 test("invalid account inputs are rejected and repeated bad passwords are throttled", async () => {
   expect(
@@ -212,9 +209,9 @@ test("invalid account inputs are rejected and repeated bad passwords are throttl
 });
 test("departing owners transfer to present members, and the last departure destroys the room and invitations", async () => {
   const [a, b, c] = [
-    await guest("房主"),
-    await guest("下一任房主"),
-    await guest("最后的房主"),
+    await account("房主"),
+    await account("下一任房主"),
+    await account("最后的房主"),
   ];
   const room = await create(a.sessionToken);
   await join(room.id, a.sessionToken);
@@ -250,24 +247,24 @@ test("departing owners transfer to present members, and the last departure destr
   expect((await media.client.listRooms([room.id])).length).toBe(0);
 });
 test("pending admission survives reconciliation but expired empty rooms are closed", async () => {
-  const account = await guest();
-  const room = await create(account.sessionToken);
+  const viewer = await account();
+  const room = await create(viewer.sessionToken);
   await reconcileRoom(room.id);
-  expect(
-    (await request(`/rooms/${room.id}`, account.sessionToken)).status,
-  ).toBe(200);
+  expect((await request(`/rooms/${room.id}`, viewer.sessionToken)).status).toBe(
+    200,
+  );
   await db
     .update(members)
     .set({ admittedUntil: new Date(Date.now() - 1000) })
     .where(eq(members.roomId, room.id));
   await reconcileRoom(room.id);
-  expect(
-    (await request(`/rooms/${room.id}`, account.sessionToken)).status,
-  ).toBe(404);
+  expect((await request(`/rooms/${room.id}`, viewer.sessionToken)).status).toBe(
+    404,
+  );
 });
 test("revoking the last session transfers ownership without waiting for a media webhook", async () => {
-  const a = await guest();
-  const b = await guest();
+  const a = await account();
+  const b = await account();
   const room = await create(a.sessionToken);
   await join(room.id, a.sessionToken);
   await join(room.id, b.sessionToken);
@@ -279,8 +276,8 @@ test("revoking the last session transfers ownership without waiting for a media 
 });
 
 test("a live member is not lost when admission timestamps expire before an explicit departure", async () => {
-  const a = await guest();
-  const b = await guest();
+  const a = await account();
+  const b = await account();
   const room = await create(a.sessionToken);
   await join(room.id, a.sessionToken);
   await join(room.id, b.sessionToken);
@@ -302,7 +299,7 @@ test("a live member is not lost when admission timestamps expire before an expli
 });
 
 test("a stranded native publisher never keeps an empty room alive", async () => {
-  const a = await guest();
+  const a = await account();
   const room = await create(a.sessionToken);
   await db
     .update(members)
@@ -334,7 +331,7 @@ test("deleting a media room is idempotent even when LiveKit reports missing room
 });
 
 test("ownership prefers a connected human over an earlier pending admission", async () => {
-  const [a, b, c] = [await guest(), await guest(), await guest()];
+  const [a, b, c] = [await account(), await account(), await account()];
   const room = await create(a.sessionToken);
   await join(room.id, a.sessionToken);
   await join(room.id, b.sessionToken);

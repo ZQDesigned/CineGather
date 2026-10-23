@@ -9,6 +9,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import type { Request, Response, NextFunction } from "express";
 import { randomUUID } from "node:crypto";
+import { AdminController } from "./admin-controller";
 import { ApiController } from "./controller";
 import { AuthGuard, ErrorFilter, type AuthRequest } from "./http";
 import { config } from "./config";
@@ -37,7 +38,10 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
     clearInterval(this.timer);
   }
 }
-@Module({ controllers: [ApiController], providers: [Metrics, Reconciler] })
+@Module({
+  controllers: [ApiController, AdminController],
+  providers: [Metrics, Reconciler],
+})
 class AppModule {}
 export async function createApp() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
@@ -91,9 +95,7 @@ export async function createApp() {
       const now = Date.now();
       if (buckets.size > 10000)
         for (const [key, b] of buckets) if (b.reset <= now) buckets.delete(key);
-      const limited =
-        req.path.endsWith("/guests") ||
-        req.path.startsWith("/api/v1/accounts/");
+      const limited = req.path.startsWith("/api/v1/accounts/");
       const key = `${req.ip}:${limited ? "auth" : "api"}`;
       let bucket = buckets.get(key);
       if (!bucket || bucket.reset <= now) {

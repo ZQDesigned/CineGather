@@ -1,3 +1,4 @@
+import { registerTestAccount } from "./helpers/account";
 import {
   test,
   expect,
@@ -64,9 +65,7 @@ test("real Mac window and display thumbnails match source pixels, refresh and st
   let page: Page | undefined;
   try {
     page = await app.firstWindow();
-    await page.getByRole("button", { name: "访客体验", exact: true }).click();
-    await page.getByLabel("你的昵称").fill("缩略图实机验证");
-    await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await registerTestAccount(page, "缩略图实机验证");
     await page
       .getByRole("button", { name: "创建私人房间", exact: true })
       .click();

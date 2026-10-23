@@ -1,10 +1,9 @@
+import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 
 async function guest(page: Page, name: string) {
   await page.goto("/");
-  await page.getByRole("button", { name: "访客体验", exact: true }).click();
-  await page.getByLabel("你的昵称").fill(name);
-  await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+  await registerTestAccount(page, name);
   await expect(
     page.getByRole("heading", { name: `晚上好，${name}` }),
   ).toBeVisible();
@@ -21,7 +20,11 @@ async function create(page: Page) {
 async function leave(page: Page) {
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
-  await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  const exit = page.getByRole("button", { name: "离开房间", exact: true });
+  if (await exit.count()) await exit.click();
+  // The room UI disappears at the start of leaving. Wait for the server leave
+  // to finish before reloading, otherwise navigation can cancel that request.
+  await expect(page.locator(".connection")).toContainText("未连接房间");
 }
 
 test("production Chrome uses same-origin API, shared room UI, browser invites, voice, chat, and video publication", async ({
@@ -48,9 +51,7 @@ test("production Chrome uses same-origin API, shared room UI, browser invites, v
   try {
     await viewer.goto(invite);
     expect(viewer.url()).toBe("http://127.0.0.1:5180/");
-    await viewer.getByRole("button", { name: "访客体验", exact: true }).click();
-    await viewer.getByLabel("你的昵称").fill("Chrome 观众");
-    await viewer.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await registerTestAccount(viewer, "Chrome 观众");
     await expect(
       viewer.getByRole("dialog", { name: "加入朋友的房间" }),
     ).toBeVisible();

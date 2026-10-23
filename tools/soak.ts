@@ -1,3 +1,4 @@
+import { registerTestAccount } from "../tests/e2e/helpers/account";
 import { chromium, expect, type Page } from "@playwright/test";
 import { resolve, sep } from "node:path";
 import { mkdir, writeFile } from "node:fs/promises";
@@ -204,9 +205,7 @@ try {
     const page = await context.newPage();
     pages.push(page);
     await page.goto("http://127.0.0.1:15173");
-    await page.getByRole("button", { name: "访客体验", exact: true }).click();
-    await page.getByLabel("你的昵称").fill(`稳定性测试 ${i + 1}`);
-    await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await registerTestAccount(page, `稳定性测试 ${i + 1}`);
     await expect(
       page.getByRole("heading", { name: `晚上好，稳定性测试 ${i + 1}` }),
     ).toBeVisible();

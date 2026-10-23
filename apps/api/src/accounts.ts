@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, eq, isNull, type SQL } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import { users, credentials, type Transaction } from "@cinegather/database";
 import type { User } from "@cinegather/contracts";
 import { db, hash, token, audit } from "./context";
@@ -28,6 +28,7 @@ function publicUser(user: typeof users.$inferSelect): User {
     id: user.id,
     displayName: user.displayName,
     username: user.username,
+    role: user.role as "user" | "admin",
   };
 }
 function uniqueConflict(error: unknown): boolean {
@@ -39,55 +40,23 @@ function uniqueConflict(error: unknown): boolean {
 }
 export async function registerAccount(
   input: { username: string; displayName: string; password: string },
-  guest?: User,
+  existing?: User,
 ) {
-  if (guest?.username)
-    fail(409, "ALREADY_REGISTERED", "当前已登录账号，请先退出后再注册");
+  if (existing) fail(409, "ALREADY_REGISTERED", "请先退出当前账号后再注册");
   const passwordHash = await hashAccountPassword(input.password);
   try {
     return await db.transaction(async (tx) => {
-      let condition: SQL | undefined;
-      if (guest) {
-        const [current] = await tx
-          .select()
-          .from(users)
-          .where(eq(users.id, guest.id))
-          .for("update");
-        if (!current || current.username)
-          fail(409, "ALREADY_REGISTERED", "此身份已升级为账号，请重新登录");
-        condition = eq(users.id, guest.id);
-      }
-      const [stored] = guest
-        ? await tx
-            .update(users)
-            .set({
-              username: input.username,
-              displayName: input.displayName,
-              passwordHash,
-            })
-            .where(condition)
-            .returning()
-        : await tx
-            .insert(users)
-            .values({
-              id: randomUUID(),
-              username: input.username,
-              displayName: input.displayName,
-              passwordHash,
-            })
-            .returning();
-      if (guest)
-        await tx
-          .update(credentials)
-          .set({ revokedAt: new Date() })
-          .where(eq(credentials.userId, guest.id));
+      const [stored] = await tx
+        .insert(users)
+        .values({
+          id: randomUUID(),
+          username: input.username,
+          displayName: input.displayName,
+          passwordHash,
+        })
+        .returning();
       const result = await session(tx, publicUser(stored!));
-      await audit(
-        tx,
-        stored!.id,
-        guest ? "account.upgraded" : "account.registered",
-        stored!.id,
-      );
+      await audit(tx, stored!.id, "account.registered", stored!.id);
       return result;
     });
   } catch (error) {
@@ -135,6 +104,8 @@ export async function loginAccount(
       .for("update");
     if (!current || current.passwordHash !== candidate.passwordHash)
       fail(401, "LOGIN_FAILED", "用户名或密码不正确");
+    if (current.disabledAt)
+      fail(403, "ACCOUNT_DISABLED", "账号已停用，请联系管理员");
     failures.delete(key);
     const result = await session(tx, publicUser(current));
     await audit(tx, current.id, "account.logged_in", current.id);
@@ -149,7 +120,7 @@ export async function changeAccountPassword(
     .select()
     .from(users)
     .where(eq(users.id, user.id));
-  if (!candidate?.passwordHash) fail(403, "ACCOUNT_REQUIRED", "请先升级为账号");
+  if (!candidate?.passwordHash) fail(403, "ACCOUNT_REQUIRED", "请先登录账号");
   if (
     !(await verifyAccountPassword(
       input.currentPassword,
@@ -166,6 +137,8 @@ export async function changeAccountPassword(
       .for("update");
     if (current?.passwordHash !== candidate.passwordHash)
       fail(409, "PASSWORD_CHANGED", "密码已变更，请重新登录");
+    if (current!.disabledAt)
+      fail(401, "ACCOUNT_DISABLED", "账号已停用，请联系管理员");
     await tx.update(users).set({ passwordHash }).where(eq(users.id, user.id));
     await tx
       .update(credentials)

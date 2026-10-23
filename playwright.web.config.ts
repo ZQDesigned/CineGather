@@ -3,6 +3,7 @@ import base from "./playwright.config";
 export default defineConfig(base, {
   testMatch: [
     "browser-web.spec.ts",
+    "admin.spec.ts",
     "lobby-room.spec.ts",
     "accounts-lifecycle.spec.ts",
   ],

@@ -93,16 +93,23 @@ try {
     await Bun.$`docker logs ${name}`;
     throw new Error("Container health check failed");
   }
-  const guestResponse = await fetch("http://127.0.0.1:14311/api/v1/guests", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ displayName: "Node container probe" }),
-  });
-  const guest = (await guestResponse.json()) as { sessionToken: string };
-  if (guestResponse.status !== 201 || !guest.sessionToken)
-    throw new Error("Production guest authentication failed");
+  const accountResponse = await fetch(
+    "http://127.0.0.1:14311/api/v1/accounts/register",
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: `smoke_${crypto.randomUUID().slice(0, 8)}`,
+        password: "Container smoke test 123!",
+        displayName: "Node container probe",
+      }),
+    },
+  );
+  const account = (await accountResponse.json()) as { sessionToken: string };
+  if (accountResponse.status !== 201 || !account.sessionToken)
+    throw new Error("Production account authentication failed");
   const headers = {
-    Authorization: `Bearer ${guest.sessionToken}`,
+    Authorization: `Bearer ${account.sessionToken}`,
     "Content-Type": "application/json",
   };
   const roomResponse = await fetch("http://127.0.0.1:14311/api/v1/rooms", {

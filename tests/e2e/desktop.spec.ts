@@ -1,3 +1,4 @@
+import { registerTestAccount } from "./helpers/account";
 import { test, expect, _electron as electron } from "@playwright/test";
 import { resolve } from "node:path";
 import { existsSync } from "node:fs";
@@ -150,7 +151,7 @@ test("packaged desktop starts with a sandboxed renderer and the minimal typed br
     await rm(profile, { recursive: true, force: true });
   }
 });
-test("a first-launch invitation waits for guest onboarding instead of being lost before the renderer subscribes", async () => {
+test("a first-launch invitation waits for account onboarding instead of being lost before the renderer subscribes", async () => {
   test.skip(
     process.platform !== "darwin" || !existsSync(executablePath),
     "Requires a local Mac package.",
@@ -168,7 +169,7 @@ test("a first-launch invitation waits for guest onboarding instead of being lost
       page.getByRole("heading", { name: "欢迎来到映聚" }),
     ).toBeVisible();
     await expect(page.getByRole("status")).toContainText(
-      "收到房间邀请，请先登录或使用访客体验",
+      "收到房间邀请，请先注册或登录账号",
     );
     await expect(page.getByRole("dialog")).toHaveCount(0);
   } finally {
@@ -342,9 +343,7 @@ test("packaged global hold uses the native state boundary, combines foreground h
         return register(key, callback);
       };
     });
-    await page.getByRole("button", { name: "访客体验", exact: true }).click();
-    await page.getByLabel("你的昵称").fill("全局按住说话验证");
-    await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await registerTestAccount(page, "全局按住说话验证");
     await page
       .getByRole("button", { name: "创建私人房间", exact: true })
       .click();
@@ -547,9 +546,7 @@ test("a failed startup hotkey keeps saved push-to-talk enabled and joins muted",
       page.getByRole("checkbox", { name: "按键说话" }),
     ).toBeChecked();
     await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
-    await page.getByRole("button", { name: "访客体验", exact: true }).click();
-    await page.getByLabel("你的昵称").fill("快捷键失效保持静音");
-    await page.getByRole("button", { name: "进入映聚", exact: true }).click();
+    await registerTestAccount(page, "快捷键失效保持静音");
     await page
       .getByRole("button", { name: "创建私人房间", exact: true })
       .click();
