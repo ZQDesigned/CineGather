@@ -12,6 +12,8 @@ const values: Record<string, string> = {
   LIVEKIT_URL: process.env.LIVEKIT_URL!,
   LIVEKIT_INTERNAL_URL: "http://livekit:7880",
   SESSION_SECRET: process.env.SESSION_SECRET!,
+  // This isolated authentication probe explicitly opts in; production stays closed.
+  REGISTRATION_ENABLED: "true",
   API_HOST: "0.0.0.0",
   API_PORT: "14310",
 };
