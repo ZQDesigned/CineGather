@@ -39,7 +39,12 @@ test("friends and owner moderation work across independent real room clients", a
     await expect(
       friend.getByRole("button", { name: "管理房间黑名单" }),
     ).toHaveCount(0);
-    await page.getByRole("button", { name: "添加社交成员为好友" }).click();
+    await page
+      .locator(".member")
+      .filter({ hasText: "社交成员" })
+      .click({ button: "right" });
+    await page.getByRole("menuitem", { name: "添加好友", exact: true }).click();
+    await expect(page.locator(".member-context-popup")).toHaveCount(0);
     await expect(page.getByRole("status")).toContainText("好友请求已发送");
     await friend.getByRole("menuitem", { name: "好友", exact: true }).click();
     const friendId = await friend.locator(".identity-card code").textContent();
@@ -71,11 +76,21 @@ test("friends and owner moderation work across independent real room clients", a
     await friend.getByRole("button", { name: "进入房间", exact: true }).click();
     await expect(page.locator(".members-list .member")).toHaveCount(2);
     await expect(friend.getByRole("dialog")).toHaveCount(0);
-    await page
+    await friend
       .locator(".member")
-      .filter({ hasText: "社交成员" })
-      .getByRole("button", { name: "移出", exact: true })
+      .filter({ hasText: "社交房主" })
+      .click({ button: "right" });
+    await expect(
+      friend.getByRole("slider", { name: "社交房主的音量", exact: true }),
+    ).toBeVisible();
+    await expect(
+      friend.getByRole("menuitem", { name: "移出房间", exact: true }),
+    ).toHaveCount(0);
+    await friend.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "社交成员的成员操作", exact: true })
       .click();
+    await page.getByRole("menuitem", { name: "移出房间", exact: true }).click();
     await expect(page.locator(".members-list .member")).toHaveCount(1);
     await expect(friend.locator(".connection")).toContainText("断开");
     await expect(friend.locator("audio[data-cinegather-audio]")).toHaveCount(0);

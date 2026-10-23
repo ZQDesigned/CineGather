@@ -46,9 +46,55 @@ test("two independent clients join a real LiveKit room, synchronize microphone a
       name: "小聚的音量",
       exact: true,
     });
+    await expect(page.locator(".members-list").getByRole("slider")).toHaveCount(
+      0,
+    );
+    await page.setViewportSize({ width: 980, height: 680 });
+    await page
+      .locator(".member")
+      .filter({ hasText: "小聚" })
+      .click({ button: "right" });
     await memberVolume.press("Home");
     await memberVolume.press("ArrowRight");
     await expect(memberVolume).toHaveAttribute("aria-valuenow", "1");
+    const rail = await page
+      .locator(".member-context-popup .ant-slider")
+      .boundingBox();
+    const handle = await memberVolume.boundingBox();
+    expect(rail && handle).toBeTruthy();
+    await page.mouse.move(
+      handle!.x + handle!.width / 2,
+      handle!.y + handle!.height / 2,
+    );
+    await page.mouse.down();
+    await page.mouse.move(
+      rail!.x + rail!.width * 0.75,
+      rail!.y + rail!.height / 2,
+    );
+    await page.mouse.up();
+    expect(
+      Number(await memberVolume.getAttribute("aria-valuenow")),
+    ).toBeGreaterThan(60);
+    await expect(page.locator(".member-context-popup")).toBeVisible();
+    await memberVolume.press("Home");
+    await memberVolume.press("ArrowRight");
+    const popup = await page.locator(".member-context-popup").boundingBox();
+    expect(
+      popup &&
+        popup.x >= 0 &&
+        popup.y >= 0 &&
+        popup.x + popup.width <= 980 &&
+        popup.y + popup.height <= 680,
+    ).toBeTruthy();
+    await page.screenshot({ path: ".local/member-context/menu-min.png" });
+    await expect(
+      page.getByRole("menuitem", { name: "移出房间", exact: true }),
+    ).toBeVisible();
+    await memberVolume.press("Escape");
+    await expect(memberVolume).toHaveCount(0);
+    await expect(
+      page.getByRole("button", { name: "小聚的成员操作", exact: true }),
+    ).toBeFocused();
     await page.getByRole("tab", { name: "聊天", exact: true }).click();
     await friend.getByRole("tab", { name: "聊天", exact: true }).click();
     await friend.getByLabel("聊天消息").fill("今晚一起看！");
@@ -56,7 +102,18 @@ test("two independent clients join a real LiveKit room, synchronize microphone a
     await expect(page.locator(".chat-message")).toContainText("今晚一起看！");
     await page.screenshot({ path: ".local/room-ui.png", fullPage: true });
     await page.getByRole("tab", { name: /成员/ }).click();
+    await page
+      .getByRole("button", { name: "小聚的成员操作", exact: true })
+      .press("Enter");
+    await expect(memberVolume).toBeFocused();
+    await page.keyboard.press("Tab");
+    await expect(
+      page.getByRole("menuitem", { name: "添加好友", exact: true }),
+    ).toBeFocused();
+    await page.keyboard.press("Shift+Tab");
+    await expect(memberVolume).toBeFocused();
     await expect(memberVolume).toHaveAttribute("aria-valuenow", "1");
+    await page.keyboard.press("Escape");
     await friend.getByRole("button", { name: "离开房间" }).click();
     await page.getByRole("tab", { name: /成员/ }).click();
     await expect(page.locator(".members-list .member")).toHaveCount(1);

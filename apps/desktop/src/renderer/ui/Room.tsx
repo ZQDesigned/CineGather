@@ -1,4 +1,4 @@
-import { Slider, Alert, Tabs, Avatar, Tooltip, Tag, Badge } from "antd";
+import { Slider, Alert, Tabs, Tooltip, Tag, Badge } from "antd";
 import { Button } from "./Controls";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -21,14 +21,13 @@ import {
   Eye,
   EyeOff,
   LogOut,
-  Signal,
   MessageCircle,
 } from "lucide-react";
 import { qualityLabel } from "@cinegather/contracts";
-import { unwrap } from "@cinegather/api-client";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { Chat } from "./Chat";
+import { Member } from "./Member";
 export function Room() {
   const app = useApp();
   const stage = useRef<HTMLDivElement>(null);
@@ -343,114 +342,19 @@ export function Room() {
                   <>
                     <div className="members-list">
                       {app.media.participants.map((p) => (
-                        <div
-                          className={`member ${p.speaking ? "speaking" : ""}`}
+                        <Member
                           key={p.id}
-                        >
-                          <Avatar className={p.local ? "purple" : "amber"}>
-                            {p.name[0]}
-                          </Avatar>
-                          <div className="member-main">
-                            <strong>
-                              {p.name}
-                              {p.local && <Tag>你</Tag>}
-                              {p.id === app.room!.ownerUserId && (
-                                <Tag color="purple">房主</Tag>
-                              )}
-                            </strong>
-                            <small>
-                              {p.speaking
-                                ? "正在说话"
-                                : p.microphone
-                                  ? "语音已就绪"
-                                  : "麦克风已关闭"}
-                            </small>
-                            {!p.local && (
-                              <Slider
-                                ariaLabelForHandle={`${p.name}的音量`}
-                                min={0}
-                                max={100}
-                                value={memberVolumes[p.id] ?? 100}
-                                onChange={(value) => {
-                                  setMemberVolumes((previous) => ({
-                                    ...previous,
-                                    [p.id]: value,
-                                  }));
-                                  actions.media.memberVolume(p.id, value / 100);
-                                }}
-                              />
-                            )}
-                          </div>
-                          <span
-                            className={`member-quality ${p.quality === "poor" || p.quality === "lost" ? "poor" : ""}`}
-                            title={`网络质量：${p.quality === "excellent" ? "优秀" : p.quality === "good" ? "良好" : p.quality === "poor" ? "较差" : p.quality === "lost" ? "已丢失" : "测量中"}`}
-                          >
-                            <Signal size={12} />
-                          </span>
-                          <span
-                            className={`member-mic ${p.microphone ? "" : "off"}`}
-                          >
-                            {p.microphone ? (
-                              <Mic size={16} />
-                            ) : (
-                              <MicOff size={16} />
-                            )}
-                          </span>
-                          {!p.local && (
-                            <div className="member-actions">
-                              <Tooltip title="添加好友">
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  title="添加好友"
-                                  aria-label={`添加${p.name}为好友`}
-                                  onClick={() =>
-                                    void actions.run(async () => {
-                                      unwrap(
-                                        await actions.api.POST(
-                                          "/api/v1/friends",
-                                          {
-                                            body: { userId: p.id },
-                                          },
-                                        ),
-                                      );
-                                      update({ notice: "好友请求已发送" });
-                                    })
-                                  }
-                                >
-                                  <UserPlus size={13} />
-                                </Button>
-                              </Tooltip>
-                              {app.room!.role === "owner" && (
-                                <Button
-                                  type="text"
-                                  size="small"
-                                  danger
-                                  onClick={() =>
-                                    void actions.run(async () => {
-                                      unwrap(
-                                        await actions.api.DELETE(
-                                          "/api/v1/rooms/{roomId}/members/{userId}",
-                                          {
-                                            params: {
-                                              path: {
-                                                roomId: app.room!.id,
-                                                userId: p.id,
-                                              },
-                                            },
-                                            body: { ban: false },
-                                          },
-                                        ),
-                                      );
-                                    })
-                                  }
-                                >
-                                  移出
-                                </Button>
-                              )}
-                            </div>
-                          )}
-                        </div>
+                          participant={p}
+                          room={app.room!}
+                          volume={memberVolumes[p.id] ?? 100}
+                          onVolumeChange={(value) => {
+                            setMemberVolumes((previous) => ({
+                              ...previous,
+                              [p.id]: value,
+                            }));
+                            actions.media.memberVolume(p.id, value / 100);
+                          }}
+                        />
                       ))}
                     </div>
 

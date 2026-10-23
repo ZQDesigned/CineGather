@@ -931,11 +931,11 @@ export const AppSurface = styled.div`
     padding: 12px;
   }
   .member {
-    display: flex;
-    align-items: flex-start;
+    display: grid;
+    grid-template-columns: 32px minmax(0, 1fr) auto;
+    align-items: start;
     gap: 9px;
     padding: 12px 1px;
-    flex-wrap: wrap;
   }
   .member.speaking > .ant-avatar {
     box-shadow:
@@ -944,7 +944,7 @@ export const AppSurface = styled.div`
   }
   .member-main {
     flex: 1;
-    min-width: 80px;
+    min-width: 0;
     padding-top: 2px;
   }
   .member-main strong {
@@ -960,10 +960,29 @@ export const AppSurface = styled.div`
     font-size: 11px;
     margin-top: 7px;
   }
-  .member-main > input {
-    width: 80%;
-    margin-top: 10px;
-    height: 3px;
+  .member-name {
+    min-width: 0;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .member-status {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .member-status .member-quality,
+  .member-status .member-mic {
+    display: flex;
+    padding-top: 0;
+  }
+  .member-menu-trigger.ant-btn {
+    width: 24px;
+    min-width: 24px;
+    height: 24px;
+    padding: 0;
+    color: #9298a9;
   }
   .member-mic {
     color: #9b9aaf;
@@ -971,14 +990,6 @@ export const AppSurface = styled.div`
   }
   .member-mic.off {
     color: #4c5261;
-  }
-  .member-actions {
-    display: flex;
-    align-items: center;
-    justify-content: flex-end;
-    width: 100%;
-    gap: 9px;
-    margin-top: -4px;
   }
   .danger {
     color: #c4878c;
@@ -1566,10 +1577,6 @@ export const AppSurface = styled.div`
     font-size: 10px;
     line-height: 18px;
     padding: 0 4px;
-  }
-  .member-main > .ant-slider {
-    width: 100%;
-    margin: 8px 0 0;
   }
   .member > .ant-avatar {
     flex-shrink: 0;
