@@ -133,6 +133,7 @@ test("real Mac system mix excludes CineGather playback, stays synchronized and w
     });
     apps.push(app);
     const p = await app.firstWindow();
+    await p.getByRole("button", { name: "访客体验", exact: true }).click();
     await p.getByLabel("你的昵称").fill(label);
     await p.getByRole("button", { name: "进入映聚", exact: true }).click();
     return { app, page: p };

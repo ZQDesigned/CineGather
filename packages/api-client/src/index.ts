@@ -1,6 +1,7 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 export type { paths, components, operations } from "./schema";
+const staleSessions = new WeakSet<Response>();
 export function createApi(
   baseUrl: string,
   getToken: () => string | undefined,
@@ -21,6 +22,14 @@ export function createApi(
         ]),
       });
     },
+    onResponse({ request, response }) {
+      if (
+        response.status === 401 &&
+        request.headers.get("Authorization") !==
+          (getToken() ? `Bearer ${getToken()}` : null)
+      )
+        staleSessions.add(response);
+    },
   });
   return client;
 }
@@ -30,6 +39,7 @@ export class ApiError extends Error {
     message: string,
     readonly status: number,
     readonly requestId?: string,
+    readonly staleSession = false,
   ) {
     super(message);
     this.name = "ApiError";
@@ -46,6 +56,7 @@ export function unwrap<T>(result: {
       result.error.message,
       result.response.status,
       result.error.requestId,
+      staleSessions.has(result.response),
     );
   if (result.data === undefined)
     throw new ApiError(

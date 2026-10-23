@@ -4,6 +4,7 @@ test("room controls, sound sliders and chat compose fit the minimum and default 
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("紧凑布局回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
@@ -136,6 +137,7 @@ test("failed API verification preserves identity until an explicit second confir
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("地址验证回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   const token = await page.evaluate(() =>

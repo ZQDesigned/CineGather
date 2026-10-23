@@ -51,7 +51,7 @@ services:
     ports:
       - "127.0.0.1:7880:7880"
       - "127.0.0.1:7881:7881"
-      - "127.0.0.1:50000-50100:50000-50100/udp"
+      - "127.0.0.1:${LIVEKIT_UDP_START:-40000}-${LIVEKIT_UDP_END:-40100}:${LIVEKIT_UDP_START:-40000}-${LIVEKIT_UDP_END:-40100}/udp"
     depends_on: [redis]
     restart: unless-stopped
 volumes:

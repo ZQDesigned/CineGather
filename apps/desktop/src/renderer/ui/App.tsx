@@ -227,14 +227,16 @@ export function App() {
           <Avatar className="purple">{app.user?.displayName[0] ?? "映"}</Avatar>
           <span>
             {app.user?.displayName ?? "欢迎来到映聚"}
-            <small>{app.user ? "访客身份" : "等待你的加入"}</small>
+            <small>
+              {app.user?.username ?? (app.user ? "临时访客" : "等待你的加入")}
+            </small>
           </span>
           {app.user && (
-            <Tooltip title="退出访客身份">
+            <Tooltip title={app.user.username ? "退出登录" : "退出访客身份"}>
               <Button
                 type="text"
-                title="退出访客身份"
-                aria-label="退出访客身份"
+                title={app.user.username ? "退出登录" : "退出访客身份"}
+                aria-label={app.user.username ? "退出登录" : "退出访客身份"}
                 onClick={() => void actions.run(actions.logout)}
               >
                 <LogOut size={16} />

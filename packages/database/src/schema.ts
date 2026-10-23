@@ -16,6 +16,8 @@ const time = (name: string) =>
 export const users = pgTable("users", {
   id: uuid("id").primaryKey(),
   displayName: text("display_name").notNull(),
+  username: text("username").unique(),
+  passwordHash: text("password_hash"),
   createdAt: time("created_at").notNull().defaultNow(),
 });
 export const credentials = pgTable("user_credentials", {

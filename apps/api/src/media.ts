@@ -54,9 +54,28 @@ export class MediaGateway {
     config.livekitKey,
     config.livekitSecret,
   );
-  async participants(roomId: string) {
+  async participants(roomId: string, verifyLive = false) {
     try {
-      return await this.client.listParticipants(roomId);
+      const listed = await this.client.listParticipants(roomId);
+      if (!verifyLive) return listed;
+      // Redis can outlive the serving SFU node. A no-op RPC verifies the room
+      // without changing metadata, permissions or existing media tracks.
+      const live = await Promise.all(
+        listed.map(async (participant) => {
+          try {
+            await this.client.updateParticipant(
+              roomId,
+              participant.identity,
+              {},
+            );
+            return participant;
+          } catch (error) {
+            if (isNotFound(error)) return undefined;
+            throw error;
+          }
+        }),
+      );
+      return live.filter((p) => p !== undefined);
     } catch (e) {
       if (isNotFound(e)) return [];
       throw e;
@@ -69,6 +88,13 @@ export class MediaGateway {
       emptyTimeout: 300,
       departureTimeout: 60,
     });
+  }
+  async deleteRoom(roomId: string) {
+    try {
+      await this.client.deleteRoom(roomId);
+    } catch (error) {
+      if (!isNotFound(error)) throw error;
+    }
   }
   async issue(roomId: string, user: User) {
     const access = new AccessToken(config.livekitKey, config.livekitSecret, {
@@ -116,7 +142,17 @@ export class MediaGateway {
 }
 function isNotFound(e: unknown) {
   return (
-    typeof e === "object" && e !== null && "code" in e && e.code === "not_found"
+    typeof e === "object" &&
+    e !== null &&
+    "code" in e &&
+    (e.code === "not_found" ||
+      // LiveKit may retain Redis metadata after the room's serving node is gone.
+      (e.code === "unknown" &&
+        e instanceof Error &&
+        e.message === "could not find object") ||
+      (e.code === "unavailable" &&
+        e instanceof Error &&
+        e.message === "no response from servers"))
   );
 }
 export const media = new MediaGateway();

@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 async function guest(page: Page, name: string) {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill(name);
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await expect(
@@ -93,7 +94,6 @@ test("normal rooms show an inline copyable code and admit another client without
       friend.getByRole("heading", { name: "房间号直接加入", exact: true }),
     ).toBeVisible();
     await expect(page.locator(".members-list .member")).toHaveCount(2);
-    await leave(friend);
     await leave(page);
     for (const size of [
       { width: 980, height: 680 },
@@ -120,6 +120,7 @@ test("normal rooms show an inline copyable code and admit another client without
       ).toBe(true);
     }
     await page.screenshot({ path: ".local/room-access/home-cards.png" });
+    await leave(friend);
   } finally {
     await otherContext.close();
   }
@@ -207,16 +208,21 @@ test("encrypted rooms require a password on manual reentry and valid invitations
     await passwordInput.fill(password);
     await submitJoin(friend);
     await expect(friend.getByRole("dialog")).toHaveCount(0);
-    await leave(friend);
     await leave(page);
     await page
       .getByRole("button", { name: "进入加密房入房实测", exact: true })
       .click();
+    await expect(page.getByRole("dialog")).toBeVisible();
+    await page
+      .getByLabel("房间密码（加密房必填）", { exact: true })
+      .fill(password);
+    await submitJoin(page);
     await expect(
       page.getByRole("heading", { name: "加密房入房实测", exact: true }),
     ).toBeVisible();
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await leave(page);
+    await leave(friend);
   } finally {
     await otherContext.close();
   }

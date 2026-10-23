@@ -61,6 +61,7 @@ test("create, join, friends and diagnostics animate every supported close action
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("对话框动画回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   const cases = [
@@ -118,6 +119,7 @@ test("invites, bans and source selection animate closing without retaining the s
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("房间弹窗动画回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
@@ -209,6 +211,7 @@ test("reduced motion still completes dialog cleanup and resets abandoned drafts"
 }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("减少动画回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   const trigger = page.getByRole("button", {
@@ -243,6 +246,7 @@ test("an incoming invitation waits for the previous dialog to finish closing bef
     }),
   );
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("弹窗切换回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
@@ -290,6 +294,7 @@ test("losing the room and identity while bans closes does not crash its exiting 
   const errors: string[] = [];
   page.on("pageerror", (error) => errors.push(error.message));
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("房间退出动画回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
@@ -310,7 +315,7 @@ test("losing the room and identity while bans closes does not crash its exiting 
     { headers: { Authorization: `Bearer ${token}` } },
   );
   expect(revoked.status()).toBe(200);
-  await expect(page.getByLabel("你的昵称")).toBeVisible();
+  await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
   await finishClosing(page);
   expect(errors).toEqual([]);
 });

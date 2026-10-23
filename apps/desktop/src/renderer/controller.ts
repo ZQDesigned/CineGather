@@ -10,6 +10,7 @@ import type {
   CaptureSelection,
   DesktopSettings,
   RoomInfo,
+  User,
 } from "@cinegather/contracts";
 import { state, update, defaults } from "./store";
 import { serverOrigin } from "./server-address";
@@ -21,6 +22,7 @@ import {
 } from "./platform";
 import { settingsSchema } from "../shared/settings";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
+let changingCredentials = false;
 const baseUrl = defaultServer(
   localStorage.getItem("cinegather.api"),
   import.meta.env.VITE_API_URL,
@@ -43,6 +45,11 @@ export async function copyText(value: string, notice?: string) {
   if (notice) update({ notice });
 }
 export function report(error: unknown) {
+  if (
+    error instanceof ApiError &&
+    (error.staleSession || (changingCredentials && error.status === 401))
+  )
+    return;
   if (error instanceof ApiError && error.status === 401) {
     const connected = Boolean(sessionToken && state().room);
     sessionToken = undefined;
@@ -100,6 +107,7 @@ export const media = new MediaSession(
     void stopShare();
   },
   (reason) => {
+    if (changingCredentials) return;
     if (!state().room || ["idle", "leaving"].includes(state().roomState))
       return;
     if (reason === DisconnectReason.PARTICIPANT_REMOVED)
@@ -264,6 +272,7 @@ export const roomSession = new RoomCoordinator({
           ? { room: undefined }
           : {}),
     });
+    if (roomState === "idle" && sessionToken) void refreshRooms().catch(report);
   },
   error: report,
 });
@@ -271,7 +280,7 @@ function receiveInvitation(value: string) {
   update({
     joinValue: value,
     modal: state().user ? "join" : null,
-    notice: state().user ? undefined : "收到房间邀请，请先输入昵称",
+    notice: state().user ? undefined : "收到房间邀请，请先登录或使用访客体验",
   });
 }
 export async function initialize() {
@@ -303,7 +312,7 @@ export async function initialize() {
   const initial = (await window.desktop?.takeInvitation()) ?? webInvitation;
   webInvitation = undefined;
   if (initial) receiveInvitation(initial);
-  return window.desktop?.onAction((action, value) => {
+  const unsubscribe = window.desktop?.onAction((action, value) => {
     if (action === "invite" && value) {
       receiveInvitation(value);
       void window.desktop?.takeInvitation();
@@ -313,6 +322,94 @@ export async function initialize() {
     if (action === "ptt-press") void ptt(true, "global");
     if (action === "ptt-release") void ptt(false, "global");
   });
+  const timer = setInterval(() => void syncRooms(), 2500);
+  return () => {
+    clearInterval(timer);
+    unsubscribe?.();
+  };
+}
+async function syncRooms() {
+  if (!sessionToken || !state().user || changingCredentials) return;
+  const identity = sessionToken;
+  const { room, roomRevision } = state();
+  try {
+    await refreshRooms();
+    if (!room || !["connected", "reconnecting"].includes(state().roomState))
+      return;
+    const current = unwrap(
+      await api.GET("/api/v1/rooms/{roomId}", {
+        params: { path: { roomId: room.id } },
+      }),
+    );
+    if (state().room?.id !== room.id || state().roomRevision !== roomRevision)
+      return;
+    const promoted = current.role === "owner" && state().room?.role !== "owner";
+    update({ room: current, ...(promoted ? { notice: "你已成为房主" } : {}) });
+  } catch (error) {
+    if (identity !== sessionToken || changingCredentials) return;
+    if (error instanceof ApiError && error.status === 401) report(error);
+    else if (
+      room &&
+      state().room?.id === room.id &&
+      state().roomRevision === roomRevision &&
+      error instanceof ApiError &&
+      [403, 404].includes(error.status)
+    )
+      await handleRemoteRemoval().catch(report);
+  }
+}
+async function acceptSession(data: { user: User; sessionToken: string }) {
+  sessionToken = data.sessionToken;
+  localStorage.setItem("cinegather.session", data.sessionToken);
+  update({ user: data.user, modal: null, error: undefined });
+  await refreshRooms();
+  if (state().joinValue) update({ modal: "join" });
+}
+export async function login(username: string, password: string) {
+  await acceptSession(
+    unwrap(
+      await api.POST("/api/v1/accounts/login", {
+        body: { username, password },
+      }),
+    ),
+  );
+}
+export async function register(
+  username: string,
+  displayName: string,
+  password: string,
+) {
+  if (state().user) await stopShare();
+  changingCredentials = true;
+  try {
+    const result = unwrap(
+      await api.POST("/api/v1/accounts/register", {
+        body: { username, displayName, password },
+      }),
+    );
+    await acceptSession(result);
+    update({ notice: "账号已创建" });
+  } finally {
+    changingCredentials = false;
+  }
+}
+export async function changePassword(
+  currentPassword: string,
+  password: string,
+) {
+  changingCredentials = true;
+  try {
+    const result = unwrap(
+      await api.POST("/api/v1/accounts/password", {
+        body: { currentPassword, password },
+      }),
+    );
+    await roomSession.leave(false);
+    await acceptSession(result);
+    update({ notice: "密码已修改，其他设备已退出登录" });
+  } finally {
+    changingCredentials = false;
+  }
 }
 export async function guest(displayName: string) {
   const data = unwrap(
@@ -325,7 +422,10 @@ export async function guest(displayName: string) {
   if (state().joinValue) update({ modal: "join" });
 }
 export async function refreshRooms() {
-  update({ rooms: unwrap(await api.GET("/api/v1/rooms")).items });
+  const identity = sessionToken;
+  const result = unwrap(await api.GET("/api/v1/rooms"));
+  if (identity === sessionToken && state().user)
+    update({ rooms: result.items });
 }
 export async function createRoom(
   name: string,

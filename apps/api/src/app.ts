@@ -91,13 +91,16 @@ export async function createApp() {
       const now = Date.now();
       if (buckets.size > 10000)
         for (const [key, b] of buckets) if (b.reset <= now) buckets.delete(key);
-      const key = `${req.ip}:${req.path.endsWith("/guests") ? "guest" : "api"}`;
+      const limited =
+        req.path.endsWith("/guests") ||
+        req.path.startsWith("/api/v1/accounts/");
+      const key = `${req.ip}:${limited ? "auth" : "api"}`;
       let bucket = buckets.get(key);
       if (!bucket || bucket.reset <= now) {
         bucket = { count: 0, reset: now + 60_000 };
         buckets.set(key, bucket);
       }
-      if (++bucket.count > (key.endsWith(":guest") ? 60 : 600)) {
+      if (++bucket.count > (limited ? 60 : 600)) {
         res
           .status(429)
           .setHeader(

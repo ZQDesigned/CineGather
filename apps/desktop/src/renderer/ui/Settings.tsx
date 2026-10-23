@@ -13,8 +13,10 @@ import { ModalShell, useDialogOpen } from "./Modal";
 import { ShortcutRecorder } from "./ShortcutRecorder";
 import { serverOrigin, verifyServer } from "../server-address";
 import { capabilities } from "../platform";
+import { AccountForm } from "./AccountForm";
 export function Settings() {
   const platform = capabilities();
+  const user = useApp((s) => s.user);
   const pttLabel = "全局按住说话";
   const muteLabel = platform.globalShortcuts
     ? "全局麦克风静音"
@@ -59,7 +61,7 @@ export function Settings() {
               <p>{origin}</p>
               <p>
                 {error instanceof Error ? error.message : "连接失败"}
-                。仍要保存该地址并重新建立访客身份吗？
+                。仍要保存该地址并重新登录吗？
               </p>
             </div>
           ),
@@ -237,7 +239,7 @@ export function Settings() {
             >
               {verifying ? "正在验证…" : "保存地址"}
             </Button>
-          ) : (
+          ) : tab !== "account" ? (
             <Button
               type="primary"
               htmlType="submit"
@@ -246,7 +248,7 @@ export function Settings() {
             >
               保存设置
             </Button>
-          )}
+          ) : null}
         </>
       }
     >
@@ -255,6 +257,26 @@ export function Settings() {
         activeKey={tab}
         onChange={setTab}
         items={[
+          ...(user
+            ? [
+                {
+                  key: "account",
+                  label: "账号与安全",
+                  children: (
+                    <>
+                      <p className="account-identity">
+                        {user.username
+                          ? `用户名：${user.username}`
+                          : "升级账号后可跨设备登录，保留当前好友关系。"}
+                      </p>
+                      <AccountForm
+                        mode={user.username ? "password" : "upgrade"}
+                      />
+                    </>
+                  ),
+                },
+              ]
+            : []),
           {
             key: "audio",
             label: "音频设备",
@@ -427,10 +449,7 @@ export function Settings() {
                 layout="vertical"
                 onFinish={() => void saveServer()}
               >
-                <Form.Item
-                  label="API 地址"
-                  extra="更换服务器会清除当前访客身份，请确认地址后保存。"
-                >
+                <Form.Item label="API 地址" extra="更换服务器后需要重新登录。">
                   <Input
                     aria-label="API 地址"
                     value={server}

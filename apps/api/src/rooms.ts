@@ -10,7 +10,18 @@ import {
   credentials,
   type Transaction,
 } from "@cinegather/database";
-import { eq, and, gt, isNull, desc, or, lt, inArray, sql } from "drizzle-orm";
+import {
+  eq,
+  and,
+  gt,
+  isNull,
+  isNotNull,
+  desc,
+  or,
+  lt,
+  inArray,
+  sql,
+} from "drizzle-orm";
 import { randomUUID, randomBytes } from "node:crypto";
 import { db, hash, token, audit, dedup } from "./context";
 import { fail, uuid } from "./errors";
@@ -111,9 +122,12 @@ export async function createRoom(
       }
       if (!created)
         fail(503, "ROOM_CODE_UNAVAILABLE", "无法生成房间号，请重试");
-      await tx
-        .insert(members)
-        .values({ roomId: id, userId: user.id, role: "owner" });
+      await tx.insert(members).values({
+        roomId: id,
+        userId: user.id,
+        role: "owner",
+        admittedUntil: new Date(Date.now() + 70_000),
+      });
       await tx.insert(leases).values({ roomId: id });
       await audit(tx, user.id, "room.created", id);
       return roomInfo(created, user.id);
@@ -283,7 +297,11 @@ export async function joinRoom(
       fail(409, "ROOM_FULL", "房间人数已满");
     await tx
       .update(members)
-      .set({ admittedUntil: new Date(Date.now() + 70_000) })
+      .set({
+        admittedUntil: new Date(Date.now() + 70_000),
+        joinedAt:
+          occupying.has(user.id) && member ? member.joinedAt : new Date(),
+      })
       .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
     await audit(tx, user.id, "room.joined", roomId);
     return {
@@ -296,6 +314,12 @@ export async function joinRoom(
 export async function leaveRoom(user: User, roomId: string) {
   roomId = uuid(roomId);
   await db.transaction(async (tx) => {
+    const [room] = await tx
+      .select()
+      .from(rooms)
+      .where(eq(rooms.id, roomId))
+      .for("update");
+    if (!room || room.status === "closed") return;
     await requireMember(tx, roomId, user.id, false, true);
     await revokeNative(tx, roomId, user.id);
     await media.remove(roomId, user.id);
@@ -308,8 +332,111 @@ export async function leaveRoom(user: User, roomId: string) {
       .set({ holderUserId: null, leaseId: null, expiresAt: null })
       .where(and(eq(leases.roomId, roomId), eq(leases.holderUserId, user.id)));
     await audit(tx, user.id, "room.left", roomId);
+    await settleRoom(tx, roomId, user.id);
   });
   return { ok: true as const };
+}
+// Caller holds the room lock. Admissions reserve a seat while connecting;
+// reconciled live humans retain a short reservation for reconnecting.
+export async function settleRoom(
+  tx: Transaction,
+  roomId: string,
+  departedUserId?: string,
+  presentUserIds?: string[],
+) {
+  const [room] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
+  if (!room || room.status !== "active") return;
+  const knownMembers = await tx
+    .select({ userId: members.userId })
+    .from(members)
+    .where(eq(members.roomId, roomId));
+  const liveHumans = (
+    presentUserIds ??
+    (await media.participants(roomId, true)).map((p) => p.identity)
+  ).filter(
+    (identity) =>
+      knownMembers.some((m) => m.userId === identity) &&
+      identity !== departedUserId,
+  );
+  if (liveHumans.length)
+    await tx
+      .update(members)
+      .set({ admittedUntil: new Date(Date.now() + 30_000) })
+      .where(
+        and(
+          eq(members.roomId, roomId),
+          inArray(members.userId, liveHumans),
+          isNotNull(members.admittedUntil),
+        ),
+      );
+  const candidates = await tx
+    .select({ userId: members.userId, joinedAt: members.joinedAt })
+    .from(members)
+    .where(
+      and(eq(members.roomId, roomId), gt(members.admittedUntil, new Date())),
+    )
+    .orderBy(members.joinedAt, members.userId);
+  const sessions = candidates.length
+    ? await tx
+        .select({ userId: credentials.userId })
+        .from(credentials)
+        .where(
+          and(
+            inArray(
+              credentials.userId,
+              candidates.map((c) => c.userId),
+            ),
+            isNull(credentials.revokedAt),
+            gt(credentials.expiresAt, new Date()),
+          ),
+        )
+    : [];
+  const eligible = candidates.filter(
+    (c) =>
+      c.userId !== departedUserId &&
+      sessions.some((s) => s.userId === c.userId),
+  );
+  if (!eligible.length) {
+    await revokeNative(tx, roomId);
+    await media.deleteRoom(roomId);
+    await tx
+      .update(rooms)
+      .set({ status: "closed" })
+      .where(eq(rooms.id, roomId));
+    await tx
+      .update(invites)
+      .set({ revokedAt: new Date() })
+      .where(eq(invites.roomId, roomId));
+    await tx
+      .update(leases)
+      .set({ holderUserId: null, leaseId: null, expiresAt: null })
+      .where(eq(leases.roomId, roomId));
+    await tx
+      .update(members)
+      .set({ admittedUntil: null })
+      .where(eq(members.roomId, roomId));
+    await audit(tx, null, "room.closed_empty", roomId);
+  } else if (!eligible.some((c) => c.userId === room.ownerUserId)) {
+    const owner = (eligible.find((candidate) =>
+      liveHumans.includes(candidate.userId),
+    ) ?? eligible[0])!.userId;
+    await tx
+      .update(rooms)
+      .set({ ownerUserId: owner })
+      .where(eq(rooms.id, roomId));
+    await tx
+      .update(members)
+      .set({ role: "member" })
+      .where(eq(members.roomId, roomId));
+    await tx
+      .update(members)
+      .set({ role: "owner" })
+      .where(and(eq(members.roomId, roomId), eq(members.userId, owner)));
+    await audit(tx, null, "room.owner_transferred", roomId, {
+      previousOwner: room.ownerUserId,
+      owner,
+    });
+  }
 }
 function leaseResult(row: typeof leases.$inferSelect): ShareLease {
   return {
@@ -582,12 +709,12 @@ export async function reconcileRoom(roomId: string) {
       .from(rooms)
       .where(eq(rooms.id, roomId))
       .for("update");
-    if (!room) return;
+    if (!room || room.status !== "active") return;
     const [lease] = await tx
       .select()
       .from(leases)
       .where(eq(leases.roomId, roomId));
-    const participants = await media.participants(roomId);
+    const participants = await media.participants(roomId, true);
     const roomMembers = await tx
       .select()
       .from(members)
@@ -596,23 +723,25 @@ export async function reconcileRoom(roomId: string) {
       .select()
       .from(bans)
       .where(eq(bans.roomId, roomId));
-    const validSessions = participants.length
+    const humanIds = participants
+      .filter((p) => roomMembers.some((m) => m.userId === p.identity))
+      .map((p) => p.identity);
+    const validSessions = humanIds.length
       ? await tx
           .select({ userId: credentials.userId })
           .from(credentials)
           .where(
             and(
-              inArray(
-                credentials.userId,
-                participants.map((p) => p.identity),
-              ),
+              inArray(credentials.userId, humanIds),
               isNull(credentials.revokedAt),
               gt(credentials.expiresAt, new Date()),
             ),
           )
       : [];
     const authorized = (identity: string) =>
-      roomMembers.some((m) => m.userId === identity) &&
+      roomMembers.some(
+        (m) => m.userId === identity && m.admittedUntil !== null,
+      ) &&
       validSessions.some((c) => c.userId === identity) &&
       !roomBans.some((b) => b.userId === identity) &&
       room.status === "active";
@@ -643,6 +772,15 @@ export async function reconcileRoom(roomId: string) {
         await media.remove(roomId, participant.identity);
         continue;
       }
+      await tx
+        .update(members)
+        .set({ admittedUntil: new Date(Date.now() + 30_000) })
+        .where(
+          and(
+            eq(members.roomId, roomId),
+            eq(members.userId, participant.identity),
+          ),
+        );
       const allowsScreen =
         participant.permission?.canPublishSources.includes(3) ||
         participant.permission?.canPublishSources.includes(4);
@@ -676,10 +814,19 @@ export async function reconcileRoom(roomId: string) {
         revision: lease.revision,
       });
     }
+    await settleRoom(
+      tx,
+      roomId,
+      undefined,
+      participants.filter((p) => authorized(p.identity)).map((p) => p.identity),
+    );
   });
 }
 export async function reconcileAll() {
-  const active = await db.select({ id: rooms.id }).from(rooms);
+  const active = await db
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(eq(rooms.status, "active"));
   for (const room of active) {
     try {
       await reconcileRoom(room.id);
@@ -687,6 +834,29 @@ export async function reconcileAll() {
       console.error(
         JSON.stringify({ event: "room.reconcile_failed", roomId: room.id }),
       );
+    }
+  }
+  // Ingress creation can finish after the business transaction/room is gone.
+  // Scan managed keys globally so closed rooms cannot strand usable publishers.
+  const activeIds = new Set(active.map((room) => room.id));
+  for (const ingress of await media.ingress.listIngress({})) {
+    if (
+      ingress.name.startsWith("cinegather/native/v1/") &&
+      !activeIds.has(ingress.roomName)
+    ) {
+      await db.transaction(async (tx) => {
+        const [current] = await tx
+          .select()
+          .from(rooms)
+          .where(eq(rooms.id, ingress.roomName))
+          .for("update");
+        if (current?.status === "active") return;
+        await media.deleteNative(
+          ingress.roomName,
+          ingress.participantIdentity,
+          ingress.ingressId,
+        );
+      });
     }
   }
 }

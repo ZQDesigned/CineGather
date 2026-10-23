@@ -111,13 +111,22 @@ export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest<AuthRequest>();
     if (
-      ["/api/v1/health", "/api/v1/guests", "/api/v1/livekit/webhook"].includes(
-        req.path,
-      )
+      [
+        "/api/v1/health",
+        "/api/v1/guests",
+        "/api/v1/accounts/login",
+        "/api/v1/livekit/webhook",
+      ].includes(req.path)
     )
       return true;
+    if (req.path === "/api/v1/accounts/register" && !req.headers.authorization)
+      return true;
     const identity = await authenticate(req.headers.authorization);
-    req.user = { id: identity.id, displayName: identity.displayName };
+    req.user = {
+      id: identity.id,
+      displayName: identity.displayName,
+      username: identity.username,
+    };
     req.sessionId = identity.credentialId;
     return true;
   }

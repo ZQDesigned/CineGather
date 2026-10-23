@@ -25,6 +25,7 @@ async function desktopTalkBridge(page: Page) {
 }
 async function guest(page: Page, name: string) {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill(name);
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await expect(
@@ -381,11 +382,22 @@ test("revoking an active guest session disconnects its existing media identity",
   );
   expect(revoked.status()).toBe(200);
   await expect
-    .poll(async () => (await livekit.listParticipants(roomId)).length, {
-      timeout: 12000,
-    })
+    .poll(
+      async () =>
+        (
+          await livekit
+            .listParticipants(roomId)
+            .catch((error: { code?: string }) => {
+              if (error.code === "not_found") return [];
+              throw error;
+            })
+        ).length,
+      {
+        timeout: 12000,
+      },
+    )
     .toBe(0);
-  await expect(page.getByLabel("你的昵称")).toBeVisible();
+  await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
   await expect(
     page.locator(".ant-notification").getByRole("alert"),
   ).toContainText("身份已过期");

@@ -4,6 +4,7 @@ test("capture categories are tabs and sources are keyboard-selectable single-cho
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("组件回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
@@ -141,6 +142,7 @@ test("native preview loading ignores stale category and closed-picker results an
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("预览交互回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
@@ -248,6 +250,7 @@ test("native screen audio is a system mix and window audio remains app-scoped", 
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("系统声音组件回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();

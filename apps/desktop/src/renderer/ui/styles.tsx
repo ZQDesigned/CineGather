@@ -1476,7 +1476,21 @@ export const AppSurface = styled.div`
     min-height: 134px;
   }
   .welcome-card .ant-form-item {
-    margin: 24px 0 20px;
+    margin: 0 0 12px;
+  }
+  .welcome-card {
+    padding: 20px 24px;
+  }
+  .welcome-card h2 {
+    margin: 0 0 12px;
+  }
+  .welcome-card .ant-form-item-label {
+    padding-bottom: 4px;
+  }
+  .account-identity {
+    margin-bottom: 16px;
+    color: #9298a9;
+    font-size: 12px;
   }
   .welcome-card .ant-btn-link {
     margin: 15px auto 0;
@@ -1781,6 +1795,23 @@ export const AppSurface = styled.div`
   @media (max-width: 1050px) {
     .control-button.ant-btn {
       padding: 5px;
+    }
+  }
+  @media (max-width: 1100px) {
+    .welcome {
+      grid-template-columns: minmax(0, 1fr) minmax(280px, 340px);
+      gap: 24px;
+      padding: 16px 24px;
+    }
+    .welcome-art h1 {
+      font-size: 28px;
+    }
+    .welcome-features {
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+    .welcome-card {
+      padding: 18px 20px;
     }
   }
 `;

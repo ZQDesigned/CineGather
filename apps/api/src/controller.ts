@@ -20,6 +20,11 @@ import * as c from "@cinegather/contracts";
 import * as r from "./rooms";
 import * as s from "./social";
 import { createGuest, revokeSession } from "./auth";
+import {
+  registerAccount,
+  loginAccount,
+  changeAccountPassword,
+} from "./accounts";
 import { db } from "./context";
 import { media } from "./media";
 import { Endpoint, parse, type AuthRequest } from "./http";
@@ -65,6 +70,21 @@ export class ApiController {
   @Endpoint("me", c.userSchema)
   me(@Req() req: AuthRequest) {
     return req.user;
+  }
+  @Post("accounts/register")
+  @Endpoint("registerAccount", c.sessionSchema, c.registerInput, [], 201)
+  register(@Req() req: AuthRequest, @Body() body: unknown) {
+    return registerAccount(parse(c.registerInput, body), req.user);
+  }
+  @Post("accounts/login")
+  @Endpoint("loginAccount", c.sessionSchema, c.loginInput, [], 201)
+  login(@Req() req: AuthRequest, @Body() body: unknown) {
+    return loginAccount(parse(c.loginInput, body), req.ip ?? "unknown");
+  }
+  @Post("accounts/password")
+  @Endpoint("changeAccountPassword", c.sessionSchema, c.passwordInput, [], 201)
+  password(@Req() req: AuthRequest, @Body() body: unknown) {
+    return changeAccountPassword(req.user, parse(c.passwordInput, body));
   }
   @Delete("session")
   @Endpoint("revokeSession", c.okSchema)

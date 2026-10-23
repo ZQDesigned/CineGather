@@ -5,6 +5,7 @@ test("copy feedback floats above an open modal, dismisses itself and can be show
 }) => {
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("消息体验回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("menuitem", { name: "好友", exact: true }).click();
@@ -39,6 +40,7 @@ test("a clipboard failure is reported through Notification while its modal stays
     };
   });
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("复制失败回归");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("menuitem", { name: "好友", exact: true }).click();

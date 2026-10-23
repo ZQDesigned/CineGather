@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function guest(page: Page, name: string) {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill(name);
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await expect(page.locator(".home")).toBeVisible();

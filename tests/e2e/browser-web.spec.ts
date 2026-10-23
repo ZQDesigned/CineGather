@@ -2,6 +2,7 @@ import { test, expect, type Page } from "@playwright/test";
 
 async function guest(page: Page, name: string) {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill(name);
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await expect(
@@ -47,6 +48,7 @@ test("production Chrome uses same-origin API, shared room UI, browser invites, v
   try {
     await viewer.goto(invite);
     expect(viewer.url()).toBe("http://127.0.0.1:5180/");
+    await viewer.getByRole("button", { name: "访客体验", exact: true }).click();
     await viewer.getByLabel("你的昵称").fill("Chrome 观众");
     await viewer.getByRole("button", { name: "进入映聚", exact: true }).click();
     await expect(
@@ -272,9 +274,14 @@ test("Chrome ignores saved push-to-talk and keeps free-mic or manual mute across
     ).toBe(false);
     await leave(page);
     await page.reload();
+    await expect(
+      page.locator(".room-card").filter({ hasText: "Chrome 共享界面验证" }),
+    ).toHaveCount(0);
     await page
-      .getByRole("button", { name: "进入Chrome 共享界面验证", exact: true })
+      .getByRole("button", { name: "创建私人房间", exact: true })
       .click();
+    await page.getByLabel("房间名称").fill("Chrome 自由麦重新入房");
+    await page.getByRole("button", { name: "创建并进入", exact: true }).click();
     await expect(mic(false)).toBeEnabled();
     await expect(page.getByText("按住空格说话", { exact: true })).toHaveCount(
       0,

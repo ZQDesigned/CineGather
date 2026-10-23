@@ -26,6 +26,7 @@ test("native ingress belongs to the live lease, rotates keys, and is revoked on 
   page,
 }) => {
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("原生权限测试");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
@@ -130,7 +131,7 @@ test("native ingress belongs to the live lease, rotates keys, and is revoked on 
           revision: finalLease.revision,
         })
       ).status,
-    ).toBe(409);
+    ).toBe(404);
   } finally {
     if (lastId) await admin.deleteIngress(lastId).catch(() => {});
     await media.deleteRoom(room).catch(() => {});
@@ -153,6 +154,7 @@ test("kick, session revocation and crash-orphan reconciliation revoke native pub
     process.env.LIVEKIT_API_SECRET!,
   );
   await page.goto("/");
+  await page.getByRole("button", { name: "访客体验", exact: true }).click();
   await page.getByLabel("你的昵称").fill("原生撤销房主");
   await page.getByRole("button", { name: "进入映聚", exact: true }).click();
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
@@ -176,6 +178,7 @@ test("kick, session revocation and crash-orphan reconciliation revoke native pub
   const friend = await context.newPage();
   try {
     await friend.goto("/");
+    await friend.getByRole("button", { name: "访客体验", exact: true }).click();
     await friend.getByLabel("你的昵称").fill("原生撤销成员");
     await friend.getByRole("button", { name: "进入映聚", exact: true }).click();
     await friend.getByRole("button", { name: "加入房间", exact: true }).click();

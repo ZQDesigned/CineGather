@@ -204,6 +204,7 @@ try {
     const page = await context.newPage();
     pages.push(page);
     await page.goto("http://127.0.0.1:15173");
+    await page.getByRole("button", { name: "访客体验", exact: true }).click();
     await page.getByLabel("你的昵称").fill(`稳定性测试 ${i + 1}`);
     await page.getByRole("button", { name: "进入映聚", exact: true }).click();
     await expect(

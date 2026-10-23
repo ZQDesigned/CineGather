@@ -3,6 +3,30 @@ import { z } from "zod";
 export const guestInput = z.strictObject({
   displayName: z.string().trim().min(1).max(32),
 });
+export const usernameInput = z
+  .string()
+  .trim()
+  .min(3)
+  .max(32)
+  .regex(/^[A-Za-z0-9_]+$/, "用户名仅支持字母、数字和下划线")
+  .transform((value) => value.toLowerCase());
+export const accountPassword = z
+  .string()
+  .min(10, "密码至少需要 10 个字符")
+  .max(128);
+export const registerInput = z.strictObject({
+  username: usernameInput,
+  displayName: z.string().trim().min(1).max(32),
+  password: accountPassword,
+});
+export const loginInput = z.strictObject({
+  username: usernameInput,
+  password: z.string().min(1).max(128),
+});
+export const passwordInput = z.strictObject({
+  currentPassword: z.string().min(1).max(128),
+  password: accountPassword,
+});
 export const roomInput = z
   .strictObject({
     name: z.string().trim().min(1).max(64),
@@ -43,7 +67,11 @@ export const friendInput = z.strictObject({ userId: z.uuid().toLowerCase() });
 export const moderationInput = z.strictObject({
   ban: z.boolean().default(false),
 });
-export const userSchema = z.object({ id: z.uuid(), displayName: z.string() });
+export const userSchema = z.object({
+  id: z.uuid(),
+  displayName: z.string(),
+  username: z.string().nullable().optional(),
+});
 export const roomSchema = z.object({
   id: z.uuid(),
   code: z.string().regex(/^[A-F0-9]{8}$/),

@@ -109,7 +109,7 @@ test("packaged desktop starts with a sandboxed renderer and the minimal typed br
   try {
     const page = await app.firstWindow();
     await expect(
-      page.getByRole("heading", { name: "给自己一个名字" }),
+      page.getByRole("heading", { name: "欢迎来到映聚" }),
     ).toBeVisible();
     const preferences = await app.evaluate(({ BrowserWindow }) => {
       const contents = BrowserWindow.getAllWindows()[0]!
@@ -165,10 +165,10 @@ test("a first-launch invitation waits for guest onboarding instead of being lost
   try {
     const page = await app.firstWindow();
     await expect(
-      page.getByRole("heading", { name: "给自己一个名字" }),
+      page.getByRole("heading", { name: "欢迎来到映聚" }),
     ).toBeVisible();
     await expect(page.getByRole("status")).toContainText(
-      "收到房间邀请，请先输入昵称",
+      "收到房间邀请，请先登录或使用访客体验",
     );
     await expect(page.getByRole("dialog")).toHaveCount(0);
   } finally {
@@ -185,12 +185,14 @@ test("packaged capture permissions require source approval while camera capture 
   const profile = await mkdtemp(join(tmpdir(), "cinegather-capture-gate-"));
   const app = await electron.launch({
     executablePath,
-    args: [`--user-data-dir=${profile}`],
+    // Enumerate a deterministic camera so missing Mac hardware cannot return
+    // NotFoundError before Electron's camera permission gate is exercised.
+    args: [`--user-data-dir=${profile}`, "--use-fake-device-for-media-stream"],
     timeout: 30000,
   });
   try {
     const page = await app.firstWindow();
-    await expect(page.getByLabel("你的昵称")).toBeVisible();
+    await expect(page.getByLabel("用户名", { exact: true })).toBeVisible();
     // Replace only the OS capture boundary: every request is rejected without
     // opening a native picker or starting a device, after the real permission gate.
     await app.evaluate(({ BrowserWindow, desktopCapturer, nativeImage }) => {
@@ -340,6 +342,7 @@ test("packaged global hold uses the native state boundary, combines foreground h
         return register(key, callback);
       };
     });
+    await page.getByRole("button", { name: "访客体验", exact: true }).click();
     await page.getByLabel("你的昵称").fill("全局按住说话验证");
     await page.getByRole("button", { name: "进入映聚", exact: true }).click();
     await page
@@ -544,6 +547,7 @@ test("a failed startup hotkey keeps saved push-to-talk enabled and joins muted",
       page.getByRole("checkbox", { name: "按键说话" }),
     ).toBeChecked();
     await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+    await page.getByRole("button", { name: "访客体验", exact: true }).click();
     await page.getByLabel("你的昵称").fill("快捷键失效保持静音");
     await page.getByRole("button", { name: "进入映聚", exact: true }).click();
     await page
@@ -555,6 +559,66 @@ test("a failed startup hotkey keeps saved push-to-talk enabled and joins muted",
       page.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeVisible();
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  } finally {
+    await app.close();
+    await rm(profile, { recursive: true, force: true });
+  }
+});
+
+test("packaged account onboarding shares login and registration UI, keeps identity, and fits the minimum window", async () => {
+  test.skip(
+    process.platform !== "darwin" || !existsSync(executablePath),
+    "Requires a local Mac package.",
+  );
+  const profile = await mkdtemp(join(tmpdir(), "cinegather-account-"));
+  const app = await electron.launch({
+    executablePath,
+    args: [`--user-data-dir=${profile}`],
+  });
+  try {
+    const page = await app.firstWindow();
+    await app.evaluate(({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows()[0]!;
+      w.setBounds({ width: 980, height: 680 });
+      w.show();
+      w.focus();
+    });
+    await page.getByRole("tab", { name: "注册", exact: true }).click();
+    await expect(
+      page.getByText("YOUR PEOPLE. YOUR CINEMA.", { exact: true }),
+    ).toHaveCount(0);
+    expect(
+      await page.evaluate(
+        () => document.documentElement.scrollHeight <= innerHeight,
+      ),
+    ).toBe(true);
+    await page.screenshot({
+      path: ".local/accounts-lifecycle/mac-account-register.png",
+    });
+    const username = `native_${crypto.randomUUID().slice(0, 8)}`;
+    await page.getByLabel("用户名", { exact: true }).fill(username);
+    await page.getByLabel("昵称", { exact: true }).fill("Mac 账号体验");
+    await page
+      .getByLabel("密码", { exact: true })
+      .fill("Native local test password 123!");
+    await page
+      .getByLabel("确认密码", { exact: true })
+      .fill("Native local test password 123!");
+    await page.getByRole("button", { name: "注册并登录", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "晚上好，Mac 账号体验" }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "退出登录", exact: true }).click();
+    await page
+      .getByLabel("用户名", { exact: true })
+      .fill(username.toUpperCase());
+    await page
+      .getByLabel("密码", { exact: true })
+      .fill("Native local test password 123!");
+    await page.getByRole("button", { name: "登录映聚", exact: true }).click();
+    await expect(
+      page.getByRole("heading", { name: "晚上好，Mac 账号体验" }),
+    ).toBeVisible();
   } finally {
     await app.close();
     await rm(profile, { recursive: true, force: true });

@@ -1,7 +1,11 @@
 import { defineConfig } from "@playwright/test";
 import base from "./playwright.config";
 export default defineConfig(base, {
-  testMatch: ["browser-web.spec.ts", "lobby-room.spec.ts"],
+  testMatch: [
+    "browser-web.spec.ts",
+    "lobby-room.spec.ts",
+    "accounts-lifecycle.spec.ts",
+  ],
   outputDir: ".local/chrome-support/web-results",
   testIgnore: [],
   use: { channel: "chrome", baseURL: "http://127.0.0.1:5180" },
