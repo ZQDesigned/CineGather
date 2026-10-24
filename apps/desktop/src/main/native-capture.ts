@@ -1,3 +1,4 @@
+import { version } from "../../package.json";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -216,6 +217,8 @@ export class NativeCapture {
         headers: {
           Authorization: `Bearer ${context.sessionToken}`,
           "Content-Type": "application/json",
+          "X-CineGather-Version": version,
+          "X-CineGather-Platform": process.platform,
         },
         body: JSON.stringify({
           leaseId: context.lease.leaseId,

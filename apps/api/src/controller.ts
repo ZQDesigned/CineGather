@@ -67,6 +67,11 @@ export class ApiController {
   me(@Req() req: AuthRequest) {
     return req.user;
   }
+  @Get("client-policy")
+  @Endpoint("clientPolicy", c.clientPolicySchema)
+  clientPolicy(@Req() req: AuthRequest) {
+    return c.clientPolicySchema.parse(req.app.get("cinegather.clientPolicy"));
+  }
   @Get("registration")
   @Endpoint("registrationPolicy", c.registrationPolicySchema)
   registrationPolicy() {

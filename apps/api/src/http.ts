@@ -76,7 +76,7 @@ export function Endpoint(
   return applyDecorators(
     ApiOperation({ operationId }),
     ApiResponse({ status, schema: openSchema(output) }),
-    ...[400, 401, 403, 404, 409, 429, 503].map((code) =>
+    ...[400, 401, 403, 404, 409, 426, 429, 503].map((code) =>
       ApiResponse({
         status: code,
         schema: {
@@ -117,6 +117,7 @@ export class AuthGuard implements CanActivate {
     if (
       [
         "/api/v1/health",
+        "/api/v1/client-policy",
         "/api/v1/registration",
         "/api/v1/accounts/login",
         "/api/v1/livekit/webhook",

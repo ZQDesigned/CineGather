@@ -3,6 +3,9 @@ import type { DesktopBridge } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
   updates: {
+    requireUpdate: (minimumVersion, reason) =>
+      ipcRenderer.invoke("desktop:update-require", { minimumVersion, reason }),
+    quit: () => ipcRenderer.invoke("desktop:update-quit"),
     status: () => ipcRenderer.invoke("desktop:update-status"),
     check: () => ipcRenderer.invoke("desktop:update-check"),
     download: () => ipcRenderer.invoke("desktop:update-download"),

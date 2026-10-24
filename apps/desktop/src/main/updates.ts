@@ -3,7 +3,13 @@ import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { NsisUpdater } from "electron-updater";
 import type { UpdateStatus } from "@cinegather/contracts";
-import { artifactURL, fetchRelease, updateMode } from "./update-release";
+import {
+  artifactURL,
+  fetchRelease,
+  updateMode,
+  updateOrigin,
+} from "./update-release";
+import { versionBelow } from "@cinegather/contracts";
 import { UpdateController, type UpdateTransport } from "./update-controller";
 import { windowsDownloader } from "./windows-update";
 
@@ -26,10 +32,9 @@ export async function createUpdates(
         process.env.PORTABLE_EXECUTABLE_DIR,
     ),
   );
-  const publicKey =
-    mode === "disabled"
-      ? ""
-      : await readFile(resource("update-public-key.pem"), "utf8");
+  const publicKey = !app.isPackaged
+    ? ""
+    : await readFile(resource("update-public-key.pem"), "utf8");
   const updater = mode === "install" ? new NsisUpdater() : undefined;
   if (updater) {
     updater.updateConfigPath = resource("updater.yml");
@@ -79,9 +84,28 @@ export async function createUpdates(
   return {
     controller,
     openDownload: async () => {
-      const release = controller.downloadURL();
-      if (!release || mode !== "notify") throw new Error("没有可下载的新版");
-      await shell.openExternal(artifactURL(release));
+      const status = controller.snapshot();
+      const portable =
+        mode === "disabled" &&
+        status.required &&
+        app.isPackaged &&
+        process.platform === "win32";
+      const release = portable
+        ? await fetchRelease(publicKey, process.platform, process.arch)
+        : controller.downloadURL();
+      if (
+        !release ||
+        (!portable &&
+          mode !== "notify" &&
+          !(mode === "install" && status.required)) ||
+        (status.minimumVersion &&
+          versionBelow(release.version, status.minimumVersion))
+      )
+        throw new Error("新版安装包暂不可用，请稍后重试。");
+      const url = portable
+        ? `${updateOrigin}/downloads/${release.artifact.file.replace("-setup.exe", "-portable.exe")}`
+        : artifactURL(release);
+      await shell.openExternal(url);
     },
   };
 }

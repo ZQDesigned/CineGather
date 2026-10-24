@@ -1,5 +1,6 @@
 export * from "./admin";
 export * from "./permissions";
+export * from "./client-policy";
 import { accountRoleSchema, adminPermissionSchema } from "./permissions";
 import { z } from "zod";
 
@@ -238,6 +239,9 @@ export interface DesktopBridge {
 }
 
 export interface UpdateStatus {
+  required?: boolean;
+  minimumVersion?: string;
+  reason?: string;
   mode: "install" | "notify" | "disabled";
   status:
     | "disabled"
@@ -258,6 +262,8 @@ export interface UpdateStatus {
   inRoom: boolean;
 }
 export interface DesktopUpdates {
+  requireUpdate?(minimumVersion: string, reason: string): Promise<void>;
+  quit?(): Promise<void>;
   status(): Promise<UpdateStatus>;
   check(): Promise<UpdateStatus>;
   download(): Promise<void>;

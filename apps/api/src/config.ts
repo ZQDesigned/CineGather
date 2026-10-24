@@ -1,4 +1,5 @@
 import { registrationDefault } from "./registration-config";
+import { readClientPolicy } from "./client-policy";
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";
@@ -11,6 +12,7 @@ function required(name: string, min = 1) {
   return value;
 }
 export const config = {
+  clientPolicy: readClientPolicy(process.env),
   registrationEnabled: registrationDefault(process.env.REGISTRATION_ENABLED),
   databaseUrl: required("DATABASE_URL"),
   sessionSecret: required("SESSION_SECRET", 32),

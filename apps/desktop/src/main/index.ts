@@ -208,13 +208,29 @@ function registerIPC() {
           "desktop:select-source",
           "desktop:native-start",
         ].includes(name) &&
-        (screenLocked || suspended || quitting)
+        (screenLocked ||
+          suspended ||
+          quitting ||
+          updates?.controller.snapshot().required)
       )
         throw new Error("设备已锁定或休眠，请解锁后重新选择共享来源");
       return run(input);
     });
   }
   handle("desktop:update-status", () => updates!.controller.snapshot());
+  handle("desktop:update-require", (input) => {
+    const value = z
+      .object({
+        minimumVersion: z.string().max(40),
+        reason: z.string().min(1).max(500),
+      })
+      .strict()
+      .parse(input);
+    updates!.controller.requireUpdate(value.minimumVersion, value.reason);
+  });
+  handle("desktop:update-quit", () => {
+    app.quit();
+  });
   handle("desktop:update-check", () => updates!.controller.check());
   handle("desktop:update-download", () => updates!.controller.download());
   handle("desktop:update-install", () => updates!.controller.install());

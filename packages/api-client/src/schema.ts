@@ -36,6 +36,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/client-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["clientPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/registration": {
         parameters: {
             query?: never;
@@ -726,6 +742,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -841,6 +869,140 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    clientPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        minimumVersions: {
+                            win32: string;
+                            darwin: string;
+                            web: string;
+                        };
+                        reason: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -935,6 +1097,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1073,6 +1247,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -1188,6 +1374,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1325,6 +1523,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -1420,6 +1630,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1537,6 +1759,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1679,6 +1913,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -1785,6 +2031,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1925,6 +2183,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2022,6 +2292,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2153,6 +2435,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2251,6 +2545,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2374,6 +2680,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2479,6 +2797,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2610,6 +2940,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2718,6 +3060,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2845,6 +3199,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -2945,6 +3311,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3065,6 +3443,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3172,6 +3562,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3304,6 +3706,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3405,6 +3819,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3529,6 +3955,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3626,6 +4064,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3745,6 +4195,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -3845,6 +4307,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3978,6 +4452,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4090,6 +4576,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4190,6 +4688,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4325,6 +4835,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4438,6 +4960,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4567,6 +5101,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4670,6 +5216,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4795,6 +5353,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -4898,6 +5468,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5023,6 +5605,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5126,6 +5720,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5250,6 +5856,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5358,6 +5976,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5490,6 +6120,18 @@ export interface operations {
                     };
                 };
             };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
             429: {
                 headers: {
                     [name: string]: unknown;
@@ -5593,6 +6235,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5708,6 +6362,18 @@ export interface operations {
                 };
             };
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
                 headers: {
                     [name: string]: unknown;
                 };

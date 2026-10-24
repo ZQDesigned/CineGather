@@ -4,6 +4,7 @@ export default defineConfig(base, {
   testMatch: [
     "browser-web.spec.ts",
     "noise-settings.spec.ts",
+    "required-update.spec.ts",
     "registration.spec.ts",
     "admin.spec.ts",
     "admin-roles.spec.ts",

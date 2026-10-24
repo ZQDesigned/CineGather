@@ -1,9 +1,9 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
-import { App, Alert, Button, Flex, Progress, Typography } from "antd";
+import { App, Alert, Button, Flex, Progress, Typography, Modal } from "antd";
 import type { UpdateStatus } from "@cinegather/contracts";
-import { update } from "../store";
-import { report } from "../controller";
+import { update, useApp } from "../store";
+import { report, requireClientUpdate, roomSession } from "../controller";
 import { ModalShell } from "./Modal";
 
 const useUpdates = create<{ status?: UpdateStatus }>(() => ({}));
@@ -19,12 +19,24 @@ export function UpdateCenter() {
     const stop = bridge.onChange((status) => {
       ++revision;
       useUpdates.setState({ status });
+      if (status.required && status.minimumVersion)
+        requireClientUpdate(
+          status.minimumVersion,
+          status.reason ?? "当前版本已不受支持，请更新后继续使用。",
+        );
     });
     const initial = revision;
     void bridge
       .status()
       .then((status) => {
-        if (!ended && initial === revision) useUpdates.setState({ status });
+        if (!ended && initial === revision) {
+          useUpdates.setState({ status });
+          if (status.required && status.minimumVersion)
+            requireClientUpdate(
+              status.minimumVersion,
+              status.reason ?? "当前版本已不受支持，请更新后继续使用。",
+            );
+        }
       })
       .catch(report);
     return () => {
@@ -60,12 +72,126 @@ export function UpdateCenter() {
       ),
     });
   }, [status, notification]);
-  return null;
+  return <RequiredUpdate />;
+}
+function updateError(error: unknown) {
+  return error instanceof Error
+    ? error.message.replace(
+        /^Error invoking remote method '[^']+': (?:Error: )?/,
+        "",
+      )
+    : "操作未完成，请重试。";
+}
+function RequiredUpdate() {
+  const requirement = useApp((state) => state.requiredUpdate);
+  const status = useUpdates((state) => state.status);
+  const [cleaning, setCleaning] = useState(true);
+  const [error, setError] = useState<string>();
+  const started = useRef(false);
+  const cleanup = async () => {
+    setCleaning(true);
+    setError(undefined);
+    update({ modal: null, cinema: false });
+    try {
+      await roomSession.leave();
+      await window.desktop?.updates?.setInRoom(false);
+    } catch (error) {
+      setError(updateError(error));
+    } finally {
+      setCleaning(false);
+    }
+  };
+  useEffect(() => {
+    if (requirement && !started.current) {
+      started.current = true;
+      void cleanup();
+    }
+  }, [requirement]);
+  if (!requirement) return null;
+  return (
+    <Modal
+      open
+      centered
+      title="需要更新映聚"
+      closable={false}
+      keyboard={false}
+      maskClosable={false}
+      footer={null}
+      width={520}
+      zIndex={2200}
+      styles={{ body: { maxHeight: "min(70dvh, 640px)", overflowY: "auto" } }}
+    >
+      <Flex vertical gap={16}>
+        <Typography.Paragraph style={{ margin: 0 }}>
+          {requirement.reason}
+        </Typography.Paragraph>
+        <Typography.Text type="secondary">
+          需要 v{requirement.minimumVersion} 或更新版本才能继续使用。
+        </Typography.Text>
+        {cleaning ? (
+          <Alert type="info" showIcon title="正在退出房间并停止共享…" />
+        ) : (
+          <>
+            {error && (
+              <Alert
+                type="warning"
+                showIcon
+                title={error}
+                action={
+                  <Button size="small" onClick={() => void cleanup()}>
+                    重试退出房间
+                  </Button>
+                }
+              />
+            )}
+            {!window.desktop ? (
+              <Button type="primary" onClick={() => location.reload()}>
+                刷新页面
+              </Button>
+            ) : status?.mode === "disabled" ? (
+              <Button
+                type="primary"
+                onClick={() =>
+                  void window.desktop?.updates
+                    ?.openDownload()
+                    .catch((error: unknown) => setError(updateError(error)))
+                }
+              >
+                手动下载新版
+              </Button>
+            ) : (
+              <UpdatePanel />
+            )}
+          </>
+        )}
+        {window.desktop?.updates?.quit && (
+          <Button
+            onClick={() =>
+              void window.desktop!.updates!.quit!().catch((error: unknown) =>
+                setError(updateError(error)),
+              )
+            }
+          >
+            退出映聚
+          </Button>
+        )}
+      </Flex>
+    </Modal>
+  );
 }
 export function UpdatePanel() {
   const status = useUpdates((state) => state.status);
   const bridge = window.desktop?.updates;
   const { modal } = App.useApp();
+  const [error, setError] = useState<string>();
+  const invoke = async (run: () => Promise<unknown>) => {
+    setError(undefined);
+    try {
+      await run();
+    } catch (error) {
+      setError(updateError(error));
+    }
+  };
   if (!bridge || !status) return null;
   const busy = ["checking", "downloading", "installing"].includes(
     status.status,
@@ -101,6 +227,7 @@ export function UpdatePanel() {
         </Typography.Text>
       )}
       {status.error && <Alert showIcon type="warning" title={status.error} />}
+      {error && <Alert showIcon type="warning" title={error} />}
       {status.inRoom && status.mode === "install" && (
         <Alert showIcon type="info" title="离开房间后可下载或安装更新" />
       )}
@@ -108,11 +235,18 @@ export function UpdatePanel() {
         <Progress percent={Math.floor(status.progress ?? 0)} />
       )}
       <Flex gap={8} wrap>
+        {status.required &&
+          status.mode === "install" &&
+          status.latestVersion && (
+            <Button onClick={() => void invoke(() => bridge.openDownload())}>
+              手动下载安装包
+            </Button>
+          )}
         {status.mode !== "disabled" && (
           <Button
             loading={status.status === "checking"}
             disabled={busy || status.status === "downloaded"}
-            onClick={() => void bridge.check().catch(report)}
+            onClick={() => void invoke(() => bridge.check())}
           >
             检查更新
           </Button>
@@ -120,7 +254,7 @@ export function UpdatePanel() {
         {status.latestVersion && status.mode === "notify" && (
           <Button
             type="primary"
-            onClick={() => void bridge.openDownload().catch(report)}
+            onClick={() => void invoke(() => bridge.openDownload())}
           >
             下载新版
           </Button>
@@ -131,7 +265,7 @@ export function UpdatePanel() {
             <Button
               type="primary"
               disabled={status.inRoom}
-              onClick={() => void bridge.download().catch(report)}
+              onClick={() => void invoke(() => bridge.download())}
             >
               下载更新
             </Button>
@@ -142,6 +276,7 @@ export function UpdatePanel() {
             disabled={status.inRoom}
             onClick={() =>
               modal.confirm({
+                zIndex: 2300,
                 title: "重启并更新映聚？",
                 content: "更新完成后会重新打开映聚。",
                 okText: "重启更新",

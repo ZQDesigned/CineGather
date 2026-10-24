@@ -73,6 +73,7 @@
       "name": "@cinegather/api-client",
       "version": "0.1.0",
       "dependencies": {
+        "@cinegather/contracts": "workspace:*",
         "openapi-fetch": "0.17.0",
       },
     },

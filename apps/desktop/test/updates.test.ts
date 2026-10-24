@@ -342,3 +342,103 @@ test("a failed recheck does not leave an unusable download action from a previou
   expect(s.controller.snapshot().latestVersion).toBeUndefined();
   expect(s.controller.downloadURL()).toBeUndefined();
 });
+
+test("signed minimum version forces only incompatible clients and survives a failed recheck", async () => {
+  const required = verifyRelease(
+    envelope({ ...release, minimumVersion: "0.1.3", reason: "共享协议已升级" }),
+    publicKey,
+    "win32",
+    "x64",
+  );
+  const s = setup();
+  s.transport.latest = async () => required;
+  await s.controller.check();
+  expect(s.controller.snapshot().required).toBe(true);
+  expect(s.controller.snapshot().minimumVersion).toBe("0.1.3");
+  expect(() => s.controller.setInRoom(true)).toThrow();
+  s.transport.latest = async () => {
+    throw new Error("offline");
+  };
+  await s.controller.check();
+  expect(s.controller.snapshot().required).toBe(true);
+  expect(() =>
+    verifyRelease(
+      envelope({ ...release, minimumVersion: "0.1.4" }),
+      publicKey,
+      "win32",
+      "x64",
+    ),
+  ).toThrow();
+  const normal = setup();
+  await normal.controller.check();
+  expect(normal.controller.snapshot().required).not.toBe(true);
+});
+test("server-required update cannot install a downloaded release below the required cutoff", async () => {
+  const s = setup();
+  await s.controller.check();
+  const download = s.controller.download();
+  await Promise.resolve();
+  s.finish();
+  await download;
+  s.controller.requireUpdate("0.1.4", "服务器需要更新客户端");
+  await expect(s.controller.install()).rejects.toThrow();
+  expect(s.calls).not.toContain("install");
+});
+
+test("raising the cutoff discards an obsolete cached update and allows checking for its replacement", async () => {
+  const s = setup();
+  await s.controller.check();
+  const download = s.controller.download();
+  await Promise.resolve();
+  s.finish();
+  await download;
+  s.controller.requireUpdate("0.1.4", "需要新协议");
+  s.transport.latest = async () => ({
+    ...release,
+    version: "0.1.4",
+    artifact: {
+      ...release.artifact,
+      file: "CineGather-0.1.4-win-x64-setup.exe",
+    },
+  });
+  await s.controller.check();
+  expect(s.controller.snapshot().latestVersion).toBe("0.1.4");
+  expect(s.controller.snapshot().status).toBe("available");
+});
+
+test("a compatibility cutoff raised during installation preparation prevents execution of the obsolete installer", async () => {
+  const { windowsDownloader } = await import("../src/main/windows-update");
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = await mkdtemp(join(tmpdir(), "cg-install-cutoff-"));
+  const file = join(dir, "setup.exe");
+  let allowed = true,
+    installed = false;
+  const updater = {
+    autoDownload: true,
+    autoInstallOnAppQuit: true,
+    allowDowngrade: true,
+    allowPrerelease: true,
+    disableWebInstaller: false,
+    setFeedURL: () => {},
+    checkForUpdates: async () => ({ updateInfo: { version: "0.1.3" } }),
+    downloadUpdate: async () => [file],
+    on: () => {},
+    removeListener: () => {},
+    quitAndInstall: () => {
+      installed = true;
+    },
+  };
+  const transport = windowsDownloader(updater, async () => {
+    allowed = false;
+  });
+  try {
+    await writeFile(file, "test");
+    await transport.download(release, () => {});
+    await expect(transport.install(() => allowed)).rejects.toThrow();
+    expect(installed).toBe(false);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});

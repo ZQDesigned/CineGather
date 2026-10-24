@@ -1,11 +1,16 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
+import { clientVersionSchema } from "@cinegather/contracts";
 export type { paths, components, operations } from "./schema";
 const staleSessions = new WeakSet<Response>();
 export function createApi(
   baseUrl: string,
   getToken: () => string | undefined,
-  options: { timeoutMs?: number } = {},
+  options: {
+    timeoutMs?: number;
+    identity?: { version: string; platform: "win32" | "darwin" | "web" };
+    onUpdateRequired?: (minimumVersion: string, reason: string) => void;
+  } = {},
 ) {
   const timeoutMs = options.timeoutMs ?? 15000;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
@@ -13,6 +18,10 @@ export function createApi(
   const client = createClient<paths>({ baseUrl });
   client.use({
     onRequest({ request }) {
+      if (options.identity) {
+        request.headers.set("X-CineGather-Version", options.identity.version);
+        request.headers.set("X-CineGather-Platform", options.identity.platform);
+      }
       const token = getToken();
       if (token) request.headers.set("Authorization", `Bearer ${token}`);
       return new Request(request, {
@@ -22,7 +31,26 @@ export function createApi(
         ]),
       });
     },
-    onResponse({ request, response }) {
+    async onResponse({ request, response }) {
+      const minimum = response.headers.get("X-CineGather-Min-Version");
+      if (
+        response.status === 426 &&
+        minimum &&
+        clientVersionSchema.safeParse(minimum).success
+      ) {
+        const body: unknown = await response
+          .clone()
+          .json()
+          .catch(() => undefined);
+        const reason =
+          body &&
+          typeof body === "object" &&
+          "message" in body &&
+          typeof body.message === "string"
+            ? body.message.slice(0, 500)
+            : "当前版本已不受支持，请更新后继续使用。";
+        options.onUpdateRequired?.(minimum, reason);
+      }
       if (
         response.status === 401 &&
         request.headers.get("Authorization") !==

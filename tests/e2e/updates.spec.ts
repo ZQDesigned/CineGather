@@ -26,6 +26,8 @@ async function fixture(page: Page, mode: UpdateStatus["mode"]) {
         platform: mode === "notify" ? "darwin" : "win32",
         takeInvitation: async () => undefined,
         onAction: () => () => {},
+        cancelCapture: async () => {},
+        setSharing: async () => {},
         loadSettings: async () => ({
           noiseReduction: "enhanced",
           minimizeToTray: false,
@@ -37,6 +39,11 @@ async function fixture(page: Page, mode: UpdateStatus["mode"]) {
           outputDevice: "",
         }),
         updates: {
+          requireUpdate: async (minimumVersion: string, reason: string) =>
+            emit({ required: true, minimumVersion, reason }),
+          quit: async () => {
+            calls.push("quit");
+          },
           status: async () => ({ ...status }),
           check: async () => {
             calls.push("check");
@@ -222,8 +229,90 @@ test("real Electron IPC keeps development builds out of automatic installation",
     await expect(
       page.getByText("此版本不提供在线更新", { exact: true }),
     ).toBeVisible();
+    await page.evaluate(() =>
+      window.desktop!.updates!.requireUpdate!("0.1.3", "本地 IPC 兼容性验证"),
+    );
+    await expect(
+      page.getByRole("dialog", { name: "需要更新映聚" }),
+    ).toBeVisible();
+    expect(
+      (await page.evaluate(() => window.desktop!.updates!.status())).required,
+    ).toBe(true);
+    expect(
+      await page.evaluate(async () => {
+        try {
+          await window.desktop!.updates!.setInRoom(true);
+          return false;
+        } catch {
+          return true;
+        }
+      }),
+    ).toBe(true);
   } finally {
     await app.close();
     await rm(profile, { recursive: true, force: true });
   }
+});
+
+test("Windows mandatory update blocks dismissal and still requires consent before restart", async ({
+  page,
+}) => {
+  await fixture(page, "install");
+  await page.getByRole("button", { name: "检查更新", exact: true }).click();
+  await page.evaluate(() =>
+    window.updateTest!.emit({
+      required: true,
+      minimumVersion: "0.1.3",
+      reason: "共享协议不再兼容旧版",
+    }),
+  );
+  const gate = page.getByRole("dialog", { name: "需要更新映聚" });
+  await expect(gate).toBeVisible();
+  await expect(
+    gate.getByRole("button", { name: "下载更新", exact: true }),
+  ).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(gate).toBeVisible();
+  await expect(
+    gate.getByRole("button", { name: "稍后", exact: true }),
+  ).toHaveCount(0);
+  await gate.getByRole("button", { name: "下载更新", exact: true }).click();
+  await page.evaluate(() =>
+    window.updateTest!.emit({ status: "downloaded", progress: 100 }),
+  );
+  await gate.getByRole("button", { name: "重启更新", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "重启并更新映聚？" });
+  await confirm.getByRole("button", { name: "稍后", exact: true }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect(gate).toBeVisible();
+  await gate
+    .getByRole("button", { name: "手动下载安装包", exact: true })
+    .click();
+  expect(await page.evaluate(() => window.updateTest!.calls)).toContain(
+    "open-download",
+  );
+  expect(await page.evaluate(() => window.updateTest!.calls)).not.toContain(
+    "install",
+  );
+});
+test("portable mandatory compatibility gate offers manual replacement without enabling automatic updates", async ({
+  page,
+}) => {
+  await fixture(page, "disabled");
+  await page.evaluate(() =>
+    window.updateTest!.emit({
+      required: true,
+      minimumVersion: "0.1.3",
+      reason: "请手动更换新版便携包",
+    }),
+  );
+  const gate = page.getByRole("dialog", { name: "需要更新映聚" });
+  await expect(gate).toBeVisible();
+  await gate.getByRole("button", { name: "手动下载新版", exact: true }).click();
+  expect(await page.evaluate(() => window.updateTest!.calls)).toEqual([
+    "open-download",
+  ]);
+  await expect(
+    gate.getByRole("button", { name: "下载更新", exact: true }),
+  ).toHaveCount(0);
 });

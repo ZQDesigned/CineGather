@@ -71,6 +71,7 @@ export function App() {
     let holdActive = false;
     const down = (event: KeyboardEvent) => {
       const current = useApp.getState();
+      if (current.requiredUpdate) return;
       const platform = capabilities();
       if (
         !platform.globalShortcuts &&

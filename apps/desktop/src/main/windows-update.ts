@@ -65,10 +65,12 @@ export function windowsDownloader(
         updater.removeListener("download-progress", listener);
       }
     },
-    install: async () => {
+    install: async (allowed = () => true) => {
       if (!installer || !downloaded) throw new Error("尚未下载更新");
       await verifyInstaller(installer, downloaded.artifact);
+      if (!allowed()) throw new Error("更新要求已改变，请重新检查新版");
       await beforeInstall();
+      if (!allowed()) throw new Error("更新要求已改变，请重新检查新版");
       updater.quitAndInstall(true, true);
     },
   };

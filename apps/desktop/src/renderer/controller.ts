@@ -21,6 +21,8 @@ import {
   platformSettings,
 } from "./platform";
 import { settingsSchema } from "../shared/settings";
+import { version } from "../../package.json";
+import { versionBelow, clientPolicySchema } from "@cinegather/contracts";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
 let changingCredentials = false;
 const baseUrl = defaultServer(
@@ -34,7 +36,48 @@ let webInvitation = !window.desktop
       history.replaceState(null, "", clean),
     )
   : undefined;
-export const api = createApi(baseUrl, () => sessionToken);
+export function requireClientUpdate(minimumVersion: string, reason: string) {
+  if (!versionBelow(version, minimumVersion)) return;
+  const previous = state().requiredUpdate;
+  if (previous && versionBelow(minimumVersion, previous.minimumVersion)) return;
+  if (previous?.minimumVersion === minimumVersion && previous.reason === reason)
+    return;
+  update({ requiredUpdate: { minimumVersion, reason } });
+  void window.desktop?.updates
+    ?.requireUpdate?.(minimumVersion, reason)
+    .catch(report);
+}
+export const api = createApi(baseUrl, () => sessionToken, {
+  identity: {
+    version,
+    platform:
+      window.desktop?.platform === "win32"
+        ? "win32"
+        : window.desktop?.platform === "darwin"
+          ? "darwin"
+          : "web",
+  },
+  onUpdateRequired: requireClientUpdate,
+});
+async function checkClientPolicy() {
+  try {
+    const response = await fetch(`${baseUrl}/api/v1/client-policy`, {
+      signal: AbortSignal.timeout(8000),
+      cache: "no-store",
+    });
+    if (!response.ok) return;
+    const policy = clientPolicySchema.parse(await response.json());
+    const platform = window.desktop?.platform;
+    requireClientUpdate(
+      policy.minimumVersions[
+        platform === "win32" || platform === "darwin" ? platform : "web"
+      ],
+      policy.reason,
+    );
+  } catch {
+    /* A failed check does not create or clear a compatibility requirement. */
+  }
+}
 let selectResolve: ((accepted: boolean) => void) | undefined;
 export async function copyText(value: string, notice?: string) {
   try {
@@ -336,6 +379,7 @@ export async function initialize() {
   webInvitation = undefined;
   if (initial) receiveInvitation(initial);
   const unsubscribe = window.desktop?.onAction((action, value) => {
+    if (state().requiredUpdate && action !== "stop-share") return;
     if (action === "invite" && value) {
       receiveInvitation(value);
       void window.desktop?.takeInvitation();
@@ -346,14 +390,23 @@ export async function initialize() {
     if (action === "ptt-release") void ptt(false, "global");
   });
   const timer = setInterval(() => void syncRooms(), 2500);
+  void checkClientPolicy();
+  const policyTimer = setInterval(() => void checkClientPolicy(), 30000);
   return () => {
     clearInterval(timer);
+    clearInterval(policyTimer);
     unsubscribe?.();
   };
 }
 let syncingRooms = false;
 async function syncRooms() {
-  if (syncingRooms || !sessionToken || !state().user || changingCredentials)
+  if (
+    syncingRooms ||
+    state().requiredUpdate ||
+    !sessionToken ||
+    !state().user ||
+    changingCredentials
+  )
     return;
   syncingRooms = true;
   const identity = sessionToken;

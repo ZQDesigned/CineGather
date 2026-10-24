@@ -35,13 +35,15 @@ if (import.meta.main) {
       file: { type: "string" },
       key: { type: "string" },
       notes: { type: "string" },
+      "min-version": { type: "string" },
+      reason: { type: "string" },
       out: { type: "string" },
     },
     strict: true,
   });
   if (!values.file || !values.key || !values.out)
     throw new Error(
-      "Usage: bun tools/update-release.ts --file <installer> --key <private.pem> --notes <release notes> --out <channel.json>",
+      "Usage: bun tools/update-release.ts --file <installer> --key <private.pem> --notes <release notes> --out <channel.json> [--min-version <lowest supported>] [--reason <update reason>]",
     );
   const match =
     /^CineGather-(\d+\.\d+\.\d+)-(win|mac)-(x64|arm64)(-setup\.exe|\.dmg)$/.exec(
@@ -60,6 +62,9 @@ if (import.meta.main) {
     platform: match[2] === "win" ? "win32" : "darwin",
     arch: match[3] as Release["arch"],
     version: match[1]!,
+    ...(values["min-version"]
+      ? { minimumVersion: values["min-version"], reason: values.reason }
+      : {}),
     publishedAt: new Date().toISOString(),
     notes: values.notes ?? "",
     artifact: {

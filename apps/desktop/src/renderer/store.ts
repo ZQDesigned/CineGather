@@ -22,6 +22,7 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  requiredUpdate?: { minimumVersion: string; reason: string };
   user?: User;
   registrationEnabled?: boolean;
   room?: RoomInfo;

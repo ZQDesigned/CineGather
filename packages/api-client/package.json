@@ -4,6 +4,7 @@
     ".": "./src/index.ts"
   },
   "dependencies": {
+    "@cinegather/contracts": "workspace:*",
     "openapi-fetch": "0.17.0"
   },
   "version": "0.1.0",

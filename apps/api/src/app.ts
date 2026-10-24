@@ -16,6 +16,8 @@ import { config } from "./config";
 import { database } from "./context";
 import { reconcileAll } from "./rooms";
 import { Metrics } from "./metrics";
+import { compatibilityFailure } from "./client-policy";
+import type { ClientPolicy } from "@cinegather/contracts";
 class Reconciler implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
   private running = false;
@@ -45,18 +47,26 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
 class AppModule {}
 export async function createApp({
   trustedProxies = config.trustedProxies,
-}: { trustedProxies?: string[] } = {}) {
+  clientPolicy = config.clientPolicy,
+}: { trustedProxies?: string[]; clientPolicy?: ClientPolicy } = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false,
     rawBody: true,
     bodyParser: true,
   });
   app.set("trust proxy", trustedProxies.length ? trustedProxies : false);
+  app.set("cinegather.clientPolicy", clientPolicy);
   app.enableCors({
     origin: [...config.corsOrigins, "app://cinegather"],
     methods: ["GET", "POST", "DELETE"],
-    allowedHeaders: ["Authorization", "Content-Type", "Idempotency-Key"],
-    exposedHeaders: ["X-Request-Id"],
+    allowedHeaders: [
+      "Authorization",
+      "Content-Type",
+      "Idempotency-Key",
+      "X-CineGather-Version",
+      "X-CineGather-Platform",
+    ],
+    exposedHeaders: ["X-Request-Id", "X-CineGather-Min-Version"],
   });
   const buckets = new Map<string, { count: number; reset: number }>();
   const metrics = app.get(Metrics);
@@ -115,6 +125,24 @@ export async function createApp({
         res.json({
           code: "RATE_LIMITED",
           message: "操作太频繁，请稍后重试",
+          requestId: req.requestId,
+        });
+        return;
+      }
+      const failure = compatibilityFailure(
+        req.method,
+        req.path,
+        req.get("X-CineGather-Platform"),
+        req.get("X-CineGather-Version"),
+        clientPolicy,
+      );
+      if (failure) {
+        res
+          .status(426)
+          .setHeader("X-CineGather-Min-Version", failure.minimumVersion);
+        res.json({
+          code: "CLIENT_UPDATE_REQUIRED",
+          message: failure.reason,
           requestId: req.requestId,
         });
         return;

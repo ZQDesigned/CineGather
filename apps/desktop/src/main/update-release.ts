@@ -2,6 +2,7 @@ import { verify, createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { z } from "zod";
+import { clientVersionSchema, versionBelow } from "@cinegather/contracts";
 
 export const updateOrigin = "https://cgplat.zqdesigned.city";
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
@@ -11,6 +12,8 @@ const releaseSchema = z
     platform: z.enum(["win32", "darwin"]),
     arch: z.enum(["x64", "arm64"]),
     version: z.string().max(40).regex(versionPattern),
+    minimumVersion: clientVersionSchema.optional(),
+    reason: z.string().max(500).optional(),
     publishedAt: z.iso.datetime(),
     notes: z.string().max(4000),
     artifact: z
@@ -52,6 +55,11 @@ export function verifyRelease(
   )
     throw new Error("更新来源验证失败");
   const release = releaseSchema.parse(JSON.parse(envelope.payload));
+  if (
+    release.minimumVersion &&
+    versionBelow(release.version, release.minimumVersion)
+  )
+    throw new Error("最低版本不能高于更新版本");
   if (release.platform !== platform || release.arch !== arch)
     throw new Error("更新不适用于当前设备");
   const suffix =
