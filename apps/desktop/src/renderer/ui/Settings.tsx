@@ -14,6 +14,11 @@ import { ShortcutRecorder } from "./ShortcutRecorder";
 import { serverOrigin, verifyServer } from "../server-address";
 import { capabilities } from "../platform";
 import { AccountForm } from "./AccountForm";
+import {
+  createMicrophoneDenoiser,
+  microphoneConstraints,
+} from "@cinegather/media-core";
+import type { MicrophoneDenoiser } from "@cinegather/media-core";
 export function Settings() {
   const platform = capabilities();
   const user = useApp((s) => s.user);
@@ -101,7 +106,13 @@ export function Settings() {
   const testRevision = useRef(0);
   const [level, setLevel] = useState(0);
   const audioRef = useRef<
-    { stream: MediaStream; context: AudioContext; frame: number } | undefined
+    | {
+        stream: MediaStream;
+        context: AudioContext;
+        frame: number;
+        processor?: MicrophoneDenoiser;
+      }
+    | undefined
   >(undefined);
   const change = <K extends keyof DesktopSettings>(
     key: K,
@@ -121,6 +132,9 @@ export function Settings() {
       setLevel(0);
       return;
     }
+    setTesting(false);
+    setRequesting(false);
+    setLevel(0);
     refresh();
     navigator.mediaDevices?.addEventListener("devicechange", refresh);
     return () => {
@@ -132,10 +146,11 @@ export function Settings() {
       if (active) {
         cancelAnimationFrame(active.frame);
         active.stream.getTracks().forEach((t) => t.stop());
-        void active.context.close();
+        void active.processor?.destroy();
+        if (active.context.state !== "closed") void active.context.close();
       }
     };
-  }, [open]);
+  }, [open, tab]);
   const testMicrophone = async () => {
     if (capturePending.current) return;
     if (audioRef.current) {
@@ -143,6 +158,7 @@ export function Settings() {
       audioRef.current = undefined;
       cancelAnimationFrame(active.frame);
       active.stream.getTracks().forEach((t) => t.stop());
+      await active.processor?.destroy();
       await active.context.close();
       setTesting(false);
       setLevel(0);
@@ -153,13 +169,14 @@ export function Settings() {
     const revision = ++testRevision.current;
     let stream: MediaStream | undefined;
     let context: AudioContext | undefined;
+    let processor: MicrophoneDenoiser | undefined;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
           deviceId: settings.inputDevice
             ? { exact: settings.inputDevice }
             : undefined,
-          echoCancellation: true,
+          ...microphoneConstraints(settings.noiseReduction),
         },
         video: false,
       });
@@ -168,10 +185,42 @@ export function Settings() {
         return;
       }
       context = new AudioContext();
-      const analyser = context.createAnalyser();
-      context.createMediaStreamSource(stream).connect(analyser);
-      const values = new Uint8Array(analyser.frequencyBinCount);
       audioRef.current = { stream, context, frame: 0 };
+      let metered = stream;
+      if (settings.noiseReduction === "enhanced") {
+        processor = await createMicrophoneDenoiser((status) => {
+          if (status.reason && revision === testRevision.current)
+            update({ notice: "增强降噪暂不可用，已使用基础降噪" });
+        });
+        if (revision !== testRevision.current) {
+          stream.getTracks().forEach((track) => track.stop());
+          await processor?.destroy();
+          if (context.state !== "closed") await context.close();
+          return;
+        }
+        if (!processor)
+          await stream
+            .getAudioTracks()[0]!
+            .applyConstraints({ ...microphoneConstraints("basic") });
+        audioRef.current = { stream, context, processor, frame: 0 };
+        await processor?.init({
+          kind: "audio" as import("livekit-client").Track.Kind.Audio,
+          track: stream.getAudioTracks()[0]!,
+          audioContext: context,
+        });
+        if (processor?.processedTrack)
+          metered = new MediaStream([processor.processedTrack]);
+      }
+      if (revision !== testRevision.current) {
+        await processor?.destroy();
+        stream.getTracks().forEach((track) => track.stop());
+        if (context.state !== "closed") await context.close();
+        return;
+      }
+      const analyser = context.createAnalyser();
+      context.createMediaStreamSource(metered).connect(analyser);
+      const values = new Uint8Array(analyser.frequencyBinCount);
+      audioRef.current = { stream, context, processor, frame: 0 };
       setTesting(true);
       refresh();
       const tick = () => {
@@ -188,8 +237,9 @@ export function Settings() {
       tick();
     } catch (error) {
       stream?.getTracks().forEach((track) => track.stop());
-      await context?.close();
-      audioRef.current = undefined;
+      await processor?.destroy();
+      if (context && context.state !== "closed") await context.close();
+      if (audioRef.current?.stream === stream) audioRef.current = undefined;
       if (revision === testRevision.current) throw error;
     } finally {
       if (revision === testRevision.current) {
@@ -295,7 +345,7 @@ export function Settings() {
                 <Form.Item label="麦克风">
                   <Select
                     aria-label="麦克风"
-                    disabled={!platform.microphone}
+                    disabled={!platform.microphone || testing || requesting}
                     value={settings.inputDevice}
                     onChange={(v) => change("inputDevice", v)}
                     options={[
@@ -311,6 +361,19 @@ export function Settings() {
                           value: d.deviceId,
                           label: d.label || `麦克风 ${i + 1}`,
                         })),
+                    ]}
+                  />
+                </Form.Item>
+                <Form.Item label="麦克风降噪">
+                  <Select
+                    aria-label="麦克风降噪"
+                    disabled={!platform.microphone || testing || requesting}
+                    value={settings.noiseReduction}
+                    onChange={(value) => change("noiseReduction", value)}
+                    options={[
+                      { value: "enhanced", label: "增强降噪" },
+                      { value: "basic", label: "基础降噪" },
+                      { value: "off", label: "关闭降噪" },
                     ]}
                   />
                 </Form.Item>

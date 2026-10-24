@@ -193,7 +193,9 @@ export type CaptureSelection = {
   sourceId: string;
   systemAudio: boolean;
 };
+export type NoiseReduction = "enhanced" | "basic" | "off";
 export interface DesktopSettings {
+  noiseReduction: NoiseReduction;
   minimizeToTray: boolean;
   pushToTalk: boolean;
   pttShortcut: string;

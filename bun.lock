@@ -8,6 +8,7 @@
         "@eslint/js": "9.39.1",
         "@playwright/test": "1.64.1",
         "@resvg/resvg-js": "2.6.2",
+        "@shiguredo/rnnoise-wasm": "2022.2.0",
         "@types/bun": "1.4.3",
         "@types/express": "5.0.6",
         "@types/node": "24.10.1",
@@ -105,6 +106,7 @@
       "version": "0.1.0",
       "dependencies": {
         "@cinegather/contracts": "workspace:*",
+        "@sapphi-red/web-noise-suppressor": "0.4.1",
         "livekit-client": "catalog:",
       },
     },
@@ -617,7 +619,11 @@
 
     "@rollup/rollup-win32-x64-msvc": ["@rollup/rollup-win32-x64-msvc@4.64.9", "", { "os": "win32", "cpu": "x64" }, "sha512-IoIgQLpK1DbOcQf1vX+i5oe5LXypsCVb1j/mU6BLAbOGmXH4E+j4kMfgZRwPYUohVBurNyVMgIKVM5dR6xA0kA=="],
 
+    "@sapphi-red/web-noise-suppressor": ["@sapphi-red/web-noise-suppressor@0.4.1", "", {}, "sha512-hy2GnF079+zi4n9BZUf+GGIQ1IofApAk6rgGMyMQ3soHfz/GKu1pcCsmePyIHVvUuv1LrFudw9BmmBqoOKay5w=="],
+
     "@scarf/scarf": ["@scarf/scarf@1.4.0", "", {}, "sha512-xxeapPiUXdZAE3che6f3xogoJPeZgig6omHEy1rIY5WVsB3H2BHNnZH+gHG6x91SCWyQCzWGsuL2Hh3ClO5/qQ=="],
+
+    "@shiguredo/rnnoise-wasm": ["@shiguredo/rnnoise-wasm@2022.2.0", "", {}, "sha512-WqkBxuqc0WhG1eQW+tKw9asclkysEb9hrbyUieBNiYQnNM9EzNXbNN5o++SwKWou/rsH4LW6LZMe+TpQQtDntg=="],
 
     "@sindresorhus/is": ["@sindresorhus/is@4.6.0", "", {}, "sha512-t09vSN3MdfsyCHoFcTRCH/iUtG7OJ0CsjzB8cjAmKc/va/kIgeDI/TxsigdncE/4be734m0cvIYwNaV4i2XqAw=="],
 

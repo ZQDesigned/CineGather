@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { DesktopSettings } from "@cinegather/contracts";
 export const settingsSchema = z.strictObject({
+  noiseReduction: z.enum(["enhanced", "basic", "off"]).default("enhanced"),
   minimizeToTray: z.boolean(),
   pushToTalk: z.boolean(),
   pttShortcut: z.string().min(1).max(64),
@@ -10,6 +11,7 @@ export const settingsSchema = z.strictObject({
   outputDevice: z.string().max(256),
 });
 export const defaultSettings: DesktopSettings = {
+  noiseReduction: "enhanced",
   minimizeToTray: true,
   pushToTalk: false,
   pttShortcut: "CommandOrControl+Shift+Space",

@@ -31,7 +31,11 @@ let app: Awaited<ReturnType<typeof electron.launch>> | undefined;
 try {
   app = await electron.launch({
     executablePath,
-    args: [`--user-data-dir=${profile}`],
+    args: [
+      `--user-data-dir=${profile}`,
+      "--use-fake-device-for-media-stream",
+      "--use-fake-ui-for-media-stream",
+    ],
     timeout: 30000,
   });
   expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version);
@@ -53,6 +57,19 @@ try {
   expect(
     (await page.evaluate(() => window.desktop!.loadSettings())).pushToTalk,
   ).toBe(true);
+  expect(
+    (await page.evaluate(() => window.desktop!.loadSettings())).noiseReduction,
+  ).toBe("enhanced");
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "停止测试", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("增强降噪暂不可用，已使用基础降噪", { exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "停止测试", exact: true }).click();
+  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   const preferences = await app.evaluate(({ BrowserWindow }) => {
     const contents = BrowserWindow.getAllWindows()[0]!
       .webContents as unknown as {
@@ -72,7 +89,7 @@ try {
     nodeIntegration: false,
   });
   console.log(
-    `Native ${platform} package boot, sandbox, N-API loading and global hotkey registration passed; physical key behavior is a separate test.`,
+    `Native ${platform} package boot, RNNoise assets/microphone test, sandbox, N-API loading and global hotkey registration passed; physical key behavior is a separate test.`,
   );
 } finally {
   if (app) await app.close();

@@ -95,6 +95,9 @@ export async function run(work: () => Promise<void>) {
 }
 export const media = new MediaSession(
   (summary) => {
+    const fallback = summary.microphoneNoise?.reason;
+    if (fallback && !state().media.microphoneNoise?.reason)
+      update({ notice: "增强降噪暂不可用，已使用基础降噪" });
     update({ media: summary });
     if (
       summary.state === "reconnecting" ||
@@ -259,6 +262,7 @@ export const roomSession = new RoomCoordinator({
   connect: async (url, token) => {
     await media.connect(url, token);
     try {
+      await media.noiseReduction(state().settings.noiseReduction);
       await media.microphone(
         !(capabilities().pushToTalk && state().settings.pushToTalk),
         state().settings.inputDevice,
@@ -581,7 +585,16 @@ export async function saveSettings(settings: DesktopSettings) {
   if (window.desktop) await window.desktop.saveSettings(settings);
   else localStorage.setItem("cinegather.settings", JSON.stringify(settings));
   await media.devices(settings.inputDevice, settings.outputDevice);
-  update({ settings, notice: "设置已保存", modal: null });
+  await media.noiseReduction(settings.noiseReduction);
+  update({
+    settings,
+    notice:
+      settings.noiseReduction === "enhanced" &&
+      state().media.microphoneNoise?.reason
+        ? "设置已保存，增强降噪暂不可用，已使用基础降噪"
+        : "设置已保存",
+    modal: null,
+  });
 }
 export async function createInvite() {
   const roomId = state().room!.id;

@@ -27,7 +27,7 @@
     "dev": "electron-vite dev",
     "dev:renderer": "vite --host 127.0.0.1 --port 5173 --config vite.renderer.config.ts",
     "dev:web": "vite --config vite.web.config.ts",
-    "build:web": "vite build --config vite.web.config.ts",
+    "build:web": "vite build --config vite.web.config.ts && bun ../../tools/third-party.ts web",
     "serve:web": "vite preview --config vite.web.config.ts",
     "build": "electron-vite build",
     "dist:win": "bun ../../tools/icons.ts && electron-vite build && bun ../../tools/third-party.ts win32 x64 && electron-builder --win --x64 --publish never",

@@ -1,5 +1,6 @@
 import {
   Room,
+  LocalAudioTrack,
   RoomEvent,
   Track,
   ConnectionState,
@@ -14,10 +15,16 @@ import {
   nativeOwner,
   qualityPresets,
   type Quality,
+  type NoiseReduction,
 } from "@cinegather/contracts";
 import { MoviePlayback } from "./movie";
 import { AudioMixer } from "./mixer";
 import { BrowserCapture } from "./browser-capture";
+import {
+  createMicrophoneDenoiser,
+  microphoneConstraints,
+  type MicrophoneNoiseStatus,
+} from "./noise";
 export interface ParticipantSummary {
   id: string;
   name: string;
@@ -33,6 +40,7 @@ export interface MediaSummary {
   sharer?: { id: string; name: string; local: boolean };
   audioBlocked: boolean;
   systemAudio: boolean;
+  microphoneNoise?: MicrophoneNoiseStatus;
 }
 export class MediaSession {
   private room?: Room;
@@ -46,6 +54,8 @@ export class MediaSession {
   private watching = true;
   private microphoneRevision = 0;
   private microphoneWanted = false;
+  private noiseMode: NoiseReduction = "enhanced";
+  private noiseStatus?: MicrophoneNoiseStatus;
   private poll?: ReturnType<typeof setInterval>;
   private browserCapture = new BrowserCapture();
   constructor(
@@ -193,6 +203,7 @@ export class MediaSession {
               nativeOwner(sharer.identity) === room.localParticipant.identity,
           }
         : undefined,
+      microphoneNoise: this.noiseStatus,
       audioBlocked: !room.canPlaybackAudio,
       systemAudio: Boolean(
         sharer?.getTrackPublication(Track.Source.ScreenShareAudio),
@@ -298,13 +309,14 @@ export class MediaSession {
       );
     while (this.room === room) {
       let publication: LocalTrackPublication | undefined;
+      const mode = this.noiseMode;
       try {
         publication = await room.localParticipant.setMicrophoneEnabled(wanted, {
           deviceId: deviceId || undefined,
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
+          ...microphoneConstraints(mode),
         });
+        if (wanted && mode !== "enhanced")
+          this.noiseStatus = { requested: mode, active: mode };
       } catch (error) {
         if (
           this.room !== room ||
@@ -317,6 +329,18 @@ export class MediaSession {
         publication?.track?.stop();
         return;
       }
+      // The SDK assigns its audio context only after creating the mic track;
+      // passing a processor into capture options initialises it too early.
+      // Publish with platform suppression, then attach enhancement to that track.
+      if (
+        wanted &&
+        this.microphoneWanted &&
+        (mode !== this.noiseMode ||
+          (mode === "enhanced" &&
+            publication?.track instanceof LocalAudioTrack &&
+            !publication.track.getProcessor()))
+      )
+        await this.noiseReduction(this.noiseMode);
       if (revision === this.microphoneRevision) {
         this.emit();
         return;
@@ -326,6 +350,53 @@ export class MediaSession {
       revision = this.microphoneRevision;
       wanted = this.microphoneWanted;
     }
+  }
+  private async createDenoiser(room: Room) {
+    return createMicrophoneDenoiser((status) => {
+      if (this.room !== room || this.noiseMode !== "enhanced") return;
+      this.noiseStatus = status;
+      this.emit();
+    });
+  }
+  async noiseReduction(mode: NoiseReduction) {
+    this.noiseMode = mode;
+    this.noiseStatus = undefined;
+    const room = this.room;
+    const track = room?.localParticipant.getTrackPublication(
+      Track.Source.Microphone,
+    )?.track;
+    if (!room || !(track instanceof LocalAudioTrack)) return;
+    // These SDK operations retain the existing track's mute/PTT intent.
+    await track.applyConstraints(microphoneConstraints(mode));
+    if (mode === "enhanced") {
+      const processor = await this.createDenoiser(room);
+      if (this.room !== room || this.noiseMode !== mode) return;
+      if (processor) {
+        try {
+          await track.setProcessor(processor);
+        } catch (error) {
+          await processor.destroy();
+          if (this.room !== room) return;
+          await track.stopProcessor();
+          await track.applyConstraints(microphoneConstraints("basic"));
+          this.noiseStatus = {
+            requested: "enhanced",
+            active: "basic",
+            reason:
+              error instanceof Error
+                ? error.message
+                : "Noise processor could not be attached",
+          };
+        }
+      } else {
+        await track.stopProcessor();
+        await track.applyConstraints(microphoneConstraints("basic"));
+      }
+    } else {
+      await track.stopProcessor();
+      this.noiseStatus = { requested: mode, active: mode };
+    }
+    this.emit();
   }
   async share(quality: Quality, systemAudio: boolean) {
     const room = this.room;
@@ -537,6 +608,7 @@ export class MediaSession {
     return {
       state: this.room?.state ?? "disconnected",
       watching: this.watching,
+      microphoneNoise: this.noiseStatus,
       tracks,
       capturedAt: new Date().toISOString(),
     };
@@ -546,6 +618,7 @@ export class MediaSession {
     ++this.revision;
     ++this.microphoneRevision;
     this.microphoneWanted = false;
+    this.noiseStatus = undefined;
     clearInterval(this.poll);
     this.poll = undefined;
     const room = this.room;

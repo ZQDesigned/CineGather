@@ -3,6 +3,7 @@ import base from "./playwright.config";
 export default defineConfig(base, {
   testMatch: [
     "browser-web.spec.ts",
+    "noise-settings.spec.ts",
     "registration.spec.ts",
     "admin.spec.ts",
     "admin-roles.spec.ts",

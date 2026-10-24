@@ -1,4 +1,12 @@
-import { readFile, readdir, realpath, writeFile, stat } from "node:fs/promises";
+import {
+  readFile,
+  readdir,
+  realpath,
+  writeFile,
+  stat,
+  mkdir,
+} from "node:fs/promises";
+import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
@@ -53,8 +61,42 @@ await walk(join(root, "apps/desktop"));
 // explicitly shipped by this build, rather than omitting optional packages.
 const platform = process.argv[2] ?? process.platform;
 const arch = process.argv[3] ?? process.arch;
-await walk(await locate(`@koromix/koffi-${platform}-${arch}`, root));
-const output = join(root, "apps/desktop/resources/THIRD_PARTY_NOTICES.txt");
+if (platform !== "web")
+  await walk(await locate(`@koromix/koffi-${platform}-${arch}`, root));
+// The worklet vendor embeds this Apache-2.0 wrapper and BSD-3-Clause native
+// module without declaring them as npm runtime dependencies.
+await walk(await locate("@shiguredo/rnnoise-wasm", root));
+const licenseCache = join(
+  root,
+  "node_modules/.cache/cinegather/rnnoise-COPYING",
+);
+const expectedHash =
+  "d597473329bdc1807197a303be09e79882159ea858daa9f06ce780592877534e";
+let rnnoiseLicense: string;
+try {
+  rnnoiseLicense = await readFile(licenseCache, "utf8");
+} catch {
+  const response = await fetch(
+    "https://raw.githubusercontent.com/shiguredo/rnnoise/0aee43d89c685ccadeca5409cb7adc93462f4bc8/COPYING",
+    { signal: AbortSignal.timeout(15000) },
+  );
+  if (!response.ok)
+    throw new Error("Unable to obtain the pinned RNNoise binary license");
+  rnnoiseLicense = await response.text();
+}
+if (createHash("sha256").update(rnnoiseLicense).digest("hex") !== expectedHash)
+  throw new Error("RNNoise binary license checksum mismatch");
+await mkdir(dirname(licenseCache), { recursive: true });
+await writeFile(licenseCache, rnnoiseLicense);
+notices.push(
+  `RNNoise native module bundled by @sapphi-red/web-noise-suppressor\nDeclared license: BSD-3-Clause\n\n${rnnoiseLicense}`,
+);
+const output = join(
+  root,
+  platform === "web"
+    ? "apps/web/dist/THIRD_PARTY_NOTICES.txt"
+    : "apps/desktop/resources/THIRD_PARTY_NOTICES.txt",
+);
 await writeFile(
   output,
   `CineGather third-party package license inventory\nGenerated from installed, locked production dependencies.\n\n${notices.sort().join("\n\n" + "=".repeat(78) + "\n\n")}\n`,
