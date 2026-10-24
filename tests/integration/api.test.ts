@@ -572,6 +572,11 @@ test("media token issuance failures are observable without counting rejected inv
   const outsider = await account();
   const target = await room(owner.token);
   const before = await req("/diagnostics", owner.token);
+  expect(before.body.capturedAt).toBeGreaterThan(Date.now() - 10000);
+  expect(before.body.totalMemory).toBeGreaterThan(0);
+  expect(["available", "unconfigured", "unavailable"]).toContain(
+    before.body.sfuStatus,
+  );
   expect(typeof before.body.tokenIssueFailures).toBe("number");
   expect(
     (

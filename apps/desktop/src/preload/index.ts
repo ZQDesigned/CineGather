@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  diagnostics: {
+    record: (entry) => ipcRenderer.invoke("desktop:diagnostic-record", entry),
+    status: () => ipcRenderer.invoke("desktop:diagnostic-status"),
+  },
   memberOverlay: {
     publish: (snapshot) =>
       ipcRenderer.invoke("desktop:overlay-state", snapshot),

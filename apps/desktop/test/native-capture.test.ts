@@ -245,7 +245,7 @@ test("an exclusion-filter failure stops native capture and revokes its room leas
   await writeFile(
     join(root, "Contents/MacOS/CGScreenCaptureHost"),
     `#!/usr/bin/env node
-const fs=require('node:fs');let active=false;require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data={screenPermission:true,outputPhase:active?'active':'stopped',sourceWidth:1920,sourcesActive:active,outputActive:active,audioCaptureError:fs.existsSync(process.argv[2]+'/fail')?'exclusion update failed':''};if(c.type==='windows')data={windows:[],displays:[{displayId:1,name:'Screen'}]};if(c.type==='start'){active=true;fs.writeFileSync(process.argv[2]+'/start',JSON.stringify(c));}if(c.type==='stop'){active=false;fs.writeFileSync(process.argv[2]+'/stopped','');}console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});
+const fs=require('node:fs');let active=false;require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data={activeFps:null,screenPermission:true,outputPhase:active?'active':'stopped',sourceWidth:1920,sourcesActive:active,outputActive:active,audioCaptureError:fs.existsSync(process.argv[2]+'/fail')?'exclusion update failed':''};if(c.type==='windows')data={windows:[],displays:[{displayId:1,name:'Screen'}]};if(c.type==='start'){active=true;fs.writeFileSync(process.argv[2]+'/start',JSON.stringify(c));}if(c.type==='stop'){active=false;fs.writeFileSync(process.argv[2]+'/stopped','');}console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});
 `,
     { mode: 0o755 },
   );
@@ -294,6 +294,9 @@ const fs=require('node:fs');let active=false;require('node:readline').createInte
     expect(command.systemAudio).toBe(true);
     expect(command.application).toBeUndefined();
     expect(command.excludedApplication).toBe("city.zqdesigned.cinegather");
+    await new Promise((resolve) => setTimeout(resolve, 1100));
+    expect(ended).toBe(0);
+    expect(revoked).toBe(0);
     await writeFile(join(work, "fail"), "");
     for (let i = 0; i < 60 && !ended; i++)
       await new Promise((r) => setTimeout(r, 50));

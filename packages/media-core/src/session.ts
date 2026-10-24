@@ -24,6 +24,7 @@ import { AudioMixer } from "./mixer";
 import { VoicePlayback } from "./voice-playback";
 import { ShareSubscriptions } from "./subscriptions";
 import { BrowserCapture } from "./browser-capture";
+import { boundedStats, diagnosticHash, PlaybackProbe } from "./diagnostics";
 import {
   createMicrophoneDenoiser,
   microphoneConstraints,
@@ -65,6 +66,33 @@ export class MediaSession {
   private noiseStatus?: MicrophoneNoiseStatus;
   private poll?: ReturnType<typeof setInterval>;
   private browserCapture = new BrowserCapture();
+  private diagnosticEvents: { name: string; reason?: number }[] = [];
+  private diagnosticHashes = new Map<string, Promise<string>>();
+  private playbackProbe = new PlaybackProbe();
+  private diagnosticReports = new WeakMap<
+    Track,
+    Promise<RTCStatsReport | undefined>
+  >();
+  private diagnosticReport(track: Track) {
+    let pending = this.diagnosticReports.get(track);
+    if (!pending) {
+      pending = track
+        .getRTCStatsReport()
+        .finally(() => this.diagnosticReports.delete(track));
+      this.diagnosticReports.set(track, pending);
+    }
+    return pending;
+  }
+  private diagnoseEvent(name: string, reason?: number) {
+    if (this.diagnosticEvents.length < 64)
+      this.diagnosticEvents.push({ name, reason });
+  }
+  takeDiagnosticEvents() {
+    return [
+      ...this.diagnosticEvents.splice(0),
+      ...this.playbackProbe.takeEvents().map((name) => ({ name })),
+    ];
+  }
   constructor(
     private readonly changed: (summary: MediaSummary) => void,
     private readonly error: (error: unknown) => void,
@@ -88,6 +116,26 @@ export class MediaSession {
       publishDefaults: { videoCodec: "h264", stopMicTrackOnMute: false },
     });
     this.room = room;
+    for (const event of [
+      RoomEvent.Connected,
+      RoomEvent.Reconnecting,
+      RoomEvent.SignalReconnecting,
+      RoomEvent.Reconnected,
+      RoomEvent.ConnectionStateChanged,
+      RoomEvent.TrackStreamStateChanged,
+      RoomEvent.TrackSubscribed,
+      RoomEvent.TrackUnsubscribed,
+      RoomEvent.TrackSubscriptionFailed,
+      RoomEvent.LocalTrackPublished,
+      RoomEvent.LocalTrackUnpublished,
+      RoomEvent.ConnectionQualityChanged,
+    ])
+      room.on(event, () => {
+        if (this.room === room) this.diagnoseEvent(event);
+      });
+    room.on(RoomEvent.Disconnected, (reason) =>
+      this.diagnoseEvent("disconnected", reason),
+    );
     const emit = () => {
       if (this.room === room) this.emit();
     };
@@ -340,6 +388,7 @@ export class MediaSession {
   }
   setVideoElement(element?: HTMLVideoElement) {
     this.video = element;
+    this.playbackProbe.bind(element);
     this.movie.bind(element);
   }
   async microphone(enabled: boolean, deviceId?: string) {
@@ -636,68 +685,76 @@ export class MediaSession {
     this.emit();
   }
   async diagnostics() {
-    const tracks: Record<string, unknown>[] = [];
-    for (const p of this.room
-      ? [this.room.localParticipant, ...this.room.remoteParticipants.values()]
-      : []) {
-      for (const pub of p.trackPublications.values()) {
-        const track = pub.track;
-        if (!track) continue;
-        const report = await track.getRTCStatsReport();
-        report?.forEach((stat) => {
-          if (
-            ["inbound-rtp", "outbound-rtp", "candidate-pair", "codec"].includes(
-              stat.type,
-            )
-          ) {
-            const safe: Record<string, unknown> = {
-              type: stat.type,
-              source: pub.source,
-              local: p === this.room?.localParticipant,
-            };
-            for (const key of [
-              "kind",
-              "bytesReceived",
-              "bytesSent",
-              "packetsLost",
-              "jitter",
-              "framesPerSecond",
-              "framesDecoded",
-              "framesDropped",
-              "frameWidth",
-              "frameHeight",
-              "currentRoundTripTime",
-              "availableOutgoingBitrate",
-              "mimeType",
-              "state",
-              "nominated",
-              "nackCount",
-              "retransmittedPacketsSent",
-            ])
-              if (stat[key] !== undefined) safe[key] = stat[key];
-            if (stat.type === "candidate-pair") {
-              const candidate = report.get(stat.localCandidateId);
-              if (candidate) {
-                safe.localCandidateType = candidate.candidateType;
-                safe.transportProtocol = candidate.protocol;
-              }
-              const remote = report.get(stat.remoteCandidateId);
-              if (remote) safe.remoteCandidateType = remote.candidateType;
-            }
-            tracks.push(safe);
-          }
-        });
-      }
-    }
+    const detail = await this.detailedDiagnostics();
     return {
-      state: this.room?.state ?? "disconnected",
-      watching: this.subscriptions.watching,
-      microphoneNoise: this.noiseStatus,
-      tracks,
+      state: detail.state,
+      watching: detail.watching,
       capturedAt: new Date().toISOString(),
+      tracks: detail.tracks
+        .flatMap((track) =>
+          track.stats.map((stat) => ({
+            ...stat,
+            source: track.source,
+            local: track.local,
+          })),
+        )
+        .slice(0, 200),
+    };
+  }
+  async detailedDiagnostics() {
+    const room = this.room;
+    const tracks = room
+      ? [room.localParticipant, ...room.remoteParticipants.values()].flatMap(
+          (p) => [...p.trackPublications.values()].map((pub) => ({ p, pub })),
+        )
+      : [];
+    const reports = await Promise.all(
+      tracks
+        .sort(
+          (a, b) =>
+            Number(b.pub.kind === "video") - Number(a.pub.kind === "video"),
+        )
+        .slice(0, 40)
+        .map(async ({ p, pub }) => {
+          let participant = this.diagnosticHashes.get(p.identity);
+          if (!participant) {
+            participant = diagnosticHash(p.identity);
+            this.diagnosticHashes.set(p.identity, participant);
+          }
+          return {
+            track: pub.trackSid,
+            participant: await participant,
+            source: pub.source,
+            local: p === room?.localParticipant,
+            kind: pub.kind,
+            muted: pub.isMuted,
+            subscribed: pub.isSubscribed,
+            streamState: pub.track?.streamState,
+            settings: pub.track?.mediaStreamTrack.getSettings(),
+            videoQuality:
+              "videoQuality" in pub
+                ? (pub as RemoteTrackPublication).videoQuality
+                : undefined,
+            enabled:
+              "isEnabled" in pub
+                ? (pub as RemoteTrackPublication).isEnabled
+                : undefined,
+            ...(pub.track
+              ? await boundedStats(() => this.diagnosticReport(pub.track!))
+              : { status: "unavailable" as const, stats: [] }),
+          };
+        }),
+    );
+    return {
+      state: room?.state ?? "disconnected",
+      watching: this.subscriptions.watching,
+      tracks: reports,
+      playback: this.playbackProbe.sample(),
     };
   }
   async disconnect() {
+    if (this.room) this.diagnoseEvent("local-disconnect");
+    this.diagnosticHashes.clear();
     this.subscriptions.reset();
     this.browserCapture.stop();
     ++this.revision;

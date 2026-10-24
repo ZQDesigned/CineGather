@@ -5179,13 +5179,38 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
-                        uptimeSeconds: number;
-                        requests: number;
-                        errors: number;
-                        authDenied: number;
-                        tokenIssueFailures: number;
-                        averageDurationMs: number;
-                        activeRooms: number;
+                        sampledAt?: number;
+                        capturedAt?: number;
+                        uptimeSeconds?: number;
+                        requests?: number;
+                        errors?: number;
+                        authDenied?: number;
+                        tokenIssueFailures?: number;
+                        averageDurationMs?: number;
+                        activeRooms?: number;
+                        cpuPercent?: number;
+                        freeMemory?: number;
+                        totalMemory?: number;
+                        load1?: number;
+                        processRss?: number;
+                        network?: {
+                            udpInErrors?: number;
+                            udpReceiveBufferErrors?: number;
+                            udpSendBufferErrors?: number;
+                            tcpRetransmittedSegments?: number;
+                        };
+                        /** @enum {string} */
+                        sfuStatus?: "available" | "unconfigured" | "unavailable";
+                        sfu?: {
+                            name: string;
+                            /** @enum {string} */
+                            direction?: "incoming" | "outgoing";
+                            /** @enum {string} */
+                            transmission?: "initial" | "retransmit";
+                            /** @enum {string} */
+                            type?: "out" | "dropped";
+                            value: number;
+                        }[];
                     };
                 };
             };

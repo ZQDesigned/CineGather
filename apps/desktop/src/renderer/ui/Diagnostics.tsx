@@ -8,6 +8,7 @@ import { verifyServer } from "../server-address";
 import { Button } from "./Controls";
 import { ModalShell, useDialogOpen } from "./Modal";
 import { capabilities } from "../platform";
+import type { DiagnosticHistoryStatus } from "@cinegather/contracts";
 
 export function Diagnostics() {
   const open = useDialogOpen();
@@ -17,6 +18,7 @@ export function Diagnostics() {
   >("checking");
   const [checkedAt, setCheckedAt] = useState<string>();
   const [exporting, setExporting] = useState(false);
+  const [history, setHistory] = useState<DiagnosticHistoryStatus>();
   const checkRequest = useRef<AbortController | undefined>(undefined);
   const exportRequest = useRef<AbortController | undefined>(undefined);
   const refresh = async () => {
@@ -37,7 +39,19 @@ export function Diagnostics() {
   useEffect(() => {
     if (!open) return;
     void refresh();
+    let disposed = false;
+    const updateHistory = () =>
+      void actions.diagnostics
+        .status()
+        .then((value) => {
+          if (!disposed) setHistory(value);
+        })
+        .catch(() => {});
+    updateHistory();
+    const historyTimer = setInterval(updateHistory, 10000);
     return () => {
+      disposed = true;
+      clearInterval(historyTimer);
       checkRequest.current?.abort();
       exportRequest.current?.abort();
     };
@@ -98,21 +112,8 @@ export function Diagnostics() {
             ),
           ),
       };
-      if (window.desktop) {
-        if (await window.desktop.exportDiagnostics(data))
-          update({ notice: "诊断已导出" });
-      } else {
-        const url = URL.createObjectURL(
-          new Blob([JSON.stringify(data, null, 2)], {
-            type: "application/json",
-          }),
-        );
-        const link = document.createElement("a");
-        link.href = url;
-        link.download = "cinegather-diagnostics.json";
-        link.click();
-        URL.revokeObjectURL(url);
-      }
+      if (await actions.diagnostics.export(data))
+        update({ notice: "诊断压缩包已导出" });
     } catch (error) {
       if (!request.signal.aborted) actions.report(error);
     } finally {
@@ -223,6 +224,16 @@ export function Diagnostics() {
             重新检查
           </Button>
           <Button
+            onClick={() =>
+              void actions.diagnostics
+                .mark()
+                .then(() => update({ notice: "已标记当前卡顿时间" }))
+                .catch(actions.report)
+            }
+          >
+            标记当前卡顿
+          </Button>
+          <Button
             type="primary"
             icon={<Download size={16} />}
             loading={exporting}
@@ -248,6 +259,28 @@ export function Diagnostics() {
         title={title}
         description={description}
       />
+      <Card size="small">
+        <Space direction="vertical" size={4}>
+          <Typography.Text>自动保留最近两小时的运行记录</Typography.Text>
+          <Typography.Text type="secondary">
+            {history?.since
+              ? `可回溯至 ${new Date(history.since).toLocaleTimeString("zh-CN")}，不足一小时按实际时长导出。`
+              : "正在准备记录，导出时将包含已有数据。"}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            遇到卡顿时可先标记时间，再让共享端和观看端分别导出诊断压缩包。不包含音视频内容。
+          </Typography.Text>
+          {Boolean(
+            history?.writeFailures ||
+              history?.dropped ||
+              history?.corruptRecords,
+          ) && (
+            <Typography.Text type="warning">
+              部分记录未能保存，导出文件会注明缺失情况。
+            </Typography.Text>
+          )}
+        </Space>
+      </Card>
       <Card size="small" className="diagnostic-status-card">
         <Descriptions
           column={1}

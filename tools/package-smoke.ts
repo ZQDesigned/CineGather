@@ -1,8 +1,9 @@
 import { _electron as electron, expect } from "@playwright/test";
-import { mkdtemp, writeFile, rm } from "node:fs/promises";
+import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { unzipSync, strFromU8 } from "fflate";
 
 const { version } = await Bun.file("apps/desktop/package.json").json();
 const platform = process.argv[2] ?? process.platform;
@@ -129,6 +130,29 @@ try {
     contextIsolation: true,
     nodeIntegration: false,
   });
+  // Exercise the real packaged (asar) diagnostic ZIP path, including its compressor worker.
+  const diagnosticPath = join(profile, "diagnostics.zip");
+  await app.evaluate(({ dialog }, filePath) => {
+    dialog.showSaveDialog = async () => ({ canceled: false, filePath });
+  }, diagnosticPath);
+  expect(
+    await page.evaluate(() =>
+      window.desktop!.exportDiagnostics({
+        state: "disconnected",
+        token: "package-smoke-secret",
+      }),
+    ),
+  ).toBe(true);
+  const diagnosticFiles = unzipSync(await readFile(diagnosticPath));
+  expect(
+    JSON.parse(strFromU8(diagnosticFiles["manifest.json"]!)).platform,
+  ).toBe(platform);
+  expect(strFromU8(diagnosticFiles["timeline.ndjson"]!)).toContain(
+    '"resources"',
+  );
+  expect(strFromU8(diagnosticFiles["current.json"]!)).not.toContain(
+    "package-smoke-secret",
+  );
   // Verify the packaged overlay preload/assets in the same sandbox used by releases.
   if (platform === "darwin")
     expect(await app.evaluate(({ app }) => app.dock!.isVisible())).toBe(true);

@@ -11,6 +11,7 @@
     "antd": "6.6.7",
     "builder-util-runtime": "9.7.0",
     "electron-updater": "6.8.11",
+    "fflate": "0.8.3",
     "koffi": "3.3.3",
     "livekit-client": "catalog:",
     "lucide-react": "1.59.0",

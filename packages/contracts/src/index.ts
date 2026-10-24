@@ -271,6 +271,10 @@ export interface DesktopSettings {
 }
 export interface DesktopBridge {
   platform: string;
+  diagnostics?: {
+    record(entry: import("./diagnostics").DiagnosticRecord): Promise<void>;
+    status(): Promise<import("./diagnostics").DiagnosticHistoryStatus>;
+  };
   memberOverlay?: {
     publish(snapshot: MemberOverlaySnapshot | null): Promise<void>;
   };
@@ -396,3 +400,4 @@ export const roomControlSchema = z.discriminatedUnion("action", [
 ]);
 export type RoomControl = z.infer<typeof roomControlSchema>;
 export const muteMicrophoneInput = z.object({}).strict();
+export * from "./diagnostics";

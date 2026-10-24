@@ -23,6 +23,7 @@ import {
 } from "./platform";
 import { settingsSchema } from "../shared/settings";
 import { FriendRequests } from "./friends";
+import { DiagnosticRecorder } from "./diagnostic-recorder";
 import { ProcessAudio } from "./process-audio";
 import {
   deviceAudioTitle,
@@ -199,6 +200,12 @@ export const media = new MediaSession(
     }
   },
 );
+export const diagnostics = new DiagnosticRecorder(media, state, async () =>
+  unwrap(
+    await api.GET("/api/v1/diagnostics", { signal: AbortSignal.timeout(8000) }),
+  ),
+);
+
 async function handleRemoteRemoval() {
   const { room, roomRevision } = state();
   const identity = sessionToken;
@@ -423,6 +430,7 @@ function receiveInvitation(value: string) {
   });
 }
 export async function initialize() {
+  const stopDiagnostics = diagnostics.start();
   await window.desktop?.updates?.setInRoom(Boolean(state().room)).catch(report);
   try {
     const loaded = window.desktop
@@ -527,6 +535,7 @@ export async function initialize() {
   return () => {
     clearInterval(timer);
     clearInterval(policyTimer);
+    stopDiagnostics();
     stopPolicyEvents();
     window.removeEventListener("online", onlinePolicy);
     clearInterval(friendsTimer);

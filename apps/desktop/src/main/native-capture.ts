@@ -11,6 +11,7 @@ import {
   type CaptureSource,
   type NativeCaptureRequest,
   type ShareLease,
+  nativeDiagnosticSchema,
 } from "@cinegather/contracts";
 import { selectNativeSource } from "./native-selection";
 import { NativeProtocol } from "./native-protocol";
@@ -48,6 +49,10 @@ export class NativeCapture {
   private activeWindow?: NativeWindow;
   private activeDisplayId?: number;
   private checks = 0;
+  private diagnosticStatus?: ReturnType<typeof nativeDiagnosticSchema.parse>;
+  diagnostics() {
+    return this.diagnosticStatus;
+  }
   private previewSources = new Map<
     string,
     { id: string; windowId?: number; pid?: number; displayId?: number }
@@ -333,6 +338,10 @@ export class NativeCapture {
     try {
       const status = await this.pipe!.call<Status>({ type: "status" });
       if (epoch !== this.epoch) return;
+      const diagnosticStatus = nativeDiagnosticSchema.safeParse(status);
+      this.diagnosticStatus = diagnosticStatus.success
+        ? diagnosticStatus.data
+        : undefined;
       if (
         ++this.checks % 5 === 0 &&
         (this.activeWindow || this.activeDisplayId)
@@ -378,6 +387,7 @@ export class NativeCapture {
     }
   }
   async stop() {
+    this.diagnosticStatus = undefined;
     ++this.epoch;
     clearInterval(this.poll);
     this.poll = undefined;

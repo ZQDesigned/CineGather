@@ -37,6 +37,8 @@ import { fail } from "./errors";
 import { readRegistrationPolicy } from "./registration";
 import type { UpdateEvents } from "./update-events";
 import { Metrics } from "./metrics";
+import { ServerDiagnostics } from "./server-diagnostics";
+const serverDiagnostics = new ServerDiagnostics();
 
 @ApiBearerAuth()
 @Controller("api/v1")
@@ -377,21 +379,14 @@ export class ApiController {
     return s.removeFriend(req.user, userId);
   }
   @Get("diagnostics")
-  @Endpoint(
-    "diagnostics",
-    z.object({
-      uptimeSeconds: z.number(),
-      requests: z.number(),
-      errors: z.number(),
-      authDenied: z.number(),
-      tokenIssueFailures: z.number(),
-      averageDurationMs: z.number(),
-      activeRooms: z.number(),
-    }),
-  )
+  @Endpoint("diagnostics", c.diagnosticServerSchema)
   async diagnostics() {
     const active = await media.client.listRooms();
-    return { ...this.metrics.snapshot(), activeRooms: active.length };
+    return {
+      ...this.metrics.snapshot(),
+      activeRooms: active.length,
+      ...(await serverDiagnostics.snapshot()),
+    };
   }
   @Post("livekit/webhook")
   @HttpCode(200)

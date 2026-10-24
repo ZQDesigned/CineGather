@@ -1,4 +1,6 @@
 port: 7880
+# Private metrics, protected by cinegather-network.service.
+prometheus_port: 6789
 bind_addresses: [127.0.0.1]
 rtc:
   tcp_port: 7881

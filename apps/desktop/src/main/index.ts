@@ -11,7 +11,6 @@ import {
   Menu,
   nativeImage,
   globalShortcut,
-  dialog,
   powerMonitor,
 } from "electron";
 import { join, resolve, sep } from "node:path";
@@ -22,6 +21,7 @@ import { z } from "zod";
 import { allowedExternal, trustedURL, permissionAllowed } from "./security";
 import { defaultSettings, settingsSchema } from "./settings";
 import { MemberOverlay } from "./member-overlay";
+import { ProductionDiagnostics } from "./diagnostics";
 import { overlaySnapshotSchema } from "../shared/member-overlay";
 import { NativeCapture } from "./native-capture";
 import { leaseSchema } from "@cinegather/contracts";
@@ -46,6 +46,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 let win: BrowserWindow | undefined;
 let memberOverlay: MemberOverlay | undefined;
+let diagnostics: ProductionDiagnostics | undefined;
 let tray: Tray | undefined;
 let quitting = false;
 let sharing = false;
@@ -441,97 +442,9 @@ function registerIPC() {
     updateTray();
     win?.setTitle(sharing ? "正在共享：映聚 CineGather" : "映聚 CineGather");
   });
-  handle("desktop:diagnostics", async (input) => {
-    // Whitelist renderer exports: never write tokens, invitations, IP addresses or raw media.
-    const data = z
-      .object({
-        capturedAt: z.string().optional(),
-        state: z.string().optional(),
-        watching: z.boolean().optional(),
-        tracks: z.array(z.record(z.string(), z.unknown())).max(200).optional(),
-        mediaCheck: z.enum(["available", "unavailable"]).optional(),
-        serverCheck: z
-          .enum(["available", "unavailable", "notSignedIn"])
-          .optional(),
-        shareState: z.string().max(32).optional(),
-        connection: z
-          .object({
-            status: z.enum(["checking", "available", "unavailable"]),
-            checkedAt: z.string().max(64).optional(),
-          })
-          .optional(),
-        server: z
-          .object({
-            uptimeSeconds: z.number().nonnegative(),
-            requests: z.number().nonnegative(),
-            errors: z.number().nonnegative(),
-            authDenied: z.number().nonnegative(),
-            tokenIssueFailures: z.number().nonnegative(),
-            averageDurationMs: z.number().nonnegative(),
-            activeRooms: z.number().nonnegative(),
-          })
-          .optional(),
-      })
-      .parse(input);
-    const safeTracks = data.tracks?.map((track) =>
-      Object.fromEntries(
-        Object.entries(track).filter(([k]) =>
-          [
-            "type",
-            "source",
-            "local",
-            "kind",
-            "bytesReceived",
-            "bytesSent",
-            "packetsLost",
-            "jitter",
-            "framesPerSecond",
-            "framesDecoded",
-            "framesDropped",
-            "frameWidth",
-            "frameHeight",
-            "currentRoundTripTime",
-            "availableOutgoingBitrate",
-            "mimeType",
-            "state",
-            "nominated",
-            "nackCount",
-            "retransmittedPacketsSent",
-            "localCandidateType",
-            "remoteCandidateType",
-            "transportProtocol",
-          ].includes(k),
-        ),
-      ),
-    );
-    const result = await dialog.showSaveDialog(win!, {
-      defaultPath: `cinegather-diagnostics-${Date.now()}.json`,
-      filters: [{ name: "JSON", extensions: ["json"] }],
-    });
-    if (result.canceled || !result.filePath) return false;
-    await writeFile(
-      result.filePath,
-      JSON.stringify(
-        {
-          ...data,
-          tracks: safeTracks,
-          appVersion: app.getVersion(),
-          platform: process.platform,
-          versions: {
-            electron: process.versions.electron,
-            chrome: process.versions.chrome,
-            node: process.versions.node,
-          },
-          process: { memory: process.memoryUsage(), cpu: process.cpuUsage() },
-          gpu: app.getGPUFeatureStatus(),
-        },
-        null,
-        2,
-      ),
-      { mode: 0o600 },
-    );
-    return true;
-  });
+  handle("desktop:diagnostic-record", (input) => diagnostics!.record(input));
+  handle("desktop:diagnostic-status", () => diagnostics!.status());
+  handle("desktop:diagnostics", (input) => diagnostics!.export(input, win!));
 }
 function capturePermissions() {
   const ses = session.defaultSession;
@@ -697,6 +610,8 @@ else {
         { autoDownload: settings.autoDownloadUpdates ?? true },
       );
       if (updates.startupInstalling) return;
+      diagnostics = new ProductionDiagnostics(() => nativeCapture);
+      diagnostics.start();
       memberOverlay = new MemberOverlay(() => win, devURL);
       memberOverlay.configure(settings.memberOverlay);
       registerIPC();
