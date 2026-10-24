@@ -9,7 +9,11 @@ import {
   WebhookReceiver,
 } from "livekit-server-sdk";
 import { config } from "./config";
-import { nativeIdentity, type User } from "@cinegather/contracts";
+import {
+  MAX_ROOM_MEMBERS,
+  nativeIdentity,
+  type User,
+} from "@cinegather/contracts";
 import { randomUUID } from "node:crypto";
 export class MediaGateway {
   readonly client = new RoomServiceClient(
@@ -81,10 +85,12 @@ export class MediaGateway {
       throw e;
     }
   }
-  async ensureRoom(roomId: string, capacity: number) {
+  async ensureRoom(roomId: string) {
     await this.client.createRoom({
       name: roomId,
-      maxParticipants: capacity + 1,
+      // A live SFU room's ceiling is immutable. Reserve the application maximum
+      // plus one native publisher; admission enforces the editable business cap.
+      maxParticipants: MAX_ROOM_MEMBERS + 1,
       emptyTimeout: 300,
       departureTimeout: 60,
     });

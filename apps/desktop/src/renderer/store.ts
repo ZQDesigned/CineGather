@@ -11,6 +11,7 @@ import type { MediaSummary } from "@cinegather/media-core";
 import { defaultSettings } from "../shared/settings";
 import type { Friend } from "./friends";
 export type Modal =
+  | "room-settings"
   | "create"
   | "join"
   | "settings"

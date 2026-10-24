@@ -164,6 +164,74 @@ export async function listRooms(user: User) {
     .limit(50);
   return { items: rows };
 }
+// Count connected humans and seats reserved by issued join tokens once.
+// Native publishers use the extra transport slot, not a human admission seat.
+async function occupiedUserIds(
+  tx: Transaction,
+  roomId: string,
+  participants: readonly { identity: string }[],
+) {
+  const admissions = await tx
+    .select({ userId: members.userId })
+    .from(members)
+    .where(
+      and(eq(members.roomId, roomId), gt(members.admittedUntil, new Date())),
+    );
+  return new Set([
+    ...participants
+      .filter((p) => !nativeOwner(p.identity))
+      .map((p) => p.identity),
+    ...admissions.map((a) => a.userId),
+  ]);
+}
+export async function updateRoomSettings(
+  user: User,
+  roomId: string,
+  input: { name?: string; maxMembers?: number },
+) {
+  roomId = uuid(roomId);
+  return db.transaction(async (tx) => {
+    const previous = await requireMember(tx, roomId, user.id, true, true);
+    const maxMembers = input.maxMembers ?? previous.maxMembers;
+    if (maxMembers !== previous.maxMembers) {
+      const occupying = await occupiedUserIds(
+        tx,
+        roomId,
+        await media.participants(roomId),
+      );
+      if (maxMembers < occupying.size)
+        fail(
+          409,
+          "ROOM_CAPACITY_TOO_SMALL",
+          `房间内已有 ${occupying.size} 人，人数上限不能低于当前人数`,
+        );
+      const [transport] = await media.client.listRooms([roomId]);
+      if (
+        transport?.maxParticipants &&
+        transport.maxParticipants < maxMembers + 1
+      )
+        fail(
+          409,
+          "ROOM_RECREATE_REQUIRED",
+          "这个房间由旧版本创建，暂不支持提高人数上限，请重新创建房间",
+        );
+    }
+    const name = input.name ?? previous.name;
+    const [updated] = await tx
+      .update(rooms)
+      .set({ name, maxMembers })
+      .where(eq(rooms.id, roomId))
+      .returning();
+    if (name !== previous.name || maxMembers !== previous.maxMembers)
+      await audit(tx, user.id, "room.updated", roomId, {
+        previousName: previous.name,
+        name,
+        previousMaxMembers: previous.maxMembers,
+        maxMembers,
+      });
+    return roomInfo(updated!, user.id);
+  });
+}
 export async function createInvite(
   user: User,
   roomId: string,
@@ -284,20 +352,9 @@ export async function joinRoom(
         .insert(members)
         .values({ roomId, userId: user.id, role: "member" });
     }
-    await media.ensureRoom(roomId, room.maxMembers);
+    await media.ensureRoom(roomId);
     const participants = await media.participants(roomId);
-    const admissions = await tx
-      .select({ userId: members.userId })
-      .from(members)
-      .where(
-        and(eq(members.roomId, roomId), gt(members.admittedUntil, new Date())),
-      );
-    const occupying = new Set([
-      ...participants
-        .filter((p) => !nativeOwner(p.identity))
-        .map((p) => p.identity),
-      ...admissions.map((a) => a.userId),
-    ]);
+    const occupying = await occupiedUserIds(tx, roomId, participants);
     if (!occupying.has(user.id) && occupying.size >= room.maxMembers)
       fail(409, "ROOM_FULL", "房间人数已满");
     await tx

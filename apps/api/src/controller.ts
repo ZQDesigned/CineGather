@@ -118,6 +118,25 @@ export class ApiController {
   room(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
     return r.getRoom(req.user, roomId);
   }
+  @Post("rooms/:roomId/settings")
+  @Endpoint(
+    "updateRoomSettings",
+    c.roomSchema,
+    c.roomSettingsInput,
+    ["roomId"],
+    201,
+  )
+  updateSettings(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return r.updateRoomSettings(
+      req.user,
+      roomId,
+      parse(c.roomSettingsInput, body),
+    );
+  }
   @Post("rooms/:roomId/join")
   @Endpoint("joinRoom", c.joinSchema, c.joinInput, ["roomId"], 201)
   async join(

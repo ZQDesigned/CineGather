@@ -9,6 +9,7 @@ export default defineConfig(base, {
     "admin.spec.ts",
     "admin-roles.spec.ts",
     "lobby-room.spec.ts",
+    "room-settings.spec.ts",
     "accounts-lifecycle.spec.ts",
   ],
   outputDir: ".local/chrome-support/web-results",

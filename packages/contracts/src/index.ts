@@ -37,10 +37,20 @@ export const passwordInput = z.strictObject({
   currentPassword: z.string().min(1).max(128),
   password: accountPassword,
 });
+export const MAX_ROOM_MEMBERS = 10;
+export const roomSettingsInput = z
+  .strictObject({
+    name: z.string().trim().min(1).max(64).optional(),
+    maxMembers: z.number().int().min(2).max(MAX_ROOM_MEMBERS).optional(),
+  })
+  .refine(
+    (value) => value.name !== undefined || value.maxMembers !== undefined,
+    "请修改房间名称或人数上限",
+  );
 export const roomInput = z
   .strictObject({
     name: z.string().trim().min(1).max(64),
-    maxMembers: z.number().int().min(2).max(10).default(5),
+    maxMembers: z.number().int().min(2).max(MAX_ROOM_MEMBERS).default(5),
     access: z.enum(["normal", "password"]).default("normal"),
     password: z.string().min(4).max(64).optional(),
   })

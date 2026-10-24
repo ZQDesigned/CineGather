@@ -493,8 +493,7 @@ async function syncRooms() {
         params: { path: { roomId: room.id } },
       }),
     );
-    if (state().room?.id !== room.id || state().roomRevision !== roomRevision)
-      return;
+    if (state().room !== room || state().roomRevision !== roomRevision) return;
     const promoted = current.role === "owner" && state().room?.role !== "owner";
     update({ room: current, ...(promoted ? { notice: "你已成为房主" } : {}) });
   } catch (error) {
@@ -596,6 +595,33 @@ export async function createRoom(
   );
   await refreshRooms();
   await roomSession.enter(room.id);
+}
+export async function updateRoomSettings(name: string, maxMembers: number) {
+  const { room, roomRevision } = state();
+  const identity = sessionToken;
+  if (!room) throw new Error("请先进入房间");
+  const saved = unwrap(
+    await api.POST("/api/v1/rooms/{roomId}/settings", {
+      params: { path: { roomId: room.id } },
+      body: { name, maxMembers },
+    }),
+  );
+  if (
+    identity !== sessionToken ||
+    state().room?.id !== room.id ||
+    state().roomRevision !== roomRevision
+  )
+    return;
+  update({
+    room: saved,
+    rooms: state().rooms.map((r) =>
+      r.id === saved.id
+        ? { ...r, name: saved.name, maxMembers: saved.maxMembers }
+        : r,
+    ),
+    ...(state().modal === "room-settings" ? { modal: null } : {}),
+    notice: "房间设置已更新",
+  });
 }
 export async function joinRoom(value: string, password?: string) {
   const { roomId, inviteToken } = parseInvitation(value);

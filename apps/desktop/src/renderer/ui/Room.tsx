@@ -96,6 +96,12 @@ export function Room() {
         </div>
         <div className="heading-actions">
           {app.room!.role === "owner" && (
+            <Button onClick={() => update({ modal: "room-settings" })}>
+              <Settings size={16} />
+              房间设置
+            </Button>
+          )}
+          {app.room!.role === "owner" && (
             <Button onClick={() => void actions.run(actions.createInvite)}>
               <UserPlus size={16} />
               邀请朋友

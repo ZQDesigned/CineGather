@@ -16,6 +16,7 @@ import {
 import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
 import { UpdateDialog } from "./Updates";
+import { RoomSettings } from "./RoomSettings";
 import { Diagnostics } from "./Diagnostics";
 import { useEffect, useState } from "react";
 import {
@@ -73,6 +74,7 @@ function DialogContent({ modal }: { modal: Modal }) {
         <p>当前账号暂未开通屏幕共享能力。</p>
       </ModalShell>
     );
+  if (modal === "room-settings") return <RoomSettings />;
   if (modal === "create") return <CreateRoom />;
   if (modal === "join") return <JoinRoom />;
   if (modal === "settings") return <Settings />;

@@ -736,3 +736,199 @@ test("separate ingress creation attempts within one lease cannot revoke each oth
       await media.ingress.deleteIngress(entry.ingressId);
   }
 });
+
+describe("owner room settings", () => {
+  test("owner changes name and capacity without replacing room identifiers or invitations", async () => {
+    const owner = await account(),
+      viewer = await account(),
+      stranger = await account();
+    const created = await room(owner.token, 2);
+    const invitation = await req(
+      `/rooms/${created.id}/invites`,
+      owner.token,
+      {},
+    );
+    expect(
+      (await req(`/rooms/${created.id}/join`, viewer.token, {})).status,
+    ).toBe(201);
+    const url = `/rooms/${created.id}/settings`;
+    expect((await req(url, undefined, { name: "匿名修改" })).status).toBe(401);
+    expect((await req(url, viewer.token, { name: "成员修改" })).status).toBe(
+      403,
+    );
+    expect((await req(url, stranger.token, { maxMembers: 10 })).status).toBe(
+      403,
+    );
+    const updated = await req(url, owner.token, {
+      name: "  修改后的放映室  ",
+      maxMembers: 4,
+    });
+    expect(updated.status).toBe(201);
+    expect(updated.body).toMatchObject({
+      id: created.id,
+      code: created.code,
+      name: "修改后的放映室",
+      maxMembers: 4,
+      ownerUserId: owner.id,
+      access: "normal",
+    });
+    expect(
+      (await req(`/rooms/${created.id}`, viewer.token)).body,
+    ).toMatchObject({ name: "修改后的放映室", maxMembers: 4, role: "member" });
+    expect(
+      (await req("/rooms", viewer.token)).body.items.find(
+        (r: RoomInfo) => r.id === created.id,
+      ).name,
+    ).toBe("修改后的放映室");
+    expect(
+      (
+        await req(`/rooms/${created.id}/join`, stranger.token, {
+          inviteToken: invitation.body.token,
+        })
+      ).status,
+    ).toBe(201);
+    const { media } = await import("../../apps/api/src/media");
+    expect(
+      (await media.client.listRooms([created.id]))[0]!.maxParticipants,
+    ).toBe(11);
+  });
+  test("strict settings validation and occupied admission seats prevent invalid or destructive edits", async () => {
+    const a = await account(),
+      b = await account(),
+      c = await account();
+    const r = await room(a.token, 5),
+      url = `/rooms/${r.id}/settings`;
+    for (const body of [
+      {},
+      { name: " " },
+      { name: "x".repeat(65) },
+      { maxMembers: 1 },
+      { maxMembers: 11 },
+      { maxMembers: 2.5 },
+      { name: "越权", ownerUserId: b.id },
+      { access: "normal" },
+    ])
+      expect((await req(url, a.token, body)).status).toBe(400);
+    await req(`/rooms/${r.id}/join`, b.token, {});
+    await req(`/rooms/${r.id}/join`, c.token, {});
+    const denied = await req(url, a.token, {
+      name: "不应该保存",
+      maxMembers: 2,
+    });
+    expect(denied.status).toBe(409);
+    expect(denied.body.code).toBe("ROOM_CAPACITY_TOO_SMALL");
+    expect((await req(`/rooms/${r.id}`, a.token)).body.name).toBe(r.name);
+    expect((await req(url, a.token, { maxMembers: 3 })).status).toBe(201);
+    const extra = await account();
+    expect((await req(`/rooms/${r.id}/join`, extra.token, {})).body.code).toBe(
+      "ROOM_FULL",
+    );
+    expect((await req(url, a.token, { name: "只改名称" })).status).toBe(201);
+    expect((await req(`/rooms/${r.id}`, a.token)).body.maxMembers).toBe(3);
+  });
+  test("capacity edits serialize with concurrent admission", async () => {
+    const a = await account(),
+      b = await account(),
+      c = await account();
+    const r = await room(a.token, 3);
+    await req(`/rooms/${r.id}/join`, b.token, {});
+    const [edit, join] = await Promise.all([
+      req(`/rooms/${r.id}/settings`, a.token, { maxMembers: 2 }),
+      req(`/rooms/${r.id}/join`, c.token, {}),
+    ]);
+    expect([edit.status, join.status].sort()).toEqual([201, 409]);
+    if (edit.status === 201) expect(join.body.code).toBe("ROOM_FULL");
+    else expect(edit.body.code).toBe("ROOM_CAPACITY_TOO_SMALL");
+  });
+  test("legacy media ceilings reject unsupported expansion while keeping rename available", async () => {
+    const a = await account();
+    const r = await room(a.token, 2);
+    const { media } = await import("../../apps/api/src/media");
+    await media.client.createRoom({ name: r.id, maxParticipants: 3 });
+    const expanded = await req(`/rooms/${r.id}/settings`, a.token, {
+      name: "不能保存",
+      maxMembers: 5,
+    });
+    expect(expanded.status).toBe(409);
+    expect(expanded.body.code).toBe("ROOM_RECREATE_REQUIRED");
+    expect(
+      (
+        await req(`/rooms/${r.id}/settings`, a.token, {
+          name: "旧房间仍可改名",
+        })
+      ).status,
+    ).toBe(201);
+    expect((await req(`/rooms/${r.id}`, a.token)).body.maxMembers).toBe(2);
+  });
+});
+
+test("room settings count each human once and exclude the native screen publisher", async () => {
+  const a = await account(),
+    b = await account(),
+    c = await account();
+  const r = await room(a.token, 5);
+  await req(`/rooms/${r.id}/join`, b.token, {});
+  await req(`/rooms/${r.id}/join`, c.token, {});
+  const { media } = await import("../../apps/api/src/media");
+  const { nativeIdentity } = await import("@cinegather/contracts");
+  const original = media.participants;
+  try {
+    media.participants = async (id, ...rest) =>
+      id === r.id
+        ? ([
+            { identity: a.id },
+            { identity: nativeIdentity(a.id, crypto.randomUUID()) },
+          ] as Awaited<ReturnType<typeof original>>)
+        : original.call(media, id, ...rest);
+    expect(
+      (await req(`/rooms/${r.id}/settings`, a.token, { maxMembers: 3 })).status,
+    ).toBe(201);
+    await db
+      .update(members)
+      .set({ admittedUntil: new Date(0) })
+      .where(eq(members.userId, c.id));
+    expect(
+      (await req(`/rooms/${r.id}/settings`, a.token, { maxMembers: 2 })).status,
+    ).toBe(201);
+    media.participants = async (id, ...rest) => {
+      if (id === r.id) throw new Error("Synthetic SFU outage");
+      return original.call(media, id, ...rest);
+    };
+    expect(
+      (
+        await req(`/rooms/${r.id}/settings`, a.token, {
+          name: "媒体离线仍可改名",
+        })
+      ).status,
+    ).toBe(201);
+  } finally {
+    media.participants = original;
+  }
+});
+test("room settings follow ownership transfer and cannot reopen a closed room", async () => {
+  const a = await account(),
+    b = await account();
+  const r = await room(a.token, 4);
+  await req(`/rooms/${r.id}/join`, b.token, {});
+  expect(
+    (
+      await req(`/rooms/${r.id}/settings`, a.token, {
+        name: "转让前的新名称",
+        maxMembers: 5,
+      })
+    ).status,
+  ).toBe(201);
+  await req(`/rooms/${r.id}/leave`, a.token, {});
+  expect(
+    (await req(`/rooms/${r.id}/settings`, a.token, { name: "旧房主" })).status,
+  ).toBe(403);
+  expect(
+    (await req(`/rooms/${r.id}/settings`, b.token, { name: "新房主的名称" }))
+      .status,
+  ).toBe(201);
+  await req(`/rooms/${r.id}/leave`, b.token, {});
+  expect(
+    (await req(`/rooms/${r.id}/settings`, b.token, { name: "不能重新打开" }))
+      .status,
+  ).toBe(404);
+});
