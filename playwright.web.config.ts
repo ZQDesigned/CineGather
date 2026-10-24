@@ -12,6 +12,7 @@ export default defineConfig(base, {
     "room-settings.spec.ts",
     "room-moderation.spec.ts",
     "member-permissions.spec.ts",
+    "member-volume.spec.ts",
     "accounts-lifecycle.spec.ts",
   ],
   outputDir: ".local/chrome-support/web-results",

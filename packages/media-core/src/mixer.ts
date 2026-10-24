@@ -33,11 +33,11 @@ export class AudioMixer {
     this.apply();
   }
   member(userId: string, volume: number) {
-    this.members.set(userId, this.clamp(volume));
+    this.members.set(userId, this.clamp(volume, 2));
     this.apply();
   }
-  private clamp(value: number) {
-    return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0;
+  private clamp(value: number, maximum = 1) {
+    return Number.isFinite(value) ? Math.min(maximum, Math.max(0, value)) : 0;
   }
   private apply() {
     for (const { userId, kind, sink } of this.tracks.values())

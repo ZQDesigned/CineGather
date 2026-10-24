@@ -44,6 +44,7 @@ interface State {
   warningTitle?: string;
   cinema: boolean;
   settings: DesktopSettings;
+  memberVolumes: Record<string, number>;
   voiceVolume: number;
   screenVolume: number;
   watching: boolean;
@@ -72,6 +73,7 @@ export const useApp = create<State>(() => ({
   busy: false,
   cinema: false,
   settings: defaults,
+  memberVolumes: {},
   voiceVolume: 1,
   screenVolume: 1,
   watching: true,

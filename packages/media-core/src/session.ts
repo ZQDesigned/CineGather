@@ -21,6 +21,7 @@ import {
 import { decodeRoomControl } from "./room-control";
 import { MoviePlayback } from "./movie";
 import { AudioMixer } from "./mixer";
+import { VoicePlayback } from "./voice-playback";
 import { BrowserCapture } from "./browser-capture";
 import {
   createMicrophoneDenoiser,
@@ -52,6 +53,7 @@ export class MediaSession {
   private videoTrack?: Track;
   private audioElements = new Map<string, HTMLMediaElement[]>();
   private mixer = new AudioMixer();
+  private voices: VoicePlayback;
   private movie = new MoviePlayback();
   private movieAudio?: { sid: string; track: RemoteAudioTrack };
   private watching = true;
@@ -67,7 +69,9 @@ export class MediaSession {
     private readonly shareEnded: () => void,
     private readonly disconnected?: (reason?: DisconnectReason) => void,
     private readonly controlled?: (command: RoomControl) => void,
-  ) {}
+  ) {
+    this.voices = new VoicePlayback(() => this.emit(), this.error);
+  }
   async connect(url: string, token: string) {
     await this.disconnect();
     const revision = ++this.revision;
@@ -238,7 +242,7 @@ export class MediaSession {
           }
         : undefined,
       microphoneNoise: this.noiseStatus,
-      audioBlocked: !room.canPlaybackAudio,
+      audioBlocked: !room.canPlaybackAudio || this.voices.blocked,
       systemAudio: Boolean(
         sharer?.getTrackPublication(Track.Source.ScreenShareAudio),
       ),
@@ -284,14 +288,20 @@ export class MediaSession {
       this.mixer.attach(
         pub.trackSid,
         participant.identity,
-        pub.source === Track.Source.ScreenShareAudio ? "screen" : "voice",
-        track,
+        "voice",
+        this.voices.attach(
+          pub.trackSid,
+          el.srcObject as MediaStream,
+          el,
+          track,
+        ),
       );
       void el.play().catch(() => this.emit());
     }
     this.emit();
   }
   private detach(track: Track, sid: string) {
+    this.voices.remove(sid);
     if (this.movieAudio?.sid === sid) {
       this.movieAudio = undefined;
       this.movie.tracks(this.videoTrack);
@@ -316,6 +326,7 @@ export class MediaSession {
     this.mixer.remove(sid);
   }
   private clearElements() {
+    this.voices.clear();
     this.movie.tracks();
     this.movieAudio = undefined;
     this.videoTrack = undefined;
@@ -626,7 +637,7 @@ export class MediaSession {
       await this.room.switchActiveDevice("audiooutput", output || "default");
   }
   async startAudio() {
-    await this.room?.startAudio();
+    await Promise.all([this.room?.startAudio(), this.voices.resume()]);
     this.emit();
   }
   async diagnostics() {

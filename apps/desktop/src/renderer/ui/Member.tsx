@@ -29,6 +29,9 @@ import { update, useApp } from "../store";
 
 const MemberPopup = styled.div`
   width: 236px;
+  max-height: calc(100dvh - 16px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
   padding: 8px;
   border: 1px solid #ffffff18;
   border-radius: 12px;
@@ -296,6 +299,11 @@ export function Member({
   return (
     <Dropdown
       trigger={["contextMenu"]}
+      align={{
+        htmlRegion: "visible",
+        offset: [0, 0],
+        overflow: { adjustX: true, adjustY: true, shiftX: true, shiftY: true },
+      }}
       open={open}
       onOpenChange={(nextOpen) => {
         setFocusVolume(false);
@@ -343,8 +351,9 @@ export function Member({
               autoFocus={focusVolume}
               ariaLabelForHandle={`${p.name}的音量`}
               min={0}
-              max={100}
+              max={200}
               value={volume}
+              tooltip={{ formatter: (value) => `${value}%` }}
               onChange={onVolumeChange}
             />
           </div>

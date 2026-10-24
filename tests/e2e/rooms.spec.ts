@@ -88,7 +88,10 @@ test("two independent clients join a real LiveKit room, synchronize microphone a
     await expect(memberVolume).not.toBeFocused();
     await expect(page.locator(".ant-slider-tooltip:visible")).toHaveCount(0);
     await memberVolume.hover();
-    await expect(page.locator(".ant-slider-tooltip:visible")).toHaveText("100");
+    await expect(page.locator(".ant-slider-tooltip:visible")).toHaveText(
+      "100%",
+    );
+    await memberVolume.focus();
     await memberVolume.press("Home");
     await memberVolume.press("ArrowRight");
     await expect(memberVolume).toHaveAttribute("aria-valuenow", "1");
@@ -113,7 +116,9 @@ test("two independent clients join a real LiveKit room, synchronize microphone a
     await expect(page.locator(".member-context-popup")).toBeVisible();
     await memberVolume.press("Home");
     await memberVolume.press("ArrowRight");
+    await page.getByRole("menuitem", { name: "移出房间", exact: true }).hover();
     const popup = await page.locator(".member-context-popup").boundingBox();
+
     expect(
       popup &&
         popup.x >= 0 &&

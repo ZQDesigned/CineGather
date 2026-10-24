@@ -29,3 +29,43 @@ test("film volume never changes voice, while member volume scales only that memb
   });
   expect(levels.film).toBe(0.25);
 });
+
+test("members can be amplified to 200% without amplifying other people or film audio", () => {
+  const mix = new AudioMixer();
+  const levels = { a: 0, b: 0, film: 0 };
+  mix.attach("a", "a", "voice", {
+    setVolume: (v) => {
+      levels.a = v;
+    },
+  });
+  mix.attach("b", "b", "voice", {
+    setVolume: (v) => {
+      levels.b = v;
+    },
+  });
+  mix.attach("film", "a", "screen", {
+    setVolume: (v) => {
+      levels.film = v;
+    },
+  });
+  mix.member("a", 2);
+  expect(levels).toEqual({ a: 2, b: 1, film: 1 });
+  mix.voice(0.5);
+  expect(levels).toEqual({ a: 1, b: 0.5, film: 1 });
+  mix.voice(0);
+  expect(levels).toEqual({ a: 0, b: 0, film: 1 });
+  mix.voice(1);
+  mix.remove("a");
+  mix.attach("a-new", "a", "voice", {
+    setVolume: (v) => {
+      levels.a = v;
+    },
+  });
+  expect(levels.a).toBe(2);
+  mix.member("a", 200);
+  expect(levels.a).toBe(2);
+  for (const invalid of [-1, NaN, Infinity]) {
+    mix.member("a", invalid);
+    expect(levels.a).toBe(0);
+  }
+});

@@ -1,6 +1,6 @@
 import { App, Slider, Alert, Tabs, Tooltip, Tag, Badge } from "antd";
 import { Button } from "./Controls";
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useRef, type ReactNode } from "react";
 import {
   Shield,
   LockKeyhole,
@@ -38,9 +38,6 @@ export function Room() {
   const app = useApp();
   const { modal } = App.useApp();
   const stage = useRef<HTMLDivElement>(null);
-  const [memberVolumes, setMemberVolumes] = useState<Record<string, number>>(
-    {},
-  );
   const local = app.media.participants.find((p) => p.local);
   const policy = app.room?.memberPermissions?.find(
     (p) => p.userId === app.user?.id,
@@ -402,12 +399,14 @@ export function Room() {
                           key={p.id}
                           participant={p}
                           room={app.room!}
-                          volume={memberVolumes[p.id] ?? 100}
+                          volume={app.memberVolumes[p.id] ?? 100}
                           onVolumeChange={(value) => {
-                            setMemberVolumes((previous) => ({
-                              ...previous,
-                              [p.id]: value,
-                            }));
+                            update({
+                              memberVolumes: {
+                                ...app.memberVolumes,
+                                [p.id]: value,
+                              },
+                            });
                             actions.media.memberVolume(p.id, value / 100);
                           }}
                         />
