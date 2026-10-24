@@ -13,7 +13,12 @@ import {
   HttpException,
   Inject,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiQuery, ApiHeader } from "@nestjs/swagger";
+import {
+  ApiBearerAuth,
+  ApiQuery,
+  ApiHeader,
+  ApiExcludeEndpoint,
+} from "@nestjs/swagger";
 import { z } from "zod";
 import type { Response } from "express";
 import * as c from "@cinegather/contracts";
@@ -30,6 +35,7 @@ import { media } from "./media";
 import { Endpoint, parse, type AuthRequest } from "./http";
 import { fail } from "./errors";
 import { readRegistrationPolicy } from "./registration";
+import type { UpdateEvents } from "./update-events";
 import { Metrics } from "./metrics";
 
 @ApiBearerAuth()
@@ -71,6 +77,15 @@ export class ApiController {
   @Endpoint("clientPolicy", c.clientPolicySchema)
   clientPolicy(@Req() req: AuthRequest) {
     return c.clientPolicySchema.parse(req.app.get("cinegather.clientPolicy"));
+  }
+  @Get("client-events")
+  @ApiExcludeEndpoint()
+  clientEvents(@Req() req: AuthRequest, @Res() res: Response) {
+    (req.app.get("cinegather.updateEvents") as UpdateEvents).connect(
+      req,
+      res,
+      () => c.clientPolicySchema.parse(req.app.get("cinegather.clientPolicy")),
+    );
   }
   @Get("registration")
   @Endpoint("registrationPolicy", c.registrationPolicySchema)

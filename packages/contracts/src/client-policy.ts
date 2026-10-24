@@ -1,3 +1,4 @@
+export const clientUpdateOrigin = "https://cgplat.zqdesigned.city";
 import { z } from "zod";
 export const clientVersionSchema = z
   .string()

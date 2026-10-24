@@ -116,6 +116,7 @@ function shortcuts(next: DesktopSettings) {
   }
 }
 function showWindow() {
+  if (win?.isMinimized()) win.restore();
   win?.show();
   win?.focus();
 }
@@ -257,7 +258,8 @@ function registerIPC() {
   handle("desktop:update-quit", () => {
     app.quit();
   });
-  handle("desktop:update-check", () => updates!.controller.check());
+  handle("desktop:update-check", () => updates!.check());
+  handle("desktop:update-reconnect", () => updates!.reconnect());
   handle("desktop:update-download", () => updates!.controller.download());
   handle("desktop:update-install", () => updates!.controller.install());
   handle("desktop:update-open", () => updates!.openDownload());
@@ -428,6 +430,7 @@ function registerIPC() {
     }
     await writeFile(settingsPath(), JSON.stringify(next), { mode: 0o600 });
     settings = next;
+    updates?.configure(next.autoDownloadUpdates ?? true);
     memberOverlay?.configure(next.memberOverlay);
     updateTray();
   });
@@ -673,18 +676,27 @@ else {
           () => sendAction("stop-share"),
           app.isPackaged ? undefined : "com.github.Electron",
         );
+      let announcedMinimum: string | undefined;
       updates = await createUpdates(
         (status) => {
+          if (status.required && status.minimumVersion !== announcedMinimum) {
+            announcedMinimum = status.minimumVersion;
+            if (win && !win.isDestroyed()) showWindow();
+          }
           if (win && !win.isDestroyed() && !win.webContents.isDestroyed())
             win.webContents.send("desktop:update-status", status);
         },
         async () => {
+          windowsAudio?.stop();
+          memberOverlay?.publish(null);
           await nativeCapture?.shutdown();
           shutdownStarted = true;
           finishRecording();
           globalHold?.release();
         },
+        { autoDownload: settings.autoDownloadUpdates ?? true },
       );
+      if (updates.startupInstalling) return;
       memberOverlay = new MemberOverlay(() => win, devURL);
       memberOverlay.configure(settings.memberOverlay);
       registerIPC();

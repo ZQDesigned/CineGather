@@ -118,6 +118,7 @@ export class AuthGuard implements CanActivate {
       [
         "/api/v1/health",
         "/api/v1/client-policy",
+        "/api/v1/client-events",
         "/api/v1/registration",
         "/api/v1/accounts/login",
         "/api/v1/livekit/webhook",

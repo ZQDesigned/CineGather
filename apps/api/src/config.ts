@@ -14,6 +14,8 @@ function required(name: string, min = 1) {
 }
 export const config = {
   clientPolicy: readClientPolicy(process.env),
+  updateDirectory:
+    process.env.CLIENT_UPDATE_DIRECTORY ?? "/var/lib/cinegather/updates/stable",
   registrationEnabled: registrationDefault(process.env.REGISTRATION_ENABLED),
   databaseUrl: required("DATABASE_URL"),
   sessionSecret: required("SESSION_SECRET", 32),

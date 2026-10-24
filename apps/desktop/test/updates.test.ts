@@ -107,13 +107,10 @@ function setup(mode: "install" | "notify" | "disabled" = "install") {
   const controller = new UpdateController(mode, "0.1.2", transport, () => {});
   return { controller, calls, finish: () => finish(), transport };
 }
-test("a room defers download and blocks install until fully left", async () => {
+test("a room permits downloading but installation waits until the room has been left", async () => {
   const s = setup();
   s.controller.setInRoom(true);
   await s.controller.check();
-  expect(s.calls).toEqual(["check"]);
-  await expect(s.controller.download()).rejects.toThrow();
-  s.controller.setInRoom(false);
   const downloading = s.controller.download();
   await Promise.resolve();
   expect(s.controller.snapshot().progress).toBe(42);
@@ -122,21 +119,60 @@ test("a room defers download and blocks install until fully left", async () => {
   s.finish();
   await downloading;
   expect(s.controller.snapshot().status).toBe("downloaded");
-  s.controller.setInRoom(true);
   await expect(s.controller.install()).rejects.toThrow();
   s.controller.setInRoom(false);
   await s.controller.install();
   expect(s.calls).toEqual(["check", "download", "install"]);
 });
-test("entering a room cancels an active download and leaves a retryable release", async () => {
+test("entering a room keeps its ongoing download and finishing it never installs automatically", async () => {
   const s = setup();
   await s.controller.check();
   const pending = s.controller.download();
   await Promise.resolve();
   s.controller.setInRoom(true);
+  expect(s.calls).not.toContain("cancel");
+  s.finish();
   await pending;
-  expect(s.calls).toContain("cancel");
+  expect(s.controller.snapshot().status).toBe("downloaded");
+  expect(s.calls).not.toContain("install");
+});
+test("a pushed cutoff is observed even with an already downloaded version", async () => {
+  const s = setup();
+  await s.controller.check();
+  const pending = s.controller.download();
+  await Promise.resolve();
+  s.finish();
+  await pending;
+  s.controller.acceptRelease({
+    ...release,
+    version: "0.1.4",
+    minimumVersion: "0.1.4",
+    artifact: {
+      ...release.artifact,
+      file: "CineGather-0.1.4-win-x64-setup.exe",
+    },
+  });
+  expect(s.controller.snapshot().required).toBe(true);
+  expect(s.controller.snapshot().latestVersion).toBe("0.1.4");
   expect(s.controller.snapshot().status).toBe("available");
+});
+test("periodic checks can observe a new required release without discarding the downloaded candidate on network failure", async () => {
+  const s = setup();
+  await s.controller.check();
+  const d = s.controller.download();
+  await Promise.resolve();
+  s.finish();
+  await d;
+  s.transport.latest = async () => {
+    throw Error("offline");
+  };
+  await s.controller.check();
+  expect(s.controller.snapshot().status).toBe("downloaded");
+  expect(s.controller.snapshot().latestVersion).toBe("0.1.3");
+  s.transport.latest = async () => ({ ...release, minimumVersion: "0.1.3" });
+  await s.controller.check();
+  expect(s.controller.snapshot().required).toBe(true);
+  expect(s.controller.snapshot().status).toBe("downloaded");
 });
 test("macOS is notification-only and disabled targets do not contact the feed", async () => {
   const mac = setup("notify");

@@ -258,6 +258,7 @@ export interface MemberOverlayBridge {
   onChange(callback: (view: MemberOverlayView) => void): () => void;
 }
 export interface DesktopSettings {
+  autoDownloadUpdates?: boolean;
   noiseReduction: NoiseReduction;
   memberOverlay?: MemberOverlayPreferences;
   minimizeToTray: boolean;
@@ -345,6 +346,7 @@ export interface UpdateStatus {
   inRoom: boolean;
 }
 export interface DesktopUpdates {
+  reconnect?(): Promise<void>;
   requireUpdate?(minimumVersion: string, reason: string): Promise<void>;
   quit?(): Promise<void>;
   status(): Promise<UpdateStatus>;

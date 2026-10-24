@@ -17,6 +17,7 @@ import { config } from "./config";
 import { database } from "./context";
 import { reconcileAll } from "./rooms";
 import { Metrics } from "./metrics";
+import { UpdateEvents } from "./update-events";
 import { compatibilityFailure } from "./client-policy";
 import type { ClientPolicy } from "@cinegather/contracts";
 class Reconciler implements OnModuleInit, OnModuleDestroy {
@@ -43,17 +44,19 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
 }
 @Module({
   controllers: [ApiController, AdminController],
-  providers: [Metrics, Reconciler],
+  providers: [Metrics, Reconciler, UpdateEvents],
 })
 class AppModule {}
 export async function createApp({
   trustedProxies = config.trustedProxies,
   trustedCdns = config.trustedCdns,
   clientPolicy = config.clientPolicy,
+  updateDirectory = config.updateDirectory,
 }: {
   trustedProxies?: string[];
   trustedCdns?: string[];
   clientPolicy?: ClientPolicy;
+  updateDirectory?: string;
 } = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false,
@@ -76,6 +79,9 @@ export async function createApp({
     next();
   });
   app.set("cinegather.clientPolicy", clientPolicy);
+  const events = app.get(UpdateEvents);
+  events.start(updateDirectory);
+  app.set("cinegather.updateEvents", events);
   app.enableCors({
     origin: [...config.corsOrigins, "app://cinegather"],
     methods: ["GET", "POST", "DELETE"],

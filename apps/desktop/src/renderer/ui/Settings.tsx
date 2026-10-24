@@ -109,6 +109,12 @@ export function Settings() {
   };
   const current = useApp((s) => s.settings);
   const [settings, setSettings] = useState<DesktopSettings>({ ...current });
+  useEffect(() => {
+    setSettings((previous) => ({
+      ...previous,
+      autoDownloadUpdates: current.autoDownloadUpdates,
+    }));
+  }, [current.autoDownloadUpdates]);
   const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
   const [tab, setTab] = useState("audio");
   const [server, setServer] = useState(actions.baseUrl);

@@ -9,6 +9,7 @@ export const defaultOverlayPreferences: MemberOverlayPreferences = {
   position: "right-top",
 };
 export const settingsSchema = z.strictObject({
+  autoDownloadUpdates: z.boolean().default(true),
   memberOverlay: z
     .strictObject({
       enabled: z.boolean(),
@@ -35,6 +36,7 @@ export const settingsSchema = z.strictObject({
   outputDevice: z.string().max(256),
 });
 export const defaultSettings = {
+  autoDownloadUpdates: true,
   noiseReduction: "enhanced",
   memberOverlay: defaultOverlayPreferences,
   minimizeToTray: true,

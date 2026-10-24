@@ -4,6 +4,7 @@ import {
 } from "builder-util-runtime";
 import { SignedReleaseProvider } from "./update-provider";
 import { verifyInstaller, type Release } from "./update-release";
+import type { PendingUpdateStore } from "./pending-update";
 import type { UpdateTransport } from "./update-controller";
 
 interface WindowsUpdater {
@@ -28,7 +29,8 @@ interface WindowsUpdater {
 export function windowsDownloader(
   updater: WindowsUpdater,
   beforeInstall: () => Promise<void>,
-): Pick<UpdateTransport, "download" | "install" | "cancel"> {
+  pending?: PendingUpdateStore,
+): Pick<UpdateTransport, "download" | "install" | "cancel" | "discard"> {
   let cancellation: CancellationToken | undefined;
   let downloaded: Release | undefined;
   let installer: string | undefined;
@@ -39,6 +41,7 @@ export function windowsDownloader(
   updater.disableWebInstaller = true;
   return {
     cancel: () => cancellation?.cancel(),
+    discard: () => pending?.clear(),
     download: async (release, progress) => {
       downloaded = undefined;
       installer = undefined;
@@ -60,6 +63,8 @@ export function windowsDownloader(
         installer = files[0];
         if (cancellation.cancelled || !installer) throw new Error("下载已取消");
         await verifyInstaller(installer, release.artifact);
+        if (cancellation.cancelled) throw new Error("下载已取消");
+        pending?.save(release, installer);
         downloaded = structuredClone(release);
       } finally {
         updater.removeListener("download-progress", listener);
@@ -71,6 +76,7 @@ export function windowsDownloader(
       if (!allowed()) throw new Error("更新要求已改变，请重新检查新版");
       await beforeInstall();
       if (!allowed()) throw new Error("更新要求已改变，请重新检查新版");
+      pending?.clear();
       updater.quitAndInstall(true, true);
     },
   };

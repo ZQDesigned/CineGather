@@ -34,6 +34,7 @@ async function fixture(page: Page, mode: UpdateStatus["mode"]) {
           cancelCapture: async () => {},
           setSharing: async () => {},
           loadSettings: async () => ({
+            autoDownloadUpdates: true,
             noiseReduction: "enhanced",
             minimizeToTray: false,
             pushToTalk: false,
@@ -43,6 +44,9 @@ async function fixture(page: Page, mode: UpdateStatus["mode"]) {
             inputDevice: "",
             outputDevice: "",
           }),
+          saveSettings: async (settings: { autoDownloadUpdates?: boolean }) => {
+            calls.push("auto-download:" + String(settings.autoDownloadUpdates));
+          },
           updates: {
             requireUpdate: async (minimumVersion: string, reason: string) =>
               emit({ required: true, minimumVersion, reason }),
@@ -70,7 +74,10 @@ async function fixture(page: Page, mode: UpdateStatus["mode"]) {
             openDownload: async () => {
               calls.push("open-download");
             },
-            setInRoom: async () => {},
+            setInRoom: async (inRoom: boolean) => {
+              if (status.inRoom && !inRoom) calls.push("room-left");
+              emit({ inRoom });
+            },
             onChange: (callback: typeof listener) => {
               listener = callback;
               return () => {
@@ -109,7 +116,7 @@ test("macOS checks and opens the release download without exposing installation"
     "open-download",
   ]);
 });
-test("Windows download, room exclusion and explicit restart confirmation", async ({
+test("Windows downloads in a room and explicit restart leaves it before installing", async ({
   page,
 }) => {
   await fixture(page, "install");
@@ -117,8 +124,7 @@ test("Windows download, room exclusion and explicit restart confirmation", async
   await page.evaluate(() => window.updateTest!.emit({ inRoom: true }));
   await expect(
     page.getByRole("button", { name: "下载更新", exact: true }),
-  ).toBeDisabled();
-  await page.evaluate(() => window.updateTest!.emit({ inRoom: false }));
+  ).toBeEnabled();
   await page.getByRole("button", { name: "下载更新", exact: true }).click();
   await expect(page.getByRole("progressbar")).toHaveAttribute(
     "aria-valuenow",
@@ -127,15 +133,12 @@ test("Windows download, room exclusion and explicit restart confirmation", async
   await page.evaluate(() =>
     window.updateTest!.emit({ status: "downloaded", progress: 100 }),
   );
-  await page.evaluate(() => window.updateTest!.emit({ inRoom: true }));
   await expect(
     page.getByRole("button", { name: "重启更新", exact: true }),
-  ).toBeDisabled();
-  await page.evaluate(() => window.updateTest!.emit({ inRoom: false }));
+  ).toBeEnabled();
   await page.getByRole("button", { name: "重启更新", exact: true }).click();
-  const confirmation = page
-    .getByRole("dialog")
-    .filter({ hasText: "重启并更新映聚？" });
+  let confirmation = page.getByRole("dialog", { name: "重启并更新映聚？" });
+  await expect(confirmation).toContainText("退出当前房间");
   await confirmation.getByRole("button", { name: "稍后", exact: true }).click();
   await expect(confirmation).toHaveCount(0);
   expect(await page.evaluate(() => window.updateTest!.calls)).toEqual([
@@ -143,12 +146,33 @@ test("Windows download, room exclusion and explicit restart confirmation", async
     "download",
   ]);
   await page.getByRole("button", { name: "重启更新", exact: true }).click();
+  confirmation = page.getByRole("dialog", { name: "重启并更新映聚？" });
   await confirmation
     .getByRole("button", { name: "重启更新", exact: true })
     .click();
   await expect
     .poll(() => page.evaluate(() => window.updateTest!.calls))
-    .toEqual(["check", "download", "install"]);
+    .toEqual(["check", "download", "room-left", "install"]);
+});
+test("Windows auto-download setting is on by default and can be saved off", async ({
+  page,
+}) => {
+  await fixture(page, "install");
+  const toggle = page.getByRole("switch", {
+    name: "自动下载更新",
+    exact: true,
+  });
+  await expect(toggle).toBeChecked();
+  await toggle.click();
+  await expect(toggle).not.toBeChecked();
+  expect(await page.evaluate(() => window.updateTest!.calls)).toContain(
+    "auto-download:false",
+  );
+  await page.getByRole("tab", { name: "音频设备", exact: true }).click();
+  await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  expect(await page.evaluate(() => window.updateTest!.calls)).not.toContain(
+    "auto-download:true",
+  );
 });
 test("portable has no update actions and browser has no desktop update tab", async ({
   page,
@@ -244,6 +268,11 @@ test("real Electron IPC keeps development builds out of automatic installation",
     await expect(
       page.getByText("此版本不提供在线更新", { exact: true }),
     ).toBeVisible();
+    await app.evaluate(({ BrowserWindow }) => {
+      const win = BrowserWindow.getAllWindows()[0]!;
+      win.minimize();
+      win.hide();
+    });
     await page.evaluate(
       (minimumVersion) =>
         window.desktop!.updates!.requireUpdate!(
@@ -258,6 +287,14 @@ test("real Electron IPC keeps development builds out of automatic installation",
     expect(
       (await page.evaluate(() => window.desktop!.updates!.status())).required,
     ).toBe(true);
+    await expect
+      .poll(() =>
+        app.evaluate(({ BrowserWindow }) => {
+          const win = BrowserWindow.getAllWindows()[0]!;
+          return win.isVisible() && !win.isMinimized();
+        }),
+      )
+      .toBe(true);
     expect(
       await page.evaluate(async () => {
         try {
@@ -339,4 +376,61 @@ test("portable mandatory compatibility gate offers manual replacement without en
   await expect(
     gate.getByRole("button", { name: "下载更新", exact: true }),
   ).toHaveCount(0);
+});
+
+test("updating from a real room waits for server leave and keeps the installer stopped when leaving fails", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  const { registerTestAccount } = await import("./helpers/account");
+  await fixture(page, "install");
+  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await registerTestAccount(page, "房内更新验证");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("更新清理顺序验证");
+  await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+  await expect(page.locator(".connection")).toContainText("已连接");
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("tab", { name: "版本更新", exact: true }).click();
+  await page.evaluate(
+    (latestVersion) =>
+      window.updateTest!.emit({
+        status: "downloaded",
+        progress: 100,
+        latestVersion,
+      }),
+    nextClientVersion,
+  );
+  let attempts = 0;
+  await page.route("**/api/v1/rooms/*/leave", async (route) => {
+    attempts++;
+    if (attempts === 1)
+      await route.fulfill({
+        status: 503,
+        json: {
+          code: "UNAVAILABLE",
+          message: "暂时无法退出房间",
+          requestId: "test",
+        },
+      });
+    else await route.continue();
+  });
+  await page.getByRole("button", { name: "重启更新", exact: true }).click();
+  const confirm = page.getByRole("dialog", { name: "重启并更新映聚？" });
+  await confirm.getByRole("button", { name: "重启更新", exact: true }).click();
+  await expect.poll(() => attempts).toBe(1);
+  await expect(page.locator(".connection")).toContainText("未连接房间");
+  expect(await page.evaluate(() => window.updateTest!.calls)).not.toContain(
+    "install",
+  );
+  await expect(confirm).toBeVisible();
+  await confirm.getByRole("button", { name: "重启更新", exact: true }).click();
+  await expect.poll(() => attempts).toBe(2);
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.updateTest!.calls.includes("install")),
+    )
+    .toBe(true);
+  expect(errors).toEqual([]);
 });

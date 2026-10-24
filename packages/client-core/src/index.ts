@@ -1,3 +1,4 @@
+export * from "./update-events";
 export * from "./room";
 export * from "./share";
 export function parseInvitation(value: string): {

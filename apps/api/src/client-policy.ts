@@ -30,6 +30,7 @@ export function compatibilityFailure(
     [
       "/api/v1/health",
       "/api/v1/client-policy",
+      "/api/v1/client-events",
       "/api/v1/livekit/webhook",
     ].includes(path) ||
     (method === "DELETE" &&

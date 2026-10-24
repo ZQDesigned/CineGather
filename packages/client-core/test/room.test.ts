@@ -272,3 +272,86 @@ test("leaving disconnects the microphone before waiting for a pending screen pic
   await leave;
   expect(microphoneReleased).toBe(true);
 });
+test("update restart requires the leave acknowledgement and can retry after a failed request without keeping media active", async () => {
+  const calls: string[] = [];
+  let fail = true;
+  const room = new RoomCoordinator({
+    join: async () => ({
+      room: {
+        id: "room",
+        code: "1234ABCD",
+        access: "normal",
+        name: "test",
+        ownerUserId: "owner",
+        maxMembers: 5,
+        role: "member",
+      },
+      token: "jwt",
+      url: "ws://local",
+    }),
+    connect: async () => {},
+    disconnect: async () => {
+      calls.push("disconnect");
+    },
+    stopShare: async () => {
+      calls.push("stop-share");
+    },
+    leave: async () => {
+      calls.push("leave");
+      if (fail) throw Error("offline");
+    },
+    changed: () => {},
+    error: () => {},
+  });
+  await room.enter("1234ABCD");
+  await expect(room.leave(true, true)).rejects.toThrow("offline");
+  expect(calls).toEqual(["disconnect", "stop-share", "leave"]);
+  fail = false;
+  await room.leave(true, true);
+  expect(calls).toEqual([
+    "disconnect",
+    "stop-share",
+    "leave",
+    "disconnect",
+    "stop-share",
+    "leave",
+  ]);
+});
+test("update exit waits for an in-flight admission to be released before allowing restart", async () => {
+  let admit!: (value: Awaited<ReturnType<RoomDependencies["join"]>>) => void;
+  const left: string[] = [];
+  const room = new RoomCoordinator({
+    join: () => new Promise((r) => (admit = r)),
+    connect: async () => {},
+    disconnect: async () => {},
+    stopShare: async () => {},
+    leave: async (id) => {
+      left.push(id);
+    },
+    changed: () => {},
+    error: () => {},
+  });
+  const entering = room.enter("1234ABCD");
+  let done = false;
+  const leaving = room.leave(true, true).then(() => {
+    done = true;
+  });
+  await Bun.sleep(0);
+  expect(done).toBe(false);
+  admit({
+    room: {
+      id: "canonical",
+      code: "1234ABCD",
+      access: "normal",
+      name: "test",
+      ownerUserId: "owner",
+      maxMembers: 5,
+      role: "member",
+    },
+    token: "jwt",
+    url: "ws://local",
+  });
+  await Promise.all([entering, leaving]);
+  expect(left).toEqual(["canonical"]);
+  expect(done).toBe(true);
+});

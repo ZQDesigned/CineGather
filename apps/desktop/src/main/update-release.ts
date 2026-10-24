@@ -2,9 +2,13 @@ import { verify, createHash } from "node:crypto";
 import { createReadStream } from "node:fs";
 import { stat } from "node:fs/promises";
 import { z } from "zod";
-import { clientVersionSchema, versionBelow } from "@cinegather/contracts";
+import {
+  clientVersionSchema,
+  versionBelow,
+  clientUpdateOrigin,
+} from "@cinegather/contracts";
 
-export const updateOrigin = "https://cgplat.zqdesigned.city";
+export const updateOrigin = clientUpdateOrigin;
 const versionPattern = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const releaseSchema = z
   .object({
@@ -30,6 +34,8 @@ const releaseSchema = z
   })
   .strict();
 export type Release = z.infer<typeof releaseSchema>;
+const authenticated = new WeakMap<Release, string>();
+export const signedEnvelope = (release: Release) => authenticated.get(release);
 
 export function verifyRelease(
   raw: string,
@@ -66,6 +72,7 @@ export function verifyRelease(
     platform === "win32" ? `win-${arch}-setup.exe` : `mac-${arch}.dmg`;
   if (release.artifact.file !== `CineGather-${release.version}-${suffix}`)
     throw new Error("更新文件名称无效");
+  authenticated.set(release, raw);
   return release;
 }
 export function artifactURL(release: Release) {

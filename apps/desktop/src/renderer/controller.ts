@@ -3,6 +3,7 @@ import {
   RoomCoordinator,
   ShareCoordinator,
   parseInvitation,
+  watchUpdateEvents,
 } from "@cinegather/client-core";
 import { MediaSession } from "@cinegather/media-core";
 import { DisconnectReason } from "livekit-client";
@@ -28,7 +29,11 @@ import {
   deviceAudioDescription,
 } from "./audio-compatibility";
 import { version } from "../../package.json";
-import { versionBelow, clientPolicySchema } from "@cinegather/contracts";
+import {
+  versionBelow,
+  clientPolicySchema,
+  clientUpdateOrigin,
+} from "@cinegather/contracts";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
 let changingCredentials = false;
 const baseUrl = defaultServer(
@@ -461,7 +466,43 @@ export async function initialize() {
   });
   const timer = setInterval(() => void syncRooms(), 2500);
   void checkClientPolicy();
-  const policyTimer = setInterval(() => void checkClientPolicy(), 30000);
+  const policyTimer = setInterval(
+    () => void checkClientPolicy(),
+    60 * 60 * 1000,
+  );
+  const nativeUpdates = await window.desktop?.updates
+    ?.status()
+    .catch(() => undefined);
+  const eventUrl = new URL("/api/v1/client-events", baseUrl);
+  eventUrl.searchParams.set(
+    "platform",
+    window.desktop?.platform === "win32"
+      ? "win32"
+      : window.desktop?.platform === "darwin"
+        ? "darwin"
+        : "web",
+  );
+  const stopPolicyEvents =
+    !window.desktop ||
+    nativeUpdates?.mode === "disabled" ||
+    baseUrl !== clientUpdateOrigin
+      ? watchUpdateEvents(eventUrl.href, (event, raw) => {
+          if (event !== "policy") return;
+          const policy = clientPolicySchema.parse(JSON.parse(raw));
+          const platform = window.desktop?.platform;
+          requireClientUpdate(
+            policy.minimumVersions[
+              platform === "win32" || platform === "darwin" ? platform : "web"
+            ],
+            policy.reason,
+          );
+        })
+      : Object.assign(() => {}, { reconnect: () => {} });
+  const onlinePolicy = () => {
+    stopPolicyEvents.reconnect();
+    void window.desktop?.updates?.reconnect?.().catch(() => {});
+  };
+  window.addEventListener("online", onlinePolicy);
   let refreshingFriends = false;
   const syncFriends = async () => {
     if (
@@ -486,6 +527,8 @@ export async function initialize() {
   return () => {
     clearInterval(timer);
     clearInterval(policyTimer);
+    stopPolicyEvents();
+    window.removeEventListener("online", onlinePolicy);
     clearInterval(friendsTimer);
     window.removeEventListener("focus", focus);
     unsubscribe?.();
@@ -793,7 +836,7 @@ export async function stopShare() {
   }
   await shareSession.stop();
 }
-export async function saveSettings(settings: DesktopSettings) {
+export async function saveSettings(settings: DesktopSettings, close = true) {
   settings = platformSettings(settings, capabilities().desktop);
   const held = pttHolds.size > 0;
   pttHolds.clear();
@@ -813,7 +856,7 @@ export async function saveSettings(settings: DesktopSettings) {
       state().media.microphoneNoise?.reason
         ? "设置已保存，增强降噪暂不可用，已使用基础降噪"
         : "设置已保存",
-    modal: null,
+    ...(close ? { modal: null } : {}),
   });
 }
 export async function createInvite() {

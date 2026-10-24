@@ -50,6 +50,7 @@ const bridge: DesktopBridge = {
       }
     : {}),
   updates: {
+    reconnect: () => ipcRenderer.invoke("desktop:update-reconnect"),
     requireUpdate: (minimumVersion, reason) =>
       ipcRenderer.invoke("desktop:update-require", { minimumVersion, reason }),
     quit: () => ipcRenderer.invoke("desktop:update-quit"),

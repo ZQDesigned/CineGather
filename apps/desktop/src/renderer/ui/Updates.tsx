@@ -1,9 +1,23 @@
 import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
-import { App, Alert, Button, Flex, Progress, Typography, Modal } from "antd";
+import {
+  App,
+  Alert,
+  Button,
+  Flex,
+  Progress,
+  Typography,
+  Modal,
+  Switch,
+} from "antd";
 import type { UpdateStatus } from "@cinegather/contracts";
 import { update, useApp } from "../store";
-import { report, requireClientUpdate, roomSession } from "../controller";
+import {
+  report,
+  requireClientUpdate,
+  roomSession,
+  saveSettings,
+} from "../controller";
 import { ModalShell } from "./Modal";
 
 const useUpdates = create<{ status?: UpdateStatus }>(() => ({}));
@@ -46,6 +60,7 @@ export function UpdateCenter() {
   }, []);
   useEffect(() => {
     if (
+      status?.required ||
       !status?.latestVersion ||
       !["available", "downloaded"].includes(status.status)
     )
@@ -56,7 +71,7 @@ export function UpdateCenter() {
     notification.info({
       key: "client-update",
       title: status.status === "downloaded" ? "新版已下载" : "发现新版映聚",
-      description: `v${status.latestVersion}`,
+      description: `v${status.latestVersion}${status.status === "downloaded" ? "，下次启动时自动安装" : ""}`,
       duration: 8,
       actions: (
         <Button
@@ -102,11 +117,16 @@ function RequiredUpdate() {
     }
   };
   useEffect(() => {
-    if (requirement && !started.current) {
+    if (
+      requirement &&
+      !started.current &&
+      (!window.desktop?.updates || status)
+    ) {
       started.current = true;
-      void cleanup();
+      if (status?.mode === "install") setCleaning(false);
+      else void cleanup();
     }
-  }, [requirement]);
+  }, [requirement, status]);
   if (!requirement) return null;
   return (
     <Modal
@@ -183,6 +203,7 @@ export function UpdatePanel() {
   const status = useUpdates((state) => state.status);
   const bridge = window.desktop?.updates;
   const { modal } = App.useApp();
+  const settings = useApp((state) => state.settings);
   const [error, setError] = useState<string>();
   const invoke = async (run: () => Promise<unknown>) => {
     setError(undefined);
@@ -203,7 +224,7 @@ export function UpdatePanel() {
     current: "当前已是最新版本",
     available: "有新版本可用",
     downloading: "正在下载更新…",
-    downloaded: "新版已下载，重启后完成更新",
+    downloaded: "新版已下载，下次启动时自动安装",
     installing: "正在安装更新…",
     error: "更新未完成",
   };
@@ -228,8 +249,22 @@ export function UpdatePanel() {
       )}
       {status.error && <Alert showIcon type="warning" title={status.error} />}
       {error && <Alert showIcon type="warning" title={error} />}
-      {status.inRoom && status.mode === "install" && (
-        <Alert showIcon type="info" title="离开房间后可下载或安装更新" />
+      {status.mode === "install" && (
+        <Flex align="center" justify="space-between" gap={12}>
+          <Typography.Text>自动下载更新</Typography.Text>
+          <Switch
+            aria-label="自动下载更新"
+            checked={settings.autoDownloadUpdates ?? true}
+            onChange={(enabled) =>
+              void invoke(() =>
+                saveSettings(
+                  { ...settings, autoDownloadUpdates: enabled },
+                  false,
+                ),
+              )
+            }
+          />
+        </Flex>
       )}
       {status.status === "downloading" && (
         <Progress percent={Math.floor(status.progress ?? 0)} />
@@ -245,7 +280,7 @@ export function UpdatePanel() {
         {status.mode !== "disabled" && (
           <Button
             loading={status.status === "checking"}
-            disabled={busy || status.status === "downloaded"}
+            disabled={busy}
             onClick={() => void invoke(() => bridge.check())}
           >
             检查更新
@@ -264,7 +299,6 @@ export function UpdatePanel() {
           ["available", "error"].includes(status.status) && (
             <Button
               type="primary"
-              disabled={status.inRoom}
               onClick={() => void invoke(() => bridge.download())}
             >
               下载更新
@@ -273,21 +307,27 @@ export function UpdatePanel() {
         {status.status === "downloaded" && status.mode === "install" && (
           <Button
             type="primary"
-            disabled={status.inRoom}
-            onClick={() =>
-              modal.confirm({
+            onClick={async () => {
+              await modal.confirm({
                 zIndex: 2300,
                 title: "重启并更新映聚？",
-                content: "更新完成后会重新打开映聚。",
+                content: status.inRoom
+                  ? "将先退出当前房间并停止共享，更新完成后重新打开映聚。"
+                  : "更新完成后会重新打开映聚。",
                 okText: "重启更新",
                 cancelText: "稍后",
-                onOk: () =>
-                  bridge.install().catch((error: unknown) => {
+                onOk: async () => {
+                  try {
+                    await roomSession.leave(true, true);
+                    await bridge.setInRoom(false);
+                    await bridge.install();
+                  } catch (error) {
                     report(error);
                     throw error;
-                  }),
-              })
-            }
+                  }
+                },
+              });
+            }}
           >
             重启更新
           </Button>

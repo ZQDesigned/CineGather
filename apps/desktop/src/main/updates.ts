@@ -1,4 +1,4 @@
-import { app, shell } from "electron";
+import { app, shell, powerMonitor } from "electron";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { NsisUpdater } from "electron-updater";
@@ -9,13 +9,18 @@ import {
   updateMode,
   updateOrigin,
 } from "./update-release";
-import { versionBelow } from "@cinegather/contracts";
+import { versionBelow, clientPolicySchema } from "@cinegather/contracts";
 import { UpdateController, type UpdateTransport } from "./update-controller";
+import { watchUpdateEvents } from "@cinegather/client-core";
+import { UpdateScheduler, automaticallyDownload } from "./update-scheduler";
+import { PendingUpdateStore, installPendingUpdate } from "./pending-update";
+import { verifyRelease } from "./update-release";
 import { windowsDownloader } from "./windows-update";
 
 export async function createUpdates(
   changed: (status: UpdateStatus) => void,
   beforeInstall: () => Promise<void>,
+  options: { autoDownload?: boolean } = {},
 ) {
   const resource = (file: string) => join(__dirname, "../../resources", file);
   const installed =
@@ -35,6 +40,15 @@ export async function createUpdates(
   const publicKey = !app.isPackaged
     ? ""
     : await readFile(resource("update-public-key.pem"), "utf8");
+  const pending =
+    mode === "install"
+      ? new PendingUpdateStore(
+          join(app.getPath("userData"), "pending-update.json"),
+          publicKey,
+          process.platform,
+          process.arch,
+        )
+      : undefined;
   const updater = mode === "install" ? new NsisUpdater() : undefined;
   if (updater) {
     updater.updateConfigPath = resource("updater.yml");
@@ -49,40 +63,104 @@ export async function createUpdates(
   };
   const transport: UpdateTransport = {
     latest: () => fetchRelease(publicKey, process.platform, process.arch),
+    minimum: async () => {
+      const response = await fetch(`${updateOrigin}/api/v1/client-policy`, {
+        signal: AbortSignal.timeout(8000),
+        cache: "no-store",
+        redirect: "error",
+      });
+      if (!response.ok) return undefined;
+      const policy = clientPolicySchema.parse(await response.json());
+      return {
+        version:
+          policy.minimumVersions[
+            process.platform === "win32" ? "win32" : "darwin"
+          ],
+        reason: policy.reason,
+      };
+    },
     ...(updater
-      ? windowsDownloader(updater, beforeInstall)
+      ? windowsDownloader(updater, beforeInstall, pending)
       : {
           download: unsupported,
           install: unsupported,
           cancel: () => {},
         }),
   };
+  let autoDownload = options.autoDownload ?? true;
+  let ready = false;
+  const automaticDownload = () => {
+    void automaticallyDownload(controller, ready && autoDownload);
+  };
   const controller = new UpdateController(
     mode,
     app.getVersion(),
     transport,
-    changed,
+    (status) => {
+      changed(status);
+      queueMicrotask(automaticDownload);
+    },
   );
-  const automatic = async () => {
-    const status = await controller.check();
-    if (
-      status.status === "available" &&
-      status.mode === "install" &&
-      !status.inRoom
-    )
-      await controller.download().catch(() => {});
+  const startupInstalling = pending
+    ? await installPendingUpdate(controller, transport, pending).catch(() => {
+        controller.installFailed();
+        return false;
+      })
+    : false;
+  ready = !startupInstalling;
+  const scheduler = new UpdateScheduler(() => controller.check());
+  let stopEvents = Object.assign(() => {}, { reconnect: () => {} });
+  const resume = () => {
+    void scheduler.resume();
+    stopEvents.reconnect();
   };
-  const start = setTimeout(() => void automatic(), 20000);
-  const timer = setInterval(() => void automatic(), 6 * 60 * 60 * 1000);
-  start.unref();
-  timer.unref();
+  if (ready && mode !== "disabled") {
+    scheduler.start();
+    powerMonitor.on("resume", resume);
+    const url = new URL("/api/v1/client-events", updateOrigin);
+    url.searchParams.set("platform", process.platform);
+    url.searchParams.set("arch", process.arch);
+    stopEvents = watchUpdateEvents(url.href, (event, raw) => {
+      if (event === "release") {
+        controller.acceptRelease(
+          verifyRelease(raw, publicKey, process.platform, process.arch),
+        );
+        scheduler.checked();
+      } else {
+        const policy = clientPolicySchema.parse(JSON.parse(raw));
+        const previous = controller.snapshot().minimumVersion;
+        controller.requireUpdate(
+          policy.minimumVersions[
+            process.platform === "win32" ? "win32" : "darwin"
+          ],
+          policy.reason,
+        );
+        if (controller.snapshot().minimumVersion !== previous)
+          void controller.check();
+      }
+    });
+    automaticDownload();
+  }
   app.once("before-quit", () => {
-    clearTimeout(start);
-    clearInterval(timer);
+    ready = false;
+    scheduler.stop();
+    stopEvents();
+    powerMonitor.removeListener("resume", resume);
     transport.cancel();
   });
   return {
     controller,
+    check: async () => {
+      const status = await controller.check();
+      scheduler.checked();
+      return status;
+    },
+    reconnect: () => stopEvents.reconnect(),
+    startupInstalling,
+    configure: (enabled: boolean) => {
+      autoDownload = enabled;
+      automaticDownload();
+    },
     openDownload: async () => {
       const status = controller.snapshot();
       const portable =
