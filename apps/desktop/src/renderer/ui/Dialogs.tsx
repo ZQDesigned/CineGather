@@ -15,6 +15,7 @@ import {
 } from "antd";
 import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
+import { UpdateDialog } from "./Updates";
 import { Diagnostics } from "./Diagnostics";
 import { useEffect, useState } from "react";
 import {
@@ -58,6 +59,7 @@ function DialogContent({ modal }: { modal: Modal }) {
   if (modal === "create") return <CreateRoom />;
   if (modal === "join") return <JoinRoom />;
   if (modal === "settings") return <Settings />;
+  if (modal === "updates") return <UpdateDialog />;
   if (modal === "invite") return <Invite />;
   if (modal === "source") return <SourcePicker />;
   if (modal === "friends") return <Friends />;

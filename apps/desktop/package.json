@@ -9,6 +9,8 @@
     "@emotion/react": "11.14.0",
     "@emotion/styled": "11.14.1",
     "antd": "6.6.7",
+    "builder-util-runtime": "9.7.0",
+    "electron-updater": "6.8.11",
     "koffi": "3.3.3",
     "livekit-client": "catalog:",
     "lucide-react": "1.59.0",

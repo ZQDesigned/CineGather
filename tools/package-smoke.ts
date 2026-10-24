@@ -9,10 +9,12 @@ if (platform !== process.platform || !["darwin", "win32"].includes(platform))
   throw new Error(
     "Run the package smoke test on its native Mac or Windows host.",
   );
-const executablePath = resolve(
+const packageDirectory = resolve(process.argv[3] ?? "apps/desktop/release");
+const executablePath = join(
+  packageDirectory,
   platform === "win32"
-    ? "apps/desktop/release/win-unpacked/CineGather.exe"
-    : "apps/desktop/release/mac-arm64/CineGather.app/Contents/MacOS/CineGather",
+    ? "win-unpacked/CineGather.exe"
+    : "mac-arm64/CineGather.app/Contents/MacOS/CineGather",
 );
 const profile = await mkdtemp(join(tmpdir(), "cinegather-package-smoke-"));
 await writeFile(
@@ -41,6 +43,22 @@ try {
   expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version);
   const page = await app.firstWindow();
   await expect(page.locator(".version")).toHaveText(`v${version}`);
+  const updates = await page.evaluate(() => window.desktop!.updates!.status());
+  expect(updates.mode).toBe(platform === "darwin" ? "notify" : "disabled");
+  if (platform === "win32") {
+    // win-unpacked is deliberately not an installed NSIS application.
+    expect(updates.status).toBe("disabled");
+    expect(
+      await page.evaluate(async () => {
+        try {
+          await window.desktop!.updates!.install();
+          return false;
+        } catch {
+          return true;
+        }
+      }),
+    ).toBe(true);
+  }
   await expect(
     page.getByRole("heading", { name: "欢迎来到映聚", exact: true }),
   ).toBeVisible();

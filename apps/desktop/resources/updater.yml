@@ -1,0 +1,4 @@
+updaterCacheDirName: cinegather-updater
+# Executable Authenticode signing is intentionally not enabled yet.
+# Download authentication comes from the Ed25519 release manifest and SHA-512.
+publisherName: null

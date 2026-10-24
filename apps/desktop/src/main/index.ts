@@ -26,6 +26,7 @@ import { configureDisplayCapture } from "./capture";
 import { HoldToTalk, shortcutKeys } from "./push-to-talk";
 import { nativeKeyState } from "./key-state";
 import { recordedShortcut } from "../shared/shortcuts";
+import { createUpdates } from "./updates";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 protocol.registerSchemesAsPrivileged([
   {
@@ -43,6 +44,7 @@ let win: BrowserWindow | undefined;
 let tray: Tray | undefined;
 let quitting = false;
 let sharing = false;
+let updates: Awaited<ReturnType<typeof createUpdates>> | undefined;
 let settings: DesktopSettings = defaultSettings;
 let pending: (CaptureSelection & { expiresAt: number }) | undefined;
 const devURL = process.env.ELECTRON_RENDERER_URL;
@@ -179,6 +181,8 @@ async function createWindow() {
     }
   });
   win.webContents.on("render-process-gone", () => {
+    if (updates?.controller.snapshot().status !== "installing")
+      updates?.controller.setInRoom(true);
     finishRecording();
     pending = undefined;
     void nativeCapture?.stop().catch(() => {});
@@ -210,6 +214,14 @@ function registerIPC() {
       return run(input);
     });
   }
+  handle("desktop:update-status", () => updates!.controller.snapshot());
+  handle("desktop:update-check", () => updates!.controller.check());
+  handle("desktop:update-download", () => updates!.controller.download());
+  handle("desktop:update-install", () => updates!.controller.install());
+  handle("desktop:update-open", () => updates!.openDownload());
+  handle("desktop:update-room", (input) =>
+    updates!.controller.setInRoom(z.boolean().parse(input) || sharing),
+  );
   handle("desktop:take-invitation", () => {
     const value = pendingInvite;
     pendingInvite = undefined;
@@ -347,6 +359,7 @@ function registerIPC() {
   });
   handle("desktop:sharing", (input) => {
     sharing = z.boolean().parse(input);
+    if (sharing) updates?.controller.setInRoom(true);
     updateTray();
     win?.setTitle(sharing ? "正在共享：映聚 CineGather" : "映聚 CineGather");
   });
@@ -563,6 +576,18 @@ else {
           () => sendAction("stop-share"),
           app.isPackaged ? undefined : "com.github.Electron",
         );
+      updates = await createUpdates(
+        (status) => {
+          if (win && !win.isDestroyed() && !win.webContents.isDestroyed())
+            win.webContents.send("desktop:update-status", status);
+        },
+        async () => {
+          await nativeCapture?.shutdown();
+          shutdownStarted = true;
+          finishRecording();
+          globalHold?.release();
+        },
+      );
       registerIPC();
       capturePermissions();
       powerMonitor.on("suspend", () => {

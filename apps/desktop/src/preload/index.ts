@@ -2,6 +2,23 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  updates: {
+    status: () => ipcRenderer.invoke("desktop:update-status"),
+    check: () => ipcRenderer.invoke("desktop:update-check"),
+    download: () => ipcRenderer.invoke("desktop:update-download"),
+    install: () => ipcRenderer.invoke("desktop:update-install"),
+    openDownload: () => ipcRenderer.invoke("desktop:update-open"),
+    setInRoom: (active) => ipcRenderer.invoke("desktop:update-room", active),
+    onChange: (callback) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        status: Parameters<typeof callback>[0],
+      ) => callback(status);
+      ipcRenderer.on("desktop:update-status", listener);
+      return () =>
+        ipcRenderer.removeListener("desktop:update-status", listener);
+    },
+  },
   nativeCapture: process.platform === "darwin",
   startNativeCapture: (request) =>
     ipcRenderer.invoke("desktop:native-start", request),

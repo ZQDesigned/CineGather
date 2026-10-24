@@ -245,13 +245,15 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
 });
 const pttHolds = new Set<"window" | "global">();
 export const roomSession = new RoomCoordinator({
-  join: async (roomId, inviteToken, password) =>
-    unwrap(
+  join: async (roomId, inviteToken, password) => {
+    await window.desktop?.updates?.setInRoom(true);
+    return unwrap(
       await api.POST("/api/v1/rooms/{roomId}/join", {
         params: { path: { roomId } },
         body: { inviteToken, password },
       }),
-    ),
+    );
+  },
   leave: async (roomId) => {
     unwrap(
       await api.POST("/api/v1/rooms/{roomId}/leave", {
@@ -281,6 +283,8 @@ export const roomSession = new RoomCoordinator({
   },
   stopShare,
   changed: (roomState, room, revision) => {
+    if (roomState === "idle" || (roomState === "failed" && !room))
+      void window.desktop?.updates?.setInRoom(false).catch(report);
     update({
       roomState,
       roomRevision: revision,
@@ -302,6 +306,7 @@ function receiveInvitation(value: string) {
   });
 }
 export async function initialize() {
+  await window.desktop?.updates?.setInRoom(Boolean(state().room)).catch(report);
   try {
     const loaded = window.desktop
       ? await window.desktop.loadSettings()

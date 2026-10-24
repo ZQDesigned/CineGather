@@ -47,6 +47,7 @@ win:
     - from: ../../node_modules/@koromix/koffi-win32-x64
       to: native/node_modules/@koromix/koffi-win32-x64
 nsis:
+  include: resources/installer.nsh
   artifactName: "${productName}-${version}-${os}-${arch}-setup.${ext}"
   oneClick: false
   perMachine: false

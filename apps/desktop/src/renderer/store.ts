@@ -18,6 +18,7 @@ export type Modal =
   | "friends"
   | "diagnostics"
   | "bans"
+  | "updates"
   | null;
 export const defaults = defaultSettings;
 interface State {

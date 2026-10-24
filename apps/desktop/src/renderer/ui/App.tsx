@@ -19,6 +19,7 @@ import { Welcome } from "./Welcome";
 import { Home } from "./Home";
 import { Room } from "./Room";
 import { Feedback } from "./Feedback";
+import { UpdateCenter } from "./Updates";
 import { AppSurface } from "./styles";
 import { hasAdminAccess } from "@cinegather/contracts";
 import { capabilities } from "../platform";
@@ -363,6 +364,7 @@ export function App() {
           </div>
         </header>
         <Feedback />
+        <UpdateCenter />
         {!app.user ? (
           <Welcome />
         ) : (

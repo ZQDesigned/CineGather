@@ -14,6 +14,7 @@ import { ShortcutRecorder } from "./ShortcutRecorder";
 import { serverOrigin, verifyServer } from "../server-address";
 import { capabilities } from "../platform";
 import { AccountForm } from "./AccountForm";
+import { UpdatePanel } from "./Updates";
 import {
   createMicrophoneDenoiser,
   microphoneConstraints,
@@ -289,7 +290,7 @@ export function Settings() {
             >
               {verifying ? "正在验证…" : "保存地址"}
             </Button>
-          ) : tab !== "account" ? (
+          ) : tab !== "account" && tab !== "updates" ? (
             <Button
               type="primary"
               htmlType="submit"
@@ -307,6 +308,9 @@ export function Settings() {
         activeKey={tab}
         onChange={setTab}
         items={[
+          ...(window.desktop?.updates
+            ? [{ key: "updates", label: "版本更新", children: <UpdatePanel /> }]
+            : []),
           ...(user
             ? [
                 {

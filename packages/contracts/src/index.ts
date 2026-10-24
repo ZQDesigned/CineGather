@@ -206,6 +206,7 @@ export interface DesktopSettings {
 }
 export interface DesktopBridge {
   platform: string;
+  updates?: DesktopUpdates;
   nativeCapture?: boolean;
   startNativeCapture?(request: NativeCaptureRequest): Promise<void>;
   renewNativeCapture?(lease: ShareLease): Promise<ShareLease>;
@@ -234,6 +235,36 @@ export interface DesktopBridge {
     ) => void,
   ): () => void;
   setSharing(active: boolean): Promise<void>;
+}
+
+export interface UpdateStatus {
+  mode: "install" | "notify" | "disabled";
+  status:
+    | "disabled"
+    | "idle"
+    | "checking"
+    | "current"
+    | "available"
+    | "downloading"
+    | "downloaded"
+    | "installing"
+    | "error";
+  currentVersion: string;
+  latestVersion?: string;
+  notes?: string;
+  progress?: number;
+  error?: string;
+  checkedAt?: string;
+  inRoom: boolean;
+}
+export interface DesktopUpdates {
+  status(): Promise<UpdateStatus>;
+  check(): Promise<UpdateStatus>;
+  download(): Promise<void>;
+  install(): Promise<void>;
+  openDownload(): Promise<void>;
+  setInRoom(active: boolean): Promise<void>;
+  onChange(callback: (status: UpdateStatus) => void): () => void;
 }
 
 const nativeIdentityPattern =
