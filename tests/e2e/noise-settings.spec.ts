@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
+import { unzipSync, strFromU8 } from "fflate";
 test("microphone noise reduction is configurable in shared audio settings and persists after reload", async ({
   page,
 }) => {
@@ -119,7 +120,8 @@ test("changing noise reduction hot-applies to the room without unmuting a muted 
       const stream = await (await pending).createReadStream();
       const chunks: Buffer[] = [];
       for await (const chunk of stream!) chunks.push(Buffer.from(chunk));
-      const diagnostic = JSON.parse(Buffer.concat(chunks).toString());
+      const files = unzipSync(Buffer.concat(chunks));
+      const diagnostic = JSON.parse(strFromU8(files["current.json"]!));
       expect(diagnostic.microphoneNoise).toMatchObject({
         requested: value,
         active: value,
@@ -133,6 +135,10 @@ test("changing noise reduction hot-applies to the room without unmuting a muted 
       page.getByRole("button", { name: "关闭麦克风", exact: true }),
     ).toBeEnabled();
   } finally {
+    if (await page.getByRole("dialog").count())
+      await page
+        .getByRole("button", { name: "关闭对话框", exact: true })
+        .click();
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   }
 });

@@ -1,5 +1,8 @@
 import { test, expect } from "bun:test";
-import { safeDiagnosticRecord } from "@cinegather/contracts";
+import {
+  safeDiagnosticRecord,
+  diagnosticSnapshotSchema,
+} from "@cinegather/contracts";
 import {
   diagnosticArchive,
   framePipeline,
@@ -262,4 +265,21 @@ test("frame pipeline distinguishes a 30 fps reception from a 3 fps decode/presen
     height: 1080,
   });
   expect(rows[1]!.targetFps).toBeUndefined();
+});
+
+test("diagnostic snapshots preserve requested and active noise modes without raw failure messages", () => {
+  const result = diagnosticSnapshotSchema.parse({
+    microphoneNoise: {
+      requested: "enhanced",
+      active: "basic",
+      fallback: true,
+      reason: "https://private-token",
+    },
+  });
+  expect(result).toHaveProperty("microphoneNoise", {
+    requested: "enhanced",
+    active: "basic",
+    fallback: true,
+  });
+  expect(JSON.stringify(result)).not.toContain("private-token");
 });

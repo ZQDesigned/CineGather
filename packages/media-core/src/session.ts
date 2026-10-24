@@ -688,6 +688,7 @@ export class MediaSession {
     const detail = await this.detailedDiagnostics();
     return {
       state: detail.state,
+      microphoneNoise: detail.microphoneNoise,
       watching: detail.watching,
       capturedAt: new Date().toISOString(),
       tracks: detail.tracks
@@ -748,6 +749,13 @@ export class MediaSession {
     return {
       state: room?.state ?? "disconnected",
       watching: this.subscriptions.watching,
+      microphoneNoise: this.noiseStatus
+        ? {
+            requested: this.noiseStatus.requested,
+            active: this.noiseStatus.active,
+            fallback: Boolean(this.noiseStatus.reason),
+          }
+        : undefined,
       tracks: reports,
       playback: this.playbackProbe.sample(),
     };
