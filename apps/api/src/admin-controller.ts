@@ -30,7 +30,7 @@ import {
 export class AdminController {
   @Get("registration")
   @SuperAdminOnly()
-  @Endpoint("adminRegistrationPolicy", c.registrationPolicySchema)
+  @Endpoint("adminRegistrationPolicy", c.adminRegistrationPolicySchema)
   registrationPolicy() {
     return readRegistrationPolicy();
   }
@@ -38,7 +38,7 @@ export class AdminController {
   @SuperAdminOnly()
   @Endpoint(
     "adminUpdateRegistrationPolicy",
-    c.registrationPolicySchema,
+    c.adminRegistrationPolicySchema,
     c.registrationPolicyInput,
     [],
     201,
@@ -82,6 +82,26 @@ export class AdminController {
   @Endpoint("adminAudit", c.adminAuditsSchema)
   audit(@Query() query: unknown) {
     return admin.listAudit(parse(c.adminQuery, query));
+  }
+  @Post("users/:userId/screen-share")
+  @RequireAdminPermission("users.screen-share")
+  @Endpoint(
+    "adminSetScreenShare",
+    c.okSchema,
+    c.adminScreenShareInput,
+    ["userId"],
+    201,
+  )
+  setScreenShare(
+    @Req() req: AuthRequest,
+    @Param("userId") id: string,
+    @Body() body: unknown,
+  ) {
+    return admin.setScreenShare(
+      req.user,
+      id,
+      parse(c.adminScreenShareInput, body),
+    );
   }
   @Post("users/:userId/disable")
   @RequireAdminPermission("users.manage")

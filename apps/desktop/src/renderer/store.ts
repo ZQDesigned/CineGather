@@ -19,6 +19,7 @@ export type Modal =
   | "friends"
   | "diagnostics"
   | "bans"
+  | "share-unavailable"
   | "updates"
   | null;
 export const defaults = defaultSettings;

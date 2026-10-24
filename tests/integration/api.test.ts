@@ -47,6 +47,10 @@ async function account(name = "集成测试") {
   });
   expect(r.status).toBe(201);
   createdUsers.push(r.body.user.id);
+  await db
+    .update(users)
+    .set({ screenShareEnabled: true })
+    .where(eq(users.id, r.body.user.id));
   return { id: r.body.user.id as string, token: r.body.sessionToken as string };
 }
 async function room(token: string, maxMembers = 5, key?: string) {

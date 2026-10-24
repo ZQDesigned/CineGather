@@ -123,6 +123,7 @@ const Surface = styled.section`
   }
 `;
 const actionNames: Record<string, string> = {
+  "admin.screen_share_updated": "修改屏幕共享能力",
   "admin.registration_updated": "更新注册设置",
   "admin.user_disable": "停用账号",
   "admin.user_enable": "启用账号",
@@ -139,10 +140,17 @@ const actionNames: Record<string, string> = {
   "admin.user_roles_assigned": "分配管理角色",
 };
 type Operation =
-  | { kind: "disable" | "enable" | "revoke-sessions"; user: AdminUser }
+  | {
+      kind: "disable" | "enable" | "revoke-sessions" | "screen-share";
+      user: AdminUser;
+    }
   | { kind: "close" | "revoke-share"; room: AdminRoom };
 const operationName = (op: Operation) =>
   ({
+    "screen-share":
+      "user" in op && op.user.screenShareEnabled
+        ? "关闭屏幕共享"
+        : "允许屏幕共享",
     disable: "停用账号",
     enable: "启用账号",
     "revoke-sessions": "撤销登录",
@@ -170,6 +178,7 @@ function AdminPanel() {
   const canOverview = hasAdminPermission(user, "overview.read");
   const canUsers = hasAdminPermission(user, "users.read"),
     canManageUsers = hasAdminPermission(user, "users.manage");
+  const canManageScreenShare = hasAdminPermission(user, "users.screen-share");
   const canRooms = hasAdminPermission(user, "rooms.read"),
     canManageRooms = hasAdminPermission(user, "rooms.manage");
   const canAudit = hasAdminPermission(user, "audit.read"),
@@ -270,7 +279,14 @@ function AdminPanel() {
     if (!operation) return;
     setSaving(true);
     try {
-      if ("user" in operation) {
+      if (operation.kind === "screen-share") {
+        unwrap(
+          await api.POST("/api/v1/admin/users/{userId}/screen-share", {
+            params: { path: { userId: operation.user.id } },
+            body: { enabled: !operation.user.screenShareEnabled, reason },
+          }),
+        );
+      } else if ("user" in operation) {
         const options = {
           params: { path: { userId: operation.user.id } },
           body: { reason },
@@ -369,6 +385,25 @@ function AdminPanel() {
           </Tooltip>
         ) : (
           "普通用户"
+        ),
+    },
+    {
+      title: "屏幕共享",
+      key: "screen-share",
+      width: 130,
+      render: (_, u) =>
+        canManageScreenShare ? (
+          <Button
+            size="small"
+            type="link"
+            onClick={() => confirm({ kind: "screen-share", user: u })}
+          >
+            {u.screenShareEnabled ? "已允许" : "未开通"}
+          </Button>
+        ) : (
+          <Tag color={u.screenShareEnabled ? "success" : "default"}>
+            {u.screenShareEnabled ? "已允许" : "未开通"}
+          </Tag>
         ),
     },
     { title: "有效登录", dataIndex: "activeSessions", width: 90 },
@@ -646,7 +681,7 @@ function AdminPanel() {
             loading={loading}
             pagination={pagination}
             size="small"
-            scroll={{ x: isSuper ? 1030 : 950, y: tableHeight }}
+            scroll={{ x: isSuper ? 1160 : 1080, y: tableHeight }}
           />
         ) : activeTab === "rooms" ? (
           <Table<AdminRoom>
@@ -683,7 +718,14 @@ function AdminPanel() {
         okText="确认操作"
         cancelText="取消"
         confirmLoading={saving}
-        okButtonProps={{ danger: operation?.kind !== "enable" }}
+        okButtonProps={{
+          danger:
+            operation?.kind !== "enable" &&
+            !(
+              operation?.kind === "screen-share" &&
+              !operation.user.screenShareEnabled
+            ),
+        }}
         cancelButtonProps={{ disabled: saving }}
         closable={!saving}
         mask={{ closable: !saving }}
@@ -700,15 +742,19 @@ function AdminPanel() {
                 : `房间：${operation.room.name} (${operation.room.code})`}
             </p>
             <p>
-              {operation.kind === "disable"
-                ? "停用后将退出所有设备，并停止该账号的语音和共享。"
-                : operation.kind === "enable"
-                  ? "启用后可重新登录，之前的登录会话不会恢复。"
-                  : operation.kind === "revoke-sessions"
-                    ? "所有设备将退出登录，可以使用原密码重新登录。"
-                    : operation.kind === "close"
-                      ? "所有成员将离开房间，邀请和共享将同时失效。"
-                      : "当前共享将停止，房间内的语音保持可用。"}
+              {operation.kind === "screen-share"
+                ? operation.user.screenShareEnabled
+                  ? "关闭后将立即停止该账号的共享，语音保持可用。"
+                  : "允许该账号在房间内共享屏幕。"
+                : operation.kind === "disable"
+                  ? "停用后将退出所有设备，并停止该账号的语音和共享。"
+                  : operation.kind === "enable"
+                    ? "启用后可重新登录，之前的登录会话不会恢复。"
+                    : operation.kind === "revoke-sessions"
+                      ? "所有设备将退出登录，可以使用原密码重新登录。"
+                      : operation.kind === "close"
+                        ? "所有成员将离开房间，邀请和共享将同时失效。"
+                        : "当前共享将停止，房间内的语音保持可用。"}
             </p>
           </>
         )}

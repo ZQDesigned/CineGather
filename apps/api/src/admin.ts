@@ -5,6 +5,7 @@ import {
   rooms,
   members,
   leases,
+  nativePublications,
   auditLogs,
 } from "@cinegather/database";
 import {
@@ -16,7 +17,7 @@ import { requireManagement, readAccess, rolesForUsers } from "./access";
 import { db, audit } from "./context";
 import { fail, uuid } from "./errors";
 import { clearUserMedia } from "./auth";
-import { closeRoom, revokeNative } from "./rooms";
+import { closeRoom, revokeNative, reconcileRoom } from "./rooms";
 import { media } from "./media";
 const count = sql<number>`count(*)`.mapWith(Number);
 const activeCredentials = and(
@@ -73,6 +74,7 @@ export async function listUsers(query: AdminQuery) {
         username: users.username,
         displayName: users.displayName,
         isSuperAdmin: users.isSuperAdmin,
+        screenShareEnabled: users.screenShareEnabled,
         disabledAt: users.disabledAt,
         createdAt: users.createdAt,
         activeSessions:
@@ -275,5 +277,51 @@ export async function manageRoom(
       { targetName: `${room.name} (${room.code})`, reason },
     );
   });
+  return { ok: true as const };
+}
+
+export async function setScreenShare(
+  actor: User,
+  userId: string,
+  input: { enabled: boolean; reason: string },
+) {
+  userId = uuid(userId);
+  await db.transaction(async (tx) => {
+    await requireManagement(tx, actor.id, "users.screen-share");
+    const [target] = await tx
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .for("update");
+    if (!target?.username) fail(404, "USER_NOT_FOUND", "账号不存在");
+    await tx
+      .update(users)
+      .set({ screenShareEnabled: input.enabled })
+      .where(eq(users.id, userId));
+    await audit(tx, actor.id, "admin.screen_share_updated", userId, {
+      previousEnabled: target.screenShareEnabled,
+      enabled: input.enabled,
+      reason: input.reason,
+    });
+  });
+  // Commit the denial first. Lease issuance holds a shared user-row lock, so an
+  // in-flight grant has finished before this scan and later grants see false.
+  if (!input.enabled) {
+    const affected = new Set([
+      ...(
+        await db
+          .select({ roomId: leases.roomId })
+          .from(leases)
+          .where(eq(leases.holderUserId, userId))
+      ).map((r) => r.roomId),
+      ...(
+        await db
+          .select({ roomId: nativePublications.roomId })
+          .from(nativePublications)
+          .where(eq(nativePublications.holderUserId, userId))
+      ).map((r) => r.roomId),
+    ]);
+    for (const roomId of [...affected].sort()) await reconcileRoom(roomId);
+  }
   return { ok: true as const };
 }

@@ -500,6 +500,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users/{userId}/screen-share": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminSetScreenShare"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users/{userId}/disable": {
         parameters: {
             query?: never;
@@ -800,12 +816,13 @@ export interface operations {
                         displayName: string;
                         username?: string | null;
                         isSuperAdmin?: boolean;
+                        screenShareEnabled?: boolean;
                         roles?: {
                             /** Format: uuid */
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                     };
                 };
             };
@@ -1175,12 +1192,13 @@ export interface operations {
                             displayName: string;
                             username?: string | null;
                             isSuperAdmin?: boolean;
+                            screenShareEnabled?: boolean;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -1313,12 +1331,13 @@ export interface operations {
                             displayName: string;
                             username?: string | null;
                             isSuperAdmin?: boolean;
+                            screenShareEnabled?: boolean;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -1451,12 +1470,13 @@ export interface operations {
                             displayName: string;
                             username?: string | null;
                             isSuperAdmin?: boolean;
+                            screenShareEnabled?: boolean;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -4389,6 +4409,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         enabled: boolean;
+                        screenShareDefaultEnabled: boolean;
                     };
                 };
             };
@@ -4500,6 +4521,7 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    screenShareDefaultEnabled?: boolean;
                     enabled: boolean;
                     reason: string;
                 };
@@ -4513,6 +4535,7 @@ export interface operations {
                 content: {
                     "application/json": {
                         enabled: boolean;
+                        screenShareDefaultEnabled: boolean;
                     };
                 };
             };
@@ -4762,6 +4785,7 @@ export interface operations {
                             username: string;
                             displayName: string;
                             isSuperAdmin: boolean;
+                            screenShareEnabled: boolean;
                             roles: {
                                 /** Format: uuid */
                                 id: string;
@@ -5038,6 +5062,133 @@ export interface operations {
                             createdAt: string;
                         }[];
                         total: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    adminSetScreenShare: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
                     };
                 };
             };
@@ -5788,7 +5939,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             name: string;
-                            permissions: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                            permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                             builtIn: boolean;
                             memberCount: number;
                             createdAt: string;
@@ -5905,7 +6056,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                     reason: string;
                 };
             };
@@ -5920,7 +6071,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
@@ -6038,7 +6189,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                     reason: string;
                 };
             };
@@ -6053,7 +6204,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "rooms.read" | "rooms.manage" | "audit.read")[];
+                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;

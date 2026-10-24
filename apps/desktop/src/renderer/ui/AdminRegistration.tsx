@@ -5,7 +5,11 @@ import { api, report } from "../controller";
 
 export function AdminRegistration({ revision }: { revision: number }) {
   const { message } = App.useApp();
-  const [form] = Form.useForm<{ enabled: boolean; reason: string }>();
+  const [form] = Form.useForm<{
+    enabled: boolean;
+    screenShareDefaultEnabled: boolean;
+    reason: string;
+  }>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
@@ -19,7 +23,11 @@ export function AdminRegistration({ revision }: { revision: number }) {
       .then(unwrap)
       .then((policy) => {
         if (active)
-          form.setFieldsValue({ enabled: policy.enabled, reason: "" });
+          form.setFieldsValue({
+            enabled: policy.enabled,
+            screenShareDefaultEnabled: policy.screenShareDefaultEnabled,
+            reason: "",
+          });
       })
       .catch((e) => {
         if (active)
@@ -32,13 +40,21 @@ export function AdminRegistration({ revision }: { revision: number }) {
       active = false;
     };
   }, [revision, retry, form]);
-  async function save(values: { enabled: boolean; reason: string }) {
+  async function save(values: {
+    enabled: boolean;
+    screenShareDefaultEnabled: boolean;
+    reason: string;
+  }) {
     setSaving(true);
     try {
       const policy = unwrap(
         await api.POST("/api/v1/admin/registration", { body: values }),
       );
-      form.setFieldsValue({ enabled: policy.enabled, reason: "" });
+      form.setFieldsValue({
+        enabled: policy.enabled,
+        screenShareDefaultEnabled: policy.screenShareDefaultEnabled,
+        reason: "",
+      });
       void message.success("注册设置已保存");
     } catch (e) {
       report(e);
@@ -62,7 +78,7 @@ export function AdminRegistration({ revision }: { revision: number }) {
         onFinish={(values) => void save(values)}
         disabled={loading || saving || !!error}
         style={{ maxWidth: 520 }}
-        initialValues={{ enabled: false }}
+        initialValues={{ enabled: false, screenShareDefaultEnabled: false }}
       >
         <Form.Item
           label="开放注册"
@@ -72,6 +88,18 @@ export function AdminRegistration({ revision }: { revision: number }) {
         >
           <Switch
             aria-label="开放注册"
+            checkedChildren="开启"
+            unCheckedChildren="关闭"
+            loading={loading}
+          />
+        </Form.Item>
+        <Form.Item
+          label="新注册用户默认允许屏幕共享"
+          name="screenShareDefaultEnabled"
+          valuePropName="checked"
+        >
+          <Switch
+            aria-label="新注册用户默认允许屏幕共享"
             checkedChildren="开启"
             unCheckedChildren="关闭"
             loading={loading}

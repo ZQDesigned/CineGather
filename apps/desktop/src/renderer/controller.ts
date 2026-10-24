@@ -100,6 +100,10 @@ export async function copyText(value: string, notice?: string) {
   if (notice) update({ notice });
 }
 export function report(error: unknown) {
+  if (error instanceof ApiError && error.code === "SCREEN_SHARE_UNAVAILABLE") {
+    update({ modal: "share-unavailable", error: undefined });
+    return;
+  }
   if (
     error instanceof ApiError &&
     (error.staleSession ||

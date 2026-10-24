@@ -33,6 +33,7 @@ async function publicUser(
     id: user.id,
     displayName: user.displayName,
     username: user.username,
+    screenShareEnabled: user.screenShareEnabled,
     ...(await readAccess(tx, user.id, user.isSuperAdmin)),
   };
 }
@@ -56,7 +57,8 @@ export async function registerAccount(
       await tx.execute(
         sql`SELECT pg_advisory_xact_lock_shared(${registrationLock})`,
       );
-      if (!(await readRegistrationPolicy(tx)).enabled)
+      const policy = await readRegistrationPolicy(tx);
+      if (!policy.enabled)
         fail(403, "REGISTRATION_CLOSED", "当前暂未开放注册，请登录已有账号");
       const [stored] = await tx
         .insert(users)
@@ -65,6 +67,7 @@ export async function registerAccount(
           username: input.username,
           displayName: input.displayName,
           passwordHash,
+          screenShareEnabled: policy.screenShareDefaultEnabled,
         })
         .returning();
       const result = await session(tx, await publicUser(tx, stored!));

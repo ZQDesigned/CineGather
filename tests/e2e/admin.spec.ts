@@ -89,6 +89,29 @@ test("admin can search users, confirm account actions, close rooms and inspect a
   const row = page.getByRole("row").filter({ hasText: member.user.username });
   await expect(row).toBeVisible();
   await assertCopy();
+  for (const enabled of [true, false]) {
+    await row
+      .getByRole("button", { name: enabled ? "未开通" : "已允许", exact: true })
+      .click();
+    await page
+      .getByLabel("操作原因", { exact: true })
+      .fill("界面共享能力授权验证");
+    await page.getByRole("button", { name: "确认操作", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await expect(
+      row.getByRole("button", {
+        name: enabled ? "已允许" : "未开通",
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(
+      (await (await page.request.get(`${api}/me`, { headers })).json())
+        .screenShareEnabled,
+    ).toBe(enabled);
+  }
+  await page.screenshot({
+    path: ".local/capabilities-20261024/admin-capability.png",
+  });
   await row.getByRole("button", { name: "停用", exact: true }).click();
   await expect(page.getByRole("dialog")).toBeVisible();
   await page.getByRole("button", { name: "取消", exact: true }).click();

@@ -57,6 +57,13 @@
       "when": 1792810000000,
       "tag": "0007_registration_policy",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792820000000,
+      "tag": "0008_screen_share_capability",
+      "breakpoints": true
     }
   ]
 }

@@ -10,6 +10,7 @@ import {
   idempotency,
   leases,
   nativePublications,
+  adminRoles,
 } from "@cinegather/database";
 import { eq, inArray } from "drizzle-orm";
 import { hash, token } from "../../apps/api/src/context";
@@ -18,6 +19,7 @@ const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 let app: Awaited<ReturnType<typeof createApp>>;
 let base: string;
 const ids: string[] = [];
+const roleIds: string[] = [];
 const password = "Admin fixture password 123!";
 const prefix = `adm_${crypto.randomUUID().slice(0, 8)}`;
 async function req(path: string, bearer?: string, body?: unknown) {
@@ -64,6 +66,8 @@ afterAll(async () => {
       await tx.delete(credentials).where(inArray(credentials.userId, ids));
       await tx.delete(users).where(inArray(users.id, ids));
     });
+  if (roleIds.length)
+    await db.delete(adminRoles).where(inArray(adminRoles.id, roleIds));
   await pool.end();
 });
 test("guest creation and pre-existing anonymous credentials cannot access the application", async () => {
@@ -298,6 +302,14 @@ test("administrator status is checked on every request", async () => {
 
 test("administrator share revocation removes native ingress and source permissions while retaining the room", async () => {
   const a = await account("native");
+  expect(
+    (
+      await req(`/admin/users/${a.user.id}/screen-share`, admin.sessionToken, {
+        enabled: true,
+        reason: "开启受控共享测试",
+      })
+    ).status,
+  ).toBe(201);
   const room = (
     await req("/rooms", a.sessionToken, { name: `${prefix}共享撤销` })
   ).body;
@@ -363,6 +375,57 @@ test("administrator share revocation removes native ingress and source permissio
         })
       ).status,
     ).toBe(409);
+    const lease2 = await req(
+      `/rooms/${room.id}/share-lease`,
+      a.sessionToken,
+      {},
+    );
+    expect(lease2.status).toBe(201);
+    expect(
+      (
+        await req(`/rooms/${room.id}/share-lease/native`, a.sessionToken, {
+          leaseId: lease2.body.leaseId,
+          revision: lease2.body.revision,
+        })
+      ).status,
+    ).toBe(201);
+    expect(
+      (
+        await req(
+          `/admin/users/${a.user.id}/screen-share`,
+          admin.sessionToken,
+          { enabled: false, reason: "撤销账号共享能力" },
+        )
+      ).status,
+    ).toBe(201);
+    expect(await media.ingress.listIngress({ roomName: room.id })).toHaveLength(
+      0,
+    );
+    expect(
+      (await db.select().from(leases).where(eq(leases.roomId, room.id)))[0]!
+        .holderUserId,
+    ).toBeNull();
+    expect(
+      (await req(`/rooms/${room.id}/share-lease`, a.sessionToken, {})).body
+        .code,
+    ).toBe("SCREEN_SHARE_UNAVAILABLE");
+    expect(
+      (
+        await req(`/rooms/${room.id}/share-lease/renew`, a.sessionToken, {
+          leaseId: lease2.body.leaseId,
+          revision: lease2.body.revision,
+        })
+      ).body.code,
+    ).toBe("SCREEN_SHARE_UNAVAILABLE");
+    expect(
+      (
+        await req(`/rooms/${room.id}/share-lease/native`, a.sessionToken, {
+          leaseId: lease2.body.leaseId,
+          revision: lease2.body.revision,
+        })
+      ).body.code,
+    ).toBe("SCREEN_SHARE_UNAVAILABLE");
+    expect((await req(`/rooms/${room.id}`, a.sessionToken)).status).toBe(200);
   } finally {
     media.participants = list;
     media.setShare = set;
@@ -370,4 +433,54 @@ test("administrator share revocation removes native ingress and source permissio
       reason: "结束共享测试",
     });
   }
+});
+
+test("only the dedicated capability permission or superadmin may grant sharing", async () => {
+  const target = await account("ability"),
+    operator = await account("operator");
+  const path = `/admin/users/${target.user.id}/screen-share`;
+  expect(target.user.screenShareEnabled).toBe(false);
+  const body = { enabled: true, reason: "共享能力授权验证" };
+  expect((await req(path, target.sessionToken, body)).status).toBe(403);
+  const roles = (await req("/admin/roles", admin.sessionToken)).body.items;
+  const builtin = roles.find((r: { builtIn: boolean }) => r.builtIn);
+  await req(`/admin/users/${operator.user.id}/roles`, admin.sessionToken, {
+    roleIds: [builtin.id],
+    reason: "普通管理员权限验证",
+  });
+  expect((await req(path, operator.sessionToken, body)).status).toBe(403);
+  const role = await req("/admin/roles", admin.sessionToken, {
+    name: prefix + "共享授权",
+    permissions: ["users.read", "users.screen-share"],
+    reason: "独立权限验证",
+  });
+  expect(role.status).toBe(201);
+  roleIds.push(role.body.id);
+  await req(`/admin/users/${operator.user.id}/roles`, admin.sessionToken, {
+    roleIds: [role.body.id],
+    reason: "授予独立共享管理权限",
+  });
+  expect((await req(path, operator.sessionToken, body)).status).toBe(201);
+  expect((await req("/me", target.sessionToken)).body.screenShareEnabled).toBe(
+    true,
+  );
+  const listing = await req(
+    `/admin/users?q=${target.user.username}`,
+    operator.sessionToken,
+  );
+  expect(listing.body.items[0].screenShareEnabled).toBe(true);
+  expect(
+    (await req(path, operator.sessionToken, { ...body, enabled: false }))
+      .status,
+  ).toBe(201);
+  expect((await req("/me", target.sessionToken)).body.screenShareEnabled).toBe(
+    false,
+  );
+  const room = (
+    await req("/rooms", admin.sessionToken, { name: prefix + "超管无默认共享" })
+  ).body;
+  expect(
+    (await req(`/rooms/${room.id}/share-lease`, admin.sessionToken, {})).body
+      .code,
+  ).toBe("SCREEN_SHARE_UNAVAILABLE");
 });

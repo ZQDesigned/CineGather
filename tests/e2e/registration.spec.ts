@@ -26,6 +26,12 @@ test("superadmin controls persistent registration while the public UI keeps exis
       .getByRole("tab", { name: "注册设置", exact: true })
       .click({ timeout: 5000 });
     const toggle = page.getByRole("switch", { name: "开放注册", exact: true });
+    const shareDefault = page.getByRole("switch", {
+      name: "新注册用户默认允许屏幕共享",
+      exact: true,
+    });
+    await expect(shareDefault).not.toBeChecked();
+    await shareDefault.check();
     await expect(toggle).toBeChecked();
     await toggle.uncheck();
     await page
@@ -62,6 +68,11 @@ test("superadmin controls persistent registration while the public UI keeps exis
     await page.reload();
     await page.getByRole("tab", { name: "注册设置", exact: true }).click();
     await expect(toggle).not.toBeChecked();
+    await expect(shareDefault).toBeChecked();
+    await shareDefault.uncheck();
+    await page.screenshot({
+      path: ".local/capabilities-20261024/registration-capability.png",
+    });
     await toggle.check();
     await page.getByLabel("操作原因", { exact: true }).fill("重新开放注册");
     await page

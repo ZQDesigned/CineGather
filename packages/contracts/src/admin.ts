@@ -13,6 +13,7 @@ export const adminUserSchema = z.object({
   username: z.string(),
   displayName: z.string(),
   isSuperAdmin: z.boolean(),
+  screenShareEnabled: z.boolean(),
   roles: z.array(accountRoleSchema),
   disabledAt: z.string().nullable(),
   createdAt: z.string(),
@@ -79,13 +80,14 @@ export const adminRoleInput = z
     permissions: z
       .array(adminPermissionSchema)
       .min(1)
-      .max(6)
+      .max(7)
       .refine((p) => new Set(p).size === p.length, "权限不能重复"),
     reason: adminReason.shape.reason,
   })
   .superRefine((value, ctx) => {
     for (const [manage, read] of [
       ["users.manage", "users.read"],
+      ["users.screen-share", "users.read"],
       ["rooms.manage", "rooms.read"],
     ] as const)
       if (
@@ -106,3 +108,7 @@ export const adminRoleAssignment = z.strictObject({
   reason: adminReason.shape.reason,
 });
 export type AdminRole = z.infer<typeof adminRoleSchema>;
+
+export const adminScreenShareInput = adminReason.extend({
+  enabled: z.boolean(),
+});

@@ -74,8 +74,8 @@ export class ApiController {
   }
   @Get("registration")
   @Endpoint("registrationPolicy", c.registrationPolicySchema)
-  registrationPolicy() {
-    return readRegistrationPolicy();
+  async registrationPolicy() {
+    return { enabled: (await readRegistrationPolicy()).enabled };
   }
   @Post("accounts/register")
   @Endpoint("registerAccount", c.sessionSchema, c.registerInput, [], 201)

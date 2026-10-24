@@ -60,6 +60,19 @@ export function Dialogs() {
   );
 }
 function DialogContent({ modal }: { modal: Modal }) {
+  if (modal === "share-unavailable")
+    return (
+      <ModalShell
+        title="屏幕共享暂不可用"
+        footer={
+          <Button type="primary" onClick={() => update({ modal: null })}>
+            知道了
+          </Button>
+        }
+      >
+        <p>当前账号暂未开通屏幕共享能力。</p>
+      </ModalShell>
+    );
   if (modal === "create") return <CreateRoom />;
   if (modal === "join") return <JoinRoom />;
   if (modal === "settings") return <Settings />;

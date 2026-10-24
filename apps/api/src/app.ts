@@ -12,6 +12,7 @@ import { randomUUID } from "node:crypto";
 import { AdminController } from "./admin-controller";
 import { ApiController } from "./controller";
 import { AuthGuard, ErrorFilter, type AuthRequest } from "./http";
+import { cdnClientIp } from "./client-ip";
 import { config } from "./config";
 import { database } from "./context";
 import { reconcileAll } from "./rooms";
@@ -47,14 +48,33 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
 class AppModule {}
 export async function createApp({
   trustedProxies = config.trustedProxies,
+  trustedCdns = config.trustedCdns,
   clientPolicy = config.clientPolicy,
-}: { trustedProxies?: string[]; clientPolicy?: ClientPolicy } = {}) {
+}: {
+  trustedProxies?: string[];
+  trustedCdns?: string[];
+  clientPolicy?: ClientPolicy;
+} = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false,
     rawBody: true,
     bodyParser: true,
   });
   app.set("trust proxy", trustedProxies.length ? trustedProxies : false);
+  const resolveIp = cdnClientIp(trustedCdns);
+  const trustProxy = app
+    .getHttpAdapter()
+    .getInstance()
+    .get("trust proxy fn") as (ip: string, hop: number) => boolean;
+  app.use((req: Request, _res: Response, next: NextFunction) => {
+    const ip = resolveIp(
+      !!req.socket.remoteAddress && trustProxy(req.socket.remoteAddress, 0),
+      req.ip,
+      req.get("EO-Connecting-IP"),
+    );
+    if (ip) Object.defineProperty(req, "ip", { value: ip, configurable: true });
+    next();
+  });
   app.set("cinegather.clientPolicy", clientPolicy);
   app.enableCors({
     origin: [...config.corsOrigins, "app://cinegather"],

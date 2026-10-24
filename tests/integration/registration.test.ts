@@ -49,9 +49,12 @@ afterAll(async () => {
   await app?.close();
   if (previous.length) {
     await db.execute(sql`DELETE FROM registration_policy`);
-    for (const row of previous as { enabled: boolean }[])
+    for (const row of previous as {
+      enabled: boolean;
+      screen_share_default_enabled: boolean;
+    }[])
       await db.execute(
-        sql`INSERT INTO registration_policy(id,enabled) VALUES(1,${row.enabled})`,
+        sql`INSERT INTO registration_policy(id,enabled,screen_share_default_enabled) VALUES(1,${row.enabled},${row.screen_share_default_enabled})`,
       );
   } else await db.execute(sql`DELETE FROM registration_policy`).catch(() => {});
   if (ids.length) {
@@ -61,11 +64,22 @@ afterAll(async () => {
   }
   await pool.end();
 });
+test("accounts start without screen sharing, including superadmins", async () => {
+  const me = await req("/me", root.sessionToken);
+  expect(me.body.isSuperAdmin).toBe(true);
+  expect(me.body.screenShareEnabled).toBe(false);
+  expect((await req("/me", member.sessionToken)).body.screenShareEnabled).toBe(
+    false,
+  );
+});
 test("closed registration rejects valid direct requests without creating users, while existing login works", async () => {
   const initial = await req("/admin/registration", root.sessionToken);
   expect(initial.status).toBe(200);
-  previous = (await db.execute(sql`SELECT enabled FROM registration_policy`))
-    .rows;
+  previous = (
+    await db.execute(
+      sql`SELECT enabled,screen_share_default_enabled FROM registration_policy`,
+    )
+  ).rows;
   const closed = await req("/admin/registration", root.sessionToken, {
     enabled: false,
     reason: "关闭测试注册",
@@ -184,5 +198,30 @@ test("a registration racing a policy close cannot use an earlier open snapshot",
     await connection.query("ROLLBACK");
     connection.release();
     await pending;
+  }
+});
+
+test("registration capability default is explicit and changes only future accounts", async () => {
+  for (const enabled of [true, false]) {
+    const r = await req("/admin/registration", root.sessionToken, {
+      enabled: true,
+      screenShareDefaultEnabled: enabled,
+      reason: "验证新账号共享默认值",
+    });
+    expect(r.status).toBe(201);
+    expect(r.body.screenShareDefaultEnabled).toBe(enabled);
+    const created = await account(enabled ? "share_on" : "share_off");
+    expect(created.body.user.screenShareEnabled).toBe(enabled);
+    expect(
+      (await req("/me", member.sessionToken)).body.screenShareEnabled,
+    ).toBe(false);
+    await req("/admin/registration", root.sessionToken, {
+      enabled: true,
+      reason: "兼容旧管理端保存",
+    });
+    expect(
+      (await req("/admin/registration", root.sessionToken)).body
+        .screenShareDefaultEnabled,
+    ).toBe(enabled);
   }
 });

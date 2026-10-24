@@ -39,3 +39,38 @@ describe("reverse proxy authentication rate limits", () => {
     exercise(["192.0.2.0/24"], false));
   test("proxy trust is disabled by default", () => exercise([], false));
 });
+
+// The origin overwrites X-Forwarded-For with the TCP/PROXY-protocol peer.
+// Only a trusted origin proxy AND a known CDN peer may assert EO-Connecting-IP.
+test("CDN clients sharing one origin peer have independent login buckets", async () => {
+  const app = await createApp({
+    trustedProxies: ["loopback"],
+    trustedCdns: ["192.0.2.0/24"],
+  });
+  await app.listen(0, "127.0.0.1");
+  try {
+    const base = await app.getUrl();
+    const login = async (ip: string, peer = "192.0.2.7") => {
+      const r = await fetch(base + "/api/v1/accounts/login", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Forwarded-For": peer,
+          "EO-Connecting-IP": ip,
+        },
+        body: "{}",
+      });
+      await r.arrayBuffer();
+      return r.status;
+    };
+    for (let i = 0; i < 60; i++) expect(await login("198.51.100.1")).toBe(400);
+    expect(await login("198.51.100.1")).toBe(429);
+    expect(await login("198.51.100.2")).toBe(400);
+    expect(await login("2001:db8::1")).toBe(400);
+    for (let i = 0; i < 60; i++)
+      expect(await login("203.0.113.1", "198.51.100.9")).toBe(400);
+    expect(await login("203.0.113.2", "198.51.100.9")).toBe(429);
+  } finally {
+    await app.close();
+  }
+});

@@ -21,7 +21,11 @@ export const registerInput = z.strictObject({
   password: accountPassword,
 });
 export const registrationPolicySchema = z.object({ enabled: z.boolean() });
+export const adminRegistrationPolicySchema = registrationPolicySchema.extend({
+  screenShareDefaultEnabled: z.boolean(),
+});
 export const registrationPolicyInput = z.strictObject({
+  screenShareDefaultEnabled: z.boolean().optional(),
   enabled: z.boolean(),
   reason: z.string().trim().min(1).max(500),
 });
@@ -78,6 +82,7 @@ export const userSchema = z.object({
   displayName: z.string(),
   username: z.string().nullable().optional(),
   isSuperAdmin: z.boolean().optional(),
+  screenShareEnabled: z.boolean().optional(),
   roles: z.array(accountRoleSchema).optional(),
   permissions: z.array(adminPermissionSchema).optional(),
 });

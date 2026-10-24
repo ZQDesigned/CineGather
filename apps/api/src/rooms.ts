@@ -383,7 +383,10 @@ export async function settleRoom(
     .orderBy(members.joinedAt, members.userId);
   const sessions = candidates.length
     ? await tx
-        .select({ userId: credentials.userId })
+        .select({
+          userId: credentials.userId,
+          screenShareEnabled: users.screenShareEnabled,
+        })
         .from(credentials)
         .innerJoin(users, eq(users.id, credentials.userId))
         .where(
@@ -456,12 +459,22 @@ function leaseResult(row: typeof leases.$inferSelect): ShareLease {
     revision: row.revision,
   };
 }
+async function requireScreenShare(tx: Transaction, userId: string) {
+  const [user] = await tx
+    .select({ enabled: users.screenShareEnabled })
+    .from(users)
+    .where(eq(users.id, userId))
+    .for("share");
+  if (!user?.enabled)
+    fail(403, "SCREEN_SHARE_UNAVAILABLE", "当前账号暂未开通屏幕共享能力");
+}
 export async function acquireLease(user: User, roomId: string) {
   roomId = uuid(roomId);
   let granted = false;
   try {
     return await db.transaction(async (tx) => {
       await requireMember(tx, roomId, user.id, false, true);
+      await requireScreenShare(tx, user.id);
       const participants = await media.participants(roomId);
       if (!participants.some((p) => p.identity === user.id))
         fail(409, "MEDIA_NOT_CONNECTED", "请先连接房间语音");
@@ -518,6 +531,7 @@ export async function renewLease(
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
     await requireMember(tx, roomId, user.id, false, true);
+    await requireScreenShare(tx, user.id);
     const [lease] = await tx
       .select()
       .from(leases)
@@ -738,7 +752,10 @@ export async function reconcileRoom(roomId: string) {
       .map((p) => p.identity);
     const validSessions = humanIds.length
       ? await tx
-          .select({ userId: credentials.userId })
+          .select({
+            userId: credentials.userId,
+            screenShareEnabled: users.screenShareEnabled,
+          })
           .from(credentials)
           .innerJoin(users, eq(users.id, credentials.userId))
           .where(
@@ -762,6 +779,9 @@ export async function reconcileRoom(roomId: string) {
     const activeHolder =
       lease?.holderUserId &&
       authorized(lease.holderUserId) &&
+      validSessions.some(
+        (c) => c.userId === lease.holderUserId && c.screenShareEnabled,
+      ) &&
       lease?.expiresAt &&
       lease.expiresAt.getTime() > Date.now() &&
       participants.some((p) => p.identity === lease.holderUserId)
@@ -904,6 +924,7 @@ export async function nativePublication(
   try {
     return await db.transaction(async (tx) => {
       await requireMember(tx, roomId, user.id, false, true);
+      await requireScreenShare(tx, user.id);
       const [lease] = await tx
         .select()
         .from(leases)

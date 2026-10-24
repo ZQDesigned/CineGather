@@ -33,6 +33,7 @@ const PermissionOptions = styled.div`
 `;
 function includeRead(values: AdminPermission[]) {
   const set = new Set(values);
+  if (set.has("users.screen-share")) set.add("users.read");
   if (set.has("users.manage")) set.add("users.read");
   if (set.has("rooms.manage")) set.add("rooms.read");
   return adminPermissionKeys.filter((p) => set.has(p));

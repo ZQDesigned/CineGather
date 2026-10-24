@@ -402,3 +402,42 @@ test("unsupported browser media APIs keep settings and basic chat usable", async
     await leave(page);
   }
 });
+
+test("a disabled capability shows the shared dialog before any browser capture request", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["microphone"]);
+  await page.goto("/");
+  await registerTestAccount(page, "共享能力关闭验证", false);
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("能力关闭验证房间");
+  await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "选择屏幕开始共享", exact: true }),
+  ).toBeEnabled();
+  await page.evaluate(() => {
+    Object.assign(window, { captureAttempts: 0 });
+    navigator.mediaDevices.getDisplayMedia = async () => {
+      Object.assign(window, { captureAttempts: 1 });
+      throw new Error("Unexpected capture");
+    };
+  });
+  await page
+    .getByRole("button", { name: "选择屏幕开始共享", exact: true })
+    .click();
+  await expect(
+    page.getByRole("dialog", { name: "屏幕共享暂不可用" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("当前账号暂未开通屏幕共享能力。", { exact: true }),
+  ).toBeVisible();
+  expect(
+    await page.evaluate(() => Reflect.get(window, "captureAttempts")),
+  ).toBe(0);
+  await page.screenshot({
+    path: ".local/capabilities-20261024/share-denied.png",
+  });
+  await page.getByRole("button", { name: "知道了", exact: true }).click();
+  await leave(page);
+});
