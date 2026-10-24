@@ -7,6 +7,82 @@ async function guest(page: Page, name: string) {
     page.getByRole("heading", { name: `晚上好，${name}` }),
   ).toBeVisible();
 }
+async function observeMedia(page: Page) {
+  await page.addInitScript(() => {
+    const connections: RTCPeerConnection[] = [];
+    const Original = RTCPeerConnection;
+    class Observed extends Original {
+      constructor(...args: ConstructorParameters<typeof RTCPeerConnection>) {
+        super(...args);
+        connections.push(this);
+      }
+    }
+    Object.assign(window, {
+      RTCPeerConnection: Observed,
+      subscriptionProbe: { connections },
+    });
+  });
+}
+async function receivedTracks(page: Page) {
+  return page.evaluate(async () => {
+    const { connections } = (
+      window as unknown as {
+        subscriptionProbe: { connections: RTCPeerConnection[] };
+      }
+    ).subscriptionProbe;
+    const counts = { audio: 0, video: 0 };
+    for (const connection of connections) {
+      if (connection.connectionState === "closed") continue;
+      (await connection.getStats()).forEach((stat) => {
+        if (stat.type === "inbound-rtp" && stat.bytesReceived > 0) {
+          if (stat.kind === "audio") counts.audio++;
+          if (stat.kind === "video") counts.video++;
+        }
+      });
+    }
+    return counts;
+  });
+}
+async function join(page: Page, name: string, invite: string) {
+  await guest(page, name);
+  await page.getByRole("button", { name: "加入房间", exact: true }).click();
+  await page.getByLabel("房间号或邀请链接").fill(invite);
+  await page.getByRole("button", { name: "进入房间", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "关闭麦克风", exact: true }),
+  ).toBeEnabled();
+}
+async function receivedBytes(page: Page, trackIds: string[]) {
+  return page.evaluate(async (trackIds) => {
+    const { connections } = (
+      window as unknown as {
+        subscriptionProbe: { connections: RTCPeerConnection[] };
+      }
+    ).subscriptionProbe;
+    let bytes = 0;
+    for (const connection of connections) {
+      if (connection.connectionState === "closed") continue;
+      (await connection.getStats()).forEach((s) => {
+        if (s.type === "inbound-rtp" && trackIds.includes(s.trackIdentifier))
+          bytes += s.bytesReceived ?? 0;
+      });
+    }
+    return bytes;
+  }, trackIds);
+}
+async function expectNotReceiving(page: Page) {
+  await expect(
+    page.getByRole("heading", { name: "同步共享者 正在共享", exact: true }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "加入观看", exact: true }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.locator("video").evaluate((v: HTMLVideoElement) => v.srcObject),
+    )
+    .toBeNull();
+}
 test("film audio/video share one presentation element and removing audio keeps the video element alive", async ({
   page,
   browser,
@@ -20,14 +96,15 @@ test("film audio/video share one presentation element and removing audio keeps t
   await page.getByRole("button", { name: "关闭对话框" }).click();
   const context = await browser.newContext({ permissions: ["microphone"] });
   const viewer = await context.newPage();
+  const lateContext = await browser.newContext({ permissions: ["microphone"] });
+  const late = await lateContext.newPage();
+  await observeMedia(viewer);
+  await observeMedia(late);
   try {
-    await guest(viewer, "同步接收者");
-    await viewer.getByRole("button", { name: "加入房间", exact: true }).click();
-    await viewer.getByLabel("房间号或邀请链接").fill(invite);
-    await viewer.getByRole("button", { name: "进入房间", exact: true }).click();
-    await expect(
-      viewer.getByRole("button", { name: "关闭麦克风", exact: true }),
-    ).toBeEnabled();
+    await join(viewer, "同步接收者", invite);
+    await expect
+      .poll(() => receivedTracks(viewer))
+      .toEqual({ audio: 1, video: 0 });
     await page.evaluate(() => {
       Object.assign(window, {
         desktop: {
@@ -102,7 +179,35 @@ test("film audio/video share one presentation element and removing audio keeps t
       ).toBe(true);
       await page.getByRole("checkbox", { name: "共享系统声音" }).check();
       await page.getByRole("button", { name: "确认共享", exact: true }).click();
+      // A browser publisher retains its local preview without subscribing to
+      // its own stream through the SFU.
+      await expect(page.locator(".stage-empty")).toHaveCount(0);
       await expect(viewer.locator(".video-label")).toContainText("含共享声音");
+      await expectNotReceiving(viewer);
+      if (cycle === 0) {
+        expect(await receivedTracks(viewer)).toEqual({ audio: 1, video: 0 });
+        await join(late, "晚加入接收者", invite);
+        await expectNotReceiving(late);
+        // Voice from both room members is received, but no shared audio/video
+        // track may reach the peer connection before the explicit viewing action.
+        await expect
+          .poll(() => receivedTracks(late))
+          .toEqual({ audio: 2, video: 0 });
+        await late.screenshot({
+          path: ".local/on-demand-viewing/late-viewer.png",
+        });
+        await late
+          .getByRole("button", { name: "离开房间", exact: true })
+          .click();
+        await expect(late.locator(".connection")).toContainText("未连接房间", {
+          timeout: 15000,
+        });
+        await expectNotReceiving(viewer);
+        expect(await receivedTracks(viewer)).toMatchObject({ video: 0 });
+      }
+      await viewer
+        .getByRole("button", { name: "加入观看", exact: true })
+        .click();
       await expect(
         page.getByRole("button", { name: "全屏画面", exact: true }),
       ).toHaveCount(0);
@@ -144,6 +249,41 @@ test("film audio/video share one presentation element and removing audio keeps t
           .locator('audio[data-cinegather-audio="screen_share_audio"]')
           .count(),
       ).toBe(0);
+      const sharedTrackIds = await viewer
+        .locator("video")
+        .evaluate((v: HTMLVideoElement) =>
+          (v.srcObject as MediaStream).getTracks().map((t) => t.id),
+        );
+      await expect
+        .poll(() => receivedBytes(viewer, sharedTrackIds))
+        .toBeGreaterThan(0);
+      await viewer
+        .getByRole("button", { name: "暂停观看", exact: true })
+        .click();
+      await expectNotReceiving(viewer);
+      await expect
+        .poll(async () => {
+          const before = await receivedBytes(viewer, sharedTrackIds);
+          await new Promise((resolve) => setTimeout(resolve, 350));
+          return (await receivedBytes(viewer, sharedTrackIds)) - before;
+        })
+        .toBe(0);
+      await expect(
+        viewer.locator('audio[data-cinegather-audio="microphone"]'),
+      ).toHaveCount(1);
+      await viewer
+        .getByRole("button", { name: "加入观看", exact: true })
+        .click();
+      await expect
+        .poll(() =>
+          viewer
+            .locator("video")
+            .evaluate(
+              (v: HTMLVideoElement) =>
+                (v.srcObject as MediaStream | null)?.getTracks().length ?? 0,
+            ),
+        )
+        .toBe(2);
       await page
         .locator(".sharing-banner")
         .getByRole("button", { name: "停止共享" })
@@ -155,6 +295,7 @@ test("film audio/video share one presentation element and removing audio keeps t
       ).toBeVisible();
     }
   } finally {
+    await lateContext.close();
     await context.close();
     await page.keyboard.press("Escape");
     await page.getByRole("button", { name: "离开房间", exact: true }).click();

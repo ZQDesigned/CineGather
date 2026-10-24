@@ -232,6 +232,7 @@ test("a real screen publisher holds the only server lease and stopping removes i
     await expect(viewer.locator(".video-label")).toContainText(
       "共享者正在共享",
     );
+    await viewer.getByRole("button", { name: "加入观看", exact: true }).click();
     await expect
       .poll(() =>
         viewer

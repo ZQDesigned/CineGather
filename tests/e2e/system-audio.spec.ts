@@ -224,6 +224,7 @@ test("real Mac system mix excludes CineGather playback, stays synchronized and w
     await b.page
       .getByRole("button", { name: "关闭麦克风", exact: true })
       .click();
+    await b.page.getByRole("button", { name: "加入观看", exact: true }).click();
     await expect
       .poll(() =>
         b.page
@@ -332,6 +333,7 @@ test("real Mac system mix excludes CineGather playback, stays synchronized and w
     await b.page.screenshot({ path: join(reportDir, "system-receiver.png") });
     await stop(publisher);
     await share(publisher, false);
+    await b.page.getByRole("button", { name: "加入观看", exact: true }).click();
     await expect
       .poll(
         () =>

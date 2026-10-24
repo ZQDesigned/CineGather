@@ -95,6 +95,7 @@ test("owner stops/preempts real media, mutes without unmuting, and transfers con
     await expect(page.locator(".video-label")).toContainText(
       "被管理成员正在共享",
     );
+    await page.getByRole("button", { name: "加入观看", exact: true }).click();
     await expect
       .poll(() =>
         page.locator("video").evaluate((v: HTMLVideoElement) => v.videoWidth),

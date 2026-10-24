@@ -121,6 +121,7 @@ test("production Chrome uses same-origin API, shared room UI, browser invites, v
     await expect(viewer.locator(".video-label")).toContainText(
       "Chrome 房主正在共享",
     );
+    await viewer.getByRole("button", { name: "加入观看", exact: true }).click();
     await expect
       .poll(() =>
         viewer.locator("video").evaluate((v: HTMLVideoElement) => v.videoWidth),

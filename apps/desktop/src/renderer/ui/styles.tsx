@@ -769,6 +769,11 @@ export const AppSurface = styled.div`
     letter-spacing: 1px;
     margin: 12px 0;
   }
+  .stage-join h2 {
+    max-width: 90%;
+    text-align: center;
+    overflow-wrap: anywhere;
+  }
   .stage-empty p {
     font-size: 10px;
     color: #6c7180;

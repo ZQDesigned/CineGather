@@ -22,6 +22,7 @@ import { decodeRoomControl } from "./room-control";
 import { MoviePlayback } from "./movie";
 import { AudioMixer } from "./mixer";
 import { VoicePlayback } from "./voice-playback";
+import { ShareSubscriptions } from "./subscriptions";
 import { BrowserCapture } from "./browser-capture";
 import {
   createMicrophoneDenoiser,
@@ -41,8 +42,9 @@ export interface MediaSummary {
   revision: number;
   state: string;
   participants: ParticipantSummary[];
-  sharer?: { id: string; name: string; local: boolean };
+  sharer?: { id: string; name: string; local: boolean; hasVideo: boolean };
   audioBlocked: boolean;
+  watching: boolean;
   systemAudio: boolean;
   microphoneNoise?: MicrophoneNoiseStatus;
 }
@@ -56,7 +58,7 @@ export class MediaSession {
   private voices: VoicePlayback;
   private movie = new MoviePlayback();
   private movieAudio?: { sid: string; track: RemoteAudioTrack };
-  private watching = true;
+  private subscriptions = new ShareSubscriptions();
   private microphoneRevision = 0;
   private microphoneWanted = false;
   private noiseMode: NoiseReduction = "enhanced";
@@ -103,16 +105,7 @@ export class MediaSession {
       this.detach(track, pub.trackSid);
       emit();
     });
-    room.on(RoomEvent.TrackPublished, (publication: RemoteTrackPublication) => {
-      if (
-        !this.watching &&
-        [Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(
-          publication.source,
-        )
-      )
-        publication.setSubscribed(false);
-      emit();
-    });
+    room.on(RoomEvent.TrackPublished, emit);
     room.on(RoomEvent.LocalTrackPublished, (pub: LocalTrackPublication) => {
       if (pub.source === Track.Source.ScreenShare && pub.track)
         pub.track.mediaStreamTrack.addEventListener(
@@ -173,7 +166,9 @@ export class MediaSession {
     });
     room.on(RoomEvent.MediaDevicesError, this.error);
     try {
-      await room.connect(url, token, { autoSubscribe: true });
+      // Default-deny avoids receiving any shared media before the viewer opts in,
+      // including shares already running when this participant enters the room.
+      await room.connect(url, token, { autoSubscribe: false });
       if (revision !== this.revision) {
         await room.disconnect();
         return;
@@ -194,6 +189,7 @@ export class MediaSession {
         state: "disconnected",
         participants: [],
         audioBlocked: false,
+        watching: false,
         systemAudio: false,
       });
       return;
@@ -202,15 +198,18 @@ export class MediaSession {
       room.localParticipant,
       ...room.remoteParticipants.values(),
     ];
+    this.subscriptions.sync(room);
     const sharer = participants.find((p) =>
       p.getTrackPublication(Track.Source.ScreenShare),
     );
     const publication = sharer?.getTrackPublication(Track.Source.ScreenShare);
-    const next = publication?.track;
+    const viewing =
+      sharer === room.localParticipant || this.subscriptions.watching;
+    const next = viewing ? publication?.track : undefined;
     this.videoTrack = next;
-    const filmAudio = sharer?.getTrackPublication(
-      Track.Source.ScreenShareAudio,
-    )?.track;
+    const filmAudio = viewing
+      ? sharer?.getTrackPublication(Track.Source.ScreenShareAudio)?.track
+      : undefined;
     this.movie.tracks(
       next,
       filmAudio === this.movieAudio?.track ? this.movieAudio?.track : undefined,
@@ -239,10 +238,12 @@ export class MediaSession {
             local:
               sharer === room.localParticipant ||
               nativeOwner(sharer.identity) === room.localParticipant.identity,
+            hasVideo: Boolean(next),
           }
         : undefined,
       microphoneNoise: this.noiseStatus,
       audioBlocked: !room.canPlaybackAudio || this.voices.blocked,
+      watching: this.subscriptions.watching,
       systemAudio: Boolean(
         sharer?.getTrackPublication(Track.Source.ScreenShareAudio),
       ),
@@ -254,7 +255,7 @@ export class MediaSession {
     participant: RemoteParticipant,
   ) {
     if (
-      !this.watching &&
+      !this.subscriptions.watching &&
       [Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(
         pub.source,
       )
@@ -326,6 +327,7 @@ export class MediaSession {
     this.mixer.remove(sid);
   }
   private clearElements() {
+    this.subscriptions.reset();
     this.voices.clear();
     this.movie.tracks();
     this.movieAudio = undefined;
@@ -616,14 +618,7 @@ export class MediaSession {
     this.mixer.member(userId, volume);
   }
   watch(enabled: boolean) {
-    this.watching = enabled;
-    for (const p of this.room?.remoteParticipants.values() ?? [])
-      for (const pub of p.trackPublications.values())
-        if (
-          pub.source === Track.Source.ScreenShare ||
-          pub.source === Track.Source.ScreenShareAudio
-        )
-          pub.setSubscribed(enabled);
+    this.subscriptions.watch(enabled);
     this.emit();
   }
   async devices(input?: string, output?: string) {
@@ -696,13 +691,14 @@ export class MediaSession {
     }
     return {
       state: this.room?.state ?? "disconnected",
-      watching: this.watching,
+      watching: this.subscriptions.watching,
       microphoneNoise: this.noiseStatus,
       tracks,
       capturedAt: new Date().toISOString(),
     };
   }
   async disconnect() {
+    this.subscriptions.reset();
     this.browserCapture.stop();
     ++this.revision;
     ++this.microphoneRevision;

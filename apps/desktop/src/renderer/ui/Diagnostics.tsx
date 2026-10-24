@@ -154,9 +154,9 @@ export function Diagnostics() {
       : app.media.sharer
         ? app.media.sharer.local
           ? "你正在共享"
-          : app.watching
+          : app.media.watching
             ? "正在观看"
-            : "已暂停观看"
+            : "尚未观看"
         : app.shareState === "active"
           ? "你正在共享"
           : ["acquiringLease", "selectingSource", "publishing"].includes(
@@ -336,13 +336,13 @@ export function Diagnostics() {
                   : app.shareState === "failed"
                     ? "请重新选择画面，并确认已允许屏幕录制。"
                     : app.media.sharer
-                      ? app.watching || app.media.sharer.local
+                      ? app.media.watching || app.media.sharer.local
                         ? "共享声音可在房间内单独调节。"
-                        : "在房间内点击继续观看即可恢复。"
+                        : "在房间内点击加入观看即可观看画面。"
                       : "一位成员开始共享后，大家就能一起观看。",
                 app.shareState === "failed"
                   ? "error"
-                  : app.media.sharer && app.watching
+                  : app.media.sharer && app.media.watching
                     ? "success"
                     : undefined,
               ),

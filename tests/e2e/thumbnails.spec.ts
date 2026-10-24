@@ -35,7 +35,9 @@ async function pixels(page: Page, url: string) {
   }, url);
 }
 
-test("real Mac window and display thumbnails match source pixels, refresh and still publish the selected window", async () => {
+test("real Mac window and display thumbnails match source pixels, refresh and still publish the selected window", async ({
+  browser,
+}, testInfo) => {
   const executablePath = resolve(
     "apps/desktop/release/mac-arm64/CineGather.app/Contents/MacOS/CineGather",
   );
@@ -62,6 +64,10 @@ test("real Mac window and display thumbnails match source pixels, refresh and st
     timeout: 30000,
   });
   const report: Record<string, unknown> = {};
+  const viewerContext = await browser.newContext({
+    permissions: ["microphone"],
+  });
+  const viewer = await viewerContext.newPage();
   let page: Page | undefined;
   try {
     page = await app.firstWindow();
@@ -71,6 +77,16 @@ test("real Mac window and display thumbnails match source pixels, refresh and st
       .click();
     await page.getByLabel("房间名称").fill("真实缩略图与选择验证");
     await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+    const roomCode = (
+      await page
+        .getByRole("button", { name: "复制房间号", exact: true })
+        .innerText()
+    ).trim();
+    await viewer.goto(testInfo.project.use.baseURL ?? "http://127.0.0.1:5173");
+    await registerTestAccount(viewer, "缩略图共享接收验证");
+    await viewer.getByRole("button", { name: "加入房间", exact: true }).click();
+    await viewer.getByLabel("房间号或邀请链接").fill(roomCode);
+    await viewer.getByRole("button", { name: "进入房间", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "选择屏幕开始共享" }),
     ).toBeEnabled();
@@ -131,10 +147,11 @@ test("real Mac window and display thumbnails match source pixels, refresh and st
     await expect(page.locator(".sharing-banner")).toBeVisible({
       timeout: 20000,
     });
+    await viewer.getByRole("button", { name: "加入观看", exact: true }).click();
     await expect
       .poll(
         () =>
-          page!
+          viewer
             .locator(".stage video")
             .evaluate((video: HTMLVideoElement) => video.videoWidth),
         { timeout: 20000 },
@@ -151,6 +168,7 @@ test("real Mac window and display thumbnails match source pixels, refresh and st
       JSON.stringify(report, null, 2),
     );
   } finally {
+    await viewerContext.close();
     if (page && !page.isClosed()) {
       await page.keyboard.press("Escape").catch(() => {});
       await page

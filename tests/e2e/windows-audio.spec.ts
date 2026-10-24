@@ -225,6 +225,9 @@ for (const mode of ["isolated", "device"] as const) {
         ).toContainText("设备音频兼容模式");
       } else
         await expect(page.locator(".audio-compatibility-alert")).toHaveCount(0);
+      await viewer
+        .getByRole("button", { name: "加入观看", exact: true })
+        .click();
       await expect
         .poll(() =>
           viewer

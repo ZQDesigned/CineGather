@@ -47,7 +47,6 @@ interface State {
   memberVolumes: Record<string, number>;
   voiceVolume: number;
   screenVolume: number;
-  watching: boolean;
   systemAudio: boolean;
   audioCompatibility: boolean;
   sources: CaptureSource[];
@@ -65,6 +64,7 @@ export const useApp = create<State>(() => ({
     state: "disconnected",
     participants: [],
     audioBlocked: false,
+    watching: false,
     systemAudio: false,
   },
   rooms: [],
@@ -76,7 +76,6 @@ export const useApp = create<State>(() => ({
   memberVolumes: {},
   voiceVolume: 1,
   screenVolume: 1,
-  watching: true,
   systemAudio: false,
   audioCompatibility: false,
   sources: [],

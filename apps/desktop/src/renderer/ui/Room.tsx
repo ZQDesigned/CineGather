@@ -20,7 +20,6 @@ import {
   MicOff,
   Settings,
   Eye,
-  EyeOff,
   LogOut,
   MessageCircle,
 } from "lucide-react";
@@ -138,7 +137,7 @@ export function Room() {
       <div className="room-layout">
         <div className="view-column">
           <div
-            className={`stage ${app.media.sharer ? "has-video" : ""}`}
+            className={`stage ${app.media.sharer?.hasVideo ? "has-video" : ""}`}
             ref={stage}
             onDoubleClick={(event) => {
               if (
@@ -171,6 +170,30 @@ export function Room() {
                 </span>
               </div>
             )}
+            {otherSharing && !app.media.watching && (
+              <div className="stage-empty stage-join">
+                <div className="stage-icon">
+                  <ScreenShare size={46} strokeWidth={1.3} />
+                </div>
+                <h2>{app.media.sharer!.name} 正在共享</h2>
+                <Button
+                  type="primary"
+                  disabled={!connected}
+                  onClick={() => actions.media.watch(true)}
+                >
+                  <Eye size={17} />
+                  加入观看
+                </Button>
+              </div>
+            )}
+            {app.media.sharer?.local && !app.media.sharer.hasVideo && (
+              <div className="stage-empty">
+                <div className="stage-icon">
+                  <ScreenShare size={46} strokeWidth={1.3} />
+                </div>
+                <h2>你正在共享屏幕</h2>
+              </div>
+            )}
             {app.media.sharer && (
               <div className="video-label">
                 <span className="live-dot" />
@@ -183,19 +206,21 @@ export function Room() {
                 )}
               </div>
             )}
-            {!sharingOwnScreen && capabilities().fullscreen && (
-              <Tooltip title="全屏画面">
-                <Button
-                  type="text"
-                  className="stage-fullscreen"
-                  title="全屏画面"
-                  aria-label="全屏画面"
-                  onClick={fullscreen}
-                >
-                  <Maximize size={17} />
-                </Button>
-              </Tooltip>
-            )}
+            {!sharingOwnScreen &&
+              (!otherSharing || app.media.watching) &&
+              capabilities().fullscreen && (
+                <Tooltip title="全屏画面">
+                  <Button
+                    type="text"
+                    className="stage-fullscreen"
+                    title="全屏画面"
+                    aria-label="全屏画面"
+                    onClick={fullscreen}
+                  >
+                    <Maximize size={17} />
+                  </Button>
+                </Tooltip>
+              )}
           </div>
           {app.shareState === "active" && (
             <Alert
@@ -334,19 +359,18 @@ export function Room() {
                       : "共享屏幕"}
               </span>
             </Button>
-            <Button
-              type="text"
-              aria-pressed={app.watching}
-              className="control-button"
-              disabled={!app.media.sharer || app.media.sharer.local}
-              onClick={() => {
-                actions.media.watch(!app.watching);
-                update({ watching: !app.watching });
-              }}
-            >
-              {app.watching ? <Eye size={21} /> : <EyeOff size={21} />}
-              <span>{app.watching ? "暂停观看" : "恢复观看"}</span>
-            </Button>
+            {otherSharing && app.media.watching && (
+              <Button
+                type="text"
+                aria-pressed
+                className="control-button"
+                disabled={!connected}
+                onClick={() => actions.media.watch(false)}
+              >
+                <Eye size={21} />
+                <span>暂停观看</span>
+              </Button>
+            )}
             <span className="control-spacer" />
             <Button
               danger
