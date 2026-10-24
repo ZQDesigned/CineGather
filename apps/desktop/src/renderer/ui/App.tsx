@@ -24,6 +24,7 @@ import { AppSurface } from "./styles";
 import { hasAdminAccess } from "@cinegather/contracts";
 import { capabilities } from "../platform";
 import { matchesShortcut } from "../../shared/shortcuts";
+import { buildMemberOverlay } from "../../shared/member-overlay";
 import { hasIncomingRequests } from "../friends";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
@@ -62,6 +63,24 @@ export function App() {
     return () => window.removeEventListener("hashchange", changed);
   }, []);
   useEffect(() => setHome(false), [app.room?.id]);
+  useEffect(() => {
+    const bridge = window.desktop?.memberOverlay;
+    if (!bridge) return;
+    let previous: string | undefined;
+    const publish = () => {
+      const snapshot = buildMemberOverlay(useApp.getState());
+      const serialized = JSON.stringify(snapshot);
+      if (previous === serialized) return;
+      previous = serialized;
+      void bridge.publish(snapshot).catch(actions.report);
+    };
+    const unsubscribe = useApp.subscribe(publish);
+    publish();
+    return () => {
+      unsubscribe();
+      void bridge.publish(null).catch(() => {});
+    };
+  }, []);
   useEffect(() => {
     let dispose: (() => void) | undefined;
     let ended = false;

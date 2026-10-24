@@ -16,7 +16,11 @@ export default defineConfig({
       externalizeDeps: false,
       rollupOptions: {
         external: ["electron"],
-        output: { format: "cjs", entryFileNames: "index.cjs" },
+        input: {
+          index: resolve("src/preload/index.ts"),
+          "member-overlay": resolve("src/preload/member-overlay.ts"),
+        },
+        output: { format: "cjs", entryFileNames: "[name].cjs" },
       },
     },
   },

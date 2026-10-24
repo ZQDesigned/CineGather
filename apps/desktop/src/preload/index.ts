@@ -2,6 +2,10 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  memberOverlay: {
+    publish: (snapshot) =>
+      ipcRenderer.invoke("desktop:overlay-state", snapshot),
+  },
   ...(process.platform === "win32"
     ? {
         processAudio: {

@@ -1,4 +1,14 @@
-import { App, Select, Checkbox, Progress, Form, Tabs, Alert } from "antd";
+import {
+  App,
+  Select,
+  Checkbox,
+  Progress,
+  Form,
+  Tabs,
+  Alert,
+  Switch,
+  Slider,
+} from "antd";
 import { Button, Input } from "./Controls";
 import { useEffect, useRef, useState } from "react";
 import { Headphones, Mic, Volume2, Monitor, Check, Server } from "lucide-react";
@@ -12,6 +22,7 @@ import {
 import { ModalShell, useDialogOpen } from "./Modal";
 import { ShortcutRecorder } from "./ShortcutRecorder";
 import { serverOrigin, verifyServer } from "../server-address";
+import { defaultOverlayPreferences } from "../../shared/settings";
 import { capabilities } from "../platform";
 import { AccountForm } from "./AccountForm";
 import { UpdatePanel } from "./Updates";
@@ -294,7 +305,13 @@ export function Settings() {
             <Button
               type="primary"
               htmlType="submit"
-              form={tab === "audio" ? "audio-settings" : "sharing-settings"}
+              form={
+                tab === "audio"
+                  ? "audio-settings"
+                  : tab === "overlay"
+                    ? "overlay-settings"
+                    : "sharing-settings"
+              }
               icon={<Check size={17} />}
             >
               保存设置
@@ -502,6 +519,89 @@ export function Settings() {
               </Form>
             ),
           },
+          ...(window.desktop?.memberOverlay
+            ? [
+                {
+                  key: "overlay",
+                  label: "成员浮层",
+                  children: (
+                    <Form
+                      id="overlay-settings"
+                      layout="vertical"
+                      onFinish={() =>
+                        void actions.run(() => actions.saveSettings(settings))
+                      }
+                    >
+                      <Form.Item label="显示房间成员浮层">
+                        <Switch
+                          aria-label="显示房间成员浮层"
+                          checked={
+                            (
+                              settings.memberOverlay ??
+                              defaultOverlayPreferences
+                            ).enabled
+                          }
+                          onChange={(enabled) =>
+                            change("memberOverlay", {
+                              ...(settings.memberOverlay ??
+                                defaultOverlayPreferences),
+                              enabled,
+                            })
+                          }
+                        />
+                      </Form.Item>
+                      <Form.Item label="浮层不透明度">
+                        <Slider
+                          ariaLabelForHandle="浮层不透明度"
+                          min={30}
+                          max={100}
+                          value={
+                            (
+                              settings.memberOverlay ??
+                              defaultOverlayPreferences
+                            ).opacity
+                          }
+                          onChange={(opacity) =>
+                            change("memberOverlay", {
+                              ...(settings.memberOverlay ??
+                                defaultOverlayPreferences),
+                              opacity,
+                            })
+                          }
+                          tooltip={{ formatter: (value) => `${value}%` }}
+                        />
+                      </Form.Item>
+                      <Form.Item label="浮层位置">
+                        <Select
+                          aria-label="浮层位置"
+                          value={
+                            (
+                              settings.memberOverlay ??
+                              defaultOverlayPreferences
+                            ).position
+                          }
+                          onChange={(position) =>
+                            change("memberOverlay", {
+                              ...(settings.memberOverlay ??
+                                defaultOverlayPreferences),
+                              position,
+                            })
+                          }
+                          options={[
+                            { value: "left-top", label: "左上角" },
+                            { value: "left-center", label: "左侧居中" },
+                            { value: "left-bottom", label: "左下角" },
+                            { value: "right-top", label: "右上角" },
+                            { value: "right-center", label: "右侧居中" },
+                            { value: "right-bottom", label: "右下角" },
+                          ]}
+                        />
+                      </Form.Item>
+                    </Form>
+                  ),
+                },
+              ]
+            : []),
           {
             key: "server",
             label: "自托管服务器",

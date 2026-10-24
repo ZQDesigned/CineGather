@@ -2,7 +2,13 @@ import { App as AntApp, ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import type { ReactNode } from "react";
 import { GlobalStyles, cinemaFont } from "./styles";
-export function UIProvider({ children }: { children: ReactNode }) {
+export function UIProvider({
+  children,
+  overlay = false,
+}: {
+  children: ReactNode;
+  overlay?: boolean;
+}) {
   return (
     <ConfigProvider
       locale={zhCN}
@@ -38,7 +44,7 @@ export function UIProvider({ children }: { children: ReactNode }) {
         },
       }}
     >
-      <GlobalStyles />
+      {!overlay && <GlobalStyles />}
       <AntApp
         message={{ maxCount: 3 }}
         notification={{ placement: "topRight", top: 48 }}

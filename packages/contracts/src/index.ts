@@ -224,8 +224,41 @@ export type CaptureSelection = {
   systemAudio: boolean;
 };
 export type NoiseReduction = "enhanced" | "basic" | "off";
+export type MemberOverlayPosition =
+  | "left-top"
+  | "left-center"
+  | "left-bottom"
+  | "right-top"
+  | "right-center"
+  | "right-bottom";
+export interface MemberOverlayPreferences {
+  position: MemberOverlayPosition;
+  enabled: boolean;
+  opacity: number;
+}
+export interface MemberOverlaySnapshot {
+  roomId: string;
+  roomName: string;
+  members: Array<{
+    id: string;
+    name: string;
+    local: boolean;
+    owner: boolean;
+    microphone: boolean;
+    speaking: boolean;
+    sharing: boolean;
+  }>;
+}
+export interface MemberOverlayView {
+  snapshot: MemberOverlaySnapshot | null;
+}
+export interface MemberOverlayBridge {
+  state(): Promise<MemberOverlayView>;
+  onChange(callback: (view: MemberOverlayView) => void): () => void;
+}
 export interface DesktopSettings {
   noiseReduction: NoiseReduction;
+  memberOverlay?: MemberOverlayPreferences;
   minimizeToTray: boolean;
   pushToTalk: boolean;
   pttShortcut: string;
@@ -236,6 +269,9 @@ export interface DesktopSettings {
 }
 export interface DesktopBridge {
   platform: string;
+  memberOverlay?: {
+    publish(snapshot: MemberOverlaySnapshot | null): Promise<void>;
+  };
   processAudio?: {
     start(): Promise<ProcessAudioStart>;
     stop(): Promise<void>;

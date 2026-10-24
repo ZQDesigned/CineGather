@@ -21,6 +21,8 @@ import { release } from "node:os";
 import { z } from "zod";
 import { allowedExternal, trustedURL, permissionAllowed } from "./security";
 import { defaultSettings, settingsSchema } from "./settings";
+import { MemberOverlay } from "./member-overlay";
+import { overlaySnapshotSchema } from "../shared/member-overlay";
 import { NativeCapture } from "./native-capture";
 import { leaseSchema } from "@cinegather/contracts";
 import { configureDisplayCapture } from "./capture";
@@ -43,6 +45,7 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 let win: BrowserWindow | undefined;
+let memberOverlay: MemberOverlay | undefined;
 let tray: Tray | undefined;
 let quitting = false;
 let sharing = false;
@@ -171,16 +174,23 @@ async function createWindow() {
       if (value) recording.candidate = { code: input.code, value };
     }
   });
+  win.on("move", () => memberOverlay?.relayout());
   win.on("blur", () => finishRecording());
   win.on("hide", () => finishRecording());
   win.webContents.on("did-start-navigation", () => finishRecording());
   win.webContents.on(
     "did-start-navigation",
     (_event, _url, inPlace, mainFrame) => {
-      if (mainFrame && !inPlace) windowsAudio?.stop();
+      if (mainFrame && !inPlace) {
+        windowsAudio?.stop();
+        memberOverlay?.publish(null);
+      }
     },
   );
-  win.on("closed", () => windowsAudio?.stop());
+  win.on("closed", () => {
+    windowsAudio?.stop();
+    memberOverlay?.publish(null);
+  });
   win.webContents.on("will-navigate", (event, url) => {
     if (!trustedURL(url, devURL)) event.preventDefault();
   });
@@ -198,6 +208,7 @@ async function createWindow() {
     windowsAudio?.stop();
     void nativeCapture?.stop().catch(() => {});
     sharing = false;
+    memberOverlay?.publish(null);
     updateTray();
   });
   if (devURL) await win.loadURL(devURL);
@@ -229,6 +240,9 @@ function registerIPC() {
       return run(input);
     });
   }
+  handle("desktop:overlay-state", (input) =>
+    memberOverlay?.publish(overlaySnapshotSchema.nullable().parse(input)),
+  );
   handle("desktop:update-status", () => updates!.controller.snapshot());
   handle("desktop:update-require", (input) => {
     const value = z
@@ -287,7 +301,11 @@ function registerIPC() {
             fetchWindowIcons: false,
           })
         )
-          .filter((source) => source.id !== win?.getMediaSourceId())
+          .filter(
+            (source) =>
+              source.id !== win?.getMediaSourceId() &&
+              source.id !== memberOverlay?.sourceId(),
+          )
           .map((source) => ({
             id: source.id,
             name: source.name,
@@ -410,6 +428,8 @@ function registerIPC() {
     }
     await writeFile(settingsPath(), JSON.stringify(next), { mode: 0o600 });
     settings = next;
+    memberOverlay?.configure(next.memberOverlay);
+    updateTray();
   });
   handle("desktop:sharing", (input) => {
     sharing = z.boolean().parse(input);
@@ -579,6 +599,7 @@ else {
     }
   });
   app.on("before-quit", (event) => {
+    memberOverlay?.destroy();
     windowsAudio?.stop();
     if (nativeCapture && !shutdownStarted) {
       event.preventDefault();
@@ -664,11 +685,14 @@ else {
           globalHold?.release();
         },
       );
+      memberOverlay = new MemberOverlay(() => win, devURL);
+      memberOverlay.configure(settings.memberOverlay);
       registerIPC();
       capturePermissions();
       powerMonitor.on("suspend", () => {
         windowsAudio?.stop();
         suspended = true;
+        memberOverlay?.block(true);
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
         sendAction("stop-share");
@@ -676,10 +700,12 @@ else {
       });
       powerMonitor.on("resume", () => {
         suspended = false;
+        memberOverlay?.block(screenLocked);
       });
       powerMonitor.on("lock-screen", () => {
         windowsAudio?.stop();
         screenLocked = true;
+        memberOverlay?.block(true);
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
         sendAction("stop-share");
@@ -687,6 +713,7 @@ else {
       });
       powerMonitor.on("unlock-screen", () => {
         screenLocked = false;
+        memberOverlay?.block(suspended);
       });
       const icon = nativeImage.createFromPath(
         join(__dirname, "../../resources/tray.png"),
