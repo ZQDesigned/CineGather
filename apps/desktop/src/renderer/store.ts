@@ -46,6 +46,7 @@ interface State {
   screenVolume: number;
   watching: boolean;
   systemAudio: boolean;
+  audioCompatibility: boolean;
   sources: CaptureSource[];
   invite?: string;
   inviteId?: string;
@@ -73,6 +74,7 @@ export const useApp = create<State>(() => ({
   screenVolume: 1,
   watching: true,
   systemAudio: false,
+  audioCompatibility: false,
   sources: [],
   joinValue: "",
 }));

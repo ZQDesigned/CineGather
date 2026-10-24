@@ -34,6 +34,10 @@ import { parseInvitation } from "@cinegather/client-core";
 import { DialogLifecycle, ModalShell, useDialogOpen } from "./Modal";
 import { useSourcePreviews } from "./useSourcePreviews";
 import { capabilities } from "../platform";
+import {
+  deviceAudioTitle,
+  deviceAudioDescription,
+} from "../audio-compatibility";
 export function Dialogs() {
   const modal = useApp((s) => s.modal);
   const [shown, setShown] = useState<Modal>(modal);
@@ -301,13 +305,15 @@ function SourcePicker() {
   );
   const selectedScreen =
     app.sources.find((s) => s.id === selected)?.kind === "screen";
-  const audioSupported =
-    app.sources.find((s) => s.id === selected)?.audioSupported !== false;
+  const deviceAudio =
+    window.desktop?.platform === "win32" &&
+    app.sources.find((s) => s.id === selected)?.audioIsolationSupported ===
+      false;
   const choose = () =>
     void actions.run(() =>
       actions.chooseSource({
         sourceId: selected,
-        systemAudio: app.systemAudio && audioSupported,
+        systemAudio: app.systemAudio,
       }),
     );
   const sources = (category: string) => {
@@ -462,12 +468,11 @@ function SourcePicker() {
       )}
       <div className="capture-audio">
         <Checkbox
-          disabled={!audioSupported}
-          checked={app.systemAudio && audioSupported}
+          checked={app.systemAudio}
           onChange={(e) => update({ systemAudio: e.target.checked })}
         >
-          {!audioSupported
-            ? "此系统不支持应用声音隔离（需 Windows 10 2004 或更新版本）"
+          {deviceAudio
+            ? "共享设备声音（兼容模式）"
             : native || window.desktop?.platform === "win32"
               ? selectedScreen
                 ? "共享系统声音（排除映聚）"
@@ -476,6 +481,15 @@ function SourcePicker() {
                 ? "共享声音"
                 : "共享系统声音"}
         </Checkbox>
+        {deviceAudio && app.systemAudio && (
+          <Alert
+            className="capture-audio-compatibility"
+            type="warning"
+            showIcon
+            title={deviceAudioTitle}
+            description={deviceAudioDescription}
+          />
+        )}
       </div>
     </ModalShell>
   );

@@ -188,7 +188,7 @@ export type CaptureSource = {
   kind: "screen" | "window";
   application?: string;
   applicationId?: string;
-  audioSupported?: boolean;
+  audioIsolationSupported?: boolean;
 };
 export type CaptureThumbnail = { id: string; thumbnail: string };
 export type CaptureSelection = {
@@ -209,7 +209,7 @@ export interface DesktopSettings {
 export interface DesktopBridge {
   platform: string;
   processAudio?: {
-    start(): Promise<string>;
+    start(): Promise<ProcessAudioStart>;
     stop(): Promise<void>;
     acknowledge(sessionId: string, sequence: number): void;
     onData(callback: (packet: ProcessAudioPacket) => void): () => void;
@@ -250,6 +250,10 @@ export interface ProcessAudioPacket {
   sequence: number;
   data: Uint8Array;
   timestampMs: number;
+}
+export interface ProcessAudioStart {
+  sessionId: string;
+  mode: "isolated" | "device";
 }
 
 export interface UpdateStatus {

@@ -18,14 +18,21 @@ function packet(frames = 480, timestamp = 1230000n) {
   return data;
 }
 function fixture(supported = true, timeoutMs = 1000) {
-  const child = Object.assign(new EventEmitter(), {
-    stdout: new PassThrough(),
-    stderr: new PassThrough(),
-    kill: mock(() => true),
-  });
+  const createChild = () =>
+    Object.assign(new EventEmitter(), {
+      stdout: new PassThrough(),
+      stderr: new PassThrough(),
+      kill: mock(() => true),
+    });
+  const child = createChild();
+  const children = [child];
+  let starts = 0;
   const launch = mock(
-    (_executable: string, _args: string[], _options: unknown) =>
-      child as unknown as ChildProcessWithoutNullStreams,
+    (_executable: string, _args: string[], _options: unknown) => {
+      const next = starts++ === 0 ? child : createChild();
+      if (next !== child) children.push(next);
+      return next as unknown as ChildProcessWithoutNullStreams;
+    },
   );
   const packets: ProcessAudioPacket[] = [];
   const failed = mock(() => {});
@@ -38,7 +45,7 @@ function fixture(supported = true, timeoutMs = 1000) {
     spawn: launch as unknown as typeof spawn,
     timeoutMs,
   });
-  return { audio, child, launch, packets, failed };
+  return { audio, child, children, launch, packets, failed };
 }
 test("WASAPI modes use selected HWND or exclude our process tree, never a renderer-supplied PID", () => {
   expect(audioTarget("window:4294967298:0")).toEqual({
@@ -83,7 +90,8 @@ test("one-shot display grant, Windows READY line endings, backpressure and stop/
   const first = packet();
   child.stdout.write(first.subarray(0, 8)); // stdout may arrive before stderr READY.
   child.stderr.write("READY\r\n");
-  const id = await started;
+  const { sessionId: id, mode } = await started;
+  expect(mode).toBe("isolated");
   child.stdout.write(first.subarray(8));
   for (let i = 0; i < 10; ++i) child.stdout.write(packet());
   expect(packets).toHaveLength(4);
@@ -106,33 +114,89 @@ test("one-shot display grant, Windows READY line endings, backpressure and stop/
   expect(failed).not.toHaveBeenCalled();
   await expect(audio.start()).rejects.toThrow("重新选择");
 });
-test("unsupported systems, absent consent, startup failure, timeout and cancel never fall back to system mix", async () => {
+test("unsupported isolation uses device loopback and reports compatibility mode", async () => {
   const unsupported = fixture(false);
   unsupported.audio.grant({ sourceId: "screen:0:0", systemAudio: true });
-  await expect(unsupported.audio.start()).rejects.toThrow("Windows");
-  expect(unsupported.launch).not.toHaveBeenCalled();
+  const started = unsupported.audio.start();
+  unsupported.child.stderr.write("READY\r\n");
+  await expect(started).resolves.toMatchObject({
+    mode: "device",
+    sessionId: expect.any(String),
+  });
+  expect(unsupported.launch.mock.calls[0]?.[1]).toEqual(["device", "0", "123"]);
+  unsupported.audio.stop();
+});
+test("an unavailable process interface retries once using device audio; stale child events cannot stop it", async () => {
+  const f = fixture();
+  f.audio.grant({ sourceId: "window:456:0", systemAudio: true });
+  const started = f.audio.start();
+  f.child.stderr.write("ERROR activate-result 80070057\r\n");
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(f.launch).toHaveBeenCalledTimes(2);
+  expect(f.launch.mock.calls[1]?.[1]).toEqual(["device", "456", "123"]);
+  f.child.emit("exit", 1);
+  f.children[1]!.stderr.write("READY\n");
+  await expect(started).resolves.toMatchObject({ mode: "device" });
+  expect(f.failed).not.toHaveBeenCalled();
+  f.audio.stop();
+});
+test("device audio still requires explicit consent; cancellation, closed windows and helper load errors never broaden capture", async () => {
   const noAudio = fixture();
   noAudio.audio.grant({ sourceId: "window:2:0", systemAudio: false });
   await expect(noAudio.audio.start()).rejects.toThrow("重新选择");
-  for (const mode of ["error", "timeout", "cancel"] as const) {
+  const unsupportedNoConsent = fixture(false);
+  await expect(unsupportedNoConsent.audio.start()).rejects.toThrow("重新选择");
+  expect(unsupportedNoConsent.launch).not.toHaveBeenCalled();
+  for (const mode of [
+    "window",
+    "process",
+    "cancel",
+    "load",
+    "denied",
+  ] as const) {
     const f = fixture(true, 10);
     f.audio.grant({ sourceId: "screen:0:0", systemAudio: true });
     const promise = f.audio.start();
-    const rejected = expect(promise).rejects.toThrow();
-    if (mode === "error") f.child.stderr.write("ERROR initialize 80070005\r\n");
+    void promise.catch(() => {});
+    if (mode === "window" || mode === "process")
+      f.child.stderr.write(`ERROR ${mode} 80070005\r\n`);
     if (mode === "cancel") f.audio.stop();
-    await rejected;
+    if (mode === "load") f.child.emit("error", new Error("ENOENT"));
+    if (mode === "denied")
+      f.child.stderr.write("ERROR activate-result 80070005\n");
+    await expect(promise).rejects.toThrow();
+    expect(f.launch).toHaveBeenCalledTimes(1);
     expect(f.child.kill).toHaveBeenCalledTimes(1);
   }
+});
+test("isolation timeout tries device mode only once, and device failure stops instead of retrying forever", async () => {
+  const f = fixture(true, 5);
+  f.audio.grant({ sourceId: "screen:0:0", systemAudio: true });
+  await expect(f.audio.start()).rejects.toThrow();
+  expect(f.launch).toHaveBeenCalledTimes(2);
+  expect(f.children.every((child) => child.kill.mock.calls.length === 1)).toBe(
+    true,
+  );
+});
+test("cancelling between isolation failure and retry cannot start device capture", async () => {
+  const f = fixture();
+  f.audio.grant({ sourceId: "window:456:0", systemAudio: true });
+  const promise = f.audio.start();
+  void promise.catch(() => {});
+  f.child.stderr.write("ERROR activate-result 80070057\n");
+  f.audio.stop();
+  await expect(promise).rejects.toThrow();
+  expect(f.launch).toHaveBeenCalledTimes(1);
 });
 test("a helper failure after startup notifies the active sharing session", async () => {
   const f = fixture();
   f.audio.grant({ sourceId: "window:456:0", systemAudio: true });
   const promise = f.audio.start();
   f.child.stderr.write("READY\n");
-  const id = await promise;
+  const { sessionId: id } = await promise;
   f.child.emit("exit", 1);
   expect(f.failed).toHaveBeenCalledWith(id, expect.stringContaining("中断"));
+  expect(f.launch).toHaveBeenCalledTimes(1);
 });
 test("stereo samples keep channel separation, fill underruns with silence and discard old backlog", () => {
   const queue = new PcmQueue();

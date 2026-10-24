@@ -116,28 +116,47 @@ static int failure(const char* stage, HRESULT hr) {
 int main(int argc, char** argv) {
   if (argc != 4) return failure("arguments", E_INVALIDARG);
   const bool include = std::strcmp(argv[1], "window") == 0;
-  if (!include && std::strcmp(argv[1], "screen") != 0) return failure("mode", E_INVALIDARG);
+  const bool deviceMode = std::strcmp(argv[1], "device") == 0;
+  if (!include && !deviceMode && std::strcmp(argv[1], "screen") != 0) return failure("mode", E_INVALIDARG);
   DWORD owner = static_cast<DWORD>(std::strtoul(argv[3], nullptr, 10));
   if (!owner) return failure("owner", E_INVALIDARG);
-  DWORD target = include ? windowProcess(reinterpret_cast<HWND>(std::strtoull(argv[2], nullptr, 10))) : owner;
-  if (!target || (include && descendant(target, owner))) return failure("window", E_ACCESSDENIED);
+  const auto window = std::strtoull(argv[2], nullptr, 10);
+  const bool hasWindow = include || (deviceMode && window != 0);
+  DWORD target = hasWindow ? windowProcess(reinterpret_cast<HWND>(window)) : owner;
+  if (!target || (hasWindow && descendant(target, owner))) return failure("window", E_ACCESSDENIED);
   HANDLE ownerProcess = OpenProcess(SYNCHRONIZE, FALSE, owner);
   HANDLE targetProcess = OpenProcess(SYNCHRONIZE, FALSE, target);
   if (!ownerProcess || !targetProcess) return failure("process", HRESULT_FROM_WIN32(GetLastError()));
   HRESULT hr = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   if (FAILED(hr)) return failure("com", hr);
-  auto* activation = new Activation();
-  ProcessActivation parameters{1, target, include ? 0u : 1u};
-  PROPVARIANT variant{};
-  variant.vt = VT_BLOB;
-  variant.blob.cbSize = sizeof(parameters);
-  variant.blob.pBlobData = reinterpret_cast<BYTE*>(&parameters);
+  Activation* activation = nullptr;
   IActivateAudioInterfaceAsyncOperation* operation = nullptr;
-  hr = ActivateAudioInterfaceAsync(L"VAD\\Process_Loopback", __uuidof(IAudioClient), &variant, activation, &operation);
-  if (FAILED(hr)) return failure("activate", hr);
-  if (WaitForSingleObject(activation->completed, 5000) != WAIT_OBJECT_0) return failure("timeout", E_ABORT);
-  if (FAILED(activation->result) || !activation->client) return failure("activate-result", activation->result);
-  IAudioClient* audio = activation->client;
+  IAudioClient* audio = nullptr;
+  if (deviceMode) {
+    IMMDeviceEnumerator* enumerator = nullptr;
+    IMMDevice* endpoint = nullptr;
+    hr = CoCreateInstance(__uuidof(MMDeviceEnumerator), nullptr, CLSCTX_ALL, __uuidof(IMMDeviceEnumerator), reinterpret_cast<void**>(&enumerator));
+    if (FAILED(hr)) return failure("device-enumerator", hr);
+    hr = enumerator->GetDefaultAudioEndpoint(eRender, eConsole, &endpoint);
+    enumerator->Release();
+    if (FAILED(hr)) return failure("device-endpoint", hr);
+    hr = endpoint->Activate(__uuidof(IAudioClient), CLSCTX_ALL, nullptr, reinterpret_cast<void**>(&audio));
+    endpoint->Release();
+    if (FAILED(hr)) return failure("device-activate", hr);
+  } else {
+    activation = new Activation();
+    ProcessActivation parameters{1, target, include ? 0u : 1u};
+    PROPVARIANT variant{};
+    variant.vt = VT_BLOB;
+    variant.blob.cbSize = sizeof(parameters);
+    variant.blob.pBlobData = reinterpret_cast<BYTE*>(&parameters);
+    hr = ActivateAudioInterfaceAsync(L"VAD\\Process_Loopback", __uuidof(IAudioClient), &variant, activation, &operation);
+    if (FAILED(hr)) return failure("activate", hr);
+    if (WaitForSingleObject(activation->completed, 5000) != WAIT_OBJECT_0) return failure("timeout", E_ABORT);
+    if (FAILED(activation->result) || !activation->client) return failure("activate-result", activation->result);
+    audio = activation->client;
+    audio->AddRef();
+  }
   WAVEFORMATEX format{};
   format.wFormatTag = WAVE_FORMAT_PCM;
   format.nChannels = 2;
@@ -148,11 +167,13 @@ int main(int argc, char** argv) {
   HANDLE ready = CreateEventW(nullptr, FALSE, FALSE, nullptr);
   HANDLE stop = CreateEventW(nullptr, TRUE, FALSE, nullptr);
   hr = audio->Initialize(AUDCLNT_SHAREMODE_SHARED,
-    AUDCLNT_STREAMFLAGS_LOOPBACK | AUDCLNT_STREAMFLAGS_EVENTCALLBACK | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
+    AUDCLNT_STREAMFLAGS_LOOPBACK | (deviceMode ? 0 : AUDCLNT_STREAMFLAGS_EVENTCALLBACK) | AUDCLNT_STREAMFLAGS_AUTOCONVERTPCM,
     0, 0, &format, nullptr);
   if (FAILED(hr)) return failure("initialize", hr);
-  hr = audio->SetEventHandle(ready);
-  if (FAILED(hr)) return failure("event", hr);
+  if (!deviceMode) {
+    hr = audio->SetEventHandle(ready);
+    if (FAILED(hr)) return failure("event", hr);
+  }
   IAudioCaptureClient* capture = nullptr;
   hr = audio->GetService(__uuidof(IAudioCaptureClient), reinterpret_cast<void**>(&capture));
   if (FAILED(hr)) return failure("service", hr);
@@ -171,11 +192,12 @@ int main(int argc, char** argv) {
   bool running = true;
   int code = 0;
   while (running) {
-    DWORD event = WaitForMultipleObjects(4, events, FALSE, 2000);
+    // Poll endpoint loopback too, covering systems before event-driven loopback.
+    DWORD event = WaitForMultipleObjects(deviceMode ? 3 : 4, events, FALSE, deviceMode ? 10 : 2000);
     if (event == WAIT_OBJECT_0 || event == WAIT_OBJECT_0 + 1) break;
     if (event == WAIT_OBJECT_0 + 2) { code = failure("target-closed", E_ABORT); break; }
-    if (event == WAIT_TIMEOUT) continue;
-    if (event != WAIT_OBJECT_0 + 3) { code = failure("wait", E_FAIL); break; }
+    if (event == WAIT_TIMEOUT && !deviceMode) continue;
+    if (event != WAIT_OBJECT_0 + 3 && !(deviceMode && event == WAIT_TIMEOUT)) { code = failure("wait", E_FAIL); break; }
     UINT32 frames = 0;
     while (SUCCEEDED(hr = capture->GetNextPacketSize(&frames)) && frames) {
       BYTE* data = nullptr;
@@ -195,8 +217,9 @@ int main(int argc, char** argv) {
   }
   audio->Stop();
   capture->Release();
-  operation->Release();
-  activation->Release();
+  audio->Release();
+  if (operation) operation->Release();
+  if (activation) activation->Release();
   CloseHandle(ready);
   CloseHandle(ownerProcess);
   CloseHandle(targetProcess);

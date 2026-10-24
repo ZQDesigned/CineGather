@@ -693,6 +693,13 @@ export const AppSurface = styled.div`
     min-height: 0;
     grid-template-rows: minmax(0, 1fr);
   }
+  .audio-compatibility-alert.ant-alert {
+    flex-shrink: 0;
+    margin-top: 12px;
+  }
+  .capture-audio-compatibility.ant-alert {
+    margin-top: 12px;
+  }
   .room-slot,
   .room-page,
   .view-column {

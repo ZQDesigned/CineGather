@@ -23,6 +23,10 @@ import {
 import { settingsSchema } from "../shared/settings";
 import { FriendRequests } from "./friends";
 import { ProcessAudio } from "./process-audio";
+import {
+  deviceAudioTitle,
+  deviceAudioDescription,
+} from "./audio-compatibility";
 import { version } from "../../package.json";
 import { versionBelow, clientPolicySchema } from "@cinegather/contracts";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
@@ -282,12 +286,28 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
         return;
       }
       if (window.desktop?.processAudio) {
+        const revision = state().shareRevision;
         await media.share(state().settings.quality, false);
-        if (shareSession.state !== "publishing") throw new Error("共享已取消");
-        if (state().systemAudio)
-          await media.publishShareAudio(
-            await processAudio.start(window.desktop.processAudio),
-          );
+        if (
+          shareSession.state !== "publishing" ||
+          state().shareRevision !== revision
+        )
+          throw new Error("共享已取消");
+        if (state().systemAudio) {
+          const audio = await processAudio.start(window.desktop.processAudio);
+          await media.publishShareAudio(audio.track);
+          if (
+            shareSession.state !== "publishing" ||
+            state().shareRevision !== revision
+          )
+            throw new Error("共享已取消");
+          if (audio.mode === "device")
+            update({
+              audioCompatibility: true,
+              warningTitle: deviceAudioTitle,
+              warning: deviceAudioDescription,
+            });
+        }
       } else if (capabilities().sourcePicker)
         await media.share(state().settings.quality, state().systemAudio);
       else await media.publishBrowserShare(state().settings.quality);
@@ -296,6 +316,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     }
   },
   stop: async () => {
+    update({ audioCompatibility: false });
     await processAudio.stop();
     await window.desktop?.stopNativeCapture?.();
     await media.stopShare();

@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import type {
   CaptureSelection,
   ProcessAudioPacket,
+  ProcessAudioStart,
 } from "@cinegather/contracts";
 
 export const supportsProcessAudio = (release: string) => {
@@ -48,6 +49,7 @@ export class AudioPackets {
 }
 
 export class WindowsAudio {
+  private generation = 0;
   private selected?: CaptureSelection & { expiresAt: number };
   private active?: {
     id: string;
@@ -79,18 +81,37 @@ export class WindowsAudio {
   }
   async start() {
     const selection = this.selected;
-    this.selected = undefined;
     this.stop();
-    if (!this.options.supported)
-      throw new Error(
-        "此系统不支持应用声音隔离，请更新 Windows，或关闭共享声音后重试",
-      );
+    const generation = this.generation;
     if (!selection || selection.expiresAt <= Date.now())
       throw new Error("请重新选择共享来源后开启声音");
     const target = audioTarget(selection.sourceId);
+    if (!this.options.supported)
+      return this.attempt(target, "device", generation);
+    try {
+      return await this.attempt(target, "isolated", generation);
+    } catch (error) {
+      if (
+        !(error instanceof IsolationUnavailable) ||
+        generation !== this.generation
+      )
+        throw error;
+      return this.attempt(target, "device", generation);
+    }
+  }
+  private attempt(
+    target: ReturnType<typeof audioTarget>,
+    mode: ProcessAudioStart["mode"],
+    generation: number,
+  ): Promise<ProcessAudioStart> {
+    if (generation !== this.generation) throw new Error("声音采集已停止");
     const child = (this.options.spawn ?? spawn)(
       this.options.executable,
-      [target.mode, target.window, String(this.options.ownerPid)],
+      [
+        mode === "device" ? "device" : target.mode,
+        target.window,
+        String(this.options.ownerPid),
+      ],
       { windowsHide: true, stdio: "pipe" },
     );
     const id = randomUUID();
@@ -99,17 +120,21 @@ export class WindowsAudio {
     let sequence = 0,
       ready = false,
       status = "";
-    return new Promise<string>((resolve, reject) => {
+    return new Promise<ProcessAudioStart>((resolve, reject) => {
       const timer = setTimeout(
-        () => fail("音频采集启动超时，请关闭共享声音后重试"),
+        () => fail("音频采集启动超时，请检查系统输出设备后重试", true),
         this.options.timeoutMs ?? 7000,
       );
-      const fail = (message: string) => {
+      const fail = (message: string, unavailable = false) => {
         if (this.active?.id !== id) return;
         this.active = undefined;
         clearTimeout(timer);
         child.kill();
-        reject(new Error(message));
+        reject(
+          !ready && mode === "isolated" && unavailable
+            ? new IsolationUnavailable(message)
+            : new Error(message),
+        );
         if (ready) this.options.failed(id, message);
       };
       this.active = {
@@ -130,13 +155,33 @@ export class WindowsAudio {
       child.stderr.on("data", (data: Buffer) => {
         status += data.toString("utf8");
         if (status.length > 4096 || status.includes("ERROR ")) {
-          fail("应用声音采集失败，请检查所选应用和系统版本后重试");
+          const stage = /^ERROR ([\w-]+) /m.exec(status)?.[1];
+          const code = /^ERROR [\w-]+ ([\da-f]{8})/im
+            .exec(status)?.[1]
+            ?.toLowerCase();
+          fail(
+            mode === "device"
+              ? "设备声音采集失败，请检查系统输出设备后重试"
+              : "应用声音采集失败，请检查所选应用和系统版本后重试",
+            code !== "80070005" &&
+              code !== "800704c7" &&
+              stage !== undefined &&
+              [
+                "activate",
+                "activate-result",
+                "initialize",
+                "event",
+                "service",
+                "start",
+                "timeout",
+              ].includes(stage),
+          );
           return;
         }
         if (!ready && /^READY\r?$/m.test(status) && this.active?.id === id) {
           ready = true;
           clearTimeout(timer);
-          resolve(id);
+          resolve({ sessionId: id, mode });
         }
       });
       child.stdout.on("data", (chunk: Buffer) => {
@@ -161,6 +206,7 @@ export class WindowsAudio {
     });
   }
   stop() {
+    ++this.generation;
     this.selected = undefined;
     const active = this.active;
     this.active = undefined;
@@ -170,3 +216,4 @@ export class WindowsAudio {
     active.child.kill();
   }
 }
+class IsolationUnavailable extends Error {}

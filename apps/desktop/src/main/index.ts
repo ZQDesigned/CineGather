@@ -294,7 +294,7 @@ function registerIPC() {
             thumbnail: source.thumbnail.toDataURL(),
             kind: source.id.startsWith("screen:") ? "screen" : "window",
             ...(process.platform === "win32"
-              ? { audioSupported: supportsProcessAudio(release()) }
+              ? { audioIsolationSupported: supportsProcessAudio(release()) }
               : {}),
           })),
   );
@@ -321,14 +321,6 @@ function registerIPC() {
       throw new Error("共享来源已消失，请重新选择");
     if (screenLocked || suspended || quitting)
       throw new Error("设备已锁定或休眠，请解锁后重新选择共享来源");
-    if (
-      choice.systemAudio &&
-      process.platform === "win32" &&
-      !supportsProcessAudio(release())
-    )
-      throw new Error(
-        "此系统不支持应用声音隔离，请更新 Windows，或关闭共享声音后重试",
-      );
     pending = { ...choice, expiresAt: Date.now() + 20_000 };
   });
   handle("desktop:native-start", (input) => {

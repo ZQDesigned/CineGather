@@ -81,9 +81,13 @@ export class ProcessAudio {
         if (id === sessionId && generation === this.generation)
           this.failed(message);
       });
-      sessionId = await bridge.start();
+      const started = await bridge.start();
+      sessionId = started.sessionId;
       current();
-      return destination.stream.getAudioTracks()[0]!;
+      return {
+        track: destination.stream.getAudioTracks()[0]!,
+        mode: started.mode,
+      };
     } catch (error) {
       if (generation === this.generation) await this.stop();
       throw error;

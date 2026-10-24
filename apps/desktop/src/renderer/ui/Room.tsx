@@ -30,6 +30,10 @@ import * as actions from "../controller";
 import { Chat } from "./Chat";
 import { Member } from "./Member";
 import { capabilities } from "../platform";
+import {
+  deviceAudioTitle,
+  deviceAudioDescription,
+} from "../audio-compatibility";
 export function Room() {
   const app = useApp();
   const stage = useRef<HTMLDivElement>(null);
@@ -110,6 +114,15 @@ export function Room() {
           </Tooltip>
         </div>
       </div>
+      {app.audioCompatibility && sharing && (
+        <Alert
+          className="audio-compatibility-alert"
+          type="warning"
+          showIcon
+          title={deviceAudioTitle}
+          description={deviceAudioDescription}
+        />
+      )}
       <div className="room-layout">
         <div className="view-column">
           <div
