@@ -2,6 +2,7 @@ import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { spawnSync } from "node:child_process";
 
 const { version } = await Bun.file("apps/desktop/package.json").json();
 const platform = process.argv[2] ?? process.platform;
@@ -46,6 +47,28 @@ try {
   const updates = await page.evaluate(() => window.desktop!.updates!.status());
   expect(updates.mode).toBe(platform === "darwin" ? "notify" : "disabled");
   if (platform === "win32") {
+    const host = join(
+      packageDirectory,
+      "win-unpacked/resources/capture/CGProcessAudioHost.exe",
+    );
+    const probe = spawnSync(host, ["window", "0", String(process.pid)], {
+      encoding: "utf8",
+      windowsHide: true,
+      timeout: 10000,
+    });
+    expect(probe.error).toBeUndefined();
+    expect(probe.status).toBe(1);
+    expect(probe.stderr).toContain("ERROR window");
+    expect(
+      await page.evaluate(async () => {
+        try {
+          await window.desktop!.processAudio!.start();
+          return false;
+        } catch {
+          return true;
+        }
+      }),
+    ).toBe(true);
     // win-unpacked is deliberately not an installed NSIS application.
     expect(updates.status).toBe("disabled");
     expect(

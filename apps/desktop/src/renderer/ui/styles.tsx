@@ -923,9 +923,9 @@ export const AppSurface = styled.div`
   }
   .member {
     display: grid;
-    grid-template-columns: 32px minmax(0, 1fr) auto;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
     align-items: start;
-    gap: 9px;
+    column-gap: 12px;
     padding: 12px 1px;
   }
   .member.speaking > .ant-avatar {
@@ -1561,6 +1561,8 @@ export const AppSurface = styled.div`
     padding: 0 4px;
   }
   .member > .ant-avatar {
+    width: 40px;
+    height: 40px;
     flex-shrink: 0;
   }
   .volume .ant-slider {

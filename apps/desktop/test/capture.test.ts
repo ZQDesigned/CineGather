@@ -5,6 +5,7 @@ import type {
   DisplayMediaRequestHandlerOpts,
 } from "electron";
 import { configureDisplayCapture } from "../src/main/capture";
+import type { CaptureSelection } from "@cinegather/contracts";
 
 type Handler = NonNullable<
   Parameters<Session["setDisplayMediaRequestHandler"]>[0]
@@ -17,6 +18,8 @@ function capture(platform: NodeJS.Platform) {
     | { sourceId: string; systemAudio: boolean; expiresAt: number }
     | undefined;
   let sources = [source];
+  let trusted = true;
+  const grants: CaptureSelection[] = [];
   configureDisplayCapture(
     {
       setDisplayMediaRequestHandler(next, options) {
@@ -32,12 +35,17 @@ function capture(platform: NodeJS.Platform) {
         return next;
       },
       isTrustedRequest: (request) =>
-        request.securityOrigin === "app://cinegather",
+        trusted && request.securityOrigin === "app://cinegather",
       getSources: async () => sources,
+      grantAudio: (selection) => grants.push(selection),
     },
   );
   return {
     picker,
+    grants,
+    block() {
+      trusted = false;
+    },
     select(systemAudio = true, expiresAt = Date.now() + 20_000) {
       choice = { sourceId: source.id, systemAudio, expiresAt };
     },
@@ -62,14 +70,14 @@ function capture(platform: NodeJS.Platform) {
   };
 }
 
-test("Mac and Windows honor the in-app source and explicit audio choice without a second picker", async () => {
+test("in-app capture never grants Windows system loopback for an application window", async () => {
   for (const platform of ["darwin", "win32"] as const) {
     const broker = capture(platform);
     expect(broker.picker).toEqual({ useSystemPicker: false });
     broker.select();
     expect(await broker.request()).toEqual({
       video: source,
-      audio: "loopback",
+      ...(platform === "darwin" ? { audio: "loopback" } : {}),
     });
     expect(await broker.request()).toBeNull();
     broker.select(false);
@@ -79,6 +87,21 @@ test("Mac and Windows honor the in-app source and explicit audio choice without 
       video: source,
     });
   }
+});
+
+test("a lock during source lookup cannot grant native process audio", async () => {
+  const broker = capture("win32");
+  broker.select();
+  const request = broker.request();
+  broker.block();
+  expect(await request).toBeNull();
+  expect(broker.grants).toHaveLength(0);
+  const valid = capture("win32");
+  valid.select();
+  await valid.request();
+  expect(valid.grants).toHaveLength(1);
+  await valid.request();
+  expect(valid.grants).toHaveLength(1);
 });
 
 test("capture denies missing, expired, untrusted and disappeared selections without granting a different source", async () => {

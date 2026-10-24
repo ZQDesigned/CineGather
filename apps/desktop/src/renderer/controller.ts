@@ -21,6 +21,8 @@ import {
   platformSettings,
 } from "./platform";
 import { settingsSchema } from "../shared/settings";
+import { FriendRequests } from "./friends";
+import { ProcessAudio } from "./process-audio";
 import { version } from "../../package.json";
 import { versionBelow, clientPolicySchema } from "@cinegather/contracts";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
@@ -59,6 +61,12 @@ export const api = createApi(baseUrl, () => sessionToken, {
   },
   onUpdateRequired: requireClientUpdate,
 });
+const friendRequests = new FriendRequests(
+  () => sessionToken,
+  async () => unwrap(await api.GET("/api/v1/friends")).items,
+  (friends) => update({ friends }),
+);
+export const refreshFriends = () => friendRequests.refresh();
 async function checkClientPolicy() {
   try {
     const response = await fetch(`${baseUrl}/api/v1/client-policy`, {
@@ -98,6 +106,7 @@ export function report(error: unknown) {
   if (error instanceof ApiError && error.status === 401) {
     const connected = Boolean(sessionToken && state().room);
     sessionToken = undefined;
+    friendRequests.clear();
     localStorage.removeItem("cinegather.session");
     update({ user: undefined });
     if (connected) {
@@ -208,6 +217,10 @@ async function handleRemoteRemoval() {
   });
   await refreshRooms();
 }
+const processAudio = new ProcessAudio((message) => {
+  report(new Error(message));
+  void shareSession.stop().catch(report);
+});
 export const shareSession: ShareCoordinator = new ShareCoordinator({
   acquire: async () =>
     unwrap(
@@ -268,7 +281,14 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
         });
         return;
       }
-      if (capabilities().sourcePicker)
+      if (window.desktop?.processAudio) {
+        await media.share(state().settings.quality, false);
+        if (shareSession.state !== "publishing") throw new Error("共享已取消");
+        if (state().systemAudio)
+          await media.publishShareAudio(
+            await processAudio.start(window.desktop.processAudio),
+          );
+      } else if (capabilities().sourcePicker)
         await media.share(state().settings.quality, state().systemAudio);
       else await media.publishBrowserShare(state().settings.quality);
     } finally {
@@ -276,6 +296,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     }
   },
   stop: async () => {
+    await processAudio.stop();
     await window.desktop?.stopNativeCapture?.();
     await media.stopShare();
     await window.desktop?.cancelCapture();
@@ -368,6 +389,7 @@ export async function initialize() {
     await run(async () => {
       update({ user: unwrap(await api.GET("/api/v1/me")) });
       await refreshRooms();
+      await refreshFriends();
     });
   try {
     const hotkeys = await window.desktop?.hotkeyStatus?.();
@@ -392,9 +414,32 @@ export async function initialize() {
   const timer = setInterval(() => void syncRooms(), 2500);
   void checkClientPolicy();
   const policyTimer = setInterval(() => void checkClientPolicy(), 30000);
+  let refreshingFriends = false;
+  const syncFriends = async () => {
+    if (
+      refreshingFriends ||
+      !state().user ||
+      state().requiredUpdate ||
+      changingCredentials
+    )
+      return;
+    refreshingFriends = true;
+    try {
+      await refreshFriends();
+    } catch (error) {
+      if (error instanceof ApiError && error.status === 401) report(error);
+    } finally {
+      refreshingFriends = false;
+    }
+  };
+  const friendsTimer = setInterval(() => void syncFriends(), 5000);
+  const focus = () => void syncFriends();
+  window.addEventListener("focus", focus);
   return () => {
     clearInterval(timer);
     clearInterval(policyTimer);
+    clearInterval(friendsTimer);
+    window.removeEventListener("focus", focus);
     unsubscribe?.();
   };
 }
@@ -443,10 +488,12 @@ async function syncRooms() {
   }
 }
 async function acceptSession(data: { user: User; sessionToken: string }) {
+  friendRequests.clear();
   sessionToken = data.sessionToken;
   localStorage.setItem("cinegather.session", data.sessionToken);
   update({ user: data.user, modal: null, error: undefined });
   await refreshRooms();
+  await refreshFriends();
   if (state().joinValue) update({ modal: "join" });
 }
 export async function login(username: string, password: string) {
@@ -585,7 +632,10 @@ export async function ptt(
 }
 export async function chooseSource(selection?: CaptureSelection) {
   if (selection) await window.desktop?.selectSource(selection);
-  update({ modal: null });
+  update({
+    modal: null,
+    ...(selection ? { systemAudio: selection.systemAudio } : {}),
+  });
   const resolve = selectResolve;
   selectResolve = undefined;
   resolve?.(Boolean(selection));
@@ -684,6 +734,7 @@ export async function logout() {
   await roomSession.leave();
   unwrap(await api.DELETE("/api/v1/session"));
   sessionToken = undefined;
+  friendRequests.clear();
   localStorage.removeItem("cinegather.session");
   update({ user: undefined, rooms: [] });
 }

@@ -301,11 +301,13 @@ function SourcePicker() {
   );
   const selectedScreen =
     app.sources.find((s) => s.id === selected)?.kind === "screen";
+  const audioSupported =
+    app.sources.find((s) => s.id === selected)?.audioSupported !== false;
   const choose = () =>
     void actions.run(() =>
       actions.chooseSource({
         sourceId: selected,
-        systemAudio: app.systemAudio,
+        systemAudio: app.systemAudio && audioSupported,
       }),
     );
   const sources = (category: string) => {
@@ -460,16 +462,19 @@ function SourcePicker() {
       )}
       <div className="capture-audio">
         <Checkbox
-          checked={app.systemAudio}
+          disabled={!audioSupported}
+          checked={app.systemAudio && audioSupported}
           onChange={(e) => update({ systemAudio: e.target.checked })}
         >
-          {native
-            ? selectedScreen
-              ? "共享系统声音（排除映聚）"
-              : "共享此应用的声音"
-            : browser
-              ? "共享声音"
-              : "共享系统声音"}
+          {!audioSupported
+            ? "此系统不支持应用声音隔离（需 Windows 10 2004 或更新版本）"
+            : native || window.desktop?.platform === "win32"
+              ? selectedScreen
+                ? "共享系统声音（排除映聚）"
+                : "共享此应用的声音"
+              : browser
+                ? "共享声音"
+                : "共享系统声音"}
         </Checkbox>
       </div>
     </ModalShell>
@@ -477,18 +482,9 @@ function SourcePicker() {
 }
 function Friends() {
   const [user] = useState(() => useApp.getState().user!);
-  const [items, setItems] = useState<
-    {
-      userId: string;
-      displayName: string;
-      status: "pending" | "accepted";
-      incoming: boolean;
-    }[]
-  >([]);
+  const items = useApp((app) => app.friends);
   const [target, setTarget] = useState("");
-  const load = async () => {
-    setItems(unwrap(await actions.api.GET("/api/v1/friends")).items);
-  };
+  const load = actions.refreshFriends;
   useEffect(() => {
     void load().catch(actions.report);
   }, []);

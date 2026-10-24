@@ -91,6 +91,7 @@ export function Member({
         unwrap(
           await actions.api.POST("/api/v1/friends", { body: { userId: p.id } }),
         );
+        await actions.refreshFriends();
         update({ notice: "好友请求已发送" });
       } else if (key === "remove" && room.role === "owner") {
         unwrap(

@@ -9,6 +9,7 @@ type CaptureOptions = {
   isTrustedRequest(request: DisplayMediaRequestHandlerHandlerRequest): boolean;
   getSources(): Promise<{ id: string; name: string }[]>;
   platform: NodeJS.Platform;
+  grantAudio?(selection: CaptureSelection): void;
 };
 
 export function configureDisplayCapture(
@@ -20,6 +21,7 @@ export function configureDisplayCapture(
       const choice = options.takeSelection();
       if (
         !request.userGesture ||
+        !request.videoRequested ||
         !options.isTrustedRequest(request) ||
         !choice ||
         choice.expiresAt <= Date.now()
@@ -31,15 +33,20 @@ export function configureDisplayCapture(
         const source = (await options.getSources()).find(
           (source) => source.id === choice.sourceId,
         );
-        if (!source) {
+        if (
+          !source ||
+          choice.expiresAt <= Date.now() ||
+          !options.isTrustedRequest(request)
+        ) {
           callback(null);
           return;
         }
+        options.grantAudio?.(choice);
         callback({
           video: source,
           ...(choice.systemAudio &&
           request.audioRequested &&
-          ["win32", "darwin"].includes(options.platform)
+          options.platform === "darwin"
             ? { audio: "loopback" as const }
             : {}),
         });

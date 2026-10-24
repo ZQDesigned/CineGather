@@ -36,6 +36,19 @@ test("friends and owner moderation work across independent real room clients", a
     await guest(friend, "社交成员");
     await join(friend, invitation);
     await expect(page.locator(".members-list .member")).toHaveCount(2);
+    const avatarGap = await page
+      .locator(".member")
+      .first()
+      .evaluate((row) => {
+        const avatar = row
+          .querySelector(".ant-avatar")!
+          .getBoundingClientRect();
+        return (
+          row.querySelector(".member-main")!.getBoundingClientRect().left -
+          avatar.right
+        );
+      });
+    expect(avatarGap).toBeGreaterThanOrEqual(12);
     await expect(
       friend.getByRole("button", { name: "管理房间黑名单" }),
     ).toHaveCount(0);
@@ -48,11 +61,20 @@ test("friends and owner moderation work across independent real room clients", a
     await expect(
       page.getByRole("status").filter({ hasText: "好友请求已发送" }),
     ).toContainText("好友请求已发送");
+    await expect(
+      friend.locator(".friend-request-indicator .ant-badge-dot"),
+    ).toBeVisible({ timeout: 10000 });
+    await expect(
+      page.locator(".friend-request-indicator .ant-badge-dot"),
+    ).toHaveCount(0);
     await friend.getByRole("menuitem", { name: "好友", exact: true }).click();
     const friendId = await friend.locator(".identity-card code").textContent();
     await expect(friend.locator(".friend")).toContainText("社交房主");
     await friend.getByRole("button", { name: "接受", exact: true }).click();
     await expect(friend.locator(".friend")).toContainText("已成为好友");
+    await expect(
+      friend.locator(".friend-request-indicator .ant-badge-dot"),
+    ).toHaveCount(0);
     await friend.getByRole("button", { name: "关闭对话框" }).click();
     await page.getByRole("menuitem", { name: "好友", exact: true }).click();
     await expect(page.locator(".friend")).toContainText("社交成员");

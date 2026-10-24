@@ -2,6 +2,49 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  ...(process.platform === "win32"
+    ? {
+        processAudio: {
+          start: () => ipcRenderer.invoke("desktop:process-audio-start"),
+          stop: () => ipcRenderer.invoke("desktop:process-audio-stop"),
+          acknowledge: (sessionId: string, sequence: number) => {
+            ipcRenderer.send("desktop:process-audio-ack", {
+              sessionId,
+              sequence,
+            });
+          },
+          onData: (
+            callback: (
+              packet: import("@cinegather/contracts").ProcessAudioPacket,
+            ) => void,
+          ) => {
+            const listener = (
+              _event: Electron.IpcRendererEvent,
+              packet: import("@cinegather/contracts").ProcessAudioPacket,
+            ) => callback(packet);
+            ipcRenderer.on("desktop:process-audio-data", listener);
+            return () =>
+              ipcRenderer.removeListener(
+                "desktop:process-audio-data",
+                listener,
+              );
+          },
+          onError: (callback: (sessionId: string, message: string) => void) => {
+            const listener = (
+              _event: Electron.IpcRendererEvent,
+              sessionId: string,
+              message: string,
+            ) => callback(sessionId, message);
+            ipcRenderer.on("desktop:process-audio-error", listener);
+            return () =>
+              ipcRenderer.removeListener(
+                "desktop:process-audio-error",
+                listener,
+              );
+          },
+        },
+      }
+    : {}),
   updates: {
     requireUpdate: (minimumVersion, reason) =>
       ipcRenderer.invoke("desktop:update-require", { minimumVersion, reason }),

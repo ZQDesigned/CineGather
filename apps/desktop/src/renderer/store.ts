@@ -9,6 +9,7 @@ import type {
 } from "@cinegather/contracts";
 import type { MediaSummary } from "@cinegather/media-core";
 import { defaultSettings } from "../shared/settings";
+import type { Friend } from "./friends";
 export type Modal =
   | "create"
   | "join"
@@ -24,6 +25,7 @@ export const defaults = defaultSettings;
 interface State {
   requiredUpdate?: { minimumVersion: string; reason: string };
   user?: User;
+  friends: Friend[];
   registrationEnabled?: boolean;
   room?: RoomInfo;
   roomRevision: number;
@@ -62,6 +64,7 @@ export const useApp = create<State>(() => ({
     systemAudio: false,
   },
   rooms: [],
+  friends: [],
   modal: null,
   busy: false,
   cinema: false,

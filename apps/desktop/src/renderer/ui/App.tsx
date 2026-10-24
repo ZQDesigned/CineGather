@@ -24,6 +24,7 @@ import { AppSurface } from "./styles";
 import { hasAdminAccess } from "@cinegather/contracts";
 import { capabilities } from "../platform";
 import { matchesShortcut } from "../../shared/shortcuts";
+import { hasIncomingRequests } from "../friends";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
   authenticating: "正在验证身份",
@@ -208,7 +209,15 @@ export function App() {
             },
             {
               key: "friends",
-              icon: <Users size={18} />,
+              icon: (
+                <Badge
+                  className="friend-request-indicator"
+                  dot={Boolean(app.user) && hasIncomingRequests(app.friends)}
+                  aria-hidden="true"
+                >
+                  <Users size={18} />
+                </Badge>
+              ),
               label: "好友",
               disabled: !app.user,
               onClick: () => update({ modal: "friends" }),

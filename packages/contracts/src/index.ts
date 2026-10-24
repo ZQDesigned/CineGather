@@ -188,6 +188,7 @@ export type CaptureSource = {
   kind: "screen" | "window";
   application?: string;
   applicationId?: string;
+  audioSupported?: boolean;
 };
 export type CaptureThumbnail = { id: string; thumbnail: string };
 export type CaptureSelection = {
@@ -207,6 +208,13 @@ export interface DesktopSettings {
 }
 export interface DesktopBridge {
   platform: string;
+  processAudio?: {
+    start(): Promise<string>;
+    stop(): Promise<void>;
+    acknowledge(sessionId: string, sequence: number): void;
+    onData(callback: (packet: ProcessAudioPacket) => void): () => void;
+    onError(callback: (sessionId: string, message: string) => void): () => void;
+  };
   updates?: DesktopUpdates;
   nativeCapture?: boolean;
   startNativeCapture?(request: NativeCaptureRequest): Promise<void>;
@@ -236,6 +244,12 @@ export interface DesktopBridge {
     ) => void,
   ): () => void;
   setSharing(active: boolean): Promise<void>;
+}
+export interface ProcessAudioPacket {
+  sessionId: string;
+  sequence: number;
+  data: Uint8Array;
+  timestampMs: number;
 }
 
 export interface UpdateStatus {

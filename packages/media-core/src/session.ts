@@ -456,6 +456,42 @@ export class MediaSession {
       await this.room.localParticipant.setScreenShareEnabled(false);
     this.emit();
   }
+  async publishShareAudio(track: MediaStreamTrack) {
+    const room = this.room;
+    const video = room?.localParticipant.getTrackPublication(
+      Track.Source.ScreenShare,
+    )?.track;
+    if (
+      !room ||
+      room.state !== ConnectionState.Connected ||
+      !video ||
+      track.readyState !== "live"
+    ) {
+      track.stop();
+      throw new Error("共享已停止，请重新选择画面");
+    }
+    try {
+      await room.localParticipant.publishTrack(track, {
+        source: Track.Source.ScreenShareAudio,
+        dtx: false,
+        red: true,
+        forceStereo: true,
+      });
+      if (
+        this.room !== room ||
+        room.localParticipant.getTrackPublication(Track.Source.ScreenShare)
+          ?.track !== video ||
+        track.readyState !== "live"
+      ) {
+        await room.localParticipant.unpublishTrack(track, true);
+        throw new Error("共享已停止");
+      }
+      this.emit();
+    } catch (error) {
+      track.stop();
+      throw error;
+    }
+  }
   async selectBrowserShare(quality: Quality, audio: boolean) {
     const selected = await this.browserCapture.select(quality, audio);
     if (selected) {

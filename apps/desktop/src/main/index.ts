@@ -17,6 +17,7 @@ import {
 import { join, resolve, sep } from "node:path";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
+import { release } from "node:os";
 import { z } from "zod";
 import { allowedExternal, trustedURL, permissionAllowed } from "./security";
 import { defaultSettings, settingsSchema } from "./settings";
@@ -27,6 +28,7 @@ import { HoldToTalk, shortcutKeys } from "./push-to-talk";
 import { nativeKeyState } from "./key-state";
 import { recordedShortcut } from "../shared/shortcuts";
 import { createUpdates } from "./updates";
+import { supportsProcessAudio, WindowsAudio } from "./windows-audio";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 protocol.registerSchemesAsPrivileged([
   {
@@ -49,6 +51,7 @@ let settings: DesktopSettings = defaultSettings;
 let pending: (CaptureSelection & { expiresAt: number }) | undefined;
 const devURL = process.env.ELECTRON_RENDERER_URL;
 let nativeCapture: NativeCapture | undefined;
+let windowsAudio: WindowsAudio | undefined;
 let shutdownStarted = false;
 let pendingInvite: string | undefined = process.argv.find(
   (value) => value.startsWith("cinegather://") && value.length <= 4096,
@@ -171,6 +174,13 @@ async function createWindow() {
   win.on("blur", () => finishRecording());
   win.on("hide", () => finishRecording());
   win.webContents.on("did-start-navigation", () => finishRecording());
+  win.webContents.on(
+    "did-start-navigation",
+    (_event, _url, inPlace, mainFrame) => {
+      if (mainFrame && !inPlace) windowsAudio?.stop();
+    },
+  );
+  win.on("closed", () => windowsAudio?.stop());
   win.webContents.on("will-navigate", (event, url) => {
     if (!trustedURL(url, devURL)) event.preventDefault();
   });
@@ -185,6 +195,7 @@ async function createWindow() {
       updates?.controller.setInRoom(true);
     finishRecording();
     pending = undefined;
+    windowsAudio?.stop();
     void nativeCapture?.stop().catch(() => {});
     sharing = false;
     updateTray();
@@ -207,6 +218,7 @@ function registerIPC() {
           "desktop:sources",
           "desktop:select-source",
           "desktop:native-start",
+          "desktop:process-audio-start",
         ].includes(name) &&
         (screenLocked ||
           suspended ||
@@ -243,6 +255,28 @@ function registerIPC() {
     pendingInvite = undefined;
     return value;
   });
+  handle("desktop:process-audio-start", () => {
+    if (!windowsAudio) throw new Error("当前平台不支持应用声音采集");
+    return windowsAudio.start();
+  });
+  handle("desktop:process-audio-stop", () => windowsAudio?.stop());
+  ipcMain.on("desktop:process-audio-ack", (event, input: unknown) => {
+    if (
+      !win ||
+      event.sender !== win.webContents ||
+      event.senderFrame !== win.webContents.mainFrame ||
+      !trustedURL(event.senderFrame.url, devURL)
+    )
+      return;
+    const ack = z
+      .object({
+        sessionId: z.string().uuid(),
+        sequence: z.number().int().positive(),
+      })
+      .safeParse(input);
+    if (ack.success)
+      windowsAudio?.acknowledge(ack.data.sessionId, ack.data.sequence);
+  });
   handle("desktop:sources", async () =>
     nativeCapture
       ? nativeCapture.sources()
@@ -259,6 +293,9 @@ function registerIPC() {
             name: source.name,
             thumbnail: source.thumbnail.toDataURL(),
             kind: source.id.startsWith("screen:") ? "screen" : "window",
+            ...(process.platform === "win32"
+              ? { audioSupported: supportsProcessAudio(release()) }
+              : {}),
           })),
   );
   handle("desktop:source-thumbnails", async (input) => {
@@ -284,6 +321,14 @@ function registerIPC() {
       throw new Error("共享来源已消失，请重新选择");
     if (screenLocked || suspended || quitting)
       throw new Error("设备已锁定或休眠，请解锁后重新选择共享来源");
+    if (
+      choice.systemAudio &&
+      process.platform === "win32" &&
+      !supportsProcessAudio(release())
+    )
+      throw new Error(
+        "此系统不支持应用声音隔离，请更新 Windows，或关闭共享声音后重试",
+      );
     pending = { ...choice, expiresAt: Date.now() + 20_000 };
   });
   handle("desktop:native-start", (input) => {
@@ -316,6 +361,7 @@ function registerIPC() {
   });
   handle("desktop:native-stop", () => nativeCapture?.stop());
   handle("desktop:cancel-capture", () => {
+    windowsAudio?.clearSelection();
     nativeCapture?.cancelSelection();
     pending = undefined;
   });
@@ -375,6 +421,7 @@ function registerIPC() {
   });
   handle("desktop:sharing", (input) => {
     sharing = z.boolean().parse(input);
+    if (!sharing) windowsAudio?.stop();
     if (sharing) updates?.controller.setInRoom(true);
     updateTray();
     win?.setTitle(sharing ? "正在共享：映聚 CineGather" : "映聚 CineGather");
@@ -519,6 +566,7 @@ function capturePermissions() {
     getSources: () =>
       desktopCapturer.getSources({ types: ["screen", "window"] }),
     platform: process.platform,
+    grantAudio: (choice) => windowsAudio?.grant(choice),
   });
 }
 if (!app.requestSingleInstanceLock()) app.quit();
@@ -539,6 +587,7 @@ else {
     }
   });
   app.on("before-quit", (event) => {
+    windowsAudio?.stop();
     if (nativeCapture && !shutdownStarted) {
       event.preventDefault();
       shutdownStarted = true;
@@ -561,6 +610,25 @@ else {
   app
     .whenReady()
     .then(async () => {
+      if (process.platform === "win32")
+        windowsAudio = new WindowsAudio({
+          executable: app.isPackaged
+            ? join(process.resourcesPath, "capture/CGProcessAudioHost.exe")
+            : resolve(
+                __dirname,
+                "../../../../.local/native-runtime/windows/CGProcessAudioHost.exe",
+              ),
+          supported: supportsProcessAudio(release()),
+          ownerPid: process.pid,
+          data: (packet) => {
+            if (win && !win.isDestroyed())
+              win.webContents.send("desktop:process-audio-data", packet);
+          },
+          failed: (id, message) => {
+            if (win && !win.isDestroyed())
+              win.webContents.send("desktop:process-audio-error", id, message);
+          },
+        });
       await mkdir(app.getPath("userData"), { recursive: true });
       try {
         settings = settingsSchema.parse(
@@ -607,6 +675,7 @@ else {
       registerIPC();
       capturePermissions();
       powerMonitor.on("suspend", () => {
+        windowsAudio?.stop();
         suspended = true;
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
@@ -617,6 +686,7 @@ else {
         suspended = false;
       });
       powerMonitor.on("lock-screen", () => {
+        windowsAudio?.stop();
         screenLocked = true;
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
