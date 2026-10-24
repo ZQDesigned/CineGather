@@ -100,12 +100,14 @@ test("native member overlay appears only in a room and uses an isolated transpar
         visible: w.isVisible(),
         focusable: w.isFocusable(),
         top: w.isAlwaysOnTop(),
+        contentProtected: w.isContentProtected(),
       };
     });
     expect(state).toMatchObject({
       visible: true,
       focusable: false,
       top: true,
+      contentProtected: false,
       cornerAlpha: 0,
     });
     if (process.platform === "darwin") {

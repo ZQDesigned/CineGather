@@ -181,6 +181,23 @@ try {
         .getOpacity(),
     ),
   ).toBe(1);
+  // Windows capture exclusion also blocks some desktop recording tools (e.g. Instant Replay).
+  expect(
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.getTitle() === "映聚成员浮层")!
+        .isContentProtected(),
+    ),
+  ).toBe(false);
+  if (platform === "win32") {
+    const overlaySource = await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.getTitle() === "映聚成员浮层")!
+        .getMediaSourceId(),
+    );
+    const sources = await page.evaluate(() => window.desktop!.sources());
+    expect(sources.some((source) => source.id === overlaySource)).toBe(false);
+  }
   await expect(overlay.locator("section")).toHaveCSS(
     "background-color",
     "rgba(21, 24, 32, 0.85)",

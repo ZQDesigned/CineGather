@@ -132,7 +132,8 @@ export class MemberOverlay {
         visibleOnFullScreen: true,
         skipTransformProcessType: true,
       });
-    if (process.platform === "win32") w.setContentProtection(true);
+    // Keep the HUD capturable: Windows capture exclusion can block desktop recorders.
+    // The app's own source picker filters this window by sourceId instead.
     w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     w.webContents.on("will-navigate", (event) => event.preventDefault());
     w.on("page-title-updated", (event) => event.preventDefault());
