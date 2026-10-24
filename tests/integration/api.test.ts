@@ -615,7 +615,7 @@ test("an unavailable ingress registry cannot prevent expired browser permission 
     })
     .where(eq(leases.roomId, created.id));
   const list = media.participants,
-    set = media.setShare,
+    set = media.setPermissions,
     ingressList = media.ingress.listIngress;
   const permissions: boolean[] = [];
   try {
@@ -623,7 +623,8 @@ test("an unavailable ingress registry cannot prevent expired browser permission 
       [
         { identity: user.id, permission: { canPublishSources: [2, 3, 4] } },
       ] as Awaited<ReturnType<typeof list>>;
-    media.setShare = async (_roomId, _userId, allow) => {
+    media.setPermissions = async (_roomId, _userId, micAllowed, allow) => {
+      expect(micAllowed).toBe(true);
       permissions.push(allow);
     };
     media.ingress.listIngress = async () => {
@@ -635,7 +636,7 @@ test("an unavailable ingress registry cannot prevent expired browser permission 
     expect(permissions).toEqual([false]);
   } finally {
     media.participants = list;
-    media.setShare = set;
+    media.setPermissions = set;
     media.ingress.listIngress = ingressList;
   }
 });

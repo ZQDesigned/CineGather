@@ -64,6 +64,13 @@
       "when": 1792820000000,
       "tag": "0008_screen_share_capability",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1792830000000,
+      "tag": "0009_room_member_permissions",
+      "breakpoints": true
     }
   ]
 }

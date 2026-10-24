@@ -208,6 +208,27 @@ export class ApiController {
   ) {
     return r.stopMemberShare(req.user, roomId, userId);
   }
+  @Post("rooms/:roomId/members/:userId/permissions")
+  @Endpoint(
+    "updateMemberPermissions",
+    c.roomSchema,
+    c.memberPermissionsInput,
+    ["roomId", "userId"],
+    201,
+  )
+  updateMemberPermissions(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Param("userId") userId: string,
+    @Body() body: unknown,
+  ) {
+    return r.updateMemberPermissions(
+      req.user,
+      roomId,
+      userId,
+      parse(c.memberPermissionsInput, body),
+    );
+  }
   @Post("rooms/:roomId/members/:userId/microphone/mute")
   @Endpoint(
     "muteMember",

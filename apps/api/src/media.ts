@@ -105,7 +105,7 @@ export class MediaGateway {
       if (!isNotFound(error)) throw error;
     }
   }
-  async issue(roomId: string, user: User) {
+  async issue(roomId: string, user: User, microphoneAllowed = true) {
     const access = new AccessToken(config.livekitKey, config.livekitSecret, {
       identity: user.id,
       name: user.displayName,
@@ -114,28 +114,49 @@ export class MediaGateway {
     access.addGrant({
       room: roomId,
       roomJoin: true,
-      canPublish: true,
+      canPublish: microphoneAllowed,
       canSubscribe: true,
       canPublishData: false,
       canUpdateOwnMetadata: false,
-      canPublishSources: [TrackSource.MICROPHONE],
+      canPublishSources: microphoneAllowed ? [TrackSource.MICROPHONE] : [],
     });
     return access.toJwt();
   }
-  async setShare(roomId: string, userId: string, allow: boolean) {
+  async setShare(
+    roomId: string,
+    userId: string,
+    allow: boolean,
+    microphoneAllowed?: boolean,
+  ) {
+    if (microphoneAllowed === undefined) {
+      const participant = await this.client.getParticipant(roomId, userId);
+      const permission = participant.permission;
+      microphoneAllowed =
+        permission?.canPublish !== false &&
+        (!permission?.canPublishSources.length ||
+          permission.canPublishSources.includes(TrackSource.MICROPHONE));
+    }
+    await this.setPermissions(roomId, userId, microphoneAllowed, allow);
+  }
+  async setPermissions(
+    roomId: string,
+    userId: string,
+    microphoneAllowed: boolean,
+    sharingAllowed: boolean,
+  ) {
     await this.client.updateParticipant(roomId, userId, {
       permission: {
-        canPublish: true,
+        // An empty canPublishSources list with canPublish=true allows ALL sources.
+        canPublish: microphoneAllowed || sharingAllowed,
         canSubscribe: true,
         canPublishData: false,
         canUpdateMetadata: false,
-        canPublishSources: allow
-          ? [
-              TrackSource.MICROPHONE,
-              TrackSource.SCREEN_SHARE,
-              TrackSource.SCREEN_SHARE_AUDIO,
-            ]
-          : [TrackSource.MICROPHONE],
+        canPublishSources: [
+          ...(microphoneAllowed ? [TrackSource.MICROPHONE] : []),
+          ...(sharingAllowed
+            ? [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO]
+            : []),
+        ],
       },
     });
   }

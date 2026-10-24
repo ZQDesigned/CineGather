@@ -32,6 +32,7 @@ export interface ParticipantSummary {
   name: string;
   local: boolean;
   microphone: boolean;
+  microphoneAllowed?: boolean;
   speaking: boolean;
   quality: string;
 }
@@ -133,6 +134,16 @@ export class MediaSession {
       RoomEvent.ParticipantPermissionsChanged,
     ])
       room.on(event, emit);
+    room.on(RoomEvent.ParticipantPermissionsChanged, () => {
+      if (this.room !== room) return;
+      const permission = room.localParticipant.permissions;
+      if (
+        permission?.canPublish === false ||
+        (permission?.canPublishSources.length &&
+          !permission.canPublishSources.includes(2))
+      )
+        void this.microphone(false).catch(this.error);
+    });
     room.on(
       RoomEvent.DataReceived,
       (payload, participant, _kind, topic, _encryption, senderIdentity) => {
@@ -210,6 +221,10 @@ export class MediaSession {
           name: p.name || "朋友",
           local: p === room.localParticipant,
           microphone: p.isMicrophoneEnabled,
+          microphoneAllowed:
+            p.permissions?.canPublish !== false &&
+            (!p.permissions?.canPublishSources.length ||
+              p.permissions.canPublishSources.includes(2)),
           speaking: p.isSpeaking,
           quality: p.connectionQuality,
         })),
@@ -318,6 +333,14 @@ export class MediaSession {
     const room = this.room;
     if (enabled && (!room || room.state !== ConnectionState.Connected))
       throw new Error("请先连接房间");
+    const permission = room?.localParticipant.permissions;
+    if (
+      enabled &&
+      (permission?.canPublish === false ||
+        (permission?.canPublishSources.length &&
+          !permission.canPublishSources.includes(2)))
+    )
+      throw new Error("房主已禁止你在此房间开麦");
     let revision = ++this.microphoneRevision;
     let wanted = enabled;
     this.microphoneWanted = enabled;

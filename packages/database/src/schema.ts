@@ -84,6 +84,20 @@ export const rooms = pgTable(
     check("rooms_status_check", sql`${t.status} IN ('active', 'closed')`),
   ],
 );
+export const roomMemberPermissions = pgTable(
+  "room_member_permissions",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    microphoneAllowed: boolean("microphone_allowed").notNull().default(true),
+    sharingAllowed: boolean("sharing_allowed").notNull().default(true),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] })],
+);
 export const members = pgTable(
   "room_members",
   {

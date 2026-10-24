@@ -96,6 +96,18 @@ export const userSchema = z.object({
   roles: z.array(accountRoleSchema).optional(),
   permissions: z.array(adminPermissionSchema).optional(),
 });
+export const memberPermissionSchema = z.object({
+  userId: z.uuid(),
+  microphoneAllowed: z.boolean(),
+  sharingAllowed: z.boolean(),
+});
+export const memberPermissionsInput = z
+  .object({
+    microphoneAllowed: z.boolean().optional(),
+    sharingAllowed: z.boolean().optional(),
+  })
+  .strict()
+  .refine((v) => Object.keys(v).length > 0, "请选择需要修改的权限");
 export const roomSchema = z.object({
   id: z.uuid(),
   code: z.string().regex(/^[A-F0-9]{8}$/),
@@ -104,6 +116,7 @@ export const roomSchema = z.object({
   name: z.string(),
   maxMembers: z.number(),
   role: z.enum(["owner", "member"]),
+  memberPermissions: z.array(memberPermissionSchema).optional(),
 });
 export const leaseSchema = z.object({
   leaseId: z.uuid(),

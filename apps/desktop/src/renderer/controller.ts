@@ -619,6 +619,27 @@ export async function createRoom(
   await refreshRooms();
   await roomSession.enter(room.id);
 }
+export async function updateMemberPermissions(
+  roomId: string,
+  userId: string,
+  input: { microphoneAllowed?: boolean; sharingAllowed?: boolean },
+) {
+  const identity = sessionToken;
+  const revision = state().roomRevision;
+  const saved = unwrap(
+    await api.POST("/api/v1/rooms/{roomId}/members/{userId}/permissions", {
+      params: { path: { roomId, userId } },
+      body: input,
+    }),
+  );
+  if (
+    identity !== sessionToken ||
+    state().room?.id !== roomId ||
+    state().roomRevision !== revision
+  )
+    return;
+  update({ room: saved, notice: "成员权限已更新" });
+}
 export async function transferRoomOwner(roomId: string, userId: string) {
   const identity = sessionToken;
   const revision = state().roomRevision;

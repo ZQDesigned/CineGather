@@ -4,6 +4,7 @@ import {
   Button,
   Dropdown,
   Slider,
+  Switch,
   Tag,
   type MenuProps,
 } from "antd";
@@ -66,6 +67,15 @@ const MemberPopup = styled.div`
   }
 `;
 
+const MenuToggle = styled.span`
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  .ant-switch {
+    pointer-events: none;
+  }
+`;
 export function Member({
   participant: p,
   room,
@@ -79,16 +89,59 @@ export function Member({
 }) {
   const { modal } = App.useApp();
   const sharerId = useApp((s) => s.media.sharer?.id);
+  const permission = room.memberPermissions?.find((m) => m.userId === p.id);
+  const microphoneAllowed = permission?.microphoneAllowed !== false;
+  const sharingAllowed = permission?.sharingAllowed !== false;
   const [open, setOpen] = useState(false);
   const [focusVolume, setFocusVolume] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
-  const items: MenuProps["items"] = [
+  const items: (NonNullable<MenuProps["items"]>[number] & {
+    role?: "menuitemcheckbox";
+    "aria-checked"?: boolean;
+  })[] = [
     { key: "friend", label: "添加好友", icon: <UserPlus size={15} /> },
     ...(room.role === "owner"
       ? [
           { type: "divider" as const },
           { key: "transfer", label: "转移房主", icon: <Crown size={15} /> },
-          { key: "mute", label: "关闭麦克风", icon: <MicOff size={15} /> },
+          {
+            key: "mute",
+            label: "关闭麦克风",
+            icon: <MicOff size={15} />,
+            disabled: !microphoneAllowed,
+          },
+          {
+            key: "block-mic",
+            role: "menuitemcheckbox" as const,
+            "aria-checked": !microphoneAllowed,
+            label: (
+              <MenuToggle>
+                <span>禁止开麦</span>
+                <Switch
+                  size="small"
+                  checked={!microphoneAllowed}
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
+              </MenuToggle>
+            ),
+          },
+          {
+            key: "block-share",
+            role: "menuitemcheckbox" as const,
+            "aria-checked": !sharingAllowed,
+            label: (
+              <MenuToggle>
+                <span>禁止共享</span>
+                <Switch
+                  size="small"
+                  checked={!sharingAllowed}
+                  tabIndex={-1}
+                  aria-hidden="true"
+                />
+              </MenuToggle>
+            ),
+          },
           ...(sharerId === p.id
             ? [
                 {
@@ -133,6 +186,17 @@ export function Member({
         );
         await actions.refreshFriends();
         update({ notice: "好友请求已发送" });
+      } else if (
+        (key === "block-mic" || key === "block-share") &&
+        room.role === "owner"
+      ) {
+        await actions.updateMemberPermissions(
+          room.id,
+          p.id,
+          key === "block-mic"
+            ? { microphoneAllowed: !microphoneAllowed }
+            : { sharingAllowed: !sharingAllowed },
+        );
       } else if (key === "mute" && room.role === "owner") {
         unwrap(
           await actions.api.POST(
@@ -189,11 +253,14 @@ export function Member({
           {p.id === room.ownerUserId && <Tag color="purple">房主</Tag>}
         </strong>
         <small>
-          {p.speaking
-            ? "正在说话"
-            : p.microphone
-              ? "语音已就绪"
-              : "麦克风已关闭"}
+          {!microphoneAllowed
+            ? "已被禁止开麦"
+            : p.speaking
+              ? "正在说话"
+              : p.microphone
+                ? "语音已就绪"
+                : "麦克风已关闭"}
+          {!sharingAllowed && " / 禁止共享"}
         </small>
       </div>
       <div className="member-status">
@@ -250,7 +317,7 @@ export function Member({
               event.stopPropagation();
               const controls = Array.from(
                 event.currentTarget.querySelectorAll<HTMLElement>(
-                  '[role="slider"], [role="menuitem"]:not([aria-disabled="true"])',
+                  '[role="slider"], [role^="menuitem"]:not([aria-disabled="true"])',
                 ),
               );
               const index = controls.indexOf(

@@ -42,6 +42,12 @@ export function Room() {
     {},
   );
   const local = app.media.participants.find((p) => p.local);
+  const policy = app.room?.memberPermissions?.find(
+    (p) => p.userId === app.user?.id,
+  );
+  const micBlocked =
+    policy?.microphoneAllowed === false || local?.microphoneAllowed === false;
+  const shareBlocked = policy?.sharingAllowed === false;
   const sharing = [
     "acquiringLease",
     "selectingSource",
@@ -157,11 +163,11 @@ export function Room() {
                 <p>共享屏幕，与朋友一起看到同一个世界。</p>
                 <Button
                   type="primary"
-                  disabled={!connected || sharing}
+                  disabled={!connected || sharing || shareBlocked}
                   onClick={() => void actions.shareSession.start()}
                 >
                   <MonitorUp size={17} />
-                  选择屏幕开始共享
+                  {shareBlocked ? "已被禁止共享" : "选择屏幕开始共享"}
                 </Button>
                 <span className="stage-hint">
                   {qualityLabel(app.settings.quality)}
@@ -267,17 +273,20 @@ export function Room() {
                 type="text"
                 aria-pressed={Boolean(local?.microphone)}
                 className={`control-button ${!local?.microphone ? "muted-control" : ""}`}
-                disabled={!connected}
+                disabled={!connected || micBlocked}
+                title={micBlocked ? "房主已禁止你在此房间开麦" : undefined}
                 onClick={() => void actions.toggleMicrophone()}
                 aria-label={local?.microphone ? "关闭麦克风" : "开启麦克风"}
               >
                 {local?.microphone ? <Mic size={21} /> : <MicOff size={21} />}
                 <span>
-                  {capabilities().pushToTalk && app.settings.pushToTalk
-                    ? "按住空格说话"
-                    : local?.microphone
-                      ? "麦克风已开启"
-                      : "麦克风已关闭"}
+                  {micBlocked
+                    ? "已被禁止开麦"
+                    : capabilities().pushToTalk && app.settings.pushToTalk
+                      ? "按住空格说话"
+                      : local?.microphone
+                        ? "麦克风已开启"
+                        : "麦克风已关闭"}
                 </span>
               </Button>
               <Button
@@ -295,7 +304,11 @@ export function Room() {
               type="text"
               aria-pressed={sharing}
               className={`control-button ${sharing ? "sharing-control" : ""}`}
-              disabled={!connected || (otherSharing && !canPreempt && !sharing)}
+              disabled={
+                !connected ||
+                (shareBlocked && !sharing) ||
+                (otherSharing && !canPreempt && !sharing)
+              }
               onClick={() => {
                 if (sharing) void actions.stopShare();
                 else if (canPreempt)
@@ -317,9 +330,11 @@ export function Room() {
                   ? app.shareState === "active"
                     ? "停止共享"
                     : "取消共享"
-                  : canPreempt
-                    ? "抢占共享"
-                    : "共享屏幕"}
+                  : shareBlocked
+                    ? "已被禁止共享"
+                    : canPreempt
+                      ? "抢占共享"
+                      : "共享屏幕"}
               </span>
             </Button>
             <Button

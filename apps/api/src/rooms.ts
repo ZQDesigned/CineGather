@@ -1,5 +1,6 @@
 import {
   nativePublications,
+  roomMemberPermissions,
   rooms,
   members,
   invites,
@@ -31,7 +32,19 @@ import { nativeOwner, requireNativeLease } from "./native-authority";
 import { config } from "./config";
 import { hashRoomPassword, verifyRoomPassword } from "./passwords";
 
-function roomInfo(room: typeof rooms.$inferSelect, userId: string): RoomInfo {
+async function roomInfo(
+  tx: Transaction,
+  room: typeof rooms.$inferSelect,
+  userId: string,
+): Promise<RoomInfo> {
+  const policies = await tx
+    .select({
+      userId: roomMemberPermissions.userId,
+      microphoneAllowed: roomMemberPermissions.microphoneAllowed,
+      sharingAllowed: roomMemberPermissions.sharingAllowed,
+    })
+    .from(roomMemberPermissions)
+    .where(eq(roomMemberPermissions.roomId, room.id));
   return {
     id: room.id,
     code: room.code,
@@ -40,6 +53,7 @@ function roomInfo(room: typeof rooms.$inferSelect, userId: string): RoomInfo {
     ownerUserId: room.ownerUserId,
     maxMembers: room.maxMembers,
     role: room.ownerUserId === userId ? "owner" : "member",
+    ...(policies.length ? { memberPermissions: policies } : {}),
   };
 }
 const passwordFailures = new Map<string, { count: number; until: number }>();
@@ -90,7 +104,7 @@ export async function requireMember(
     .where(and(eq(members.roomId, roomId), eq(members.userId, userId)));
   if (!member || (ownerOnly && room.ownerUserId !== userId))
     fail(403, "FORBIDDEN", "没有此房间的操作权限");
-  return roomInfo(room, userId);
+  return roomInfo(tx, room, userId);
 }
 export async function createRoom(
   user: User,
@@ -139,7 +153,7 @@ export async function createRoom(
       });
       await tx.insert(leases).values({ roomId: id });
       await audit(tx, user.id, "room.created", id);
-      return roomInfo(created, user.id);
+      return roomInfo(tx, created, user.id);
     }),
   );
 }
@@ -233,7 +247,7 @@ export async function updateRoomSettings(
         previousMaxMembers: previous.maxMembers,
         maxMembers,
       });
-    return roomInfo(updated!, user.id);
+    return roomInfo(tx, updated!, user.id);
   });
 }
 export async function createInvite(
@@ -371,8 +385,12 @@ export async function joinRoom(
       .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
     await audit(tx, user.id, "room.joined", roomId);
     return {
-      room: roomInfo(room, user.id),
-      token: await media.issue(roomId, user),
+      room: await roomInfo(tx, room, user.id),
+      token: await media.issue(
+        roomId,
+        user,
+        (await memberPolicy(tx, roomId, user.id)).microphoneAllowed,
+      ),
       url: config.livekitUrl,
     };
   });
@@ -488,6 +506,7 @@ export async function settleRoom(
       .update(members)
       .set({ role: "owner" })
       .where(and(eq(members.roomId, roomId), eq(members.userId, owner)));
+    await liftOwnerRestrictions(tx, roomId, owner);
     await audit(tx, null, "room.owner_transferred", roomId, {
       previousOwner: room.ownerUserId,
       owner,
@@ -520,7 +539,14 @@ function leaseResult(row: typeof leases.$inferSelect): ShareLease {
     revision: row.revision,
   };
 }
-async function requireScreenShare(tx: Transaction, userId: string) {
+async function requireScreenShare(
+  tx: Transaction,
+  userId: string,
+  roomId: string,
+) {
+  const policy = await memberPolicy(tx, roomId, userId);
+  if (!policy.sharingAllowed)
+    fail(403, "ROOM_SHARE_FORBIDDEN", "房主已禁止你在此房间共享");
   const [user] = await tx
     .select({ enabled: users.screenShareEnabled })
     .from(users)
@@ -528,6 +554,7 @@ async function requireScreenShare(tx: Transaction, userId: string) {
     .for("share");
   if (!user?.enabled)
     fail(403, "SCREEN_SHARE_UNAVAILABLE", "当前账号暂未开通屏幕共享能力");
+  return policy;
 }
 export async function acquireLease(
   user: User,
@@ -540,7 +567,7 @@ export async function acquireLease(
   try {
     const result = await db.transaction(async (tx) => {
       await requireMember(tx, roomId, user.id, preempt, true);
-      await requireScreenShare(tx, user.id);
+      const policy = await requireScreenShare(tx, user.id, roomId);
       const participants = await media.participants(roomId);
       if (!participants.some((p) => p.identity === user.id))
         fail(409, "MEDIA_NOT_CONNECTED", "请先连接房间语音");
@@ -564,7 +591,7 @@ export async function acquireLease(
       for (const p of participants)
         if (!nativeOwner(p.identity))
           await media.setShare(roomId, p.identity, false);
-      await media.setShare(roomId, user.id, true);
+      await media.setShare(roomId, user.id, true, policy.microphoneAllowed);
       granted = true;
       const next = {
         leaseId: randomUUID(),
@@ -608,7 +635,7 @@ export async function renewLease(
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
     await requireMember(tx, roomId, user.id, false, true);
-    await requireScreenShare(tx, user.id);
+    await requireScreenShare(tx, user.id, roomId);
     const [lease] = await tx
       .select()
       .from(leases)
@@ -713,11 +740,12 @@ export async function transferOwner(
       .update(members)
       .set({ role: "owner" })
       .where(and(eq(members.roomId, roomId), eq(members.userId, targetId)));
+    await liftOwnerRestrictions(tx, roomId, targetId);
     await audit(tx, user.id, "room.owner_transferred", roomId, {
       previousOwner: user.id,
       owner: targetId,
     });
-    return roomInfo(room!, user.id);
+    return roomInfo(tx, room!, user.id);
   });
 }
 async function notifyShareStopped(
@@ -781,6 +809,131 @@ export async function muteMember(user: User, roomId: string, targetId: string) {
     });
   });
   return { ok: true as const };
+}
+async function memberPolicy(tx: Transaction, roomId: string, userId: string) {
+  const [policy] = await tx
+    .select()
+    .from(roomMemberPermissions)
+    .where(
+      and(
+        eq(roomMemberPermissions.roomId, roomId),
+        eq(roomMemberPermissions.userId, userId),
+      ),
+    );
+  return policy ?? { microphoneAllowed: true, sharingAllowed: true };
+}
+async function applyMemberPolicy(
+  tx: Transaction,
+  roomId: string,
+  userId: string,
+  microphoneAllowed: boolean,
+  sharingAllowed: boolean,
+) {
+  const [lease] = await tx
+    .select()
+    .from(leases)
+    .where(eq(leases.roomId, roomId));
+  const [native] = await tx
+    .select()
+    .from(nativePublications)
+    .where(eq(nativePublications.roomId, roomId));
+  const ownsLease =
+    lease?.holderUserId === userId &&
+    Boolean(lease.expiresAt && lease.expiresAt.getTime() > Date.now());
+  await media.setPermissions(
+    roomId,
+    userId,
+    microphoneAllowed,
+    sharingAllowed && ownsLease && !native,
+  );
+}
+async function liftOwnerRestrictions(
+  tx: Transaction,
+  roomId: string,
+  userId: string,
+) {
+  const previous = await tx
+    .delete(roomMemberPermissions)
+    .where(
+      and(
+        eq(roomMemberPermissions.roomId, roomId),
+        eq(roomMemberPermissions.userId, userId),
+      ),
+    )
+    .returning();
+  if (
+    previous.length &&
+    (await media.participants(roomId)).some((p) => p.identity === userId)
+  )
+    await applyMemberPolicy(tx, roomId, userId, true, true);
+}
+export async function updateMemberPermissions(
+  user: User,
+  roomId: string,
+  targetId: string,
+  input: { microphoneAllowed?: boolean; sharingAllowed?: boolean },
+) {
+  roomId = uuid(roomId);
+  targetId = uuid(targetId);
+  let stoppedLeaseId: string | undefined;
+  const result = await db.transaction(async (tx) => {
+    const room = await requireMember(tx, roomId, user.id, true, true);
+    if (targetId === user.id)
+      fail(400, "CANNOT_RESTRICT_OWNER", "不能限制房主自己");
+    await requirePresentMember(tx, roomId, targetId);
+    const previous = await memberPolicy(tx, roomId, targetId);
+    const next = {
+      microphoneAllowed: input.microphoneAllowed ?? previous.microphoneAllowed,
+      sharingAllowed: input.sharingAllowed ?? previous.sharingAllowed,
+    };
+    await tx
+      .insert(roomMemberPermissions)
+      .values({ roomId, userId: targetId, ...next })
+      .onConflictDoUpdate({
+        target: [roomMemberPermissions.roomId, roomMemberPermissions.userId],
+        set: next,
+      });
+    if (!next.sharingAllowed) {
+      const [lease] = await tx
+        .select()
+        .from(leases)
+        .where(eq(leases.roomId, roomId));
+      await revokeNative(tx, roomId, targetId);
+      if (lease?.holderUserId === targetId) {
+        stoppedLeaseId = lease.leaseId ?? undefined;
+        await tx
+          .update(leases)
+          .set({
+            holderUserId: null,
+            leaseId: null,
+            expiresAt: null,
+            revision: lease.revision + 1,
+          })
+          .where(eq(leases.roomId, roomId));
+      }
+    }
+    await applyMemberPolicy(
+      tx,
+      roomId,
+      targetId,
+      next.microphoneAllowed,
+      next.sharingAllowed,
+    );
+    await audit(tx, user.id, "member.permissions_updated", roomId, {
+      userId: targetId,
+      previous,
+      ...next,
+    });
+    const [stored] = await tx.select().from(rooms).where(eq(rooms.id, room.id));
+    return roomInfo(tx, stored!, user.id);
+  });
+  if (stoppedLeaseId)
+    await notifyShareStopped(roomId, targetId, stoppedLeaseId);
+  if (input.microphoneAllowed === false)
+    await media
+      .control(targetId, { action: "mute-microphone", roomId })
+      .catch(() => {});
+  return result;
 }
 export async function moderate(
   user: User,
@@ -970,9 +1123,15 @@ export async function reconcileRoom(roomId: string) {
       validSessions.some((c) => c.userId === identity) &&
       !roomBans.some((b) => b.userId === identity) &&
       room.status === "active";
+    const policies = await tx
+      .select()
+      .from(roomMemberPermissions)
+      .where(eq(roomMemberPermissions.roomId, roomId));
     const activeHolder =
       lease?.holderUserId &&
       authorized(lease.holderUserId) &&
+      policies.find((p) => p.userId === lease.holderUserId)?.sharingAllowed !==
+        false &&
       validSessions.some(
         (c) => c.userId === lease.holderUserId && c.screenShareEnabled,
       ) &&
@@ -1013,8 +1172,21 @@ export async function reconcileRoom(roomId: string) {
         participant.permission?.canPublishSources.includes(3) ||
         participant.permission?.canPublishSources.includes(4);
       const shouldShare = participant.identity === activeHolder && !validNative;
-      if (Boolean(allowsScreen) !== shouldShare)
-        await media.setShare(roomId, participant.identity, shouldShare);
+      const micAllowed =
+        policies.find((p) => p.userId === participant.identity)
+          ?.microphoneAllowed !== false;
+      const permission = participant.permission;
+      const allowsMic =
+        permission?.canPublish !== false &&
+        (!permission?.canPublishSources.length ||
+          permission.canPublishSources.includes(2));
+      if (Boolean(allowsScreen) !== shouldShare || allowsMic !== micAllowed)
+        await media.setPermissions(
+          roomId,
+          participant.identity,
+          micAllowed,
+          shouldShare,
+        );
     }
     if (publication && !validNative) {
       await revokeNative(tx, roomId);
@@ -1118,7 +1290,7 @@ export async function nativePublication(
   try {
     return await db.transaction(async (tx) => {
       await requireMember(tx, roomId, user.id, false, true);
-      await requireScreenShare(tx, user.id);
+      const policy = await requireScreenShare(tx, user.id, roomId);
       const [lease] = await tx
         .select()
         .from(leases)
@@ -1146,7 +1318,7 @@ export async function nativePublication(
               await media.ingress.listIngress({ ingressId: existing.ingressId })
             )[0]
           : undefined;
-      await media.setShare(roomId, user.id, false);
+      await media.setShare(roomId, user.id, false, policy.microphoneAllowed);
       if (!ingress) {
         if (existing)
           await tx
