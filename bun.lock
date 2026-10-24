@@ -43,7 +43,7 @@
     },
     "apps/desktop": {
       "name": "@cinegather/desktop",
-      "version": "0.1.3",
+      "version": "0.1.4",
       "dependencies": {
         "@cinegather/api-client": "workspace:*",
         "@cinegather/client-core": "workspace:*",
