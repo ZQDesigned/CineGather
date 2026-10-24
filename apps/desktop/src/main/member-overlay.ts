@@ -108,7 +108,8 @@ export class MemberOverlay {
       minimizable: false,
       fullscreenable: false,
       focusable: false,
-      skipTaskbar: true,
+      skipTaskbar: process.platform === "win32",
+      ...(process.platform === "darwin" ? { type: "panel" } : {}),
       title: "映聚成员浮层",
       webPreferences: {
         session: ses,
@@ -126,7 +127,11 @@ export class MemberOverlay {
     w.setAlwaysOnTop(true, "floating");
     w.setIgnoreMouseEvents(true);
     if (process.platform === "darwin")
-      w.setVisibleOnAllWorkspaces(true, { visibleOnFullScreen: true });
+      // Panels can float over fullscreen apps without hiding the entire app's Dock icon.
+      w.setVisibleOnAllWorkspaces(true, {
+        visibleOnFullScreen: true,
+        skipTransformProcessType: true,
+      });
     if (process.platform === "win32") w.setContentProtection(true);
     w.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     w.webContents.on("will-navigate", (event) => event.preventDefault());

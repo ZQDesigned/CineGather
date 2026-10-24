@@ -130,6 +130,8 @@ try {
     nodeIntegration: false,
   });
   // Verify the packaged overlay preload/assets in the same sandbox used by releases.
+  if (platform === "darwin")
+    expect(await app.evaluate(({ app }) => app.dock!.isVisible())).toBe(true);
   const overlayOpened = app.waitForEvent("window", {
     predicate: (p) => p !== page,
   });
@@ -152,6 +154,8 @@ try {
   );
   const overlay = await overlayOpened;
   await expect(overlay.getByText("测试成员", { exact: true })).toBeVisible();
+  if (platform === "darwin")
+    expect(await app.evaluate(({ app }) => app.dock!.isVisible())).toBe(true);
   expect(await overlay.evaluate(() => window.desktop)).toBeUndefined();
   expect(
     await overlay.evaluate(() => localStorage.getItem("cinegather.session")),

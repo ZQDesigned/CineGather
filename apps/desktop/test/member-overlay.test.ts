@@ -74,9 +74,21 @@ test("old settings gain overlay preferences and invalid preferences are rejected
   expect(
     settingsSchema.safeParse({
       ...old,
-      memberOverlay: { enabled: true, opacity: 0 },
+      memberOverlay: { enabled: true, opacity: -1 },
     }).success,
   ).toBe(false);
+});
+test("overlay accepts fully transparent backgrounds without changing other settings", () => {
+  const parsed = settingsSchema.parse({
+    ...defaultSettings,
+    memberOverlay: { enabled: true, position: "left-center", opacity: 0 },
+  });
+  expect(parsed.memberOverlay).toEqual({
+    enabled: true,
+    position: "left-center",
+    opacity: 0,
+  });
+  expect(parsed.muteShortcut).toBe(defaultSettings.muteShortcut);
 });
 test("overlay stays anchored to the chosen side of any display work area", () => {
   const area = { x: -1920, y: 25, width: 1920, height: 1055 };

@@ -54,6 +54,8 @@ test("native member overlay appears only in a room and uses an isolated transpar
       .getByRole("button", { name: "创建私人房间", exact: true })
       .click();
     await page.getByLabel("房间名称").fill("透明浮层实机验证");
+    if (process.platform === "darwin")
+      expect(await app.evaluate(({ app }) => app.dock!.isVisible())).toBe(true);
     const overlayOpened = app.waitForEvent("window", {
       predicate: (p) => p !== page,
     });
@@ -62,6 +64,8 @@ test("native member overlay appears only in a room and uses an isolated transpar
     await expect(
       overlay.getByText("浮层实机成员", { exact: true }),
     ).toBeVisible();
+    if (process.platform === "darwin")
+      expect(await app.evaluate(({ app }) => app.dock!.isVisible())).toBe(true);
     expect(await overlay.evaluate(() => window.desktop)).toBeUndefined();
     expect(
       await overlay.evaluate(() => localStorage.getItem("cinegather.session")),
@@ -104,6 +108,45 @@ test("native member overlay appears only in a room and uses an isolated transpar
       top: true,
       cornerAlpha: 0,
     });
+    if (process.platform === "darwin") {
+      await app.evaluate(async ({ BrowserWindow }) => {
+        const main = BrowserWindow.getAllWindows().find(
+          (w) => w.getTitle() === "映聚 CineGather",
+        )!;
+        await new Promise<void>((resolve) => {
+          main.once("enter-full-screen", () => resolve());
+          main.setFullScreen(true);
+        });
+      });
+      expect(
+        await app.evaluate(({ app, BrowserWindow }) => {
+          const w = BrowserWindow.getAllWindows().find(
+            (w) => w.getTitle() === "映聚成员浮层",
+          )!;
+          return {
+            dock: app.dock!.isVisible(),
+            visible: w.isVisible(),
+            allSpaces: w.isVisibleOnAllWorkspaces(),
+            focusable: w.isFocusable(),
+          };
+        }),
+      ).toEqual({
+        dock: true,
+        visible: true,
+        allSpaces: true,
+        focusable: false,
+      });
+      await app.evaluate(async ({ BrowserWindow }) => {
+        const main = BrowserWindow.getAllWindows().find(
+          (w) => w.getTitle() === "映聚 CineGather",
+        )!;
+        await new Promise<void>((resolve) => {
+          main.once("leave-full-screen", () => resolve());
+          main.setFullScreen(false);
+        });
+      });
+      expect(await app.evaluate(({ app }) => app.dock!.isVisible())).toBe(true);
+    }
     await overlay.screenshot({
       path: ".local/member-overlay/native-alone.png",
       omitBackground: true,
@@ -222,7 +265,6 @@ test("native member overlay appears only in a room and uses an isolated transpar
       .getByRole("slider", { name: "浮层背景不透明度", exact: true })
       .focus();
     await page.keyboard.press("Home");
-    await page.keyboard.press("ArrowRight");
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await expect
       .poll(() =>
@@ -254,8 +296,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
           textAlpha = Math.max(textAlpha, alpha(x, y));
       return { backgroundAlpha: alpha(248, 40), textAlpha };
     });
-    expect(pixels.backgroundAlpha).toBeGreaterThanOrEqual(78);
-    expect(pixels.backgroundAlpha).toBeLessThanOrEqual(80);
+    expect(pixels.backgroundAlpha).toBe(0);
     expect(pixels.textAlpha).toBe(255);
     await page
       .getByRole("menuitem", { name: "设置与设备", exact: true })
@@ -339,6 +380,8 @@ test("native member overlay appears only in a room and uses an isolated transpar
     await friend.getByRole("button", { name: "离开房间", exact: true }).click();
     await expect(remote).toHaveCount(0);
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
+    if (process.platform === "darwin")
+      expect(await app.evaluate(({ app }) => app.dock!.isVisible())).toBe(true);
     await expect
       .poll(() =>
         app.evaluate(

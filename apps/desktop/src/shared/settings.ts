@@ -22,7 +22,7 @@ export const settingsSchema = z.strictObject({
           "right-bottom",
         ])
         .default("right-top"),
-      opacity: z.number().int().min(30).max(100),
+      opacity: z.number().int().min(0).max(100),
     })
     .default(defaultOverlayPreferences),
   noiseReduction: z.enum(["enhanced", "basic", "off"]).default("enhanced"),
