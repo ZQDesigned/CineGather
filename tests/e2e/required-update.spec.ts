@@ -1,3 +1,4 @@
+import { nextClientVersion } from "./helpers/client-version";
 import { test, expect } from "@playwright/test";
 test("browser mandatory update cannot be dismissed and offers refresh rather than desktop install", async ({
   page,
@@ -5,7 +6,11 @@ test("browser mandatory update cannot be dismissed and offers refresh rather tha
   await page.route("**/api/v1/client-policy", (route) =>
     route.fulfill({
       json: {
-        minimumVersions: { win32: "0.0.0", darwin: "0.0.0", web: "0.1.3" },
+        minimumVersions: {
+          win32: "0.0.0",
+          darwin: "0.0.0",
+          web: nextClientVersion,
+        },
         reason: "共享协议已升级，请刷新后继续。",
       },
     }),
@@ -67,7 +72,7 @@ test("426 during a live room stops media, leaves the room and retains login behi
       status: 426,
       headers: {
         "Content-Type": "application/json",
-        "X-CineGather-Min-Version": "0.1.3",
+        "X-CineGather-Min-Version": nextClientVersion,
         "Access-Control-Allow-Origin": "*",
         "Access-Control-Expose-Headers": "X-CineGather-Min-Version",
       },

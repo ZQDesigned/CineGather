@@ -1,3 +1,7 @@
+import {
+  currentClientVersion,
+  nextClientVersion,
+} from "./helpers/client-version";
 import { test, expect, type Page } from "@playwright/test";
 import type { UpdateStatus } from "@cinegather/contracts";
 
@@ -7,75 +11,82 @@ declare global {
   }
 }
 async function fixture(page: Page, mode: UpdateStatus["mode"]) {
-  await page.addInitScript((mode) => {
-    const calls: string[] = [];
-    let status: UpdateStatus = {
-      mode,
-      status: mode === "disabled" ? "disabled" : "idle",
-      currentVersion: "0.1.2",
-      inRoom: false,
-    };
-    let listener: ((status: UpdateStatus) => void) | undefined;
-    const emit = (patch: Partial<UpdateStatus>) => {
-      status = { ...status, ...patch };
-      listener?.({ ...status });
-    };
-    window.updateTest = { calls, emit };
-    Object.assign(window, {
-      desktop: {
-        platform: mode === "notify" ? "darwin" : "win32",
-        takeInvitation: async () => undefined,
-        onAction: () => () => {},
-        cancelCapture: async () => {},
-        setSharing: async () => {},
-        loadSettings: async () => ({
-          noiseReduction: "enhanced",
-          minimizeToTray: false,
-          pushToTalk: false,
-          pttShortcut: "CommandOrControl+Shift+Space",
-          muteShortcut: "CommandOrControl+Shift+M",
-          quality: "cinema",
-          inputDevice: "",
-          outputDevice: "",
-        }),
-        updates: {
-          requireUpdate: async (minimumVersion: string, reason: string) =>
-            emit({ required: true, minimumVersion, reason }),
-          quit: async () => {
-            calls.push("quit");
-          },
-          status: async () => ({ ...status }),
-          check: async () => {
-            calls.push("check");
-            emit({
-              status: "available",
-              latestVersion: "0.1.3",
-              notes: "改善通话体验",
-            });
-            return { ...status };
-          },
-          download: async () => {
-            calls.push("download");
-            emit({ status: "downloading", progress: 42 });
-          },
-          install: async () => {
-            calls.push("install");
-            emit({ status: "installing" });
-          },
-          openDownload: async () => {
-            calls.push("open-download");
-          },
-          setInRoom: async () => {},
-          onChange: (callback: typeof listener) => {
-            listener = callback;
-            return () => {
-              listener = undefined;
-            };
+  await page.addInitScript(
+    ({ mode, currentVersion, latestVersion }) => {
+      const calls: string[] = [];
+      let status: UpdateStatus = {
+        mode,
+        status: mode === "disabled" ? "disabled" : "idle",
+        currentVersion,
+        inRoom: false,
+      };
+      let listener: ((status: UpdateStatus) => void) | undefined;
+      const emit = (patch: Partial<UpdateStatus>) => {
+        status = { ...status, ...patch };
+        listener?.({ ...status });
+      };
+      window.updateTest = { calls, emit };
+      Object.assign(window, {
+        desktop: {
+          platform: mode === "notify" ? "darwin" : "win32",
+          takeInvitation: async () => undefined,
+          onAction: () => () => {},
+          cancelCapture: async () => {},
+          setSharing: async () => {},
+          loadSettings: async () => ({
+            noiseReduction: "enhanced",
+            minimizeToTray: false,
+            pushToTalk: false,
+            pttShortcut: "CommandOrControl+Shift+Space",
+            muteShortcut: "CommandOrControl+Shift+M",
+            quality: "cinema",
+            inputDevice: "",
+            outputDevice: "",
+          }),
+          updates: {
+            requireUpdate: async (minimumVersion: string, reason: string) =>
+              emit({ required: true, minimumVersion, reason }),
+            quit: async () => {
+              calls.push("quit");
+            },
+            status: async () => ({ ...status }),
+            check: async () => {
+              calls.push("check");
+              emit({
+                status: "available",
+                latestVersion,
+                notes: "改善通话体验",
+              });
+              return { ...status };
+            },
+            download: async () => {
+              calls.push("download");
+              emit({ status: "downloading", progress: 42 });
+            },
+            install: async () => {
+              calls.push("install");
+              emit({ status: "installing" });
+            },
+            openDownload: async () => {
+              calls.push("open-download");
+            },
+            setInRoom: async () => {},
+            onChange: (callback: typeof listener) => {
+              listener = callback;
+              return () => {
+                listener = undefined;
+              };
+            },
           },
         },
-      },
-    });
-  }, mode);
+      });
+    },
+    {
+      mode,
+      currentVersion: currentClientVersion,
+      latestVersion: nextClientVersion,
+    },
+  );
   await page.goto("/");
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "版本更新", exact: true }).click();
@@ -170,11 +181,15 @@ test("background notification opens the update panel and network errors can retr
 }) => {
   await fixture(page, "install");
   await page.getByRole("button", { name: "取消", exact: true }).click();
-  await page.evaluate(() =>
-    window.updateTest!.emit({ status: "available", latestVersion: "0.1.3" }),
+  await page.evaluate(
+    (latestVersion) =>
+      window.updateTest!.emit({ status: "available", latestVersion }),
+    nextClientVersion,
   );
   await page.getByRole("button", { name: "查看更新", exact: true }).click();
-  await expect(page.getByRole("dialog")).toContainText("新版 v0.1.3");
+  await expect(page.getByRole("dialog")).toContainText(
+    `新版 v${nextClientVersion}`,
+  );
   await page.evaluate(() =>
     window.updateTest!.emit({
       status: "error",
@@ -229,8 +244,13 @@ test("real Electron IPC keeps development builds out of automatic installation",
     await expect(
       page.getByText("此版本不提供在线更新", { exact: true }),
     ).toBeVisible();
-    await page.evaluate(() =>
-      window.desktop!.updates!.requireUpdate!("0.1.3", "本地 IPC 兼容性验证"),
+    await page.evaluate(
+      (minimumVersion) =>
+        window.desktop!.updates!.requireUpdate!(
+          minimumVersion,
+          "本地 IPC 兼容性验证",
+        ),
+      nextClientVersion,
     );
     await expect(
       page.getByRole("dialog", { name: "需要更新映聚" }),
@@ -259,12 +279,14 @@ test("Windows mandatory update blocks dismissal and still requires consent befor
 }) => {
   await fixture(page, "install");
   await page.getByRole("button", { name: "检查更新", exact: true }).click();
-  await page.evaluate(() =>
-    window.updateTest!.emit({
-      required: true,
-      minimumVersion: "0.1.3",
-      reason: "共享协议不再兼容旧版",
-    }),
+  await page.evaluate(
+    (minimumVersion) =>
+      window.updateTest!.emit({
+        required: true,
+        minimumVersion,
+        reason: "共享协议不再兼容旧版",
+      }),
+    nextClientVersion,
   );
   const gate = page.getByRole("dialog", { name: "需要更新映聚" });
   await expect(gate).toBeVisible();
@@ -299,12 +321,14 @@ test("portable mandatory compatibility gate offers manual replacement without en
   page,
 }) => {
   await fixture(page, "disabled");
-  await page.evaluate(() =>
-    window.updateTest!.emit({
-      required: true,
-      minimumVersion: "0.1.3",
-      reason: "请手动更换新版便携包",
-    }),
+  await page.evaluate(
+    (minimumVersion) =>
+      window.updateTest!.emit({
+        required: true,
+        minimumVersion,
+        reason: "请手动更换新版便携包",
+      }),
+    nextClientVersion,
   );
   const gate = page.getByRole("dialog", { name: "需要更新映聚" });
   await expect(gate).toBeVisible();
