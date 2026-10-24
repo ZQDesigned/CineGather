@@ -932,3 +932,313 @@ test("room settings follow ownership transfer and cannot reopen a closed room", 
       .status,
   ).toBe(404);
 });
+
+describe("room owner controls", () => {
+  test("only the current owner can transfer to a live admitted member, and authority changes atomically", async () => {
+    const a = await account(),
+      b = await account(),
+      outsider = await account();
+    const r = await room(a.token);
+    await req(`/rooms/${r.id}/join`, b.token, {});
+    const { media } = await import("../../apps/api/src/media");
+    const original = media.participants;
+    const url = `/rooms/${r.id}/members/${b.id}/owner`;
+    try {
+      media.participants = async (id, ...rest) =>
+        id === r.id
+          ? ([{ identity: a.id }, { identity: b.id }] as Awaited<
+              ReturnType<typeof original>
+            >)
+          : original.call(media, id, ...rest);
+      expect((await req(url, b.token, {})).status).toBe(403);
+      expect((await req(url, outsider.token, {})).status).toBe(403);
+      expect(
+        (await req(`/rooms/${r.id}/members/${a.id}/owner`, a.token, {})).status,
+      ).toBe(400);
+      expect(
+        (await req(`/rooms/${r.id}/members/${outsider.id}/owner`, a.token, {}))
+          .status,
+      ).toBe(403);
+      media.participants = async () => [];
+      expect((await req(url, a.token, {})).body.code).toBe(
+        "MEMBER_NOT_CONNECTED",
+      );
+      media.participants = async () =>
+        [{ identity: a.id }, { identity: b.id }] as Awaited<
+          ReturnType<typeof original>
+        >;
+      await db
+        .update(users)
+        .set({ disabledAt: new Date() })
+        .where(eq(users.id, b.id));
+      expect((await req(url, a.token, {})).status).toBe(409);
+      expect((await req(`/rooms/${r.id}`, a.token)).status).toBe(200);
+      await db
+        .update(users)
+        .set({ disabledAt: null })
+        .where(eq(users.id, b.id));
+      await db
+        .update(members)
+        .set({ admittedUntil: null })
+        .where(eq(members.userId, b.id));
+      expect((await req(url, a.token, {})).body.code).toBe(
+        "MEMBER_NOT_CONNECTED",
+      );
+      await db
+        .update(members)
+        .set({ admittedUntil: new Date(Date.now() + 30000) })
+        .where(eq(members.userId, b.id));
+      const transferred = await req(url, a.token, {});
+      expect(transferred.status).toBe(201);
+      expect(transferred.body.ownerUserId).toBe(b.id);
+      expect(transferred.body.role).toBe("member");
+      expect((await req(`/rooms/${r.id}`, b.token)).body.role).toBe("owner");
+      const roles = await db
+        .select()
+        .from(members)
+        .where(eq(members.roomId, r.id));
+      expect(
+        roles.filter((m) => m.role === "owner").map((m) => m.userId),
+      ).toEqual([b.id]);
+      expect(
+        (await req(`/rooms/${r.id}/settings`, a.token, { name: "old owner" }))
+          .status,
+      ).toBe(403);
+      expect(
+        (await req(`/rooms/${r.id}/settings`, b.token, { name: "new owner" }))
+          .status,
+      ).toBe(201);
+      await req(`/rooms/${r.id}/join`, outsider.token, {});
+      media.participants = async () =>
+        [a, b, outsider].map((p) => ({ identity: p.id })) as Awaited<
+          ReturnType<typeof original>
+        >;
+      const concurrent = await Promise.all(
+        [a, outsider].map((target) =>
+          req(`/rooms/${r.id}/members/${target.id}/owner`, b.token, {}),
+        ),
+      );
+      expect(concurrent.map((r) => r.status).sort()).toEqual([201, 403]);
+      const current = (await req(`/rooms/${r.id}`, b.token)).body;
+      const finalRoles = await db
+        .select()
+        .from(members)
+        .where(eq(members.roomId, r.id));
+      expect(
+        finalRoles.filter((m) => m.role === "owner").map((m) => m.userId),
+      ).toEqual([current.ownerUserId]);
+      expect(
+        (await req(`/rooms/${r.id}/share-lease/preempt`, b.token, {})).status,
+      ).toBe(403);
+      expect(
+        (
+          await req(
+            `/rooms/${r.id}/members/${a.id}/microphone/mute`,
+            b.token,
+            {},
+          )
+        ).status,
+      ).toBe(403);
+    } finally {
+      media.participants = original;
+    }
+  });
+
+  test("owner takeover revokes native sharing, requires sharing capability and fences stale lease operations", async () => {
+    const a = await account(),
+      b = await account();
+    const r = await room(a.token);
+    await req(`/rooms/${r.id}/join`, b.token, {});
+    const { media } = await import("../../apps/api/src/media");
+    const original = media.participants,
+      setShare = media.setShare;
+    const permissions: [string, boolean][] = [];
+    try {
+      media.participants = async (id, ...rest) =>
+        id === r.id
+          ? ([{ identity: a.id }, { identity: b.id }] as Awaited<
+              ReturnType<typeof original>
+            >)
+          : original.call(media, id, ...rest);
+      media.setShare = async (id, user, allow) => {
+        if (id === r.id) permissions.push([user, allow]);
+        else await setShare.call(media, id, user, allow);
+      };
+      const old = (await req(`/rooms/${r.id}/share-lease`, b.token, {})).body;
+      const native = (
+        await req(`/rooms/${r.id}/share-lease/native`, b.token, {
+          leaseId: old.leaseId,
+          revision: old.revision,
+        })
+      ).body;
+      expect(native.identity).toBeDefined();
+      expect(
+        (await req(`/rooms/${r.id}/share-lease`, a.token, {})).body.code,
+      ).toBe("SHARE_BUSY");
+      expect(
+        (await req(`/rooms/${r.id}/share-lease/preempt`, b.token, {})).status,
+      ).toBe(403);
+      await db
+        .update(users)
+        .set({ screenShareEnabled: false })
+        .where(eq(users.id, a.id));
+      expect(
+        (await req(`/rooms/${r.id}/share-lease/preempt`, a.token, {})).body
+          .code,
+      ).toBe("SCREEN_SHARE_UNAVAILABLE");
+      expect(
+        (await media.ingress.listIngress({ roomName: r.id })).map(
+          (i) => i.participantIdentity,
+        ),
+      ).toContain(native.identity);
+      await db
+        .update(users)
+        .set({ screenShareEnabled: true })
+        .where(eq(users.id, a.id));
+      const next = await req(`/rooms/${r.id}/share-lease/preempt`, a.token, {});
+      expect(next.status).toBe(201);
+      expect(next.body.holderUserId).toBe(a.id);
+      expect(next.body.revision).toBeGreaterThan(old.revision);
+      expect(await media.ingress.listIngress({ roomName: r.id })).toHaveLength(
+        0,
+      );
+      expect(permissions.slice(-3)).toEqual([
+        [a.id, false],
+        [b.id, false],
+        [a.id, true],
+      ]);
+      for (const [method, suffix] of [
+        ["POST", "/renew"],
+        ["POST", "/native"],
+        ["DELETE", ""],
+      ])
+        expect(
+          (
+            await req(
+              `/rooms/${r.id}/share-lease${suffix}`,
+              b.token,
+              { leaseId: old.leaseId, revision: old.revision },
+              method,
+            )
+          ).body.code,
+        ).toBe("LEASE_LOST");
+      expect(
+        (
+          await req(`/rooms/${r.id}/share-lease/renew`, a.token, {
+            leaseId: next.body.leaseId,
+            revision: next.body.revision,
+          })
+        ).status,
+      ).toBe(201);
+    } finally {
+      media.participants = original;
+      media.setShare = setShare;
+    }
+  });
+
+  test("targeted stop cannot revoke a replacement share and never disconnects the member", async () => {
+    const a = await account(),
+      b = await account();
+    const r = await room(a.token);
+    await req(`/rooms/${r.id}/join`, b.token, {});
+    const { media } = await import("../../apps/api/src/media");
+    const participants = media.participants,
+      setShare = media.setShare,
+      send = media.client.sendData;
+    try {
+      media.participants = async () =>
+        [{ identity: a.id }, { identity: b.id }] as Awaited<
+          ReturnType<typeof participants>
+        >;
+      media.setShare = async () => {};
+      media.client.sendData = async () => {};
+      const old = (await req(`/rooms/${r.id}/share-lease`, b.token, {})).body;
+      const native = await req(`/rooms/${r.id}/share-lease/native`, b.token, {
+        leaseId: old.leaseId,
+        revision: old.revision,
+      });
+      expect(native.status).toBe(201);
+      const url = `/rooms/${r.id}/members/${b.id}/share`;
+      expect((await req(url, b.token, undefined, "DELETE")).status).toBe(403);
+      expect((await req(url, a.token, undefined, "DELETE")).status).toBe(200);
+      expect(
+        (
+          await req(`/rooms/${r.id}/share-lease/renew`, b.token, {
+            leaseId: old.leaseId,
+            revision: old.revision,
+          })
+        ).body.code,
+      ).toBe("LEASE_LOST");
+      expect((await req(`/rooms/${r.id}`, b.token)).status).toBe(200);
+      expect(await media.ingress.listIngress({ roomName: r.id })).toHaveLength(
+        0,
+      );
+      const next = (await req(`/rooms/${r.id}/share-lease`, a.token, {})).body;
+      expect((await req(url, a.token, undefined, "DELETE")).body.code).toBe(
+        "SHARE_CHANGED",
+      );
+      expect(
+        (
+          await req(`/rooms/${r.id}/share-lease/renew`, a.token, {
+            leaseId: next.leaseId,
+            revision: next.revision,
+          })
+        ).status,
+      ).toBe(201);
+    } finally {
+      media.participants = participants;
+      media.setShare = setShare;
+      media.client.sendData = send;
+    }
+  });
+
+  test("microphone control is owner-only, microphone-only, mute-only and also covers pending capture", async () => {
+    const a = await account(),
+      b = await account();
+    const r = await room(a.token);
+    await req(`/rooms/${r.id}/join`, b.token, {});
+    const { media } = await import("../../apps/api/src/media");
+    const { TrackSource } = await import("livekit-server-sdk");
+    const participants = media.participants,
+      mute = media.client.mutePublishedTrack,
+      send = media.client.sendData;
+    const calls: unknown[][] = [],
+      packets: unknown[][] = [];
+    let tracks = [
+      { sid: "mic", source: TrackSource.MICROPHONE },
+      { sid: "system", source: TrackSource.SCREEN_SHARE_AUDIO },
+    ];
+    try {
+      media.participants = async () =>
+        [{ identity: a.id }, { identity: b.id, tracks }] as Awaited<
+          ReturnType<typeof participants>
+        >;
+      media.client.mutePublishedTrack = async (...args) => {
+        calls.push(args);
+        return {} as Awaited<ReturnType<typeof mute>>;
+      };
+      media.client.sendData = async (...args: unknown[]) => {
+        packets.push(args);
+      };
+      const url = `/rooms/${r.id}/members/${b.id}/microphone/mute`;
+      expect((await req(url, b.token, {})).status).toBe(403);
+      expect((await req(url, a.token, { muted: false })).status).toBe(400);
+      expect(calls).toHaveLength(0);
+      expect((await req(url, a.token, {})).status).toBe(201);
+      expect(calls).toEqual([[r.id, b.id, "mic", true]]);
+      expect(packets[0]![3]).toMatchObject({ destinationIdentities: [b.id] });
+      tracks = [];
+      expect((await req(url, a.token, {})).status).toBe(201);
+      expect(calls).toHaveLength(1);
+      expect(packets).toHaveLength(2);
+      media.participants = async () => [];
+      expect((await req(url, a.token, {})).body.code).toBe(
+        "MEMBER_NOT_CONNECTED",
+      );
+    } finally {
+      media.participants = participants;
+      media.client.mutePublishedTrack = mute;
+      media.client.sendData = send;
+    }
+  });
+});

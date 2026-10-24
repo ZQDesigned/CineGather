@@ -16,7 +16,9 @@ import {
   qualityPresets,
   type Quality,
   type NoiseReduction,
+  type RoomControl,
 } from "@cinegather/contracts";
+import { decodeRoomControl } from "./room-control";
 import { MoviePlayback } from "./movie";
 import { AudioMixer } from "./mixer";
 import { BrowserCapture } from "./browser-capture";
@@ -63,6 +65,7 @@ export class MediaSession {
     private readonly error: (error: unknown) => void,
     private readonly shareEnded: () => void,
     private readonly disconnected?: (reason?: DisconnectReason) => void,
+    private readonly controlled?: (command: RoomControl) => void,
   ) {}
   async connect(url: string, token: string) {
     await this.disconnect();
@@ -130,6 +133,22 @@ export class MediaSession {
       RoomEvent.ParticipantPermissionsChanged,
     ])
       room.on(event, emit);
+    room.on(
+      RoomEvent.DataReceived,
+      (payload, participant, _kind, topic, _encryption, senderIdentity) => {
+        if (this.room !== room || participant) return;
+        const command = decodeRoomControl(
+          payload,
+          topic,
+          senderIdentity,
+          room.name,
+        );
+        if (!command) return;
+        if (command.action === "mute-microphone")
+          void this.microphone(false).catch(this.error);
+        this.controlled?.(command);
+      },
+    );
     room.on(RoomEvent.Disconnected, (reason) => {
       if (this.room !== room) return;
       this.clearElements();

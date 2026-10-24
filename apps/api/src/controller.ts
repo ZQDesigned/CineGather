@@ -185,6 +185,46 @@ export class ApiController {
   lease(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
     return r.acquireLease(req.user, roomId);
   }
+  @Post("rooms/:roomId/share-lease/preempt")
+  @Endpoint("preemptShare", c.leaseSchema, undefined, ["roomId"], 201)
+  preemptShare(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
+    return r.acquireLease(req.user, roomId, true);
+  }
+  @Post("rooms/:roomId/members/:userId/owner")
+  @Endpoint("transferOwner", c.roomSchema, undefined, ["roomId", "userId"], 201)
+  transferOwner(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Param("userId") userId: string,
+  ) {
+    return r.transferOwner(req.user, roomId, userId);
+  }
+  @Delete("rooms/:roomId/members/:userId/share")
+  @Endpoint("stopMemberShare", c.okSchema, undefined, ["roomId", "userId"])
+  stopMemberShare(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Param("userId") userId: string,
+  ) {
+    return r.stopMemberShare(req.user, roomId, userId);
+  }
+  @Post("rooms/:roomId/members/:userId/microphone/mute")
+  @Endpoint(
+    "muteMember",
+    c.okSchema,
+    c.muteMicrophoneInput,
+    ["roomId", "userId"],
+    201,
+  )
+  muteMember(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Param("userId") userId: string,
+    @Body() body: unknown,
+  ) {
+    parse(c.muteMicrophoneInput, body);
+    return r.muteMember(req.user, roomId, userId);
+  }
   @Post("rooms/:roomId/share-lease/renew")
   @Endpoint("renewLease", c.leaseSchema, c.leaseInput, ["roomId"], 201)
   renew(

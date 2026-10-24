@@ -119,3 +119,58 @@ test("a late native publish after stop is immediately torn down without reactiva
   expect(h.releases).toEqual(["lease-one"]);
   expect(share.state).toBe("idle");
 });
+
+test("explicit takeover is forwarded, and stale revocation cannot stop a newer lease", async () => {
+  const h = harness();
+  let requested: boolean | undefined;
+  h.deps.acquire = async (preempt) => {
+    requested = preempt;
+    return {
+      leaseId: "new-lease",
+      holderUserId: "user",
+      revision: 3,
+      expiresAt: new Date(Date.now() + 30000).toISOString(),
+    };
+  };
+  const session = new ShareCoordinator(h.deps);
+  const start = session.start(true);
+  await Promise.resolve();
+  expect(requested).toBe(true);
+  expect(await session.revoke("old-lease")).toBe(false);
+  h.choose(true);
+  await start;
+  expect(session.state).toBe("active");
+  expect(await session.revoke("new-lease")).toBe(true);
+  expect(session.state).toBe("idle");
+  expect(h.releases).toEqual(["new-lease"]);
+});
+
+test("revocation received before acquisition response prevents source selection or publication", async () => {
+  const h = harness();
+  let resolve!: (
+    value: Awaited<ReturnType<ShareDependencies["acquire"]>>,
+  ) => void;
+  h.deps.acquire = () =>
+    new Promise((r) => {
+      resolve = r;
+    });
+  let selections = 0;
+  h.deps.select = async () => {
+    selections++;
+    return true;
+  };
+  const session = new ShareCoordinator(h.deps);
+  const start = session.start();
+  await session.revoke("delayed-lease");
+  await session.revoke("older-delayed-notification");
+  resolve({
+    leaseId: "delayed-lease",
+    holderUserId: "user",
+    revision: 1,
+    expiresAt: new Date(Date.now() + 30000).toISOString(),
+  });
+  await start;
+  expect(selections).toBe(0);
+  expect(session.state).toBe("idle");
+  expect(h.releases).toEqual(["delayed-lease"]);
+});

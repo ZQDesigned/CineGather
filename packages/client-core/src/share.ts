@@ -1,6 +1,6 @@
 import type { ShareLease, ShareState } from "@cinegather/contracts";
 export interface ShareDependencies {
-  acquire(): Promise<ShareLease>;
+  acquire(preempt?: boolean): Promise<ShareLease>;
   renew(lease: ShareLease): Promise<ShareLease>;
   release(lease: ShareLease): Promise<void>;
   select(): Promise<boolean>;
@@ -15,6 +15,7 @@ export class ShareCoordinator {
   private lease?: ShareLease;
   private timer?: ReturnType<typeof setInterval>;
   private starting = false;
+  private revokedLeases = new Set<string>();
   private renewing = false;
   private stopping?: Promise<void>;
   constructor(private readonly deps: ShareDependencies) {}
@@ -22,18 +23,22 @@ export class ShareCoordinator {
     this.state = state;
     this.deps.changed(state, this.revision);
   }
-  async start() {
+  async start(preempt = false) {
     if (this.starting || !["idle", "failed"].includes(this.state)) return;
     this.starting = true;
     const revision = ++this.revision;
     this.change("acquiringLease");
     try {
-      const lease = await this.deps.acquire();
+      const lease = await this.deps.acquire(preempt);
       if (revision !== this.revision) {
         await this.deps.release(lease);
         return;
       }
       this.lease = lease;
+      if (this.revokedLeases.has(lease.leaseId)) {
+        await this.stop();
+        return;
+      }
       this.timer = setInterval(() => void this.renew(revision), 10_000);
       this.change("selectingSource");
       const selected = await this.deps.select();
@@ -74,6 +79,14 @@ export class ShareCoordinator {
     } finally {
       this.renewing = false;
     }
+  }
+  async revoke(leaseId: string) {
+    this.revokedLeases.add(leaseId);
+    if (this.revokedLeases.size > 32)
+      this.revokedLeases.delete(this.revokedLeases.values().next().value!);
+    if (this.lease?.leaseId !== leaseId) return false;
+    await this.stop();
+    return true;
   }
   async stop() {
     if (this.stopping) return this.stopping;

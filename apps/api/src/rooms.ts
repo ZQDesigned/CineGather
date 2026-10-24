@@ -44,7 +44,7 @@ function roomInfo(room: typeof rooms.$inferSelect, userId: string): RoomInfo {
 }
 const passwordFailures = new Map<string, { count: number; until: number }>();
 
-async function requireActiveSession(tx: Transaction, userId: string) {
+async function activeSession(tx: Transaction, userId: string) {
   const [session] = await tx
     .select({ id: credentials.id })
     .from(credentials)
@@ -60,7 +60,11 @@ async function requireActiveSession(tx: Transaction, userId: string) {
       ),
     )
     .limit(1);
-  if (!session) fail(401, "SESSION_EXPIRED", "登录已失效，请重新登录账号");
+  return session;
+}
+async function requireActiveSession(tx: Transaction, userId: string) {
+  if (!(await activeSession(tx, userId)))
+    fail(401, "SESSION_EXPIRED", "登录已失效，请重新登录账号");
 }
 export async function requireMember(
   tx: Transaction,
@@ -525,12 +529,17 @@ async function requireScreenShare(tx: Transaction, userId: string) {
   if (!user?.enabled)
     fail(403, "SCREEN_SHARE_UNAVAILABLE", "当前账号暂未开通屏幕共享能力");
 }
-export async function acquireLease(user: User, roomId: string) {
+export async function acquireLease(
+  user: User,
+  roomId: string,
+  preempt = false,
+) {
   roomId = uuid(roomId);
   let granted = false;
+  let previous: { userId: string; leaseId: string } | undefined;
   try {
-    return await db.transaction(async (tx) => {
-      await requireMember(tx, roomId, user.id, false, true);
+    const result = await db.transaction(async (tx) => {
+      await requireMember(tx, roomId, user.id, preempt, true);
       await requireScreenShare(tx, user.id);
       const participants = await media.participants(roomId);
       if (!participants.some((p) => p.identity === user.id))
@@ -545,10 +554,11 @@ export async function acquireLease(user: User, roomId: string) {
         lease.expiresAt &&
         lease.expiresAt.getTime() > Date.now()
       ) {
-        if (lease.holderUserId !== user.id)
-          fail(409, "SHARE_BUSY", "已有成员正在共享");
-        return leaseResult(lease);
+        if (lease.holderUserId === user.id) return leaseResult(lease);
+        if (!preempt) fail(409, "SHARE_BUSY", "已有成员正在共享");
       }
+      if (lease.holderUserId && lease.leaseId)
+        previous = { userId: lease.holderUserId, leaseId: lease.leaseId };
       await revokeNative(tx, roomId);
       // Revoke first: LiveKit SetPermission removes all tracks from disallowed sources.
       for (const p of participants)
@@ -563,11 +573,21 @@ export async function acquireLease(user: User, roomId: string) {
         revision: lease.revision + 1,
       };
       await tx.update(leases).set(next).where(eq(leases.roomId, roomId));
-      await audit(tx, user.id, "share.acquired", roomId, {
-        revision: next.revision,
-      });
+      await audit(
+        tx,
+        user.id,
+        preempt ? "share.preempted" : "share.acquired",
+        roomId,
+        {
+          previousHolder: previous?.userId,
+          revision: next.revision,
+        },
+      );
       return leaseResult({ roomId, ...next });
     });
+    if (previous)
+      await notifyShareStopped(roomId, previous.userId, previous.leaseId);
+    return result;
   } catch (error) {
     if (granted)
       await media
@@ -642,6 +662,123 @@ export async function releaseLease(
         revision: input.revision,
       });
     }
+  });
+  return { ok: true as const };
+}
+// Caller holds the room lock. Native identities, historical members, banned and
+// expired accounts must never become moderation targets or new room owners.
+async function requirePresentMember(
+  tx: Transaction,
+  roomId: string,
+  targetId: string,
+) {
+  const [member] = await tx
+    .select()
+    .from(members)
+    .where(and(eq(members.roomId, roomId), eq(members.userId, targetId)));
+  if (!member) fail(403, "FORBIDDEN", "该用户不是此房间的成员");
+  const [banned] = await tx
+    .select()
+    .from(bans)
+    .where(and(eq(bans.roomId, roomId), eq(bans.userId, targetId)));
+  if (!member.admittedUntil || banned || !(await activeSession(tx, targetId)))
+    fail(409, "MEMBER_NOT_CONNECTED", "该成员已不在当前房间");
+  const participant = (await media.participants(roomId)).find(
+    (p) => p.identity === targetId,
+  );
+  if (!participant) fail(409, "MEMBER_NOT_CONNECTED", "该成员已不在当前房间");
+  return participant;
+}
+export async function transferOwner(
+  user: User,
+  roomId: string,
+  targetId: string,
+) {
+  roomId = uuid(roomId);
+  targetId = uuid(targetId);
+  return db.transaction(async (tx) => {
+    await requireMember(tx, roomId, user.id, true, true);
+    if (targetId === user.id) fail(400, "ALREADY_OWNER", "你已经是房主");
+    await requirePresentMember(tx, roomId, targetId);
+    const [room] = await tx
+      .update(rooms)
+      .set({ ownerUserId: targetId })
+      .where(eq(rooms.id, roomId))
+      .returning();
+    await tx
+      .update(members)
+      .set({ role: "member" })
+      .where(eq(members.roomId, roomId));
+    await tx
+      .update(members)
+      .set({ role: "owner" })
+      .where(and(eq(members.roomId, roomId), eq(members.userId, targetId)));
+    await audit(tx, user.id, "room.owner_transferred", roomId, {
+      previousOwner: user.id,
+      owner: targetId,
+    });
+    return roomInfo(room!, user.id);
+  });
+}
+async function notifyShareStopped(
+  roomId: string,
+  userId: string,
+  leaseId: string,
+) {
+  // Permissions and ingress revocation are authoritative; notification delivery
+  // failure must not turn a committed stop/takeover into an apparent failure.
+  await media
+    .control(userId, { action: "stop-share", roomId, leaseId })
+    .catch(() => {});
+}
+export async function stopMemberShare(
+  user: User,
+  roomId: string,
+  targetId: string,
+) {
+  roomId = uuid(roomId);
+  targetId = uuid(targetId);
+  const stoppedLeaseId = await db.transaction(async (tx) => {
+    await requireMember(tx, roomId, user.id, true, true);
+    await requirePresentMember(tx, roomId, targetId);
+    const [lease] = await tx
+      .select()
+      .from(leases)
+      .where(eq(leases.roomId, roomId));
+    if (lease?.holderUserId !== targetId || !lease.leaseId)
+      fail(409, "SHARE_CHANGED", "该成员的共享已结束或已切换");
+    await revokeNative(tx, roomId, targetId);
+    await media.setShare(roomId, targetId, false);
+    await tx
+      .update(leases)
+      .set({
+        holderUserId: null,
+        leaseId: null,
+        expiresAt: null,
+        revision: lease.revision + 1,
+      })
+      .where(eq(leases.roomId, roomId));
+    await audit(tx, user.id, "share.stopped_by_owner", roomId, {
+      userId: targetId,
+      leaseId: lease.leaseId,
+    });
+    return lease.leaseId;
+  });
+  await notifyShareStopped(roomId, targetId, stoppedLeaseId);
+  return { ok: true as const };
+}
+export async function muteMember(user: User, roomId: string, targetId: string) {
+  roomId = uuid(roomId);
+  targetId = uuid(targetId);
+  await db.transaction(async (tx) => {
+    await requireMember(tx, roomId, user.id, true, true);
+    if (targetId === user.id)
+      fail(400, "CANNOT_MODERATE_SELF", "请使用自己的麦克风开关");
+    const target = await requirePresentMember(tx, roomId, targetId);
+    await media.muteMicrophone(roomId, targetId, target.tracks ?? []);
+    await audit(tx, user.id, "member.microphone_muted", roomId, {
+      userId: targetId,
+    });
   });
   return { ok: true as const };
 }

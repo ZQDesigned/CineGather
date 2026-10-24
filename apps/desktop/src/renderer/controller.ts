@@ -180,6 +180,19 @@ export const media = new MediaSession(
     else
       update({ roomState: "failed", error: "媒体连接已断开，请重新连接房间" });
   },
+  (command) => {
+    if (command.action === "mute-microphone") {
+      pttHolds.clear();
+      update({ warning: "房主已关闭你的麦克风" });
+    } else {
+      void shareSession
+        .revoke(command.leaseId)
+        .then((stopped) => {
+          if (stopped) update({ warning: "房主已停止你的共享" });
+        })
+        .catch(report);
+    }
+  },
 );
 async function handleRemoteRemoval() {
   const { room, roomRevision } = state();
@@ -230,11 +243,16 @@ const processAudio = new ProcessAudio((message) => {
   void shareSession.stop().catch(report);
 });
 export const shareSession: ShareCoordinator = new ShareCoordinator({
-  acquire: async () =>
+  acquire: async (preempt) =>
     unwrap(
-      await api.POST("/api/v1/rooms/{roomId}/share-lease", {
-        params: { path: { roomId: state().room!.id } },
-      }),
+      await api.POST(
+        preempt
+          ? "/api/v1/rooms/{roomId}/share-lease/preempt"
+          : "/api/v1/rooms/{roomId}/share-lease",
+        {
+          params: { path: { roomId: state().room!.id } },
+        },
+      ),
     ),
   renew: async (lease) =>
     window.desktop?.nativeCapture &&
@@ -252,7 +270,11 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
         params: { path: { roomId: state().room!.id } },
         body: { leaseId: lease.leaseId, revision: lease.revision },
       });
-      if (![401, 403, 404].includes(result.response.status)) unwrap(result);
+      if (
+        ![401, 403, 404].includes(result.response.status) &&
+        result.error?.code !== "LEASE_LOST"
+      )
+        unwrap(result);
     }
   },
   select: async () => {
@@ -320,6 +342,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     }
   },
   stop: async () => {
+    if (state().modal === "source") await chooseSource();
     update({ audioCompatibility: false });
     await processAudio.stop();
     await window.desktop?.stopNativeCapture?.();
@@ -595,6 +618,23 @@ export async function createRoom(
   );
   await refreshRooms();
   await roomSession.enter(room.id);
+}
+export async function transferRoomOwner(roomId: string, userId: string) {
+  const identity = sessionToken;
+  const revision = state().roomRevision;
+  const saved = unwrap(
+    await api.POST("/api/v1/rooms/{roomId}/members/{userId}/owner", {
+      params: { path: { roomId, userId } },
+    }),
+  );
+  if (
+    identity !== sessionToken ||
+    state().room?.id !== roomId ||
+    state().roomRevision !== revision
+  )
+    return;
+  update({ room: saved, notice: "房主已转移" });
+  await refreshRooms();
 }
 export async function updateRoomSettings(name: string, maxMembers: number) {
   const { room, roomRevision } = state();

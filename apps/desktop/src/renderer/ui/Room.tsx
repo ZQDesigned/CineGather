@@ -1,4 +1,4 @@
-import { Slider, Alert, Tabs, Tooltip, Tag, Badge } from "antd";
+import { App, Slider, Alert, Tabs, Tooltip, Tag, Badge } from "antd";
 import { Button } from "./Controls";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
@@ -36,6 +36,7 @@ import {
 } from "../audio-compatibility";
 export function Room() {
   const app = useApp();
+  const { modal } = App.useApp();
   const stage = useRef<HTMLDivElement>(null);
   const [memberVolumes, setMemberVolumes] = useState<Record<string, number>>(
     {},
@@ -49,6 +50,8 @@ export function Room() {
     "stopping",
   ].includes(app.shareState);
   const sharingOwnScreen = sharing || Boolean(app.media.sharer?.local);
+  const otherSharing = Boolean(app.media.sharer && !app.media.sharer.local);
+  const canPreempt = app.room?.role === "owner" && otherSharing && !sharing;
   const connected = app.roomState === "connected";
   useEffect(() => {
     if (sharingOwnScreen && document.fullscreenElement === stage.current)
@@ -292,9 +295,19 @@ export function Room() {
               type="text"
               aria-pressed={sharing}
               className={`control-button ${sharing ? "sharing-control" : ""}`}
-              disabled={!connected}
+              disabled={!connected || (otherSharing && !canPreempt && !sharing)}
               onClick={() => {
                 if (sharing) void actions.stopShare();
+                else if (canPreempt)
+                  modal.confirm({
+                    title: "抢占当前共享？",
+                    content: `将停止${app.media.sharer!.name}的共享，并开始选择你的共享画面。`,
+                    okText: "抢占共享",
+                    cancelText: "取消",
+                    onOk: () => {
+                      void actions.shareSession.start(true);
+                    },
+                  });
                 else void actions.shareSession.start();
               }}
             >
@@ -304,7 +317,9 @@ export function Room() {
                   ? app.shareState === "active"
                     ? "停止共享"
                     : "取消共享"
-                  : "共享屏幕"}
+                  : canPreempt
+                    ? "抢占共享"
+                    : "共享屏幕"}
               </span>
             </Button>
             <Button

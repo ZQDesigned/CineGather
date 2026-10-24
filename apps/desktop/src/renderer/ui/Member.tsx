@@ -1,7 +1,17 @@
-import { Avatar, Button, Dropdown, Slider, Tag, type MenuProps } from "antd";
+import {
+  App,
+  Avatar,
+  Button,
+  Dropdown,
+  Slider,
+  Tag,
+  type MenuProps,
+} from "antd";
 import { useRef, useState } from "react";
 import styled from "@emotion/styled";
 import {
+  Crown,
+  MonitorOff,
   Ellipsis,
   LogOut,
   Mic,
@@ -14,7 +24,7 @@ import type { ParticipantSummary } from "@cinegather/media-core";
 import type { RoomInfo } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import * as actions from "../controller";
-import { update } from "../store";
+import { update, useApp } from "../store";
 
 const MemberPopup = styled.div`
   width: 236px;
@@ -67,6 +77,8 @@ export function Member({
   volume: number;
   onVolumeChange(value: number): void;
 }) {
+  const { modal } = App.useApp();
+  const sharerId = useApp((s) => s.media.sharer?.id);
   const [open, setOpen] = useState(false);
   const [focusVolume, setFocusVolume] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -75,6 +87,17 @@ export function Member({
     ...(room.role === "owner"
       ? [
           { type: "divider" as const },
+          { key: "transfer", label: "转移房主", icon: <Crown size={15} /> },
+          { key: "mute", label: "关闭麦克风", icon: <MicOff size={15} /> },
+          ...(sharerId === p.id
+            ? [
+                {
+                  key: "stop-share",
+                  label: "停止共享",
+                  icon: <MonitorOff size={15} />,
+                },
+              ]
+            : []),
           {
             key: "remove",
             label: "移出房间",
@@ -86,6 +109,23 @@ export function Member({
   ];
   const select: MenuProps["onClick"] = ({ key }) => {
     setOpen(false);
+    if (key === "transfer" && room.role === "owner") {
+      modal.confirm({
+        title: `将房主转移给${p.name}？`,
+        content: "转移后，你将成为普通成员。",
+        okText: "确认转移",
+        cancelText: "取消",
+        onOk: async () => {
+          try {
+            await actions.transferRoomOwner(room.id, p.id);
+          } catch (error) {
+            actions.report(error);
+            throw error;
+          }
+        },
+      });
+      return;
+    }
     void actions.run(async () => {
       if (key === "friend") {
         unwrap(
@@ -93,6 +133,27 @@ export function Member({
         );
         await actions.refreshFriends();
         update({ notice: "好友请求已发送" });
+      } else if (key === "mute" && room.role === "owner") {
+        unwrap(
+          await actions.api.POST(
+            "/api/v1/rooms/{roomId}/members/{userId}/microphone/mute",
+            {
+              params: { path: { roomId: room.id, userId: p.id } },
+              body: {},
+            },
+          ),
+        );
+        update({ notice: `已关闭${p.name}的麦克风` });
+      } else if (key === "stop-share" && room.role === "owner") {
+        unwrap(
+          await actions.api.DELETE(
+            "/api/v1/rooms/{roomId}/members/{userId}/share",
+            {
+              params: { path: { roomId: room.id, userId: p.id } },
+            },
+          ),
+        );
+        update({ notice: `已停止${p.name}的共享` });
       } else if (key === "remove" && room.role === "owner") {
         unwrap(
           await actions.api.DELETE("/api/v1/rooms/{roomId}/members/{userId}", {

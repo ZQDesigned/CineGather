@@ -329,3 +329,18 @@ export interface NativeCaptureRequest {
   lease: ShareLease;
   quality: Quality;
 }
+
+// Only server-originated LiveKit packets may be interpreted as room controls.
+export const ROOM_CONTROL_TOPIC = "cinegather.room-control.v1";
+export const roomControlSchema = z.discriminatedUnion("action", [
+  z.object({ action: z.literal("mute-microphone"), roomId: z.uuid() }).strict(),
+  z
+    .object({
+      action: z.literal("stop-share"),
+      roomId: z.uuid(),
+      leaseId: z.uuid(),
+    })
+    .strict(),
+]);
+export type RoomControl = z.infer<typeof roomControlSchema>;
+export const muteMicrophoneInput = z.object({}).strict();

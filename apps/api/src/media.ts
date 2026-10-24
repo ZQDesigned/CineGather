@@ -1,4 +1,5 @@
 import {
+  DataPacket_Kind,
   IngressClient,
   IngressInput,
   IngressAudioOptions,
@@ -11,6 +12,8 @@ import {
 import { config } from "./config";
 import {
   MAX_ROOM_MEMBERS,
+  ROOM_CONTROL_TOPIC,
+  type RoomControl,
   nativeIdentity,
   type User,
 } from "@cinegather/contracts";
@@ -135,6 +138,29 @@ export class MediaGateway {
           : [TrackSource.MICROPHONE],
       },
     });
+  }
+  async control(userId: string, command: RoomControl) {
+    await this.client.sendData(
+      command.roomId,
+      new TextEncoder().encode(JSON.stringify(command)),
+      DataPacket_Kind.RELIABLE,
+      {
+        destinationIdentities: [userId],
+        topic: ROOM_CONTROL_TOPIC,
+      },
+    );
+  }
+  async muteMicrophone(
+    roomId: string,
+    userId: string,
+    tracks: { sid: string; source: TrackSource }[],
+  ) {
+    // The server never accepts a caller-supplied unmute flag or track SID.
+    for (const track of tracks)
+      if (track.source === TrackSource.MICROPHONE)
+        await this.client.mutePublishedTrack(roomId, userId, track.sid, true);
+    // Covers an OS microphone grant/publication still pending on the client.
+    await this.control(userId, { action: "mute-microphone", roomId });
   }
   async remove(roomId: string, userId: string) {
     try {
