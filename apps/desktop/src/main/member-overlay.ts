@@ -38,7 +38,10 @@ export class MemberOverlay {
     });
   }
   private view(): MemberOverlayView {
-    return { snapshot: this.snapshot };
+    return {
+      snapshot: this.snapshot,
+      backgroundOpacity: this.preferences.opacity,
+    };
   }
   publish(snapshot: MemberOverlaySnapshot | null) {
     this.snapshot = snapshot;
@@ -182,7 +185,6 @@ export class MemberOverlay {
       )
     )
       w.setBounds(bounds);
-    w.setOpacity(this.preferences.opacity / 100);
     if (this.ready) {
       w.webContents.send("overlay:changed", this.view());
       if (!w.isVisible()) w.showInactive();

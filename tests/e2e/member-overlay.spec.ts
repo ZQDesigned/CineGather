@@ -219,7 +219,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     await page.getByRole("tab", { name: "成员浮层", exact: true }).click();
     await enabled.click();
     await page
-      .getByRole("slider", { name: "浮层不透明度", exact: true })
+      .getByRole("slider", { name: "浮层背景不透明度", exact: true })
       .focus();
     await page.keyboard.press("Home");
     await page.keyboard.press("ArrowRight");
@@ -232,7 +232,31 @@ test("native member overlay appears only in a room and uses an isolated transpar
             .getOpacity(),
         ),
       )
-      .toBeCloseTo(0.31, 2);
+      .toBe(1);
+    const pixels = await app.evaluate(async ({ BrowserWindow }) => {
+      const w = BrowserWindow.getAllWindows().find(
+        (w) => w.getTitle() === "映聚成员浮层",
+      )!;
+      const text = await w.webContents.executeJavaScript(
+        `(() => { const r = document.querySelector('.name').getBoundingClientRect(); return { x:r.x,y:r.y,width:r.width,height:r.height }; })()`,
+      );
+      const capture = await w.webContents.capturePage();
+      const { width } = capture.getSize();
+      const bitmap = capture.toBitmap();
+      const scale = width / w.getBounds().width;
+      const alpha = (x: number, y: number) =>
+        bitmap[
+          (Math.floor(y * scale) * width + Math.floor(x * scale)) * 4 + 3
+        ]!;
+      let textAlpha = 0;
+      for (let y = text.y; y < text.y + text.height; y += 1 / scale)
+        for (let x = text.x; x < text.x + text.width; x += 1 / scale)
+          textAlpha = Math.max(textAlpha, alpha(x, y));
+      return { backgroundAlpha: alpha(248, 40), textAlpha };
+    });
+    expect(pixels.backgroundAlpha).toBeGreaterThanOrEqual(78);
+    expect(pixels.backgroundAlpha).toBeLessThanOrEqual(80);
+    expect(pixels.textAlpha).toBe(255);
     await page
       .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();

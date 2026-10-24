@@ -5,12 +5,17 @@ import styled from "@emotion/styled";
 import { Crown, Mic, MicOff, MonitorUp } from "lucide-react";
 import type { MemberOverlayView } from "@cinegather/contracts";
 import { cinemaFont } from "./styles";
-const Surface = styled.section`
+const Surface = styled.section<{ $backgroundOpacity: number }>`
   margin: 4px;
   padding: 6px;
   border: 1px solid #ffffff25;
   border-radius: 12px;
-  background: #151820eb;
+  background: rgba(
+    21,
+    24,
+    32,
+    ${({ $backgroundOpacity }) => $backgroundOpacity / 100}
+  );
   color: #e9e9ef;
   font-family: ${cinemaFont};
   font-size: 12px;
@@ -88,6 +93,7 @@ const Surface = styled.section`
 export function MemberOverlay() {
   const [view, setView] = useState<MemberOverlayView>({
     snapshot: null,
+    backgroundOpacity: 85,
   });
   useEffect(() => {
     const bridge = window.memberOverlay!;
@@ -135,7 +141,10 @@ export function MemberOverlay() {
         `}
       />
       {view.snapshot && (
-        <Surface aria-label="房间成员浮层">
+        <Surface
+          aria-label="房间成员浮层"
+          $backgroundOpacity={view.backgroundOpacity}
+        >
           <header>
             <strong>{view.snapshot.roomName}</strong>
             <span>{view.snapshot.members.length} 人</span>

@@ -250,6 +250,7 @@ export interface MemberOverlaySnapshot {
   }>;
 }
 export interface MemberOverlayView {
+  backgroundOpacity: number;
   snapshot: MemberOverlaySnapshot | null;
 }
 export interface MemberOverlayBridge {

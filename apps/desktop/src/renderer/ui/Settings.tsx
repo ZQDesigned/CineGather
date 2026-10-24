@@ -550,9 +550,9 @@ export function Settings() {
                           }
                         />
                       </Form.Item>
-                      <Form.Item label="浮层不透明度">
+                      <Form.Item label="浮层背景不透明度">
                         <Slider
-                          ariaLabelForHandle="浮层不透明度"
+                          ariaLabelForHandle="浮层背景不透明度"
                           min={30}
                           max={100}
                           value={

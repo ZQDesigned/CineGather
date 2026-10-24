@@ -170,6 +170,17 @@ try {
       }),
     )
     .toBe(true);
+  expect(
+    await app.evaluate(({ BrowserWindow }) =>
+      BrowserWindow.getAllWindows()
+        .find((w) => w.getTitle() === "映聚成员浮层")!
+        .getOpacity(),
+    ),
+  ).toBe(1);
+  await expect(overlay.locator("section")).toHaveCSS(
+    "background-color",
+    "rgba(21, 24, 32, 0.85)",
+  );
   await expect(overlay.getByRole("button")).toHaveCount(0);
   await page.evaluate(() => window.desktop!.memberOverlay!.publish(null));
   await expect
