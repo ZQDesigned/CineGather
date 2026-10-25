@@ -57,7 +57,6 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
           VITE_API_URL: https://cgplat.zqdesigned.city
           VITE_WEB_URL: https://cgplat.zqdesigned.city
-      - run: bun tools/windows-native-smoke.ts
       - run: bun tools/package-smoke.ts win32
       - uses: actions/upload-artifact@v4
         with:

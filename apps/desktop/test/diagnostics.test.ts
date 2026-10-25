@@ -155,6 +155,7 @@ test("export is a deflated ZIP with raw timeline, coverage, replay intervals and
     "frame-pipeline.csv",
     "intervals.csv",
     "manifest.json",
+    "native-pipeline.csv",
     "summary.json",
     "timeline.ndjson",
   ]);
@@ -416,4 +417,32 @@ test("invalid required metadata removes only the affected track and keeps IPC va
   expect(() =>
     repairDiagnosticRecord({ ...input, session: "not-a-session" }),
   ).toThrow();
+});
+
+test("native pipeline uses observed output counters, separates restarts and never labels render FPS as capture FPS", async () => {
+  const { nativePipeline } = await import("../src/shared/diagnostics");
+  const samples = [1000, 6000, 11000, 16000].map((at, i) =>
+    safeDiagnosticRecord({
+      ...entry(at, i),
+      native: {
+        sourcesActive: true,
+        outputActive: true,
+        selectedEncoder: "x264",
+        encoderBackend: "x264",
+        hardwareEncoder: false,
+        outputTotalFrames: [0, 150, 2, 152][i],
+        outputBytes: [0, 300000, 1000, 301000][i],
+        renderTotalFrames: i * 150,
+        activeFps: 30,
+      },
+    }),
+  );
+  const rows = nativePipeline(samples);
+  expect(rows[1]?.encodedFps).toBe(30);
+  expect(rows[1]?.bitrateBps).toBe(480000);
+  expect(rows[1]?.encoderMode).toBe("software");
+  expect(rows[2]?.encodedFps).toBeUndefined();
+  expect(rows[2]?.reset).toBe(true);
+  expect(rows[3]?.encodedFps).toBe(30);
+  expect(rows[1]).not.toHaveProperty("captureFps");
 });

@@ -5,6 +5,7 @@
 #include "encoder-selection.hpp"
 #include <algorithm>
 #include <atomic>
+#include <audioclient.h>
 #include <cctype>
 #include <chrono>
 #include <condition_variable>
@@ -78,6 +79,8 @@ static obs_service_t *service;
 static obs_output_t *output;
 static std::atomic<int> outputPhase{0}, stopCode{-1};
 static uint64_t deadlineNs;
+static uint64_t captureSequence = 0;
+static int configuredWidth = 0, configuredHeight = 0, configuredFps = 0;
 static bool engineReady = false, quitting = false, deviceFallback = false;
 static std::string requestedEncoder = "auto", selectedEncoder, selectedBackend,
                    lastFailure;
@@ -551,6 +554,7 @@ struct ProcessAudio {
   HANDLE job = nullptr, process = nullptr, pipe = nullptr, control = nullptr;
   std::thread reader;
   std::atomic<bool> failed{false};
+  std::atomic<uint64_t> frames{0}, timestampFallbacks{0}, delayNs{0};
 };
 static bool readAll(HANDLE pipe, void *dst, DWORD size) {
   auto *bytes = static_cast<uint8_t *>(dst);
@@ -695,7 +699,14 @@ static ProcessAudio *launchAudio(obs_source_t *source, const char *mode,
       packet.speakers = SPEAKERS_STEREO;
       packet.format = AUDIO_FORMAT_16BIT;
       packet.samples_per_sec = 48000;
-      packet.timestamp = timestamp ? timestamp * 100 : os_gettime_ns();
+      const uint64_t now = os_gettime_ns();
+      if (!timestamp || (flags & AUDCLNT_BUFFERFLAGS_TIMESTAMP_ERROR)) {
+        packet.timestamp = now;
+        a->timestampFallbacks++;
+      } else
+        packet.timestamp = timestamp * 100;
+      a->frames += packet.frames;
+      a->delayNs = now > packet.timestamp ? now - packet.timestamp : 0;
       obs_source_output_audio(a->source, &packet);
     }
     a->failed = true;
@@ -780,6 +791,10 @@ static void stopCapture() {
 }
 static Data status() {
   auto d = data();
+  obs_data_set_int(d.get(), "captureSequence", captureSequence);
+  obs_data_set_int(d.get(), "configuredWidth", configuredWidth);
+  obs_data_set_int(d.get(), "configuredHeight", configuredHeight);
+  obs_data_set_int(d.get(), "configuredFps", configuredFps);
   obs_data_set_bool(d.get(), "screenPermission", true);
   obs_data_set_string(d.get(), "outputPhase",
                       outputPhase == 2   ? "active"
@@ -822,6 +837,13 @@ static Data status() {
   obs_data_set_int(d.get(), "renderSkippedFrames", obs_get_lagged_frames());
   if (audioSource) {
     auto *a = static_cast<ProcessAudio *>(obs_obj_get_data(audioSource));
+    if (a) {
+      obs_data_set_int(d.get(), "audioFramesCaptured", a->frames);
+      obs_data_set_int(d.get(), "audioTimestampFallbacks",
+                       a->timestampFallbacks);
+      obs_data_set_double(d.get(), "audioCaptureDelayMs",
+                          double(a->delayNs) / 1e6);
+    }
     if (a && a->failed)
       obs_data_set_string(d.get(), "audioCaptureError",
                           "声音采集已中断，请重新共享");
@@ -890,6 +912,7 @@ static void createVideoEncoder(const Choice &c, int bitrate) {
 }
 static void startCapture(obs_data_t *config, bool synthetic = false) {
   check(!output, "already-sharing");
+  ++captureSequence;
   requestedEncoder = obs_data_get_string(config, "encoder");
   if (requestedEncoder.empty())
     requestedEncoder = "auto";
@@ -908,6 +931,9 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       bitrate = quality == "saver"  ? 2000
                 : quality == "game" ? 8000
                                     : 5000;
+  configuredWidth = width;
+  configuredHeight = height;
+  configuredFps = fps;
   for (const auto &c : options) {
     try {
       check(c.available, "encoder-unavailable");
@@ -1086,7 +1112,7 @@ static void init() {
   check(obs_startup("zh-CN", working.u8string().c_str(), nullptr),
         "obs-startup");
   engineReady = true;
-  obs_add_data_path((rootDir / "data/libobs").u8string().c_str());
+  obs_add_data_path(((rootDir / "data/libobs").u8string() + "/").c_str());
   enumerateAdapters();
   resetVideo(0, 1920, 1080, 30);
   obs_audio_info2 audio{};
@@ -1244,6 +1270,7 @@ int wmain(int argc, wchar_t **argv) {
     std::fputs("CG_HOST_ERROR owner-process\n", stderr);
     return 2;
   }
+  SetCurrentDirectoryW(executable().parent_path().c_str());
   SetDllDirectoryW(executable().parent_path().c_str());
   SetHandleInformation(GetStdHandle(STD_INPUT_HANDLE), HANDLE_FLAG_INHERIT, 0);
   SetHandleInformation(GetStdHandle(STD_OUTPUT_HANDLE), HANDLE_FLAG_INHERIT, 0);

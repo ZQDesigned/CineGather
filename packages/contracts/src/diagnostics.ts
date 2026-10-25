@@ -321,6 +321,13 @@ export const diagnosticServerSchema = z.object({
     .optional(),
 });
 export const nativeNumbers = [
+  "captureSequence",
+  "configuredWidth",
+  "configuredHeight",
+  "configuredFps",
+  "audioFramesCaptured",
+  "audioCaptureDelayMs",
+  "audioTimestampFallbacks",
   "activeFps",
   "averageFrameRenderTime",
   "encodingSkippedFrames",
