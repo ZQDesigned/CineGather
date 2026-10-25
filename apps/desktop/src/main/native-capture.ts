@@ -16,6 +16,7 @@ import {
 } from "@cinegather/contracts";
 import { selectNativeSource } from "./native-selection";
 import { NativeProtocol } from "./native-protocol";
+import { nativeFailure } from "./native-failure";
 const displaySchema = z.object({
   displayId: z.number().int(),
   name: z.string(),
@@ -382,7 +383,7 @@ export class NativeCapture {
       throw new Error("共享启动已取消或超时");
     } catch (error) {
       if (epoch === this.epoch) await this.stop();
-      throw error;
+      throw this.windows ? nativeFailure(error) : error;
     }
   }
   async renew(lease: ShareLease): Promise<ShareLease> {
@@ -460,7 +461,6 @@ export class NativeCapture {
     }
   }
   async stop() {
-    this.diagnosticStatus = undefined;
     ++this.epoch;
     clearInterval(this.poll);
     this.poll = undefined;
@@ -473,7 +473,12 @@ export class NativeCapture {
     this.abort?.abort();
     this.abort = undefined;
     try {
-      if (this.pipe) await this.pipe.call({ type: "stop" });
+      if (this.pipe) {
+        const status = nativeDiagnosticSchema.safeParse(
+          await this.pipe.call({ type: "stop" }),
+        );
+        this.diagnosticStatus = status.success ? status.data : undefined;
+      }
     } finally {
       if (context) await this.request(context, "", "DELETE").catch(() => {});
     }
