@@ -41,6 +41,9 @@ try {
     framesEncoded: number;
     bytesEncoded: number;
     encoder: {
+      graphicsAdapterVerified: boolean;
+      graphicsAdapterIndex: number;
+      graphicsVendorId: number;
       selectedEncoder: string;
       hardwareEncoder: boolean;
       encoderAttempts: unknown[];
@@ -51,6 +54,11 @@ try {
   expect(probe.bytesEncoded).toBeGreaterThan(0);
   expect(probe.encoder.selectedEncoder).toBe("x264");
   expect(probe.encoder.hardwareEncoder).toBe(false);
+  expect(probe.encoder.graphicsAdapterVerified).toBe(true);
+  expect(probe.encoder.graphicsAdapterIndex).toBe(0);
+  expect(probe.encoder.graphicsVendorId).toBe(
+    inventory.adapters.find((a) => a.index === 0)?.vendorId,
+  );
   expect(probe.encoder.encoderAttempts).toHaveLength(1);
   const missing = await pipe.call<{ status: string; reason: string }>({
     type: "probe",

@@ -114,6 +114,23 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
       "Packaged Windows native WHIP actual 1080p30 loopback:",
       JSON.stringify({ result, received }),
     );
+    const recreated = await pipe.call<{
+      status: string;
+      framesEncoded: number;
+      encoder: {
+        graphicsAdapterVerified: boolean;
+        graphicsReinitializations: number;
+      };
+    }>({ type: "probe", encoder: "x264", resetGraphics: true });
+    expect(recreated.status).toBe("ok");
+    expect(recreated.framesEncoded).toBeGreaterThanOrEqual(30);
+    expect(recreated.encoder.graphicsAdapterVerified).toBe(true);
+    expect(recreated.encoder.graphicsReinitializations).toBeGreaterThanOrEqual(
+      1,
+    );
+    console.log(
+      "Native graphics context recreation after a real WHIP session passed.",
+    );
     await pipe.call({ type: "shutdown" });
   } finally {
     child.kill();

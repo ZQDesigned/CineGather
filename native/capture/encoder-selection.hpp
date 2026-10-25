@@ -5,8 +5,11 @@
 #include <vector>
 namespace cinegather {
 inline bool retryEncoderFailure(const std::string &code) {
-  return code == "encoder-create" || code == "encoder-initialization" ||
-         code == "encoder-adapter-reroute" || code == "graphics-initialization";
+  return code == "encoder-unavailable" || code == "encoder-create" ||
+         code == "encoder-initialization" ||
+         code == "encoder-adapter-reroute" ||
+         code == "graphics-initialization" ||
+         code == "graphics-adapter-mismatch";
 }
 // Only automatic selection may cross backend/adapter boundaries.
 template <class Choice>

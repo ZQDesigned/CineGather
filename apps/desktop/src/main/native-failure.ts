@@ -1,4 +1,6 @@
 const messages: Record<string, string> = {
+  "graphics-adapter-mismatch":
+    "实际使用的显卡与所选显卡不一致，请重新选择编码器或重启客户端",
   "obs-startup": "原生采集引擎无法启动，请重新安装客户端或导出连接诊断",
   "audio-reset": "无法初始化声音设备，请检查系统声音设置后重试",
   "encoder-unavailable": "所选编码器已不可用，请在设置中重新选择共享编码器",

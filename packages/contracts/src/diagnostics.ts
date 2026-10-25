@@ -321,6 +321,10 @@ export const diagnosticServerSchema = z.object({
     .optional(),
 });
 export const nativeNumbers = [
+  "graphicsReinitializations",
+  "graphicsAdapterIndex",
+  "graphicsVendorId",
+  "graphicsDeviceId",
   "captureSequence",
   "configuredWidth",
   "configuredHeight",
@@ -345,6 +349,7 @@ export const nativeNumbers = [
   "nativeAllocationCount",
 ] as const;
 export const nativeDiagnosticSchema = z.object({
+  graphicsAdapterVerified: z.boolean().optional(),
   transportDetail: z
     .enum(["none", "missing-location", "relative-base", "invalid-resource"])
     .optional(),

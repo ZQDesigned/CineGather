@@ -13,6 +13,7 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
+#include <d3d11.h>
 #include <dxgi1_2.h>
 #include <filesystem>
 #include <graphics/vec2.h>
@@ -82,6 +83,9 @@ static std::atomic<int> outputPhase{0}, stopCode{-1};
 static std::atomic<uint64_t> deadlineNs{0}, startupDeadlineNs{0};
 static uint64_t captureSequence = 0;
 static int configuredWidth = 0, configuredHeight = 0, configuredFps = 0;
+static uint64_t graphicsReinitializations = 0;
+static int graphicsAdapter = -1;
+static UINT graphicsVendor = 0, graphicsDevice = 0;
 static bool engineReady = false, deviceFallback = false;
 static std::atomic<bool> quitting{false};
 static std::string requestedEncoder = "auto", selectedEncoder, selectedBackend,
@@ -402,8 +406,8 @@ struct ExactWindow {
   HWND hwnd;
   DWORD pid;
   obs_source_t *source;
-  winrt_capture *capture = nullptr;
-  bool tried = false;
+  std::atomic<winrt_capture *> capture{nullptr};
+  std::atomic<bool> tried{false};
 };
 static void *exactCreate(obs_data_t *settings, obs_source_t *source) {
   auto hwnd =
@@ -415,13 +419,12 @@ static void *exactCreate(obs_data_t *settings, obs_source_t *source) {
 }
 static void exactHide(void *raw) {
   auto *w = static_cast<ExactWindow *>(raw);
-  if (w->capture) {
-    obs_enter_graphics();
-    winrt_capture_free(w->capture);
-    obs_leave_graphics();
-    w->capture = nullptr;
-  }
+  obs_enter_graphics();
+  auto *previous = w->capture.exchange(nullptr);
+  if (previous)
+    winrt_capture_free(previous);
   w->tried = false;
+  obs_leave_graphics();
 }
 static void exactTick(void *raw, float) {
   auto *w = static_cast<ExactWindow *>(raw);
@@ -433,7 +436,9 @@ static void exactTick(void *raw, float) {
   if (!w->capture && !w->tried) {
     w->tried = true;
     obs_enter_graphics();
-    w->capture = winrt_capture_init_window(FALSE, w->hwnd, TRUE, TRUE);
+    if (obs_source_enabled(w->source) && obs_source_showing(w->source) &&
+        IsWindow(w->hwnd) && windowPid(w->hwnd) == w->pid)
+      w->capture = winrt_capture_init_window(FALSE, w->hwnd, TRUE, TRUE);
     obs_leave_graphics();
   }
 }
@@ -449,11 +454,17 @@ static void exactRender(void *raw, gs_effect_t *) {
 }
 static uint32_t exactWidth(void *raw) {
   auto *w = static_cast<ExactWindow *>(raw);
-  return w->capture ? winrt_capture_width(w->capture) : 0;
+  obs_enter_graphics();
+  const uint32_t value = winrt_capture_width(w->capture);
+  obs_leave_graphics();
+  return value;
 }
 static uint32_t exactHeight(void *raw) {
   auto *w = static_cast<ExactWindow *>(raw);
-  return w->capture ? winrt_capture_height(w->capture) : 0;
+  obs_enter_graphics();
+  const uint32_t value = winrt_capture_height(w->capture);
+  obs_leave_graphics();
+  return value;
 }
 static HMONITOR monitorHandle(const std::string &key) {
   struct State {
@@ -882,6 +893,15 @@ static Data status() {
   obs_data_set_int(d.get(), "configuredWidth", configuredWidth);
   obs_data_set_int(d.get(), "configuredHeight", configuredHeight);
   obs_data_set_int(d.get(), "configuredFps", configuredFps);
+  obs_data_set_int(d.get(), "graphicsReinitializations",
+                   graphicsReinitializations);
+  obs_data_set_bool(d.get(), "graphicsAdapterVerified",
+                    graphicsAdapter >= 0 && engineReady);
+  if (graphicsAdapter >= 0) {
+    obs_data_set_int(d.get(), "graphicsAdapterIndex", graphicsAdapter);
+    obs_data_set_int(d.get(), "graphicsVendorId", graphicsVendor);
+    obs_data_set_int(d.get(), "graphicsDeviceId", graphicsDevice);
+  }
   obs_data_set_bool(d.get(), "screenPermission", true);
   obs_data_set_string(d.get(), "outputPhase",
                       outputPhase == 2   ? "active"
@@ -907,7 +927,8 @@ static Data status() {
   obs_data_set_bool(d.get(), "deviceAudioFallback", deviceFallback);
   obs_data_set_string(d.get(), "encoderFailure", lastFailure.c_str());
   obs_data_set_int(d.get(), "outputStopCode", stopCode);
-  obs_data_set_double(d.get(), "activeFps", obs_get_active_fps());
+  if (engineReady)
+    obs_data_set_double(d.get(), "activeFps", obs_get_active_fps());
   if (output) {
     obs_data_set_int(d.get(), "outputTotalFrames",
                      obs_output_get_total_frames(output));
@@ -918,10 +939,12 @@ static Data status() {
     obs_data_set_double(d.get(), "outputCongestion",
                         obs_output_get_congestion(output));
   }
-  obs_data_set_double(d.get(), "averageFrameRenderTime",
-                      obs_get_average_frame_time_ns());
-  obs_data_set_int(d.get(), "renderTotalFrames", obs_get_total_frames());
-  obs_data_set_int(d.get(), "renderSkippedFrames", obs_get_lagged_frames());
+  if (engineReady) {
+    obs_data_set_double(d.get(), "averageFrameRenderTime",
+                        obs_get_average_frame_time_ns());
+    obs_data_set_int(d.get(), "renderTotalFrames", obs_get_total_frames());
+    obs_data_set_int(d.get(), "renderSkippedFrames", obs_get_lagged_frames());
+  }
   if (audioSource) {
     auto *a = static_cast<ProcessAudio *>(obs_obj_get_data(audioSource));
     if (a) {
@@ -959,7 +982,8 @@ static Data status() {
   obs_data_set_array(d.get(), "encoderErrors", errors.get());
   return d;
 }
-static void resetVideo(int adapter, int width, int height, int fps) {
+static void configureVideo(int adapter, int width, int height, int fps) {
+  graphicsAdapter = -1;
   obs_video_info vi{};
   std::string graphics = (rootDir / "bin/64bit/libobs-d3d11.dll").u8string();
   vi.graphics_module = graphics.c_str();
@@ -974,6 +998,53 @@ static void resetVideo(int adapter, int width, int height, int fps) {
   vi.range = VIDEO_RANGE_PARTIAL;
   vi.scale_type = OBS_SCALE_BICUBIC;
   check(obs_reset_video(&vi) == OBS_VIDEO_SUCCESS, "graphics-initialization");
+  // OBS retains its graphics device across obs_reset_video. Verify the actual
+  // D3D device, rather than trusting the requested video-info adapter field.
+  obs_enter_graphics();
+  auto *device = static_cast<ID3D11Device *>(gs_get_device_obj());
+  ComPtr<IDXGIDevice> dxgiDevice;
+  ComPtr<IDXGIAdapter> actual;
+  ComPtr<IDXGIFactory1> factory;
+  ComPtr<IDXGIAdapter1> expected;
+  DXGI_ADAPTER_DESC actualDesc{};
+  DXGI_ADAPTER_DESC1 expectedDesc{};
+  const bool matched =
+      device && SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&dxgiDevice))) &&
+      SUCCEEDED(dxgiDevice->GetAdapter(&actual)) &&
+      SUCCEEDED(actual->GetDesc(&actualDesc)) &&
+      SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))) &&
+      SUCCEEDED(factory->EnumAdapters1(UINT(adapter), &expected)) &&
+      SUCCEEDED(expected->GetDesc1(&expectedDesc)) &&
+      actualDesc.AdapterLuid.HighPart == expectedDesc.AdapterLuid.HighPart &&
+      actualDesc.AdapterLuid.LowPart == expectedDesc.AdapterLuid.LowPart;
+  obs_leave_graphics();
+  check(matched, "graphics-adapter-mismatch");
+  graphicsAdapter = adapter;
+  graphicsVendor = actualDesc.VendorId;
+  graphicsDevice = actualDesc.DeviceId;
+}
+static void init(int adapter = 0);
+static void restartEngine(int adapter) {
+  stopCapture();
+  if (engineReady)
+    obs_shutdown();
+  engineReady = false;
+  graphicsAdapter = -1;
+  try {
+    init(adapter);
+    ++graphicsReinitializations;
+  } catch (...) {
+    if (engineReady)
+      obs_shutdown();
+    engineReady = false;
+    graphicsAdapter = -1;
+    throw;
+  }
+}
+static void resetVideo(int adapter, int width, int height, int fps) {
+  if (!engineReady || graphicsAdapter != adapter)
+    restartEngine(adapter);
+  configureVideo(adapter, width, height, fps);
 }
 static void createVideoEncoder(const Choice &c, int bitrate) {
   auto settings = data();
@@ -1027,7 +1098,15 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
   for (const auto &c : options) {
     try {
       check(c.available, "encoder-unavailable");
+      if (obs_data_get_bool(config, "resetGraphics"))
+        restartEngine(c.adapter);
       resetVideo(c.adapter, width, height, fps);
+      check(encoderExists(c.obsId.c_str()) &&
+                std::any_of(choices.begin(), choices.end(),
+                            [&](const Choice &current) {
+                              return current.id == c.id && current.available;
+                            }),
+            "encoder-unavailable");
       deviceFallback = false;
       scene = obs_scene_create("CineGather native scene");
       check(scene, "scene-create");
@@ -1202,14 +1281,15 @@ static Data runProbe(obs_data_t *config) {
   startupDeadlineNs = 0;
   return result;
 }
-static void init() {
+static void init(int adapter) {
   base_set_log_handler(logging, nullptr);
   check(obs_startup("zh-CN", working.u8string().c_str(), nullptr),
         "obs-startup");
   engineReady = true;
   obs_add_data_path(((rootDir / "data/libobs").u8string() + "/").c_str());
+  adapters.clear();
   enumerateAdapters();
-  resetVideo(0, 1920, 1080, 30);
+  configureVideo(adapter, 1920, 1080, 30);
   obs_audio_info2 audio{};
   audio.samples_per_sec = 48000;
   audio.speakers = SPEAKERS_STEREO;
@@ -1284,12 +1364,18 @@ static Data handle(obs_data_t *command) {
   std::string type = obs_data_get_string(command, "type");
   if (type == "status" || type == "requestPermission")
     return status();
-  if (type == "windows")
+  if (type == "windows") {
+    if (!engineReady)
+      restartEngine(0);
     return windows();
+  }
   if (type == "encoders")
     return encoderList();
-  if (type == "thumbnails")
+  if (type == "thumbnails") {
+    if (!engineReady)
+      restartEngine(0);
     return thumbnails(command);
+  }
   if (type == "probe")
     return runProbe(command);
   if (type == "stop") {
