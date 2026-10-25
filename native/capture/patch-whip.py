@@ -19,3 +19,26 @@ s=s.replace('auto offer_sdp = std::string(peer_connection->localDescription().va
         offer_sdp.replace(pos, setup.size(), "a=setup:active");
 #endif''')
 p.write_text(s)
+# Preserve the first IDR: OBS normally starts encoding before DTLS is open and
+# drops packets in Send(). Start capture only once the Windows media track opens.
+s=p.read_text()
+needle='\tobs_output_begin_data_capture(output, 0);\n\n\trunning = true;'
+assert s.count(needle)==1
+s=s.replace(needle,'''#ifdef _WIN32
+    const auto ready_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);
+    while (std::chrono::steady_clock::now() < ready_deadline) {
+        const auto state = peer_connection->state();
+        if (state == rtc::PeerConnection::State::Failed || state == rtc::PeerConnection::State::Closed || state == rtc::PeerConnection::State::Disconnected)
+            return;
+        if (state == rtc::PeerConnection::State::Connected && (!video_track || video_track->isOpen()) && (!audio_track || audio_track->isOpen()))
+            break;
+        std::this_thread::sleep_for(std::chrono::milliseconds(10));
+    }
+    if (peer_connection->state() != rtc::PeerConnection::State::Connected || (video_track && !video_track->isOpen()) || (audio_track && !audio_track->isOpen())) {
+        do_log(LOG_ERROR, "DTLS media connection timed out");
+        obs_output_signal_stop(output, OBS_OUTPUT_CONNECT_FAILED);
+        return;
+    }
+#endif
+''' + needle)
+p.write_text(s)

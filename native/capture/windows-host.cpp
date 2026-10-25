@@ -189,6 +189,8 @@ static void logging(int level, const char *format, va_list args, void *) {
       failure(5);
     else if (lower.find("state is now: failed") != std::string::npos)
       failure(6);
+    else if (lower.find("dtls media connection timed out") != std::string::npos)
+      failure(8);
     else if (lower.find("only accepted") != std::string::npos)
       failure(5);
     else if (lower.find("error:") != std::string::npos)
