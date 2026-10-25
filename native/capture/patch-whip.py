@@ -15,17 +15,8 @@ s=s.replace('CURLcode res = curl_easy_perform(c);','do_log(LOG_INFO, "CG_WHIP_PH
 s=s.replace('auto response = std::string(read_buffer);','do_log(LOG_INFO, "CG_WHIP_PHASE answer");\n auto response = std::string(read_buffer);',1)
 s=s.replace('peer_connection->gatherLocalCandidates(iceServers);','do_log(LOG_INFO, "CG_WHIP_PHASE ice");\n peer_connection->gatherLocalCandidates(iceServers);',1)
 p.write_text(s)
-# Windows OBS' MbedTLS runtime cannot accept fragmented modern ClientHellos.
-# WHIP explicitly permits an active/client-only offer (RFC 9725 section 4.4.4).
-# Keep DTLS encryption and fingerprint verification; only select the client role.
-s=p.read_text()
-s=s.replace('auto offer_sdp = std::string(peer_connection->localDescription().value());', '''auto offer_sdp = std::string(peer_connection->localDescription().value());
-#ifdef _WIN32
-    const std::string setup = "a=setup:actpass";
-    for (size_t pos = 0; (pos = offer_sdp.find(setup, pos)) != std::string::npos;)
-        offer_sdp.replace(pos, setup.size(), "a=setup:active");
-#endif''')
-p.write_text(s)
+# Preserve OBS' actpass offer. Pion 4.1.6 may advertise active while using
+# the inverse of an explicit active offer internally, stalling both DTLS peers.
 # Preserve the first IDR: OBS normally starts encoding before DTLS is open and
 # drops packets in Send(). Start capture only once the Windows media track opens.
 s=p.read_text()

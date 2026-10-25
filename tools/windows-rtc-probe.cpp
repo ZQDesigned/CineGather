@@ -24,9 +24,6 @@ int main(int argc, char **argv) {
   auto track = pc->addTrack(video);
   pc->setLocalDescription();
   std::string offer = *pc->localDescription();
-  const std::string setup = "a=setup:actpass";
-  for (size_t pos = 0; (pos = offer.find(setup, pos)) != std::string::npos;)
-    offer.replace(pos, setup.size(), "a=setup:active");
   CURL *c = curl_easy_init();
   auto *headers = curl_slist_append(nullptr, "Content-Type: application/sdp");
   std::string answer;

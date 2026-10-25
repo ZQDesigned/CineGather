@@ -414,6 +414,11 @@ export class NativeCapture {
       if (epoch !== this.epoch) throw new Error("共享已取消");
       const pipe = await this.ensure();
       if (epoch !== this.epoch) throw new Error("共享已取消");
+      this.bootIssue = undefined;
+      this.diagnosticStatus = {
+        outputPhase: "starting",
+        hostSession: this.hostSession,
+      };
       const remainingMs = Math.min(
         30_000,
         Math.max(
@@ -444,10 +449,17 @@ export class NativeCapture {
       const until = Date.now() + 12_000;
       while (epoch === this.epoch && Date.now() < until) {
         const status = await pipe.call<Status>({ type: "status" });
+        this.rememberStatus(status);
         if (status.audioCaptureError) throw new Error(status.audioCaptureError);
         if (status.outputPhase === "failed" || status.outputPhase === "stopped")
-          throw new Error("原生推流未连接，请检查服务和采集权限");
-        this.rememberStatus(status);
+          throw nativeFailure(
+            new Error(
+              this.diagnosticStatus?.transportFailure &&
+              this.diagnosticStatus.transportFailure !== "none"
+                ? this.diagnosticStatus.transportFailure
+                : "原生推流未连接，请检查服务和采集权限",
+            ),
+          );
         if (status.outputPhase === "active" && status.sourceWidth > 0) {
           if (this.diagnosticStatus?.deviceAudioFallback)
             this.options.audioFallback?.();

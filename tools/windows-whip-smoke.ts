@@ -47,7 +47,14 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
           void state.video.play();
         };
         await peer.setRemoteDescription({ type: "offer", sdp: offer });
-        await peer.setLocalDescription(await peer.createAnswer());
+        const answer = await peer.createAnswer();
+        // Exercise a standards-compliant passive answer as well as Pion's
+        // active answer in windows-pion-smoke. The publisher offers actpass.
+        answer.sdp = answer.sdp!.replaceAll(
+          "a=setup:active",
+          "a=setup:passive",
+        );
+        await peer.setLocalDescription(answer);
         if (peer.iceGatheringState !== "complete")
           await new Promise<void>((resolve) => {
             const timer = setTimeout(resolve, 3000);
