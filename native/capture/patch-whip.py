@@ -22,7 +22,7 @@ p.write_text(s)
 # Preserve the first IDR: OBS normally starts encoding before DTLS is open and
 # drops packets in Send(). Start capture only once the Windows media track opens.
 s=p.read_text()
-needle='\tobs_output_begin_data_capture(output, 0);\n\n\trunning = true;'
+needle='\tobs_output_begin_data_capture(output, 0);'
 assert s.count(needle)==1
 s=s.replace(needle,'''#ifdef _WIN32
     const auto ready_deadline = std::chrono::steady_clock::now() + std::chrono::seconds(5);

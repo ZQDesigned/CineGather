@@ -1083,7 +1083,10 @@ static void createVideoEncoder(const Choice &c, int bitrate) {
   obs_data_set_int(settings.get(), "bf", 0);
   obs_data_set_int(settings.get(), "bframes", 0);
   obs_data_set_bool(settings.get(), "lookahead", false);
-  obs_data_set_bool(settings.get(), "psycho_aq", false);
+  obs_data_set_bool(settings.get(), "adaptive_quantization", false);
+  obs_data_set_string(settings.get(), "multipass", "disabled");
+  // Match OBS WHIPService::ApplyEncoderSettings, including late viewer joins.
+  obs_data_set_bool(settings.get(), "repeat_headers", true);
   obs_data_set_string(settings.get(), "preset",
                       c.backend == "x264"  ? "veryfast"
                       : c.backend == "amf" ? "balanced"
