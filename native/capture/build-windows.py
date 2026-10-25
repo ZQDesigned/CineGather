@@ -294,6 +294,7 @@ run(
         "windowsapp.lib",
         "runtimeobject.lib",
         "CoreMessaging.lib",
+        "user32.lib",
         "ole32.lib",
         "oleaut32.lib",
     ]

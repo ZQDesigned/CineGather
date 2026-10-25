@@ -144,7 +144,10 @@ export class NativeCapture {
       );
       const pipe = new NativeProtocol(
         (data) => child.stdin.write(data),
-        () => child.kill("SIGKILL"),
+        () => {
+          this.bootIssue = "response-timeout";
+          child.kill("SIGKILL");
+        },
       );
       this.child = child;
       child.stdout.setEncoding("utf8");
