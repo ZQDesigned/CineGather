@@ -258,6 +258,7 @@ export interface MemberOverlayBridge {
   onChange(callback: (view: MemberOverlayView) => void): () => void;
 }
 export interface DesktopSettings {
+  windowsEncoder?: string;
   autoDownloadUpdates?: boolean;
   noiseReduction: NoiseReduction;
   memberOverlay?: MemberOverlayPreferences;
@@ -286,6 +287,7 @@ export interface DesktopBridge {
     onError(callback: (sessionId: string, message: string) => void): () => void;
   };
   updates?: DesktopUpdates;
+  encoders?(): Promise<import("./native-encoders").NativeEncoderInventory>;
   nativeCapture?: boolean;
   startNativeCapture?(request: NativeCaptureRequest): Promise<void>;
   renewNativeCapture?(lease: ShareLease): Promise<ShareLease>;
@@ -309,7 +311,8 @@ export interface DesktopBridge {
         | "ptt-press"
         | "ptt-release"
         | "stop-share"
-        | "invite",
+        | "invite"
+        | "device-audio-fallback",
       value?: string,
     ) => void,
   ): () => void;
@@ -401,3 +404,7 @@ export const roomControlSchema = z.discriminatedUnion("action", [
 export type RoomControl = z.infer<typeof roomControlSchema>;
 export const muteMicrophoneInput = z.object({}).strict();
 export * from "./diagnostics";
+
+export * from "./encoder-diagnostics";
+
+export * from "./native-encoders";

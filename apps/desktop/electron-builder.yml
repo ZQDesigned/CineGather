@@ -44,6 +44,8 @@ win:
   icon: resources/icon.png
   signExecutable: false
   extraResources:
+    - from: ../../.local/native-runtime/windows/obs
+      to: capture/obs
     - from: ../../.local/native-runtime/windows/CGProcessAudioHost.exe
       to: capture/CGProcessAudioHost.exe
     - from: ../../node_modules/@koromix/koffi-win32-x64

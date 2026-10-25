@@ -30,3 +30,19 @@ test("system audio excludes CineGather and its helper family without excluding u
   expect(build.status).toBe(0);
   expect(spawnSync(bin).status).toBe(0);
 });
+
+test("manual native encoder selection preserves adapter identity and never falls back", () => {
+  const bin = join(
+    mkdtempSync(join(tmpdir(), "cg-encoder-policy-")),
+    "selection",
+  );
+  expect(
+    spawnSync("clang++", [
+      "-std=c++17",
+      "native/capture/test/encoder-selection.cpp",
+      "-o",
+      bin,
+    ]).status,
+  ).toBe(0);
+  expect(spawnSync(bin).status).toBe(0);
+});

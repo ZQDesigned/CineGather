@@ -12,6 +12,7 @@ import {
   type NativeCaptureRequest,
   type ShareLease,
   nativeDiagnosticSchema,
+  nativeEncoderInventorySchema,
 } from "@cinegather/contracts";
 import { selectNativeSource } from "./native-selection";
 import { NativeProtocol } from "./native-protocol";
@@ -63,16 +64,69 @@ export class NativeCapture {
     private readonly directory: string,
     private readonly ended: () => void,
     private readonly ownApplication?: string,
+    private readonly options: {
+      platform?: NodeJS.Platform;
+      encoder?: () => string;
+      audioFallback?: () => void;
+    } = {},
   ) {}
+  private get windows() {
+    return (this.options.platform ?? process.platform) === "win32";
+  }
+  get isSharing() {
+    return Boolean(this.context);
+  }
+  async encoders() {
+    return nativeEncoderInventorySchema.parse(
+      await (await this.ensure()).call({ type: "encoders" }),
+    );
+  }
+  async encoderDiagnostics() {
+    if (!this.windows) return undefined;
+    const pipe = await this.ensure();
+    const inventory = await this.encoders();
+    const lastSession = nativeDiagnosticSchema.parse(
+      await pipe.call({ type: "status" }),
+    );
+    const raw = await pipe.call({
+      type: "probe",
+      encoder: this.options.encoder?.() ?? "auto",
+    });
+    const probe = z
+      .object({
+        status: z.enum(["ok", "failed", "timeout", "skipped-sharing"]),
+        reason: z
+          .string()
+          .max(80)
+          .regex(/^[a-z-]+$/)
+          .optional(),
+        synthetic: z.boolean().optional(),
+        width: z.number().finite().optional(),
+        height: z.number().finite().optional(),
+        targetFps: z.number().finite().optional(),
+        framesEncoded: z.number().finite().optional(),
+        bytesEncoded: z.number().finite().optional(),
+        encoder: nativeDiagnosticSchema.optional(),
+      })
+      .parse(raw);
+    return { inventory, lastSession, probe, queriedAt: Date.now() };
+  }
   private async ensure() {
     if (this.pipe) return this.pipe;
     if (this.boot) return this.boot;
     this.boot = (async () => {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
       const child = spawn(
-        join(this.bundle, "Contents/MacOS/CGScreenCaptureHost"),
-        [this.directory],
-        { stdio: "pipe" },
+        join(
+          this.bundle,
+          this.windows
+            ? "bin/64bit/CGScreenCaptureHost.exe"
+            : "Contents/MacOS/CGScreenCaptureHost",
+        ),
+        this.windows
+          ? [this.directory, String(process.pid), "stdio"]
+          : [this.directory],
+        { stdio: "pipe", windowsHide: true },
       );
       const pipe = new NativeProtocol(
         (data) => child.stdin.write(data),
@@ -181,7 +235,15 @@ export class NativeCapture {
         }),
       )
       .max(4)
-      .parse(await pipe.call({ type: "thumbnails", sources }));
+      .parse(
+        await pipe
+          .call<unknown>({ type: "thumbnails", sources })
+          .then((raw) =>
+            this.windows
+              ? z.object({ items: z.unknown() }).parse(raw).items
+              : raw,
+          ),
+      );
     if (epoch !== this.selectionEpoch) return [];
     return data.filter((preview) =>
       sources.some((source) => source.id === preview.id),
@@ -280,6 +342,9 @@ export class NativeCapture {
       if (remainingMs <= 0) throw new Error("共享授权已过期");
       await pipe.call({
         type: "start",
+        ...(this.windows
+          ? { encoder: this.options.encoder?.() ?? "auto" }
+          : {}),
         windowId: selection.window?.windowId,
         pid: selection.window?.pid,
         displayId: selection.displayId,
@@ -300,7 +365,15 @@ export class NativeCapture {
         if (status.audioCaptureError) throw new Error(status.audioCaptureError);
         if (status.outputPhase === "failed" || status.outputPhase === "stopped")
           throw new Error("原生推流未连接，请检查服务和采集权限");
+        const diagnosticStatus = nativeDiagnosticSchema.safeParse(status);
+        if (diagnosticStatus.success)
+          this.diagnosticStatus = diagnosticStatus.data;
         if (status.outputPhase === "active" && status.sourceWidth > 0) {
+          if (
+            diagnosticStatus.success &&
+            diagnosticStatus.data.deviceAudioFallback
+          )
+            this.options.audioFallback?.();
           this.poll = setInterval(() => void this.check(), 1000);
           return;
         }

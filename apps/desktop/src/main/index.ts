@@ -296,6 +296,11 @@ function registerIPC() {
     if (ack.success)
       windowsAudio?.acknowledge(ack.data.sessionId, ack.data.sequence);
   });
+  handle("desktop:encoders", () => {
+    if (process.platform !== "win32" || !nativeCapture)
+      throw new Error("当前平台不支持原生编码器选择");
+    return nativeCapture.encoders();
+  });
   handle("desktop:sources", async () =>
     nativeCapture
       ? nativeCapture.sources()
@@ -432,6 +437,11 @@ function registerIPC() {
       throw error;
     }
     await writeFile(settingsPath(), JSON.stringify(next), { mode: 0o600 });
+    if (
+      nativeCapture?.isSharing &&
+      next.windowsEncoder !== settings.windowsEncoder
+    )
+      throw new Error("请停止共享后再切换编码器");
     settings = next;
     updates?.configure(next.autoDownloadUpdates ?? true);
     memberOverlay?.configure(next.memberOverlay);
@@ -590,6 +600,22 @@ else {
           join(app.getPath("userData"), "capture"),
           () => sendAction("stop-share"),
           app.isPackaged ? undefined : "com.github.Electron",
+        );
+      if (process.platform === "win32")
+        nativeCapture = new NativeCapture(
+          app.isPackaged
+            ? join(process.resourcesPath, "capture/obs")
+            : resolve(
+                __dirname,
+                "../../../../.local/native-runtime/windows/obs",
+              ),
+          join(app.getPath("userData"), "capture"),
+          () => sendAction("stop-share"),
+          "CineGather.exe",
+          {
+            encoder: () => settings.windowsEncoder ?? "auto",
+            audioFallback: () => sendAction("device-audio-fallback"),
+          },
         );
       let announcedMinimum: string | undefined;
       updates = await createUpdates(

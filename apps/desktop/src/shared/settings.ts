@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nativeEncoderIdSchema } from "@cinegather/contracts";
 import type {
   DesktopSettings,
   MemberOverlayPreferences,
@@ -9,6 +10,7 @@ export const defaultOverlayPreferences: MemberOverlayPreferences = {
   position: "right-top",
 };
 export const settingsSchema = z.strictObject({
+  windowsEncoder: nativeEncoderIdSchema.default("auto"),
   autoDownloadUpdates: z.boolean().default(true),
   memberOverlay: z
     .strictObject({
@@ -36,6 +38,7 @@ export const settingsSchema = z.strictObject({
   outputDevice: z.string().max(256),
 });
 export const defaultSettings = {
+  windowsEncoder: "auto",
   autoDownloadUpdates: true,
   noiseReduction: "enhanced",
   memberOverlay: defaultOverlayPreferences,

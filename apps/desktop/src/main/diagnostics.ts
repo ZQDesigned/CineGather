@@ -13,6 +13,7 @@ import {
 import { DiagnosticHistory } from "./diagnostic-history";
 import { diagnosticArchive } from "../shared/diagnostics";
 import type { NativeCapture } from "./native-capture";
+import { projectGPUInfo } from "./encoder-info";
 import { hardwareEncodingPolicy } from "./encoding-policy";
 export class ProductionDiagnostics {
   private history: DiagnosticHistory;
@@ -21,7 +22,41 @@ export class ProductionDiagnostics {
   private timer?: ReturnType<typeof setInterval>;
   private previousCpu = this.cpuTimes();
   private lastTick = performance.now();
-  private gpu: unknown;
+  private gpu?: ReturnType<typeof projectGPUInfo>;
+  private gpuQueryStatus = "pending";
+  private gpuBusy = false;
+  private lastGpuQuery = 0;
+  private async refreshGPU() {
+    if (this.gpuBusy) return;
+    this.gpuBusy = true;
+    this.lastGpuQuery = Date.now();
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      const raw = await Promise.race([
+        app.getGPUInfo("complete"),
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error("gpu-timeout")), 3000);
+        }),
+      ]);
+      this.gpu = projectGPUInfo(raw);
+      this.gpuQueryStatus = "ok";
+      await this.own({
+        kind: "event",
+        event: { name: "gpu-info" },
+        gpu: this.gpu,
+      });
+    } catch {
+      this.gpuQueryStatus = "unavailable";
+      await this.own({
+        kind: "event",
+        event: { name: "gpu-info-unavailable" },
+        issues: [{ stage: "resources", code: "read-failed" }],
+      });
+    } finally {
+      clearTimeout(timer);
+      this.gpuBusy = false;
+    }
+  }
   private exportPending = false;
   private writeWindow = 0;
   private writeCount = 0;
@@ -56,39 +91,10 @@ export class ProductionDiagnostics {
     );
   }
   start() {
-    void app
-      .getGPUInfo("basic")
-      .then((value) => {
-        const info = value as {
-          gpuDevice?: {
-            active?: boolean;
-            deviceId?: number;
-            vendorId?: number;
-          }[];
-          auxAttributes?: {
-            softwareRendering?: boolean;
-            directComposition?: boolean;
-            supportsOverlays?: boolean;
-          };
-        };
-        this.gpu = {
-          devices: info.gpuDevice?.map((d) => ({
-            active: d.active,
-            deviceId: d.deviceId,
-            vendorId: d.vendorId,
-          })),
-          softwareRendering: info.auxAttributes?.softwareRendering,
-          directComposition: info.auxAttributes?.directComposition,
-          supportsOverlays: info.auxAttributes?.supportsOverlays,
-        };
-      })
-      .catch(() => {
-        void this.own({
-          kind: "event",
-          event: { name: "gpu-info-unavailable" },
-          issues: [{ stage: "resources", code: "read-failed" }],
-        });
-      });
+    void this.refreshGPU();
+    app.on("gpu-info-update", () => {
+      if (Date.now() - this.lastGpuQuery > 10000) void this.refreshGPU();
+    });
     void this.own({ kind: "event", event: { name: "main-start" } });
     powerMonitor.on(
       "suspend",
@@ -220,6 +226,18 @@ export class ProductionDiagnostics {
         filters: [{ name: "诊断压缩包", extensions: ["zip"] }],
       });
       if (target.canceled || !target.filePath) return false;
+      await this.refreshGPU();
+      let nativeEncoder: unknown;
+      try {
+        nativeEncoder = await this.native()?.encoderDiagnostics();
+      } catch {
+        nativeEncoder = { status: "unavailable" };
+        await this.own({
+          kind: "event",
+          event: { name: "native-encoder-diagnostics-failed" },
+          issues: [{ stage: "native", code: "read-failed" }],
+        });
+      }
       await this.sample();
       const entries = await this.history.read(),
         status = await this.history.status();
@@ -238,7 +256,12 @@ export class ProductionDiagnostics {
             chrome: process.versions.chrome,
             node: process.versions.node,
           },
-          gpu: { info: this.gpu, features: app.getGPUFeatureStatus() },
+          gpu: {
+            info: this.gpu,
+            queryStatus: this.gpuQueryStatus,
+            features: app.getGPUFeatureStatus(),
+          },
+          nativeEncoder,
           encodingPolicy: hardwareEncodingPolicy(
             process.platform,
             app.commandLine,
@@ -247,7 +270,7 @@ export class ProductionDiagnostics {
           storage: "local-minute-journal",
           capabilities: {
             rtcStats: true,
-            nativeCapture: process.platform === "darwin",
+            nativeCapture: ["darwin", "win32"].includes(process.platform),
             processMetrics: true,
             serverMetrics:
               "Requires matching API; SFU counters require LIVEKIT_METRICS_URL",

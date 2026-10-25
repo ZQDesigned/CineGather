@@ -28,6 +28,7 @@ await writeFile(
     pttShortcut: "Control+Alt+Shift+F12",
     muteShortcut: "Control+Alt+Shift+M",
     quality: "cinema",
+    windowsEncoder: "x264",
     inputDevice: "",
     outputDevice: "",
   }),
@@ -168,6 +169,15 @@ try {
     gpuBlocklistRespected: true,
     softwareFallbackAllowed: true,
   });
+  if (platform === "win32") {
+    expect(
+      manifest.nativeEncoder.inventory.encoders.some(
+        (e: { id: string }) => e.id === "x264",
+      ),
+    ).toBe(true);
+    expect(manifest.nativeEncoder.probe.status).toBe("ok");
+    expect(manifest.nativeEncoder.probe.encoder.selectedEncoder).toBe("x264");
+  }
   expect(strFromU8(diagnosticFiles["timeline.ndjson"]!)).toContain(
     '"resources"',
   );

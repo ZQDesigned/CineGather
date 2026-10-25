@@ -467,6 +467,12 @@ export async function initialize() {
       receiveInvitation(value);
       void window.desktop?.takeInvitation();
     }
+    if (action === "device-audio-fallback")
+      update({
+        audioCompatibility: true,
+        warningTitle: deviceAudioTitle,
+        warning: deviceAudioDescription,
+      });
     if (action === "stop-share") void stopShare();
     if (action === "toggle-mute") void toggleMicrophone();
     if (action === "ptt-press") void ptt(true, "global");

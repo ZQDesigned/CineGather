@@ -74,7 +74,11 @@ const bridge: DesktopBridge = {
         ipcRenderer.removeListener("desktop:update-status", listener);
     },
   },
-  nativeCapture: process.platform === "darwin",
+  nativeCapture: ["darwin", "win32"].includes(process.platform),
+  encoders:
+    process.platform === "win32"
+      ? () => ipcRenderer.invoke("desktop:encoders")
+      : undefined,
   startNativeCapture: (request) =>
     ipcRenderer.invoke("desktop:native-start", request),
   renewNativeCapture: (lease) =>

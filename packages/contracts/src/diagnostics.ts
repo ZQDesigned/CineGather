@@ -1,4 +1,10 @@
 import { z } from "zod";
+import { nativeEncoderIdSchema } from "./native-encoders";
+import {
+  senderDiagnosticSchema,
+  encoderCapabilitiesSchema,
+  gpuDiagnosticSchema,
+} from "./encoder-diagnostics";
 
 export const diagnosticRetentionMs = 2 * 60 * 60 * 1000;
 export const diagnosticRecordLimit = 48 * 1024;
@@ -234,6 +240,7 @@ const microphoneNoiseSchema = z.object({
   fallback: z.boolean().optional(),
 });
 export const mediaDiagnosticSchema = z.object({
+  encoderCapabilities: encoderCapabilitiesSchema.optional(),
   issues: diagnosticIssues,
   microphoneNoise: microphoneNoiseSchema.optional(),
   state: text,
@@ -248,6 +255,7 @@ export const mediaDiagnosticSchema = z.object({
         kind: text,
         muted: z.boolean(),
         subscribed: z.boolean(),
+        sender: senderDiagnosticSchema.optional(),
         streamState: text.optional(),
         videoQuality: number.optional(),
         enabled: z.boolean().optional(),
@@ -330,6 +338,52 @@ export const nativeNumbers = [
   "nativeAllocationCount",
 ] as const;
 export const nativeDiagnosticSchema = z.object({
+  encoderErrors: z
+    .array(
+      z.object({
+        backend: z.enum(["nvenc", "amf", "x264"]),
+        stage: z.enum([
+          "driver",
+          "adapter",
+          "session",
+          "initialize",
+          "format",
+          "encoder",
+        ]),
+        code: z
+          .string()
+          .max(100)
+          .regex(
+            /^(?:not-reported|NV_ENC_ERR_[A-Z_]+|AMF_[A-Z_]+|0[xX][a-fA-F0-9]{8})$/,
+          ),
+        at: z.number().finite(),
+      }),
+    )
+    .max(32)
+    .optional(),
+  requestedEncoder: nativeEncoderIdSchema.optional(),
+  selectedEncoder: nativeEncoderIdSchema.or(z.literal("")).optional(),
+  encoderBackend: z.enum(["nvenc", "amf", "x264", ""]).optional(),
+  hardwareEncoder: z.boolean().optional(),
+  deviceAudioFallback: z.boolean().optional(),
+  encoderFailure: z
+    .string()
+    .max(80)
+    .regex(/^[a-z-]*$/)
+    .optional(),
+  encoderAttempts: z
+    .array(
+      z.object({
+        id: nativeEncoderIdSchema,
+        backend: z.enum(["nvenc", "amf", "x264"]),
+        result: z
+          .string()
+          .max(80)
+          .regex(/^[a-z-]+$/),
+      }),
+    )
+    .max(32)
+    .optional(),
   ...fields(nativeNumbers, number.optional()),
   outputPhase: z.enum(["stopped", "starting", "active", "failed"]).optional(),
   outputActive: z.boolean().optional(),
@@ -338,6 +392,7 @@ export const nativeDiagnosticSchema = z.object({
   audioSourceActive: z.boolean().optional(),
 });
 export const diagnosticRecordSchema = z.object({
+  gpu: gpuDiagnosticSchema.optional(),
   issues: diagnosticIssues,
   v: z.literal(1),
   appVersion: text.optional(),
@@ -495,6 +550,7 @@ export function repairDiagnosticRecord(input: unknown): DiagnosticRecord {
   return safeDiagnosticRecord(candidate);
 }
 export const diagnosticSnapshotSchema = z.object({
+  encoderCapabilities: encoderCapabilitiesSchema.optional(),
   issues: diagnosticIssues,
   microphoneNoise: microphoneNoiseSchema.optional(),
   capturedAt: z.string().max(64).optional(),

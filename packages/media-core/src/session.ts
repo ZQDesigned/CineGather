@@ -10,6 +10,7 @@ import {
   type RemoteTrackPublication,
   type RemoteParticipant,
   type LocalTrackPublication,
+  type LocalVideoTrack,
 } from "livekit-client";
 import {
   nativeOwner,
@@ -27,6 +28,7 @@ import { VoicePlayback } from "./voice-playback";
 import { ShareSubscriptions } from "./subscriptions";
 import { BrowserCapture } from "./browser-capture";
 import { boundedStats, diagnosticHash, PlaybackProbe } from "./diagnostics";
+import { senderDiagnostics, videoCapabilities } from "./encoder-diagnostics";
 import {
   createMicrophoneDenoiser,
   microphoneConstraints,
@@ -694,6 +696,7 @@ export class MediaSession {
       watching: detail.watching,
       capturedAt: new Date().toISOString(),
       issues: detail.issues,
+      encoderCapabilities: detail.encoderCapabilities,
       tracks: detail.tracks
         .flatMap((track) =>
           track.stats.map((stat) => ({
@@ -753,6 +756,12 @@ export class MediaSession {
                 });
               }
               return {
+                sender:
+                  p === room?.localParticipant && pub.kind === "video"
+                    ? senderDiagnostics(
+                        (pub.track as LocalVideoTrack | undefined)?.sender,
+                      )
+                    : undefined,
                 track: pub.trackSid,
                 participant: await participant,
                 source: pub.source,
@@ -802,6 +811,7 @@ export class MediaSession {
     for (const value of this.playbackProbe.takeIssues()) issue(value);
     return {
       issues: issues.length ? issues : undefined,
+      encoderCapabilities: videoCapabilities(),
       state: room?.state ?? "disconnected",
       watching: this.subscriptions.watching,
       microphoneNoise: this.noiseStatus

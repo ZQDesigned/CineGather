@@ -18,6 +18,7 @@ import {
   qualityPresets,
   qualityLabel,
   type DesktopSettings,
+  type NativeEncoderInventory,
 } from "@cinegather/contracts";
 import { ModalShell, useDialogOpen } from "./Modal";
 import { ShortcutRecorder } from "./ShortcutRecorder";
@@ -39,6 +40,29 @@ export function Settings() {
     ? "全局麦克风静音"
     : "页面内麦克风静音";
   const open = useDialogOpen();
+  const [encoderInventory, setEncoderInventory] =
+    useState<NativeEncoderInventory>();
+  const [encoderError, setEncoderError] = useState(false);
+  const sharing = useApp(
+    (s) => s.shareState !== "idle" && s.shareState !== "failed",
+  );
+  useEffect(() => {
+    let current = true;
+    if (open && window.desktop?.encoders) {
+      setEncoderError(false);
+      void window.desktop
+        .encoders()
+        .then((value) => {
+          if (current) setEncoderInventory(value);
+        })
+        .catch(() => {
+          if (current) setEncoderError(true);
+        });
+    }
+    return () => {
+      current = false;
+    };
+  }, [open]);
   const { modal } = App.useApp();
   const serverRequest = useRef<AbortController | undefined>(undefined);
   const confirmation = useRef<ReturnType<typeof modal.confirm> | undefined>(
@@ -467,6 +491,50 @@ export function Settings() {
                   void actions.run(() => actions.saveSettings(settings))
                 }
               >
+                {window.desktop?.platform === "win32" &&
+                  window.desktop.encoders && (
+                    <Form.Item label="共享编码器">
+                      <Select
+                        aria-label="共享编码器"
+                        value={settings.windowsEncoder ?? "auto"}
+                        disabled={sharing}
+                        loading={!encoderInventory && !encoderError}
+                        onChange={(value) => change("windowsEncoder", value)}
+                        options={[
+                          { value: "auto", label: "自动选择" },
+                          ...(encoderInventory?.encoders ?? []).map(
+                            (encoder) => ({
+                              value: encoder.id,
+                              label:
+                                encoder.name +
+                                (encoder.available ? "" : "（不可用）"),
+                              disabled: !encoder.available,
+                            }),
+                          ),
+                          ...(settings.windowsEncoder &&
+                          settings.windowsEncoder !== "auto" &&
+                          !encoderInventory?.encoders.some(
+                            (e) => e.id === settings.windowsEncoder,
+                          )
+                            ? [
+                                {
+                                  value: settings.windowsEncoder,
+                                  label: "原编码器已不可用，请重新选择",
+                                  disabled: true,
+                                },
+                              ]
+                            : []),
+                        ]}
+                      />
+                      {encoderError && (
+                        <Alert
+                          type="warning"
+                          showIcon
+                          title="无法检测编码器，请检查采集组件是否完整"
+                        />
+                      )}
+                    </Form.Item>
+                  )}
                 <Form.Item label="默认共享画质">
                   <Select
                     aria-label="默认共享画质"
