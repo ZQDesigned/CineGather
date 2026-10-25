@@ -84,7 +84,19 @@ const bridge: DesktopBridge = {
   renewNativeCapture: (lease) =>
     ipcRenderer.invoke("desktop:native-renew", lease),
   stopNativeCapture: () => ipcRenderer.invoke("desktop:native-stop"),
-  capturePreview: () => ipcRenderer.invoke("desktop:capture-preview"),
+  nativePreview: {
+    start: (id) => ipcRenderer.invoke("desktop:preview-start", id),
+    answer: (id, sdp) =>
+      ipcRenderer.invoke("desktop:preview-answer", { id, sdp }),
+    stop: (id) => ipcRenderer.invoke("desktop:preview-stop", id),
+    foreground: () => ipcRenderer.invoke("desktop:foreground"),
+    onForeground: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, active: boolean) =>
+        callback(active);
+      ipcRenderer.on("desktop:foreground", listener);
+      return () => ipcRenderer.removeListener("desktop:foreground", listener);
+    },
+  },
   takeInvitation: () => ipcRenderer.invoke("desktop:take-invitation"),
   sources: () => ipcRenderer.invoke("desktop:sources"),
   sourceThumbnails: (ids) =>

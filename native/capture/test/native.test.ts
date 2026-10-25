@@ -46,3 +46,16 @@ test("manual native encoder selection preserves adapter identity and never falls
   ).toBe(0);
   expect(spawnSync(bin).status).toBe(0);
 });
+
+test("local preview preserves every original packet at 60fps and bounds slow receivers", () => {
+  const bin = join(mkdtempSync(join(tmpdir(), "cg-preview-queue-")), "preview");
+  expect(
+    spawnSync("clang++", [
+      "-std=c++17",
+      "native/capture/test/preview-queue.cpp",
+      "-o",
+      bin,
+    ]).status,
+  ).toBe(0);
+  expect(spawnSync(bin).status).toBe(0);
+});

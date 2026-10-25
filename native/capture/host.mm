@@ -13,7 +13,7 @@
 #include <thread>
 #include <unistd.h>
 #include <util/base.h>
-#include "preview.hpp"
+#include "preview-control.hpp"
 
 // SPDX-License-Identifier: MIT
 // Direct libobs host. Commands arrive only through the parent-owned stdio pipe.
@@ -114,6 +114,12 @@ static void stopCapture() {
   obs_wait_for_destroy_queue();
 }
 static NSDictionary *status() {
+  obs_data_t *preview = obs_data_create();
+  cinegather::previewStats(output, preview);
+  NSDictionary *previewStatus = [NSJSONSerialization JSONObjectWithData:
+      [[NSString stringWithUTF8String:obs_data_get_json(preview)] dataUsingEncoding:NSUTF8StringEncoding]
+      options:0 error:nil];
+  obs_data_release(preview);
   bool audioFailed = false;
   if (audioSource) {
     obs_data_t *state = obs_source_get_private_settings(audioSource);
@@ -127,7 +133,7 @@ static NSDictionary *status() {
         [p hasPrefix:@"/Applications/OBS.app"])
       [images addObject:p];
   }
-  return @{
+  NSMutableDictionary *snapshot = [@{
     @"version" : [NSString stringWithUTF8String:obs_get_version_string()],
     @"pid" : @(getpid()),
     @"engineReady" : @(engineReady),
@@ -164,7 +170,9 @@ static NSDictionary *status() {
         : @"",
     @"frameworks" : frameworks ?: @"",
     @"nativeAllocationCount" : @(bnum_allocs())
-  };
+  } mutableCopy];
+  [snapshot addEntriesFromDictionary:previewStatus ?: @{}];
+  return snapshot;
 }
 static SCShareableContent *shareableContent(int seconds = 10) {
   __block SCShareableContent *content;
@@ -528,37 +536,21 @@ static void startCapture(NSDictionary *config) {
   obs_output_set_service(output, service);
   check(obs_output_start(output), "WHIP output did not start");
 }
-static NSDictionary *sharePreview() {
-  if (!scene || !output || outputPhase != 2 ||
-      deadlineNs <= 0 || monotonicNs() >= deadlineNs)
-    return @{};
-  auto frame = cinegather::previewFrame(obs_scene_get_source(scene));
-  if (frame.bgra.empty())
-    return @{};
-  NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc]
-      initWithBitmapDataPlanes:nil pixelsWide:frame.width pixelsHigh:frame.height
-      bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
-      colorSpaceName:NSDeviceRGBColorSpace
-      bitmapFormat:NSBitmapFormatAlphaFirst | NSBitmapFormatThirtyTwoBitLittleEndian
-      bytesPerRow:frame.width * 4 bitsPerPixel:32];
-  if (!bitmap) return @{};
-  memcpy(bitmap.bitmapData, frame.bgra.data(), frame.bgra.size());
-  NSData *jpeg = [bitmap representationUsingType:NSBitmapImageFileTypeJPEG
-      properties:@{NSImageCompressionFactor:@0.7}];
-  if (jpeg.length >= 180000)
-    jpeg = [bitmap representationUsingType:NSBitmapImageFileTypeJPEG
-        properties:@{NSImageCompressionFactor:@0.4}];
-  if (!jpeg || jpeg.length >= 180000) return @{};
-  return @{ @"image":[@"data:image/jpeg;base64," stringByAppendingString:
-                         [jpeg base64EncodedStringWithOptions:0]],
-            @"width":@(frame.width), @"height":@(frame.height) };
-}
 static id handle(NSDictionary *command) {
   NSString *type = command[@"type"];
   if ([type isEqual:@"status"])
     return status();
-  if ([type isEqual:@"preview"])
-    return sharePreview();
+  if ([type isEqual:@"preview-stop"]) {
+    if (output) cinegather::previewControl(output, "stop");
+    return @{};
+  }
+  if ([type isEqual:@"preview-start"] || [type isEqual:@"preview-answer"]) {
+    check(output && outputPhase == 2 && deadlineNs > monotonicNs(), "preview-inactive");
+    const auto offer = cinegather::previewControl(output,
+        [type isEqual:@"preview-start"] ? "start" : "answer",
+        [command[@"sdp"] isKindOfClass:NSString.class] ? [command[@"sdp"] UTF8String] : "");
+    return [type isEqual:@"preview-start"] ? @{@"sdp":[NSString stringWithUTF8String:offer.c_str()]} : @{};
+  }
   if ([type isEqual:@"requestPermission"]) {
     __block bool granted = false;
     dispatch_sync(dispatch_get_main_queue(), ^{

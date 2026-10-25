@@ -5,6 +5,7 @@ import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { webRTCEncoderProbe } from "./encoder-probe";
 import { windowsWhipSmoke } from "./windows-whip-smoke";
+import { nativePreviewSmoke } from "./native-preview-smoke";
 import { unzipSync, strFromU8 } from "fflate";
 
 const { version } = await Bun.file("apps/desktop/package.json").json();
@@ -48,6 +49,54 @@ try {
   });
   expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version);
   const page = await app.firstWindow();
+  // Exercise the real main/preload foreground gate, not a renderer-only mock.
+  await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]!;
+    window.show();
+    window.focus();
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.desktop!.nativePreview!.foreground()),
+    )
+    .toBe(true);
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]!.minimize(),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.desktop!.nativePreview!.foreground()),
+    )
+    .toBe(false);
+  await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]!;
+    window.restore();
+    window.show();
+    window.focus();
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.desktop!.nativePreview!.foreground()),
+    )
+    .toBe(true);
+  await app.evaluate(({ BrowserWindow }) =>
+    BrowserWindow.getAllWindows()[0]!.hide(),
+  );
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.desktop!.nativePreview!.foreground()),
+    )
+    .toBe(false);
+  await app.evaluate(({ BrowserWindow }) => {
+    const window = BrowserWindow.getAllWindows()[0]!;
+    window.show();
+    window.focus();
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() => window.desktop!.nativePreview!.foreground()),
+    )
+    .toBe(true);
   if (platform === "win32") {
     expect(
       await app.evaluate(({ app }) =>
@@ -57,6 +106,12 @@ try {
     await windowsWhipSmoke(
       page,
       join(packageDirectory, "win-unpacked/resources/capture/obs"),
+    );
+    await nativePreviewSmoke(
+      page,
+      ".local/native-runtime/windows/build/CGStreamPreviewSmoke.exe",
+      join(packageDirectory, "win-unpacked/resources/capture/obs"),
+      ".local/pion-whip-smoke.exe",
     );
     const encoding = await page.evaluate(webRTCEncoderProbe);
     expect(encoding.mimeType?.toLowerCase()).toBe("video/h264");

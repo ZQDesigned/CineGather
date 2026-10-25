@@ -4,15 +4,16 @@ import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 
-test("local preview is bounded, coalesced and discarded when sharing stops", async () => {
+test("local stream negotiation is scoped to its generation and foreground state without stopping publication", async () => {
   const root = await mkdtemp(join(tmpdir(), "cg-preview-"));
   const work = join(root, "state");
   await mkdir(join(root, "Contents/MacOS"), { recursive: true });
-  const image = "data:image/jpeg;base64,/9j/2Q==";
+  const sdp =
+    "v=0\r\nm=video 9 UDP/TLS/RTP/SAVPF 96\r\na=candidate:1 1 UDP 2122260223 127.0.0.1 19001 typ host\r\n";
   await writeFile(
     join(root, "Contents/MacOS/CGScreenCaptureHost"),
     `#!/usr/bin/env node
-const fs=require('node:fs');require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data={screenPermission:true,outputPhase:'active',sourceWidth:1920,outputActive:true,sourcesActive:true};if(c.type==='windows')data={windows:[],displays:[{displayId:1,name:'Screen'}]};if(c.type==='preview'){fs.appendFileSync(process.argv[2]+'/previews','1');setTimeout(()=>console.log(JSON.stringify({ok:true,data:fs.existsSync(process.argv[2]+'/invalid')?{image:'https://untrusted.invalid/frame',width:960,height:540}:{image:${JSON.stringify(image)},width:960,height:540}})),60);return}console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});
+const fs=require('node:fs');require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data={screenPermission:true,outputPhase:'active',sourceWidth:1920,outputActive:true,sourcesActive:true};if(c.type==='windows')data={windows:[],displays:[{displayId:1,name:'Screen'}]};if(c.type.startsWith('preview-'))fs.appendFileSync(process.argv[2]+'/requests',c.type+'\\n');if(c.type==='preview-start'){setTimeout(()=>console.log(JSON.stringify({ok:true,data:{sdp:fs.existsSync(process.argv[2]+'/invalid')?'v=0\\r\\na=candidate:1 1 UDP 1 192.0.2.1 9999 typ host\\r\\n':${JSON.stringify(sdp)}}})),60);return}console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});
 `,
     { mode: 0o755 },
   );
@@ -28,15 +29,18 @@ const fs=require('node:fs');require('node:readline').createInterface({input:proc
         expiresAt,
       }),
   });
-  const capture = new NativeCapture(root, work, () => {});
+  let foreground = true;
+  const capture = new NativeCapture(root, work, () => {}, undefined, {
+    previewAllowed: () => foreground,
+  });
   try {
-    expect(await capture.preview()).toBeNull();
+    expect(await capture.startPreview(crypto.randomUUID())).toBeNull();
     await capture.select({ sourceId: "native-screen:1", systemAudio: false });
     await capture.start({
       apiUrl: `http://127.0.0.1:${server.port}`,
       roomId: crypto.randomUUID(),
       sessionToken: "test-only",
-      quality: "cinema",
+      quality: "game",
       lease: {
         leaseId: crypto.randomUUID(),
         holderUserId: crypto.randomUUID(),
@@ -44,23 +48,40 @@ const fs=require('node:fs');require('node:readline').createInterface({input:proc
         expiresAt,
       },
     });
-    const results = await Promise.all(
-      Array.from({ length: 10 }, () => capture.preview()),
-    );
-    expect(results).toEqual(Array(10).fill({ image, width: 960, height: 540 }));
-    expect(JSON.stringify(capture.diagnostics())).not.toContain(image);
-    expect(await readFile(join(work, "previews"), "utf8")).toBe("1");
-    expect(await capture.preview()).toEqual({ image, width: 960, height: 540 });
-    expect(await readFile(join(work, "previews"), "utf8")).toBe("1");
-    await new Promise((resolve) => setTimeout(resolve, 210));
+    const a = crypto.randomUUID(),
+      b = crypto.randomUUID();
+    const pending = capture.startPreview(a);
+    const paused = capture.stopPreview(a);
+    const next = capture.startPreview(b);
+    expect(await pending).toBeNull();
+    await paused;
+    expect(await next).toEqual({ id: b, sdp });
+    expect(await capture.answerPreview(a, sdp)).toBe(false);
+    await capture.stopPreview(a);
+    expect(await capture.answerPreview(b, sdp)).toBe(true);
+    expect(
+      (await readFile(join(work, "requests"), "utf8")).trim().split("\n"),
+    ).toEqual([
+      "preview-start",
+      "preview-stop",
+      "preview-start",
+      "preview-answer",
+    ]);
+    foreground = false;
+    expect(await capture.answerPreview(b, sdp)).toBe(false);
+    expect(await capture.startPreview(crypto.randomUUID())).toBeNull();
+    expect(capture.isSharing).toBe(true);
+    foreground = true;
     await writeFile(join(work, "invalid"), "");
-    expect(await capture.preview()).toBeNull();
+    expect(await capture.startPreview(crypto.randomUUID())).toBeNull();
+    expect(capture.isSharing).toBe(true);
+    expect(JSON.stringify(capture.diagnostics())).not.toContain(sdp);
     await rm(join(work, "invalid"));
-    await new Promise((resolve) => setTimeout(resolve, 210));
-    const late = capture.preview();
+    const id = crypto.randomUUID();
+    expect(await capture.startPreview(id)).toEqual({ id, sdp });
     await capture.stop();
-    expect(await late).toBeNull();
-    expect(await capture.preview()).toBeNull();
+    expect(await capture.answerPreview(id, sdp)).toBe(false);
+    expect(await capture.startPreview(crypto.randomUUID())).toBeNull();
   } finally {
     await capture.shutdown().catch(() => {});
     server.stop(true);

@@ -146,6 +146,24 @@ function updateTray() {
     ]),
   );
 }
+function foreground() {
+  return Boolean(
+    win &&
+      !win.isDestroyed() &&
+      win.isVisible() &&
+      win.isFocused() &&
+      !win.isMinimized() &&
+      !screenLocked &&
+      !suspended &&
+      !quitting,
+  );
+}
+function previewForeground() {
+  const active = foreground();
+  if (!active) void nativeCapture?.stopPreview();
+  if (win && !win.isDestroyed())
+    win.webContents.send("desktop:foreground", active);
+}
 async function createWindow() {
   win = new BrowserWindow({
     width: 1360,
@@ -180,6 +198,12 @@ async function createWindow() {
   });
   win.on("move", () => memberOverlay?.relayout());
   win.on("blur", () => finishRecording());
+  win.on("focus", previewForeground);
+  win.on("blur", previewForeground);
+  win.on("show", previewForeground);
+  win.on("hide", previewForeground);
+  win.on("minimize", previewForeground);
+  win.on("restore", previewForeground);
   win.on("hide", () => finishRecording());
   win.webContents.on("did-start-navigation", () => finishRecording());
   win.webContents.on(
@@ -187,6 +211,7 @@ async function createWindow() {
     (_event, _url, inPlace, mainFrame) => {
       if (mainFrame && !inPlace) {
         windowsAudio?.stop();
+        void nativeCapture?.stopPreview();
         memberOverlay?.publish(null);
       }
     },
@@ -330,14 +355,21 @@ function registerIPC() {
     const ids = z.array(z.string().max(256)).min(1).max(4).parse(input);
     return nativeCapture ? nativeCapture.sourceThumbnails(ids) : [];
   });
-  handle("desktop:capture-preview", () =>
-    screenLocked ||
-    suspended ||
-    quitting ||
-    !win?.isVisible() ||
-    win.isMinimized()
-      ? null
-      : (nativeCapture?.preview() ?? null),
+  handle("desktop:foreground", foreground);
+  handle(
+    "desktop:preview-start",
+    (input) =>
+      nativeCapture?.startPreview(z.string().uuid().parse(input)) ?? null,
+  );
+  handle("desktop:preview-answer", (input) => {
+    const value = z
+      .object({ id: z.string().uuid(), sdp: z.string().min(1).max(65536) })
+      .strict()
+      .parse(input);
+    return nativeCapture?.answerPreview(value.id, value.sdp) ?? false;
+  });
+  handle("desktop:preview-stop", (input) =>
+    nativeCapture?.stopPreview(z.string().uuid().parse(input)),
   );
   handle("desktop:select-source", async (input) => {
     const choice = z
@@ -614,6 +646,7 @@ else {
           join(app.getPath("userData"), "capture"),
           () => sendAction("stop-share"),
           app.isPackaged ? undefined : "com.github.Electron",
+          { previewAllowed: foreground },
         );
       if (process.platform === "win32")
         nativeCapture = new NativeCapture(
@@ -627,6 +660,7 @@ else {
           () => sendAction("stop-share"),
           "CineGather.exe",
           {
+            previewAllowed: foreground,
             encoder: () => settings.windowsEncoder ?? "auto",
             audioFallback: () => sendAction("device-audio-fallback"),
           },
@@ -661,6 +695,7 @@ else {
       powerMonitor.on("suspend", () => {
         windowsAudio?.stop();
         suspended = true;
+        previewForeground();
         memberOverlay?.block(true);
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
@@ -669,11 +704,13 @@ else {
       });
       powerMonitor.on("resume", () => {
         suspended = false;
+        previewForeground();
         memberOverlay?.block(screenLocked);
       });
       powerMonitor.on("lock-screen", () => {
         windowsAudio?.stop();
         screenLocked = true;
+        previewForeground();
         memberOverlay?.block(true);
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
@@ -682,6 +719,7 @@ else {
       });
       powerMonitor.on("unlock-screen", () => {
         screenLocked = false;
+        previewForeground();
         memberOverlay?.block(suspended);
       });
       const icon = nativeImage.createFromPath(

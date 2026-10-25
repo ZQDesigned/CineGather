@@ -57,6 +57,7 @@ export class MediaSession {
   private room?: Room;
   private revision = 0;
   private video?: HTMLVideoElement;
+  private previewVideo?: HTMLVideoElement;
   private videoTrack?: Track;
   private audioElements = new Map<string, HTMLMediaElement[]>();
   private mixer = new AudioMixer();
@@ -392,8 +393,12 @@ export class MediaSession {
   }
   setVideoElement(element?: HTMLVideoElement) {
     this.video = element;
-    this.playbackProbe.bind(element);
+    this.playbackProbe.bind(this.previewVideo ?? element);
     this.movie.bind(element);
+  }
+  setPreviewVideoElement(element?: HTMLVideoElement) {
+    this.previewVideo = element;
+    this.playbackProbe.bind(element ?? this.video);
   }
   async microphone(enabled: boolean, deviceId?: string) {
     const room = this.room;

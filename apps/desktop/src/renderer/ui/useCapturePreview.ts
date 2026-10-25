@@ -1,44 +1,57 @@
-import { useEffect, useState } from "react";
-import type { CapturePreview } from "@cinegather/contracts";
+import { useEffect, useRef, useState } from "react";
+import { NativePreviewPlayer, type PreviewStatus } from "../native-preview";
 
 export function useCapturePreview(session?: string) {
-  const [view, setView] = useState<{
-    session?: string;
-    frame?: CapturePreview;
-    unavailable?: boolean;
-  }>({});
+  const video = useRef<HTMLVideoElement>(null);
+  const [view, setView] = useState<{ session?: string; status: PreviewStatus }>(
+    { status: "paused" },
+  );
   useEffect(() => {
-    const read = window.desktop?.capturePreview;
-    if (!session || !read) return;
-    let current = true;
-    let pending = false;
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    const poll = async () => {
-      if (!current || pending || document.hidden) return;
-      pending = true;
-      try {
-        const frame = await read();
-        if (current)
-          setView({ session, frame: frame ?? undefined, unavailable: !frame });
-      } catch {
-        if (current) setView({ session, unavailable: true });
-      } finally {
-        pending = false;
-        if (current && !document.hidden)
-          timer = setTimeout(() => void poll(), 200);
-      }
-    };
-    const visibility = () => {
-      clearTimeout(timer);
-      if (!document.hidden) void poll();
-    };
-    document.addEventListener("visibilitychange", visibility);
-    void poll();
+    const bridge = window.desktop?.nativePreview;
+    if (!session || !bridge || !video.current) return;
+    let current = true,
+      foreground = false,
+      foregroundEvents = 0;
+    const player = new NativePreviewPlayer(video.current, bridge, (status) => {
+      if (current) setView({ session, status });
+    });
+    const sync = () =>
+      player.setActive(foreground && !document.hidden && document.hasFocus());
+    const focus = () =>
+      queueMicrotask(() => {
+        if (current) sync();
+      });
+    const remove = bridge.onForeground((active) => {
+      ++foregroundEvents;
+      foreground = active;
+      sync();
+    });
+    void bridge
+      .foreground()
+      .then((active) => {
+        if (current && !foregroundEvents) {
+          foreground = active;
+          sync();
+        }
+      })
+      .catch(() => {
+        if (current) setView({ session, status: "unavailable" });
+      });
+    window.addEventListener("focus", focus);
+    window.addEventListener("blur", sync);
+    document.addEventListener("visibilitychange", sync);
     return () => {
       current = false;
-      clearTimeout(timer);
-      document.removeEventListener("visibilitychange", visibility);
+      remove();
+      player.dispose();
+      window.removeEventListener("focus", focus);
+      window.removeEventListener("blur", sync);
+      document.removeEventListener("visibilitychange", sync);
     };
   }, [session]);
-  return view.session === session ? view : {};
+  return {
+    video,
+    status:
+      view.session === session ? view.status : ("paused" as PreviewStatus),
+  };
 }

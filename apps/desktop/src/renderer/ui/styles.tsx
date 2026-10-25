@@ -735,7 +735,7 @@ export const AppSurface = styled.div`
   .stage.has-video > video {
     display: block;
   }
-  .stage > .local-share-preview {
+  .stage > .local-share-preview:not([hidden]) {
     position: absolute;
     inset: 0;
     display: block;

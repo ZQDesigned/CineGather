@@ -34,21 +34,6 @@ child.on("close", (code) => pipe.close(new Error(`host-exit-${code}`)));
 receiver.stderr.pipe(process.stderr);
 let serverPort: number | undefined;
 try {
-  const preview = spawnSync(
-    resolve(".local/native-runtime/windows/build/CGPreviewSmoke.exe"),
-    [join(runtime, "data/libobs"), join(runtime, "bin/64bit/libobs-d3d11.dll")],
-    {
-      env: {
-        ...process.env,
-        PATH: join(runtime, "bin/64bit") + delimiter + process.env.PATH,
-      },
-      encoding: "utf8",
-      timeout: 15000,
-      windowsHide: true,
-    },
-  );
-  assert.equal(preview.status, 0, `OBS preview regression: ${preview.stderr}`);
-  console.log("Native OBS preview composition regression:", preview.stdout);
   const port = await new Promise<number>((resolve, reject) => {
     const timer = setTimeout(
       () => reject(new Error("pion-startup-timeout")),

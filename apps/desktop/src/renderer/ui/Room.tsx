@@ -60,6 +60,12 @@ export function Room({ visible = true }: { visible?: boolean }) {
       ? `${app.room!.id}:${app.shareRevision}`
       : undefined,
   );
+  useEffect(() => {
+    actions.media.setPreviewVideoElement(
+      nativeSharing ? (preview.video.current ?? undefined) : undefined,
+    );
+    return () => actions.media.setPreviewVideoElement(undefined);
+  }, [nativeSharing, preview.video]);
   const otherSharing =
     !nativeSharing && Boolean(app.media.sharer && !app.media.sharer.local);
   const canPreempt = app.room?.role === "owner" && otherSharing && !sharing;
@@ -157,16 +163,18 @@ export function Room({ visible = true }: { visible?: boolean }) {
               fullscreen();
             }}
           >
-            <Video />
-            {preview.frame && (
-              <img
+            {nativeSharing ? (
+              <video
+                ref={preview.video}
                 className="local-share-preview"
-                src={preview.frame.image}
-                width={preview.frame.width}
-                height={preview.frame.height}
-                alt="本地共享预览"
-                draggable={false}
+                autoPlay
+                playsInline
+                muted
+                hidden={!nativeSharing || preview.status !== "playing"}
+                aria-label="本地共享预览"
               />
+            ) : (
+              <Video />
             )}
             {!app.media.sharer && !nativeSharing && (
               <div className="stage-empty">
@@ -207,7 +215,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
             )}
             {(nativeSharing || app.media.sharer?.local) &&
               (nativeSharing || !app.media.sharer?.hasVideo) &&
-              !preview.frame && (
+              preview.status !== "playing" && (
                 <div className="stage-empty">
                   <div className="stage-icon">
                     <ScreenShare size={46} strokeWidth={1.3} />
@@ -215,9 +223,11 @@ export function Room({ visible = true }: { visible?: boolean }) {
                   <h2>你正在共享屏幕</h2>
                   {nativeSharing && (
                     <p>
-                      {preview.unavailable
+                      {preview.status === "unavailable"
                         ? "本地预览暂不可用"
-                        : "正在加载本地预览"}
+                        : preview.status === "paused"
+                          ? "本地预览已暂停"
+                          : "正在加载本地预览"}
                     </p>
                   )}
                 </div>
@@ -230,7 +240,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
                   : app.media.sharer.name}
                 正在共享
                 {nativeSharing && (
-                  <Tooltip title="本地预览以低帧率刷新，不影响共享画质和帧率">
+                  <Tooltip title="本地直连预览，使用当前共享画质和帧率">
                     <Tag>本地预览</Tag>
                   </Tooltip>
                 )}

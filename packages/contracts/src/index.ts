@@ -219,7 +219,17 @@ export type CaptureSource = {
   audioIsolationSupported?: boolean;
 };
 export type CaptureThumbnail = { id: string; thumbnail: string };
-export type CapturePreview = { image: string; width: number; height: number };
+export interface NativePreviewOffer {
+  id: string;
+  sdp: string;
+}
+export interface NativePreviewBridge {
+  start(id: string): Promise<NativePreviewOffer | null>;
+  answer(id: string, sdp: string): Promise<boolean>;
+  stop(id: string): Promise<void>;
+  foreground(): Promise<boolean>;
+  onForeground(callback: (active: boolean) => void): () => void;
+}
 export type CaptureSelection = {
   sourceId: string;
   systemAudio: boolean;
@@ -293,7 +303,7 @@ export interface DesktopBridge {
   startNativeCapture?(request: NativeCaptureRequest): Promise<void>;
   renewNativeCapture?(lease: ShareLease): Promise<ShareLease>;
   stopNativeCapture?(): Promise<void>;
-  capturePreview?(): Promise<CapturePreview | null>;
+  nativePreview?: NativePreviewBridge;
   sources(): Promise<CaptureSource[]>;
   sourceThumbnails?(sourceIds: string[]): Promise<CaptureThumbnail[]>;
   takeInvitation(): Promise<string | undefined>;

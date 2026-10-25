@@ -9,7 +9,7 @@ import {
   nativePublicationSchema,
   type CaptureSelection,
   type CaptureThumbnail,
-  type CapturePreview,
+  type NativePreviewOffer,
   type CaptureSource,
   type NativeCaptureRequest,
   type ShareLease,
@@ -64,40 +64,83 @@ export class NativeCapture {
   private poll?: ReturnType<typeof setInterval>;
   private polling = false;
   private started = false;
-  private previewPending?: Promise<CapturePreview | null>;
-  private previewCache: CapturePreview | null = null;
-  private previewAt = -Infinity;
-  async preview(): Promise<CapturePreview | null> {
-    if (!this.context || !this.started || !this.pipe) return null;
-    if (this.previewPending) return this.previewPending;
-    if (performance.now() - this.previewAt < 200) return this.previewCache;
-    const epoch = this.epoch;
-    this.previewAt = performance.now();
-    const pending = this.pipe
-      .call({ type: "preview" })
-      .then((raw) => {
-        const frame = z
-          .object({
-            image: z
-              .string()
-              .max(240100)
-              .regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/),
-            width: z.number().int().min(1).max(960),
-            height: z.number().int().min(1).max(540),
-          })
-          .safeParse(raw);
-        if (epoch !== this.epoch || !this.context || !this.started) return null;
-        return (this.previewCache = frame.success ? frame.data : null);
-      })
-      .catch(() => {
-        if (epoch === this.epoch) this.previewCache = null;
+  private previewEpoch = 0;
+  private previewId?: string;
+  private previewAllowed() {
+    return Boolean(
+      this.context &&
+        this.started &&
+        this.pipe &&
+        (this.options.previewAllowed?.() ?? true),
+    );
+  }
+  async startPreview(id: string): Promise<NativePreviewOffer | null> {
+    z.string().uuid().parse(id);
+    if (!this.previewAllowed()) return null;
+    const epoch = ++this.previewEpoch;
+    this.previewId = id;
+    try {
+      const offer = z
+        .object({
+          sdp: z
+            .string()
+            .min(1)
+            .max(65536)
+            .refine((sdp) => {
+              const lines = sdp.split(/\r?\n/);
+              const candidates = lines.filter((line) =>
+                line.startsWith("a=candidate:"),
+              );
+              return (
+                lines[0] === "v=0" &&
+                !lines.some((line) => line.startsWith("m=audio")) &&
+                candidates.length > 0 &&
+                candidates.every((line) => {
+                  const fields = line.split(/\s+/);
+                  return (
+                    fields[2]?.toLowerCase() === "udp" &&
+                    ["127.0.0.1", "::1"].includes(fields[4] ?? "") &&
+                    fields[7] === "host"
+                  );
+                })
+              );
+            }),
+        })
+        .parse(await this.pipe!.call({ type: "preview-start" }));
+      if (epoch !== this.previewEpoch) return null;
+      if (!this.previewAllowed()) {
+        await this.stopPreview(id);
         return null;
-      })
-      .finally(() => {
-        if (this.previewPending === pending) this.previewPending = undefined;
+      }
+      return { id, sdp: offer.sdp };
+    } catch {
+      if (epoch === this.previewEpoch) await this.stopPreview(id);
+      return null;
+    }
+  }
+  async answerPreview(id: string, sdp: string): Promise<boolean> {
+    if (this.previewId !== id) return false;
+    if (!this.previewAllowed()) {
+      await this.stopPreview(id);
+      return false;
+    }
+    const epoch = this.previewEpoch;
+    try {
+      await this.pipe!.call({
+        type: "preview-answer",
+        sdp: z.string().min(1).max(65536).parse(sdp),
       });
-    this.previewPending = pending;
-    return pending;
+      return epoch === this.previewEpoch && this.previewAllowed();
+    } catch {
+      if (epoch === this.previewEpoch) await this.stopPreview(id);
+      return false;
+    }
+  }
+  async stopPreview(id?: string) {
+    if (!this.previewId || (id && id !== this.previewId)) return;
+    ++this.previewEpoch;
+    this.previewId = undefined;
+    await this.pipe?.call({ type: "preview-stop" }).catch(() => {});
   }
   private activeWindow?: NativeWindow;
   private activeDisplayId?: number;
@@ -118,6 +161,7 @@ export class NativeCapture {
     private readonly ownApplication?: string,
     private readonly options: {
       platform?: NodeJS.Platform;
+      previewAllowed?: () => boolean;
       encoder?: () => string;
       audioFallback?: () => void;
     } = {},
@@ -583,9 +627,8 @@ export class NativeCapture {
   }
   async stop() {
     ++this.epoch;
-    this.previewPending = undefined;
-    this.previewCache = null;
-    this.previewAt = -Infinity;
+    ++this.previewEpoch;
+    this.previewId = undefined;
     clearInterval(this.poll);
     this.poll = undefined;
     const context = this.context;

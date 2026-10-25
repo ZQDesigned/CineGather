@@ -40,3 +40,16 @@ s=s.replace(needle,'''#ifdef _WIN32
 #endif
 ''' + needle)
 p.write_text(s)
+
+# Mirror the original encoded H264 frames to an optional loopback-only peer.
+p=Path(sys.argv[1])/'whip-output.h'
+s=p.read_text().replace('#include "sync-reporter.hpp"', '#include "sync-reporter.hpp"\n#include "local-preview.hpp"')
+s=s.replace('obs_output_t *output;', 'obs_output_t *output;\n cinegather::LocalPreview local_preview;')
+p.write_text(s)
+p=p.with_suffix('.cpp');s=p.read_text()
+needle='\t  last_audio_timestamp(0)\n{\n}'
+assert s.count(needle)==1
+s=s.replace(needle, '\t  last_audio_timestamp(0)\n{\n proc_handler_add(obs_output_get_proc_handler(output), "void local_preview(in string command, in string sdp, out string offer, out string error)", [](void *context, calldata_t *call) { static_cast<WHIPOutput *>(context)->local_preview.command(call); }, this);\n}')
+s=s.replace('void WHIPOutput::Data(struct encoder_packet *packet)\n{', 'void WHIPOutput::Data(struct encoder_packet *packet)\n{\n if (packet && packet->type == OBS_ENCODER_VIDEO) local_preview.push(packet->data, packet->size, packet->dts_usec, packet->keyframe);')
+s=s.replace('void WHIPOutput::StopThread(bool signal)\n{', 'void WHIPOutput::StopThread(bool signal)\n{\n local_preview.stop();')
+p.write_text(s)
