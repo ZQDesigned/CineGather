@@ -15,6 +15,7 @@ import {
 } from "antd";
 import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
+import { ClientDownload } from "./ClientDownload";
 import { UpdateDialog } from "./Updates";
 import { RoomSettings } from "./RoomSettings";
 import { Diagnostics } from "./Diagnostics";
@@ -78,6 +79,8 @@ function DialogContent({ modal }: { modal: Modal }) {
   if (modal === "create") return <CreateRoom />;
   if (modal === "join") return <JoinRoom />;
   if (modal === "settings") return <Settings />;
+  if (modal === "download" && !capabilities().desktop)
+    return <ClientDownload />;
   if (modal === "updates") return <UpdateDialog />;
   if (modal === "invite") return <Invite />;
   if (modal === "source") return <SourcePicker />;

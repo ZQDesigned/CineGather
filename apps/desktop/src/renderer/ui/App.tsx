@@ -10,6 +10,7 @@ import {
   Radio,
   LogOut,
   ShieldCheck,
+  Download,
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -283,6 +284,16 @@ export function App() {
             mode="inline"
             selectedKeys={[]}
             items={[
+              ...(!capabilities().desktop
+                ? [
+                    {
+                      key: "download",
+                      icon: <Download size={18} />,
+                      label: "下载客户端",
+                      onClick: () => update({ modal: "download" }),
+                    },
+                  ]
+                : []),
               {
                 key: "settings",
                 icon: <Settings size={18} />,

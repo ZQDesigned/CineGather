@@ -15,6 +15,7 @@ export type Modal =
   | "create"
   | "join"
   | "settings"
+  | "download"
   | "invite"
   | "source"
   | "friends"
