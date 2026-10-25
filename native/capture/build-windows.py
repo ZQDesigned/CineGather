@@ -368,7 +368,9 @@ for folder in crt:
     for dll in folder.glob("*.dll"):
         if not (runtime / "bin/64bit" / dll.name).exists():
             shutil.copy2(dll, runtime / "bin/64bit" / dll.name)
-source_dir = runtime / "source"
+source_dir = work / "source"
+if source_dir.exists():
+    shutil.rmtree(source_dir)
 source_dir.mkdir()
 shutil.copytree(
     root / "native/capture",
@@ -385,14 +387,25 @@ for name, _, _ in pins:
     if not name.endswith(".zip"):
         shutil.copy2(vendor / name, source_dir / name)
 shutil.copy2(vendor / "curl-8.16.0.tar.gz", source_dir / "curl-8.16.0.tar.gz")
+shutil.copy2(root / "tools/windows-audio-build.ts", source_dir / "windows-audio-build.ts")
 shutil.copy2(obs / "COPYING", runtime / "COPYING-OBS.txt")
 (runtime / "THIRD_PARTY_NOTICES.txt").write_text(
-    "CGScreenCaptureHost links OBS Studio GPL-2.0-or-later. Frontend source remains MIT.\nModified host/plugin sources and pinned corresponding-source archives are in source/.\nlibdatachannel: MPL-2.0; curl: curl license; SIMDe: MIT; x264: GPL-2.0-or-later; FFmpeg: see OBS distribution source notices.\nApp-local Microsoft VC runtime is redistributed under the Visual Studio runtime license.\n"
+    "CGScreenCaptureHost links OBS Studio GPL-2.0-or-later. Frontend source remains MIT.\nModified host/plugin sources and pinned corresponding-source archives are available separately; see SOURCE_CODE.txt.\nlibdatachannel: MPL-2.0; curl: curl license; SIMDe: MIT; x264: GPL-2.0-or-later; FFmpeg: see OBS distribution source notices.\nApp-local Microsoft VC runtime is redistributed under the Visual Studio runtime license.\n"
+)
+import importlib.util
+spec = importlib.util.spec_from_file_location("source_package", root / "native/capture/source-package.py")
+source_package = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(source_package)
+version = json.loads((root / "apps/desktop/package.json").read_text())["version"]
+source_artifact = source_package.package_sources(
+    source_dir, runtime,
+    root / "apps/desktop/release" / ("CineGather-" + version + "-win-x64-native-source.zip"),
 )
 (runtime / "manifest.json").write_text(
     json.dumps(
         {
             "obsVersion": "32.2.2",
+            "correspondingSource": source_artifact,
             "platform": "win32-x64",
             "captureCounters": "WGC-arrived-copied-QPC-v1",
             "winrtOutputSha256": hashlib.sha256(

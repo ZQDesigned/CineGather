@@ -1,4 +1,8 @@
 const messages: Record<string, string> = {
+  dtls: "无法建立媒体安全连接，请检查网络后重试或导出连接诊断",
+  ice: "无法连接媒体服务器，请检查网络后重试或导出连接诊断",
+  "http-request": "无法连接推流服务，请检查网络后重试或导出连接诊断",
+  "response-timeout": "原生采集引擎响应超时，请重新共享或导出连接诊断",
   "graphics-adapter-mismatch":
     "实际使用的显卡与所选显卡不一致，请重新选择编码器或重启客户端",
   "obs-startup": "原生采集引擎无法启动，请重新安装客户端或导出连接诊断",

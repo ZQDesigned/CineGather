@@ -8,6 +8,13 @@ s=s.replace('int64_t duration = packet->dts_usec - last_audio_timestamp;', 'int6
 s=s.replace('int64_t duration = packet->dts_usec - videoLayerState->lastVideoTimestamp;', 'int64_t duration = packet->dts_usec;\n        video_sr_reporter->captureTime(packet->sys_dts_usec);')
 s=s.replace('rtp_config->timestamp = rtp_config->timestamp + elapsed_timestamp;', 'rtp_config->timestamp = cinegather::rtpTimestamp(rtp_config->startTimestamp, duration, rtp_config->clockRate);')
 p.write_text(s)
+# Fixed stage codes only; the host never retains raw SDP/URLs/log messages.
+s=p.read_text()
+s=s.replace('bool WHIPOutput::Setup()\n{', 'bool WHIPOutput::Setup()\n{\n do_log(LOG_INFO, "CG_WHIP_PHASE setup");')
+s=s.replace('CURLcode res = curl_easy_perform(c);','do_log(LOG_INFO, "CG_WHIP_PHASE http");\n CURLcode res = curl_easy_perform(c);',1)
+s=s.replace('auto response = std::string(read_buffer);','do_log(LOG_INFO, "CG_WHIP_PHASE answer");\n auto response = std::string(read_buffer);',1)
+s=s.replace('peer_connection->gatherLocalCandidates(iceServers);','do_log(LOG_INFO, "CG_WHIP_PHASE ice");\n peer_connection->gatherLocalCandidates(iceServers);',1)
+p.write_text(s)
 # Windows OBS' MbedTLS runtime cannot accept fragmented modern ClientHellos.
 # WHIP explicitly permits an active/client-only offer (RFC 9725 section 4.4.4).
 # Keep DTLS encryption and fingerprint verification; only select the client role.

@@ -321,6 +321,10 @@ export const diagnosticServerSchema = z.object({
     .optional(),
 });
 export const nativeNumbers = [
+  "sampledAt",
+  "hostEventAt",
+  "hostExitCode",
+  "transportErrorCode",
   "graphicsReinitializations",
   "graphicsAdapterIndex",
   "graphicsVendorId",
@@ -352,6 +356,14 @@ export const nativeNumbers = [
   "nativeAllocationCount",
 ] as const;
 export const nativeDiagnosticSchema = z.object({
+  transportPhase: z
+    .enum(["none", "setup", "http", "answer", "ice", "dtls", "connected"])
+    .optional(),
+  hostExitReason: z
+    .string()
+    .max(80)
+    .regex(/^[a-z-]+$/)
+    .optional(),
   graphicsAdapterVerified: z.boolean().optional(),
   captureCountersAvailable: z.boolean().optional(),
   transportDetail: z

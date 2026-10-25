@@ -46,6 +46,7 @@ win:
   extraResources:
     - from: ../../.local/native-runtime/windows/obs
       to: capture/obs
+      filter: ["**/*", "!source/**", "!**/*.obj", "!**/*.pdb"]
     - from: ../../.local/native-runtime/windows/CGProcessAudioHost.exe
       to: capture/CGProcessAudioHost.exe
     - from: ../../node_modules/@koromix/koffi-win32-x64

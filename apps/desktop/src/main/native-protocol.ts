@@ -1,5 +1,6 @@
 export class NativeProtocol {
   private closed = false;
+  private closeReason = new Error("原生采集进程已退出");
   private buffer = "";
   private queue: Promise<unknown> = Promise.resolve();
   private pending?: {
@@ -14,7 +15,7 @@ export class NativeProtocol {
   ) {}
   call<T = unknown>(command: Record<string, unknown>): Promise<T> {
     const result = this.queue.then(() => {
-      if (this.closed) throw new Error("原生采集进程已退出");
+      if (this.closed) throw this.closeReason;
       return new Promise<T>((resolve, reject) => {
         this.pending = {
           resolve: (value) => resolve(value as T),
@@ -73,7 +74,9 @@ export class NativeProtocol {
     }
   }
   close(error = new Error("原生采集进程已退出")) {
+    if (this.closed) return;
     this.closed = true;
+    this.closeReason = error;
     if (this.pending) {
       clearTimeout(this.pending.timer);
       this.pending.reject(error);

@@ -125,6 +125,18 @@ static std::vector<EncoderError> encoderErrors;
 static std::atomic<bool> nvencRerouted{false};
 static std::atomic<int> transportFailure{0}, transportHttpStatus{0},
     transportDetail{0};
+static std::atomic<int> transportPhase{0}, transportErrorCode{0};
+static const char *transportPhaseName() {
+  switch (transportPhase.load()) {
+  case 1: return "setup";
+  case 2: return "http";
+  case 3: return "answer";
+  case 4: return "ice";
+  case 5: return "dtls";
+  case 6: return "connected";
+  default: return "none";
+  }
+}
 static const char *transportStage() {
   switch (transportFailure.load()) {
   case 1:
@@ -149,6 +161,10 @@ static const char *transportStage() {
     return "none";
   }
 }
+static void emitTransport() {
+  std::fprintf(stderr, "CG_HOST_TRANSPORT {\"transportPhase\":\"%s\",\"transportFailure\":\"%s\",\"transportHttpStatus\":%d,\"transportErrorCode\":%d}\n", transportPhaseName(),transportStage(),transportHttpStatus.load(),transportErrorCode.load());
+  std::fflush(stderr);
+}
 static void logging(int level, const char *format, va_list args, void *) {
   if (level > LOG_INFO)
     return;
@@ -157,12 +173,16 @@ static void logging(int level, const char *format, va_list args, void *) {
   std::string text = buffer, lower = text;
   std::transform(lower.begin(), lower.end(), lower.begin(),
                  [](unsigned char c) { return char(std::tolower(c)); });
+  for (const auto &stage : std::vector<std::pair<const char *, int>>{{"cg_whip_phase setup",1},{"cg_whip_phase http",2},{"cg_whip_phase answer",3},{"cg_whip_phase ice",4},{"state is now: connected",6}}) {
+    if (lower.find(stage.first) != std::string::npos) { transportPhase = stage.second; emitTransport(); }
+  }
   if (lower.find("non-texture encoder") != std::string::npos &&
       lower.find("nvenc") != std::string::npos)
     nvencRerouted = true;
   auto failure = [](int code) {
     int empty = 0;
     transportFailure.compare_exchange_strong(empty, code);
+    emitTransport();
   };
   if (lower.find("whip") != std::string::npos) {
     if (lower.find("did not provide a resource url") != std::string::npos)
@@ -233,9 +253,10 @@ static void logging(int level, const char *format, va_list args, void *) {
   encoderErrors.push_back({backend, stage, code, at});
 } // Raw messages, window titles and WHIP credentials are never persisted.
 static void rtcLog(int level, const char *message) {
-  if (level > 3 || !message)
+  if (level > 4 || !message)
     return;
   const std::string_view text(message);
+  if (text.find("DTLS") != std::string::npos) { transportPhase = 5; }
   int empty = 0;
   if (text.find("fingerprint") != std::string::npos &&
       (text.find("match") != std::string::npos ||
@@ -245,6 +266,7 @@ static void rtcLog(int level, const char *message) {
            (text.find("failed") != std::string::npos ||
             text.find("Handshake failed") != std::string::npos))
     transportFailure.compare_exchange_strong(empty, 8);
+  if (text.find("DTLS") != std::string::npos || transportFailure) emitTransport();
 }
 static void enumerateAdapters() {
   ComPtr<IDXGIFactory1> factory;
@@ -895,6 +917,8 @@ static void stopCapture() {
 }
 static Data status() {
   auto d = data();
+  obs_data_set_string(d.get(), "transportPhase", transportPhaseName());
+  obs_data_set_int(d.get(), "transportErrorCode", transportErrorCode);
   obs_data_set_string(d.get(), "transportFailure", transportStage());
   obs_data_set_string(d.get(), "transportDetail",
                       transportDetail == 1   ? "missing-location"
@@ -1105,6 +1129,8 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
   syntheticCapture = synthetic;
 
   transportFailure = 0;
+  transportPhase = 0;
+  transportErrorCode = 0;
   transportHttpStatus = 0;
   transportDetail = 0;
   requestedEncoder = obs_data_get_string(config, "encoder");
@@ -1348,7 +1374,7 @@ static void init(int adapter) {
       reinterpret_cast<void (*)(int, void (*)(int, const char *))>(
           GetProcAddress(rtc, "rtcInitLogger"));
   if (initLogger)
-    initLogger(3, rtcLog);
+    initLogger(4, rtcLog);
   obs_source_info exact{};
   exact.id = "cg_hwnd_capture";
   exact.type = OBS_SOURCE_TYPE_INPUT;
@@ -1520,8 +1546,11 @@ int wmain(int argc, wchar_t **argv) {
                                   : active ? active
                                            : starting;
           if (WaitForSingleObject(ownerProcess, 0) != WAIT_TIMEOUT ||
-              (expiry && os_gettime_ns() >= expiry))
+              (expiry && os_gettime_ns() >= expiry)) {
+            std::fputs("CG_HOST_ERROR lease-expired\n", stderr);
+            std::fflush(stderr);
             TerminateProcess(GetCurrentProcess(), 3);
+          }
           Sleep(20);
         }
       }};

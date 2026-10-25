@@ -42,6 +42,11 @@ export class NativeCapture {
   private pipe?: NativeProtocol;
   private boot?: Promise<NativeProtocol>;
   private bootIssue?: string;
+  private rememberStatus(raw: unknown) {
+    const status = nativeDiagnosticSchema.safeParse(raw);
+    if (status.success)
+      this.diagnosticStatus = { ...status.data, sampledAt: Date.now() };
+  }
   get startupFailure() {
     return this.bootIssue;
   }
@@ -165,13 +170,53 @@ export class NativeCapture {
           stderrBuffer = stderrBuffer.slice(newline + 1);
           const match = /^CG_HOST_ERROR ([a-z-]{1,80})$/.exec(line);
           if (match) this.bootIssue = match[1];
+          if (line.startsWith("CG_HOST_TRANSPORT ")) {
+            try {
+              const status = nativeDiagnosticSchema
+                .pick({
+                  transportPhase: true,
+                  transportFailure: true,
+                  transportHttpStatus: true,
+                  transportErrorCode: true,
+                })
+                .strict()
+                .safeParse(JSON.parse(line.slice(18)));
+              if (status.success)
+                this.diagnosticStatus = {
+                  ...this.diagnosticStatus,
+                  ...status.data,
+                  hostEventAt: Date.now(),
+                };
+            } catch {
+              /* Ignore unknown third-party output. */
+            }
+          }
         }
         if (stderrBuffer.length > 512) stderrBuffer = "";
       });
       child.on("error", () =>
         pipe.close(new Error("原生采集引擎未安装，请重新构建应用")),
       );
-      child.on("close", () => {
+      child.on("close", (code, signal) => {
+        if (
+          this.context ||
+          this.bootIssue ||
+          (code !== 0 && code !== null) ||
+          signal
+        ) {
+          this.diagnosticStatus = {
+            ...this.diagnosticStatus,
+            hostEventAt: Date.now(),
+            ...(code === null ? {} : { hostExitCode: code }),
+            hostExitReason:
+              this.bootIssue ?? (signal ? "terminated" : "unexpected-exit"),
+            outputPhase: "failed",
+            outputActive: false,
+            sourcesActive: false,
+            videoSourceActive: false,
+            audioSourceActive: false,
+          };
+        }
         pipe.close(
           this.bootIssue
             ? (nativeFailure(new Error(this.bootIssue)) as Error)
@@ -182,7 +227,7 @@ export class NativeCapture {
           this.pipe = undefined;
         }
         if (this.context) {
-          void this.stop();
+          void this.stop().catch(() => {});
           this.ended();
         }
       });
@@ -398,14 +443,9 @@ export class NativeCapture {
         if (status.audioCaptureError) throw new Error(status.audioCaptureError);
         if (status.outputPhase === "failed" || status.outputPhase === "stopped")
           throw new Error("原生推流未连接，请检查服务和采集权限");
-        const diagnosticStatus = nativeDiagnosticSchema.safeParse(status);
-        if (diagnosticStatus.success)
-          this.diagnosticStatus = diagnosticStatus.data;
+        this.rememberStatus(status);
         if (status.outputPhase === "active" && status.sourceWidth > 0) {
-          if (
-            diagnosticStatus.success &&
-            diagnosticStatus.data.deviceAudioFallback
-          )
+          if (this.diagnosticStatus?.deviceAudioFallback)
             this.options.audioFallback?.();
           this.poll = setInterval(() => void this.check(), 1000);
           return;
@@ -414,7 +454,7 @@ export class NativeCapture {
       }
       throw new Error("共享启动已取消或超时");
     } catch (error) {
-      if (epoch === this.epoch) await this.stop();
+      if (epoch === this.epoch) await this.stop().catch(() => {});
       throw this.windows ? nativeFailure(error) : error;
     }
   }
@@ -444,10 +484,7 @@ export class NativeCapture {
     try {
       const status = await this.pipe!.call<Status>({ type: "status" });
       if (epoch !== this.epoch) return;
-      const diagnosticStatus = nativeDiagnosticSchema.safeParse(status);
-      this.diagnosticStatus = diagnosticStatus.success
-        ? diagnosticStatus.data
-        : undefined;
+      this.rememberStatus(status);
       if (
         ++this.checks % 5 === 0 &&
         (this.activeWindow || this.activeDisplayId)

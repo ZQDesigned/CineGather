@@ -36,42 +36,73 @@ func main() {
 	mux.HandleFunc("/whip", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "DELETE" {
 			mu.Lock()
-			for _, p := range peers { p.Close() }
+			for _, p := range peers {
+				p.Close()
+			}
 			peers = nil
 			mu.Unlock()
 			w.WriteHeader(200)
 			return
 		}
-		if r.Method != "POST" { w.WriteHeader(405); return }
+		if r.Method != "POST" {
+			w.WriteHeader(405)
+			return
+		}
 		body, err := io.ReadAll(io.LimitReader(r.Body, 65536))
-		if err != nil { w.WriteHeader(400); return }
+		if err != nil {
+			w.WriteHeader(400)
+			return
+		}
 		pc, err := api.NewPeerConnection(webrtc.Configuration{})
-		if err != nil { w.WriteHeader(500); return }
-		mu.Lock(); peers = append(peers, pc); mu.Unlock()
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
+		mu.Lock()
+		peers = append(peers, pc)
+		mu.Unlock()
 		pc.OnConnectionStateChange(func(s webrtc.PeerConnectionState) { state.Store(s.String()) })
 		pc.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 			var last uint32
 			first := true
 			for {
 				packet, _, err := track.ReadRTP()
-				if err != nil { return }
+				if err != nil {
+					return
+				}
 				packets.Add(1)
 				if track.Kind() == webrtc.RTPCodecTypeVideo && (first || last != packet.Timestamp) {
-					frames.Add(1); last = packet.Timestamp; first = false
+					frames.Add(1)
+					last = packet.Timestamp
+					first = false
 				}
 			}
 		})
 		for _, kind := range []webrtc.RTPCodecType{webrtc.RTPCodecTypeVideo, webrtc.RTPCodecTypeAudio} {
-			if _, err = pc.AddTransceiverFromKind(kind, webrtc.RTPTransceiverInit{Direction: webrtc.RTPTransceiverDirectionRecvonly}); err != nil { w.WriteHeader(500); return }
+			if _, err = pc.AddTransceiverFromKind(kind, webrtc.RTPTransceiverInit{Direction: webrtc.RTPTransceiverDirectionRecvonly}); err != nil {
+				w.WriteHeader(500)
+				return
+			}
 		}
-		if err = pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: string(body)}); err != nil { w.WriteHeader(400); return }
+		if err = pc.SetRemoteDescription(webrtc.SessionDescription{Type: webrtc.SDPTypeOffer, SDP: string(body)}); err != nil {
+			w.WriteHeader(400)
+			return
+		}
 		answer, err := pc.CreateAnswer(nil)
-		if err != nil { w.WriteHeader(500); return }
+		if err != nil {
+			w.WriteHeader(500)
+			return
+		}
 		gathered := webrtc.GatheringCompletePromise(pc)
-		if err = pc.SetLocalDescription(answer); err != nil { w.WriteHeader(500); return }
+		if err = pc.SetLocalDescription(answer); err != nil {
+			w.WriteHeader(500)
+			return
+		}
 		select {
 		case <-gathered:
-		case <-time.After(5 * time.Second): w.WriteHeader(504); return
+		case <-time.After(5 * time.Second):
+			w.WriteHeader(504)
+			return
 		}
 		w.Header().Set("Content-Type", "application/sdp")
 		w.Header().Set("Location", "/whip")
@@ -79,7 +110,9 @@ func main() {
 		io.WriteString(w, pc.LocalDescription().SDP)
 	})
 	listener, err := net.Listen("tcp", "127.0.0.1:0")
-	if err != nil { os.Exit(1) }
+	if err != nil {
+		os.Exit(1)
+	}
 	fmt.Printf("{\"port\":%d}\n", listener.Addr().(*net.TCPAddr).Port)
 	http.Serve(listener, mux)
 }

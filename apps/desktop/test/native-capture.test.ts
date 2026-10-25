@@ -42,6 +42,97 @@ test("helper exit rejects queued commands; concurrent requests cannot steal repl
   await expect(b).rejects.toThrow();
 });
 
+test("a failed native command preserves its cause for queued cleanup requests", async () => {
+  const pipe = new NativeProtocol(
+    () => {},
+    () => {},
+    1000,
+  );
+  const active = pipe.call({ type: "status" });
+  const cleanup = pipe.call({ type: "stop" });
+  await Promise.resolve();
+  pipe.close(new Error("DTLS 协商失败"));
+  await expect(active).rejects.toThrow("DTLS 协商失败");
+  await expect(cleanup).rejects.toThrow("DTLS 协商失败");
+});
+
+test("native transport failure and exit survive cleanup and a fresh diagnostic probe", async () => {
+  const { NativeCapture } = await import("../src/main/native-capture");
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "cg-exit-evidence-"));
+  await mkdir(join(root, "bin/64bit"), { recursive: true });
+  await writeFile(
+    join(root, "bin/64bit/CGScreenCaptureHost.exe"),
+    `#!/usr/bin/env node
+require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data={screenPermission:true,outputPhase:'stopped'};if(c.type==='windows')data={windows:[],displays:[{displayId:1,name:'Screen'}]};if(c.type==='start'){process.stderr.write('CG_HOST_TRANSPORT {"transportFailure":"dtls","transportPhase":"dtls","transportErrorCode":-1234}\\nCG_HOST_ERROR dtls\\n',()=>process.exit(3));return}if(c.type==='encoders')data={encoders:[],adapters:[]};if(c.type==='probe')data={status:'ok',framesEncoded:45};console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});
+`,
+    { mode: 0o755 },
+  );
+  const expiresAt = new Date(Date.now() + 20000).toISOString();
+  let revoked = 0;
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      if (request.method === "DELETE") {
+        revoked++;
+        return Response.json({ ok: true });
+      }
+      return Response.json({
+        url: "https://example.invalid/whip",
+        token: "test-only",
+        identity: "test-only",
+        expiresAt,
+      });
+    },
+  });
+  const capture = new NativeCapture(
+    root,
+    join(root, "state"),
+    () => {},
+    undefined,
+    { platform: "win32" },
+  );
+  try {
+    await capture.select({ sourceId: "native-screen:1", systemAudio: false });
+    await expect(
+      capture.start({
+        apiUrl: `http://127.0.0.1:${server.port}`,
+        sessionToken: "test-only",
+        roomId: crypto.randomUUID(),
+        quality: "cinema",
+        lease: {
+          leaseId: crypto.randomUUID(),
+          holderUserId: crypto.randomUUID(),
+          revision: 1,
+          expiresAt,
+        },
+      }),
+    ).rejects.toThrow("安全连接");
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(capture.diagnostics()).toMatchObject({
+      transportFailure: "dtls",
+      transportPhase: "dtls",
+      transportErrorCode: -1234,
+      hostExitCode: 3,
+      outputPhase: "failed",
+      outputActive: false,
+      sourcesActive: false,
+    });
+    expect((await capture.encoderDiagnostics())!.lastSession).toMatchObject({
+      hostExitCode: 3,
+      transportFailure: "dtls",
+    });
+    expect(revoked).toBe(1);
+  } finally {
+    await capture.shutdown().catch(() => {});
+    server.stop(true);
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
 test("an invalid multi-response packet immediately rejects the pending operation", async () => {
   let killed = false;
   const pipe = new NativeProtocol(
