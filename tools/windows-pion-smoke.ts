@@ -1,7 +1,7 @@
-import { spawn } from "node:child_process";
+import { spawn, spawnSync } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join, resolve } from "node:path";
+import { delimiter, join, resolve } from "node:path";
 import { createInterface } from "node:readline";
 import assert from "node:assert/strict";
 import { NativeProtocol } from "../apps/desktop/src/main/native-protocol";
@@ -32,6 +32,7 @@ child.stderr.on("data", (data) => {
 child.on("error", (error) => pipe.close(error));
 child.on("close", (code) => pipe.close(new Error(`host-exit-${code}`)));
 receiver.stderr.pipe(process.stderr);
+let serverPort: number | undefined;
 try {
   const port = await new Promise<number>((resolve, reject) => {
     const timer = setTimeout(
@@ -44,6 +45,28 @@ try {
     });
     receiver.on("error", reject);
   });
+  serverPort = port;
+  const transport = spawnSync(
+    resolve(".local/native-runtime/windows/build/CGProtocolProbe.exe"),
+    [`http://127.0.0.1:${port}/whip`],
+    {
+      env: {
+        ...process.env,
+        PATH: join(runtime, "bin/64bit") + delimiter + process.env.PATH,
+      },
+      encoding: "utf8",
+      timeout: 15000,
+      windowsHide: true,
+    },
+  );
+  console.log(
+    "Isolated bundled RTC transport:",
+    JSON.stringify({
+      exit: transport.status,
+      stdout: transport.stdout,
+      stderr: transport.stderr,
+    }),
+  );
   await pipe.call({ type: "status" });
   const result = await pipe.call<{
     status: string;
@@ -64,6 +87,13 @@ try {
   assert.equal(result.status, "ok");
   assert(result.framesEncoded >= 30);
   assert(received.frames >= 30);
+} catch (error) {
+  if (serverPort)
+    console.log(
+      "Pion failure state:",
+      await (await fetch(`http://127.0.0.1:${serverPort}/stats`)).text(),
+    );
+  throw error;
 } finally {
   child.kill();
   receiver.kill();

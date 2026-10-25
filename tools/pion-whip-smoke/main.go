@@ -23,7 +23,9 @@ func main() {
 	var frames atomic.Uint64
 	var packets atomic.Uint64
 	var state atomic.Value
+	var iceState atomic.Value
 	state.Store("new")
+	iceState.Store("new")
 	var se webrtc.SettingEngine
 	se.SetIncludeLoopbackCandidate(true)
 	se.SetDTLSEllipticCurves(elliptic.X25519, elliptic.P384, elliptic.P256)
@@ -31,7 +33,7 @@ func main() {
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(se))
 	mux := http.NewServeMux()
 	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"frames": frames.Load(), "packets": packets.Load(), "state": state.Load()})
+		json.NewEncoder(w).Encode(map[string]any{"frames": frames.Load(), "packets": packets.Load(), "state": state.Load(), "iceState": iceState.Load()})
 	})
 	mux.HandleFunc("/whip", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "DELETE" {
@@ -62,6 +64,7 @@ func main() {
 		peers = append(peers, pc)
 		mu.Unlock()
 		pc.OnConnectionStateChange(func(s webrtc.PeerConnectionState) { state.Store(s.String()) })
+		pc.OnICEConnectionStateChange(func(s webrtc.ICEConnectionState) { iceState.Store(s.String()) })
 		pc.OnTrack(func(track *webrtc.TrackRemote, _ *webrtc.RTPReceiver) {
 			var last uint32
 			first := true

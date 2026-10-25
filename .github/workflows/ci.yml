@@ -55,6 +55,8 @@ jobs:
       - run: go mod tidy && go build -o ../../.local/pion-whip-smoke.exe .
         working-directory: tools/pion-whip-smoke
       - run: bun tools/windows-audio-build.ts && python native/capture/build-windows.py && bun tools/windows-pion-smoke.ts .local/native-runtime/windows/obs
+        env:
+          CG_PROTOCOL_TEST: "1"
       - run: bun run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
