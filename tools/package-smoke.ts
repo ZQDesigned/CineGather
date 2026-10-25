@@ -48,6 +48,11 @@ try {
     timeout: 30000,
   });
   expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version);
+  expect(
+    await app.evaluate(({ app }) =>
+      app.commandLine.hasSwitch("allow-loopback-in-peer-connection"),
+    ),
+  ).toBe(true);
   const page = await app.firstWindow();
   // Exercise the real main/preload foreground gate, not a renderer-only mock.
   await app.evaluate(({ BrowserWindow }) => {

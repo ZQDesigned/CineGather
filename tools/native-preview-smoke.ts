@@ -127,17 +127,78 @@ export async function nativePreviewSmoke(
           const video = page.locator(
             'video[aria-label="Native preview integration"]',
           );
-          await expect
-            .poll(
-              () =>
-                video.evaluate(
-                  (video) =>
-                    (video as HTMLVideoElement).getVideoPlaybackQuality()
-                      .totalVideoFrames,
-                ),
-              { timeout: 10000 },
-            )
-            .toBeGreaterThanOrEqual(fps / 2);
+          try {
+            await expect
+              .poll(
+                () =>
+                  video.evaluate(
+                    (video) =>
+                      (video as HTMLVideoElement).getVideoPlaybackQuality()
+                        .totalVideoFrames,
+                  ),
+                { timeout: 10000 },
+              )
+              .toBeGreaterThanOrEqual(fps / 2);
+          } catch (error) {
+            const receiver = await page.evaluate(async () => {
+              const { peer, video } = (
+                window as unknown as {
+                  nativeStreamTest: {
+                    peer: RTCPeerConnection;
+                    video: HTMLVideoElement;
+                  };
+                }
+              ).nativeStreamTest;
+              const rows: Record<string, unknown>[] = [];
+              (await peer.getStats()).forEach((row) => {
+                if (
+                  !["transport", "candidate-pair", "inbound-rtp"].includes(
+                    row.type,
+                  )
+                )
+                  return;
+                const safe: Record<string, unknown> = { type: row.type };
+                for (const key of [
+                  "state",
+                  "dtlsState",
+                  "iceState",
+                  "nominated",
+                  "bytesSent",
+                  "bytesReceived",
+                  "packetsReceived",
+                  "packetsLost",
+                  "framesReceived",
+                  "framesDecoded",
+                  "keyFramesDecoded",
+                  "requestsSent",
+                  "requestsReceived",
+                  "responsesSent",
+                  "responsesReceived",
+                ])
+                  if (row[key] !== undefined) safe[key] = row[key];
+                rows.push(safe);
+              });
+              return {
+                connection: peer.connectionState,
+                ice: peer.iceConnectionState,
+                signaling: peer.signalingState,
+                readyState: video.readyState,
+                paused: video.paused,
+                error: video.error?.code,
+                rows,
+              };
+            });
+            console.error(
+              "Local preview receive failure:",
+              JSON.stringify({
+                fps,
+                native: await pipe.call({ type: "status" }),
+                receiver,
+                fixtureError,
+              }),
+            );
+            throw error;
+          }
           const measurement = await page.evaluate(async () => {
             const { peer, video } = (
               window as unknown as {

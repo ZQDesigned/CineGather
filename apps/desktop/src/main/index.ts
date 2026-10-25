@@ -34,6 +34,10 @@ import { supportsProcessAudio, WindowsAudio } from "./windows-audio";
 import { configureHardwareEncoding } from "./encoding-policy";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 configureHardwareEncoding(process.platform, app.commandLine);
+// Native preview is deliberately bound to 127.0.0.1. Chromium excludes the
+// loopback interface by default; enumerate it rather than relying on LAN ICE.
+if (["win32", "darwin"].includes(process.platform))
+  app.commandLine.appendSwitch("allow-loopback-in-peer-connection");
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "app",

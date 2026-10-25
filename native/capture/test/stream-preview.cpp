@@ -86,6 +86,16 @@ int main(int argc, char **argv) {
     }
   }
   obs_post_load_modules();
+#ifdef _WIN32
+  const auto rtcModule = GetModuleHandleW(L"datachannel.dll");
+  const auto initLogger = reinterpret_cast<void (*)(int, void (*)(int, const char *))>(GetProcAddress(rtcModule, "rtcInitLogger"));
+  if (initLogger) initLogger(4, [](int, const char *message) {
+    const std::string line = message ? message : "";
+    if (line.find("Changed ICE state") != std::string::npos ||
+        line.find("DTLS handshake") != std::string::npos)
+      std::cerr << line << std::endl;
+  });
+#endif
   obs_source_info fixture{};
   fixture.id = "cg_stream_fixture"; fixture.type = OBS_SOURCE_TYPE_INPUT;
   fixture.output_flags = OBS_SOURCE_VIDEO | OBS_SOURCE_CUSTOM_DRAW;
