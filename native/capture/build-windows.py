@@ -358,6 +358,7 @@ run(
         "/nologo",
         "/DLL",
         "/OUT:" + str(runtime / "obs-plugins/64bit/obs-webrtc.dll"),
+        "/IMPLIB:" + str(build / "obs-webrtc.lib"),
         *objects,
         obs_lib,
         rtc_lib,

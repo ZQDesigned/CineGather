@@ -67,6 +67,11 @@ try {
       stderr: transport.stderr,
     }),
   );
+  assert.equal(
+    transport.status,
+    0,
+    "Bundled RTC handshake must succeed before OBS publication",
+  );
   await pipe.call({ type: "status" });
   const result = await pipe.call<{
     status: string;
