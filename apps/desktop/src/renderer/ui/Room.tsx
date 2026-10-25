@@ -239,11 +239,6 @@ export function Room({ visible = true }: { visible?: boolean }) {
                   ? "你"
                   : app.media.sharer.name}
                 正在共享
-                {nativeSharing && (
-                  <Tooltip title="本地直连预览，使用当前共享画质和帧率">
-                    <Tag>本地预览</Tag>
-                  </Tooltip>
-                )}
                 {app.media.systemAudio && (
                   <span>
                     <Volume2 size={13} />
