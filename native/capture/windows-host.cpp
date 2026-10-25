@@ -106,7 +106,8 @@ struct EncoderError {
 static std::mutex errorMutex;
 static std::vector<EncoderError> encoderErrors;
 static std::atomic<bool> nvencRerouted{false};
-static std::atomic<int> transportFailure{0}, transportHttpStatus{0};
+static std::atomic<int> transportFailure{0}, transportHttpStatus{0},
+    transportDetail{0};
 static const char *transportStage() {
   switch (transportFailure.load()) {
   case 1:
@@ -139,6 +140,12 @@ static void logging(int level, const char *format, va_list args, void *) {
       lower.find("nvenc") != std::string::npos)
     nvencRerouted = true;
   if (lower.find("whip") != std::string::npos) {
+    if (lower.find("did not provide a resource url") != std::string::npos)
+      transportDetail = 1;
+    if (lower.find("failed to build resource url") != std::string::npos)
+      transportDetail = 2;
+    if (lower.find("invalid resource url") != std::string::npos)
+      transportDetail = 3;
     if (lower.find("response code") != std::string::npos) {
       transportFailure = 2;
       std::smatch match;
@@ -835,6 +842,11 @@ static void stopCapture() {
 static Data status() {
   auto d = data();
   obs_data_set_string(d.get(), "transportFailure", transportStage());
+  obs_data_set_string(d.get(), "transportDetail",
+                      transportDetail == 1   ? "missing-location"
+                      : transportDetail == 2 ? "relative-base"
+                      : transportDetail == 3 ? "invalid-resource"
+                                             : "none");
   obs_data_set_int(d.get(), "transportHttpStatus", transportHttpStatus);
   obs_data_set_int(d.get(), "captureSequence", captureSequence);
   obs_data_set_int(d.get(), "configuredWidth", configuredWidth);
@@ -960,6 +972,7 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
   ++captureSequence;
   transportFailure = 0;
   transportHttpStatus = 0;
+  transportDetail = 0;
   requestedEncoder = obs_data_get_string(config, "encoder");
   if (requestedEncoder.empty())
     requestedEncoder = "auto";

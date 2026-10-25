@@ -345,6 +345,9 @@ export const nativeNumbers = [
   "nativeAllocationCount",
 ] as const;
 export const nativeDiagnosticSchema = z.object({
+  transportDetail: z
+    .enum(["none", "missing-location", "relative-base", "invalid-resource"])
+    .optional(),
   transportFailure: z
     .enum([
       "none",

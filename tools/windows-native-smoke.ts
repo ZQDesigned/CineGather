@@ -75,3 +75,29 @@ try {
   child.kill();
   await rm(directory, { recursive: true, force: true });
 }
+
+// Check transport before packaging; a successful encoder probe alone is insufficient.
+const { _electron } = await import("@playwright/test");
+const { writeFile } = await import("node:fs/promises");
+const { windowsWhipSmoke } = await import("./windows-whip-smoke");
+const harness = await mkdtemp(join(tmpdir(), "cg-whip-receiver-"));
+let receiver: Awaited<ReturnType<typeof _electron.launch>> | undefined;
+try {
+  await writeFile(
+    join(harness, "main.cjs"),
+    "const {app,BrowserWindow}=require('electron');app.whenReady().then(()=>{const w=new BrowserWindow({webPreferences:{backgroundThrottling:false}});w.loadURL('about:blank');});",
+  );
+  receiver = await _electron.launch({
+    executablePath: resolve(
+      import.meta.dir,
+      "../node_modules/electron/dist/electron.exe",
+    ),
+    args: [join(harness, "main.cjs")],
+  });
+  const page = await receiver.firstWindow();
+  await page.waitForLoadState("domcontentloaded");
+  await windowsWhipSmoke(page, runtime);
+} finally {
+  await receiver?.close();
+  await rm(harness, { recursive: true, force: true });
+}
