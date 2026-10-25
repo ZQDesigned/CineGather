@@ -12,8 +12,50 @@ import (
 	"time"
 
 	"github.com/pion/dtls/v3/pkg/crypto/elliptic"
+	"github.com/pion/ice/v4"
 	"github.com/pion/webrtc/v4"
 )
+
+type traceConn struct {
+	net.PacketConn
+	mu      sync.Mutex
+	packets []map[string]any
+}
+
+func (c *traceConn) record(direction string, b []byte) {
+	if len(b) < 13 || b[0] < 20 || b[0] > 25 {
+		return
+	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	for len(b) >= 13 {
+		size := int(b[11])<<8 | int(b[12])
+		if len(b) < 13+size {
+			return
+		}
+		row := map[string]any{"direction": direction, "contentType": b[0], "epoch": int(b[3])<<8 | int(b[4]), "size": size}
+		if b[0] == 22 && b[3] == 0 && b[4] == 0 && size >= 12 {
+			row["handshakeType"] = b[13]
+			row["sequence"] = int(b[17])<<8 | int(b[18])
+			row["fragmentOffset"] = int(b[19])<<16 | int(b[20])<<8 | int(b[21])
+		}
+		if len(c.packets) < 128 {
+			c.packets = append(c.packets, row)
+		}
+		b = b[13+size:]
+	}
+}
+func (c *traceConn) ReadFrom(b []byte) (int, net.Addr, error) {
+	n, a, e := c.PacketConn.ReadFrom(b)
+	if e == nil {
+		c.record("received", b[:n])
+	}
+	return n, a, e
+}
+func (c *traceConn) WriteTo(b []byte, a net.Addr) (int, error) {
+	c.record("sent", b)
+	return c.PacketConn.WriteTo(b, a)
+}
 
 // Match LiveKit ingress' Pion version, curves and handshake retransmission.
 // This fixture records counters only, and never persists SDP or media.
@@ -27,13 +69,22 @@ func main() {
 	state.Store("new")
 	iceState.Store("new")
 	var se webrtc.SettingEngine
+	udp, err := net.ListenPacket("udp4", "0.0.0.0:0")
+	if err != nil {
+		os.Exit(1)
+	}
+	trace := &traceConn{PacketConn: udp}
+	se.SetICEUDPMux(ice.NewUDPMuxDefault(ice.UDPMuxParams{UDPConn: trace}))
 	se.SetIncludeLoopbackCandidate(true)
 	se.SetDTLSEllipticCurves(elliptic.X25519, elliptic.P384, elliptic.P256)
 	se.SetDTLSRetransmissionInterval(100 * time.Millisecond)
 	api := webrtc.NewAPI(webrtc.WithSettingEngine(se))
 	mux := http.NewServeMux()
 	mux.HandleFunc("/stats", func(w http.ResponseWriter, r *http.Request) {
-		json.NewEncoder(w).Encode(map[string]any{"frames": frames.Load(), "packets": packets.Load(), "state": state.Load(), "iceState": iceState.Load()})
+		trace.mu.Lock()
+		headers := append([]map[string]any(nil), trace.packets...)
+		trace.mu.Unlock()
+		json.NewEncoder(w).Encode(map[string]any{"frames": frames.Load(), "packets": packets.Load(), "state": state.Load(), "iceState": iceState.Load(), "dtlsHeaders": headers})
 	})
 	mux.HandleFunc("/whip", func(w http.ResponseWriter, r *http.Request) {
 		if r.Method == "DELETE" {

@@ -50,13 +50,14 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.1
-      - run: bun install --frozen-lockfile
-      - run: bun run setup
+      - run: bun tools/windows-audio-build.ts
       - run: go mod tidy && go build -o ../../.local/pion-whip-smoke.exe .
         working-directory: tools/pion-whip-smoke
-      - run: bun tools/windows-audio-build.ts && python native/capture/build-windows.py && bun tools/windows-pion-smoke.ts .local/native-runtime/windows/obs
+      - run: python native/capture/build-windows.py && bun tools/windows-pion-smoke.ts .local/native-runtime/windows/obs
         env:
           CG_PROTOCOL_TEST: "1"
+      - run: bun install --frozen-lockfile
+      - run: bun run setup
       - run: bun run dist:win
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
