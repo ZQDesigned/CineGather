@@ -35,7 +35,7 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
     port: 0,
     async fetch(request) {
       if (request.method === "DELETE")
-        return new Response(null, { status: 204 });
+        return new Response(null, { status: 200 });
       if (request.method !== "POST") return new Response(null, { status: 405 });
       posts++;
       const offer = await request.text();
@@ -64,6 +64,16 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
           });
         return peer.localDescription!.sdp;
       }, offer);
+      const candidates = answer
+        .split(/\r?\n/)
+        .filter((line) => line.startsWith("a=candidate:"));
+      console.log(
+        "Synthetic receiver ICE candidate types:",
+        JSON.stringify({
+          count: candidates.length,
+          mdns: candidates.filter((line) => /\.local /.test(line)).length,
+        }),
+      );
       return new Response(answer, {
         status: 201,
         headers: { "Content-Type": "application/sdp", Location: "/resource" },

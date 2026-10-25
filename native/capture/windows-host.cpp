@@ -209,7 +209,10 @@ static void logging(int level, const char *format, va_list args, void *) {
     encoderErrors.erase(encoderErrors.begin());
   encoderErrors.push_back({backend, stage, code, at});
 } // Raw messages, window titles and WHIP credentials are never persisted.
-static void rtcLog(int, const char *) {}
+static void rtcLog(int, const char *message) {
+  if (syntheticLogging && std::getenv("CG_NATIVE_SYNTHETIC_TEST_LOG"))
+    std::fprintf(stderr, "CG_SYNTHETIC_RTC %s\n", message);
+}
 static void enumerateAdapters() {
   ComPtr<IDXGIFactory1> factory;
   check(SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))),

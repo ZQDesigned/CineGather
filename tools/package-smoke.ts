@@ -42,6 +42,7 @@ try {
       `--user-data-dir=${profile}`,
       "--use-fake-device-for-media-stream",
       "--use-fake-ui-for-media-stream",
+      "--disable-features=WebRtcHideLocalIpsWithMdns",
     ],
     timeout: 30000,
   });
@@ -134,7 +135,34 @@ try {
     page.getByText("增强降噪暂不可用，已使用基础降噪", { exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "停止测试", exact: true }).click();
-  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  if (platform === "win32") {
+    for (const [label, id] of [
+      ["自动选择", "auto"],
+      ["软件编码 (x264)", "x264"],
+    ]) {
+      await page
+        .getByRole("tab", { name: "共享与快捷键", exact: true })
+        .click();
+      await page
+        .getByRole("combobox", { name: "共享编码器", exact: true })
+        .click();
+      await page
+        .locator(".ant-select-dropdown:visible")
+        .getByText(label!, { exact: true })
+        .click();
+      await page.getByRole("button", { name: "保存设置", exact: true }).click();
+      await expect(page.getByRole("dialog")).toHaveCount(0);
+      expect(
+        (await page.evaluate(() => window.desktop!.loadSettings()))
+          .windowsEncoder,
+      ).toBe(id);
+      if (id === "auto")
+        await page
+          .getByRole("menuitem", { name: "设置与设备", exact: true })
+          .click();
+    }
+  } else
+    await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   const preferences = await app.evaluate(({ BrowserWindow }) => {
     const contents = BrowserWindow.getAllWindows()[0]!
       .webContents as unknown as {
