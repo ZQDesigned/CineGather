@@ -735,6 +735,15 @@ export const AppSurface = styled.div`
   .stage.has-video > video {
     display: block;
   }
+  .stage > .local-share-preview {
+    position: absolute;
+    inset: 0;
+    display: block;
+    width: 100%;
+    height: 100%;
+    object-fit: contain;
+    background: #08090c;
+  }
   .stage-empty {
     position: absolute;
     inset: 0;

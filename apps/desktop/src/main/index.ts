@@ -330,6 +330,15 @@ function registerIPC() {
     const ids = z.array(z.string().max(256)).min(1).max(4).parse(input);
     return nativeCapture ? nativeCapture.sourceThumbnails(ids) : [];
   });
+  handle("desktop:capture-preview", () =>
+    screenLocked ||
+    suspended ||
+    quitting ||
+    !win?.isVisible() ||
+    win.isMinimized()
+      ? null
+      : (nativeCapture?.preview() ?? null),
+  );
   handle("desktop:select-source", async (input) => {
     const choice = z
       .strictObject({

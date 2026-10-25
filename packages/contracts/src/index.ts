@@ -219,6 +219,7 @@ export type CaptureSource = {
   audioIsolationSupported?: boolean;
 };
 export type CaptureThumbnail = { id: string; thumbnail: string };
+export type CapturePreview = { image: string; width: number; height: number };
 export type CaptureSelection = {
   sourceId: string;
   systemAudio: boolean;
@@ -292,6 +293,7 @@ export interface DesktopBridge {
   startNativeCapture?(request: NativeCaptureRequest): Promise<void>;
   renewNativeCapture?(lease: ShareLease): Promise<ShareLease>;
   stopNativeCapture?(): Promise<void>;
+  capturePreview?(): Promise<CapturePreview | null>;
   sources(): Promise<CaptureSource[]>;
   sourceThumbnails?(sourceIds: string[]): Promise<CaptureThumbnail[]>;
   takeInvitation(): Promise<string | undefined>;

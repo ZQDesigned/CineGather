@@ -9,6 +9,7 @@ import {
   nativePublicationSchema,
   type CaptureSelection,
   type CaptureThumbnail,
+  type CapturePreview,
   type CaptureSource,
   type NativeCaptureRequest,
   type ShareLease,
@@ -63,6 +64,41 @@ export class NativeCapture {
   private poll?: ReturnType<typeof setInterval>;
   private polling = false;
   private started = false;
+  private previewPending?: Promise<CapturePreview | null>;
+  private previewCache: CapturePreview | null = null;
+  private previewAt = -Infinity;
+  async preview(): Promise<CapturePreview | null> {
+    if (!this.context || !this.started || !this.pipe) return null;
+    if (this.previewPending) return this.previewPending;
+    if (performance.now() - this.previewAt < 200) return this.previewCache;
+    const epoch = this.epoch;
+    this.previewAt = performance.now();
+    const pending = this.pipe
+      .call({ type: "preview" })
+      .then((raw) => {
+        const frame = z
+          .object({
+            image: z
+              .string()
+              .max(240100)
+              .regex(/^data:image\/jpeg;base64,[A-Za-z0-9+/=]+$/),
+            width: z.number().int().min(1).max(960),
+            height: z.number().int().min(1).max(540),
+          })
+          .safeParse(raw);
+        if (epoch !== this.epoch || !this.context || !this.started) return null;
+        return (this.previewCache = frame.success ? frame.data : null);
+      })
+      .catch(() => {
+        if (epoch === this.epoch) this.previewCache = null;
+        return null;
+      })
+      .finally(() => {
+        if (this.previewPending === pending) this.previewPending = undefined;
+      });
+    this.previewPending = pending;
+    return pending;
+  }
   private activeWindow?: NativeWindow;
   private activeDisplayId?: number;
   private checks = 0;
@@ -547,6 +583,9 @@ export class NativeCapture {
   }
   async stop() {
     ++this.epoch;
+    this.previewPending = undefined;
+    this.previewCache = null;
+    this.previewAt = -Infinity;
     clearInterval(this.poll);
     this.poll = undefined;
     const context = this.context;

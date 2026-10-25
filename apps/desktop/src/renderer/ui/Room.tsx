@@ -29,11 +29,12 @@ import * as actions from "../controller";
 import { Chat } from "./Chat";
 import { Member } from "./Member";
 import { capabilities } from "../platform";
+import { useCapturePreview } from "./useCapturePreview";
 import {
   deviceAudioTitle,
   deviceAudioDescription,
 } from "../audio-compatibility";
-export function Room() {
+export function Room({ visible = true }: { visible?: boolean }) {
   const app = useApp();
   const { modal } = App.useApp();
   const stage = useRef<HTMLDivElement>(null);
@@ -52,7 +53,15 @@ export function Room() {
     "stopping",
   ].includes(app.shareState);
   const sharingOwnScreen = sharing || Boolean(app.media.sharer?.local);
-  const otherSharing = Boolean(app.media.sharer && !app.media.sharer.local);
+  const nativeSharing =
+    app.shareState === "active" && Boolean(window.desktop?.nativeCapture);
+  const preview = useCapturePreview(
+    nativeSharing && visible
+      ? `${app.room!.id}:${app.shareRevision}`
+      : undefined,
+  );
+  const otherSharing =
+    !nativeSharing && Boolean(app.media.sharer && !app.media.sharer.local);
   const canPreempt = app.room?.role === "owner" && otherSharing && !sharing;
   const connected = app.roomState === "connected";
   useEffect(() => {
@@ -137,7 +146,7 @@ export function Room() {
       <div className="room-layout">
         <div className="view-column">
           <div
-            className={`stage ${app.media.sharer?.hasVideo ? "has-video" : ""}`}
+            className={`stage ${!nativeSharing && app.media.sharer?.hasVideo ? "has-video" : ""}`}
             ref={stage}
             onDoubleClick={(event) => {
               if (
@@ -149,7 +158,17 @@ export function Room() {
             }}
           >
             <Video />
-            {!app.media.sharer && (
+            {preview.frame && (
+              <img
+                className="local-share-preview"
+                src={preview.frame.image}
+                width={preview.frame.width}
+                height={preview.frame.height}
+                alt="本地共享预览"
+                draggable={false}
+              />
+            )}
+            {!app.media.sharer && !nativeSharing && (
               <div className="stage-empty">
                 <div className="stage-icon">
                   <Clapperboard size={46} strokeWidth={1.3} />
@@ -186,18 +205,35 @@ export function Room() {
                 </Button>
               </div>
             )}
-            {app.media.sharer?.local && !app.media.sharer.hasVideo && (
-              <div className="stage-empty">
-                <div className="stage-icon">
-                  <ScreenShare size={46} strokeWidth={1.3} />
+            {(nativeSharing || app.media.sharer?.local) &&
+              (nativeSharing || !app.media.sharer?.hasVideo) &&
+              !preview.frame && (
+                <div className="stage-empty">
+                  <div className="stage-icon">
+                    <ScreenShare size={46} strokeWidth={1.3} />
+                  </div>
+                  <h2>你正在共享屏幕</h2>
+                  {nativeSharing && (
+                    <p>
+                      {preview.unavailable
+                        ? "本地预览暂不可用"
+                        : "正在加载本地预览"}
+                    </p>
+                  )}
                 </div>
-                <h2>你正在共享屏幕</h2>
-              </div>
-            )}
+              )}
             {app.media.sharer && (
               <div className="video-label">
                 <span className="live-dot" />
-                {app.media.sharer.local ? "你" : app.media.sharer.name}正在共享
+                {nativeSharing || app.media.sharer.local
+                  ? "你"
+                  : app.media.sharer.name}
+                正在共享
+                {nativeSharing && (
+                  <Tooltip title="本地预览以低帧率刷新，不影响共享画质和帧率">
+                    <Tag>本地预览</Tag>
+                  </Tooltip>
+                )}
                 {app.media.systemAudio && (
                   <span>
                     <Volume2 size={13} />

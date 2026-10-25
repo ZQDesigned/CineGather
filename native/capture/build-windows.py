@@ -240,6 +240,7 @@ flags = [
     "/I" + str(root / "native/capture"),
 ]
 if os.environ.get("CG_PROTOCOL_TEST") == "1":
+    run(["cl", *flags, root / "native/capture/test/preview.cpp", "/Fe:" + str(build / "CGPreviewSmoke.exe"), "/Fo:" + str(build / "preview-smoke.obj"), "/link", obs_lib])
     run(["cl", *flags, "/DRTC_ENABLE_MEDIA=1", "/I" + str(vendor / "libdatachannel-0.24.2/include"), "/I" + str(curl / "include"), root / "tools/windows-rtc-probe.cpp", "/Fe:" + str(build / "CGProtocolProbe.exe"), "/Fo:" + str(build / "protocol-probe.obj"), "/link", rtc_lib, curl_lib])
 # Preserve the pinned OBS WGC implementation; add only numeric frame counters.
 winrt = build / "winrt"

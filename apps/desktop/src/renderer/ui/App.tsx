@@ -411,7 +411,7 @@ export function App() {
           <>
             {app.room && (
               <div className="room-slot" hidden={home || admin}>
-                <Room />
+                <Room visible={!home && !admin} />
               </div>
             )}
             {admin ? (

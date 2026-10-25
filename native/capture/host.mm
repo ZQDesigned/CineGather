@@ -13,6 +13,7 @@
 #include <thread>
 #include <unistd.h>
 #include <util/base.h>
+#include "preview.hpp"
 
 // SPDX-License-Identifier: MIT
 // Direct libobs host. Commands arrive only through the parent-owned stdio pipe.
@@ -527,10 +528,37 @@ static void startCapture(NSDictionary *config) {
   obs_output_set_service(output, service);
   check(obs_output_start(output), "WHIP output did not start");
 }
+static NSDictionary *sharePreview() {
+  if (!scene || !output || outputPhase != 2 ||
+      deadlineNs <= 0 || monotonicNs() >= deadlineNs)
+    return @{};
+  auto frame = cinegather::previewFrame(obs_scene_get_source(scene));
+  if (frame.bgra.empty())
+    return @{};
+  NSBitmapImageRep *bitmap = [[NSBitmapImageRep alloc]
+      initWithBitmapDataPlanes:nil pixelsWide:frame.width pixelsHigh:frame.height
+      bitsPerSample:8 samplesPerPixel:4 hasAlpha:YES isPlanar:NO
+      colorSpaceName:NSDeviceRGBColorSpace
+      bitmapFormat:NSBitmapFormatAlphaFirst | NSBitmapFormatThirtyTwoBitLittleEndian
+      bytesPerRow:frame.width * 4 bitsPerPixel:32];
+  if (!bitmap) return @{};
+  memcpy(bitmap.bitmapData, frame.bgra.data(), frame.bgra.size());
+  NSData *jpeg = [bitmap representationUsingType:NSBitmapImageFileTypeJPEG
+      properties:@{NSImageCompressionFactor:@0.7}];
+  if (jpeg.length >= 180000)
+    jpeg = [bitmap representationUsingType:NSBitmapImageFileTypeJPEG
+        properties:@{NSImageCompressionFactor:@0.4}];
+  if (!jpeg || jpeg.length >= 180000) return @{};
+  return @{ @"image":[@"data:image/jpeg;base64," stringByAppendingString:
+                         [jpeg base64EncodedStringWithOptions:0]],
+            @"width":@(frame.width), @"height":@(frame.height) };
+}
 static id handle(NSDictionary *command) {
   NSString *type = command[@"type"];
   if ([type isEqual:@"status"])
     return status();
+  if ([type isEqual:@"preview"])
+    return sharePreview();
   if ([type isEqual:@"requestPermission"]) {
     __block bool granted = false;
     dispatch_sync(dispatch_get_main_queue(), ^{

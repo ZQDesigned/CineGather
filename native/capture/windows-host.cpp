@@ -3,6 +3,7 @@
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
 #include "encoder-selection.hpp"
+#include "preview.hpp"
 #include <algorithm>
 #include <atomic>
 #include <audioclient.h>
@@ -527,13 +528,15 @@ static HMONITOR monitorHandle(const std::string &key) {
       reinterpret_cast<LPARAM>(&state));
   return state.found;
 }
-static std::string jpeg(HBITMAP bitmap, int width, int height) {
+static std::string jpeg(HBITMAP bitmap, int width, int height,
+                        size_t maxBytes = 40000, float previewQuality = -1) {
   ComPtr<IWICImagingFactory> factory;
   ComPtr<IWICBitmap> image;
   ComPtr<IWICFormatConverter> converter;
   ComPtr<IWICBitmapEncoder> encoder;
   ComPtr<IWICBitmapFrameEncode> frame;
   ComPtr<IStream> stream;
+  ComPtr<IPropertyBag2> properties;
   check(
       SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr,
                                  CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))),
@@ -554,8 +557,16 @@ static std::string jpeg(HBITMAP bitmap, int width, int height) {
         "preview-encoder");
   check(SUCCEEDED(encoder->Initialize(stream.Get(), WICBitmapEncoderNoCache)),
         "preview-encoder-init");
-  check(SUCCEEDED(encoder->CreateNewFrame(&frame, nullptr)), "preview-frame");
-  check(SUCCEEDED(frame->Initialize(nullptr)), "preview-frame-init");
+  check(SUCCEEDED(encoder->CreateNewFrame(&frame, &properties)), "preview-frame");
+  if (previewQuality >= 0) {
+    PROPBAG2 option{};
+    option.pstrName = const_cast<wchar_t *>(L"ImageQuality");
+    VARIANT quality{};
+    quality.vt = VT_R4;
+    quality.fltVal = previewQuality;
+    check(SUCCEEDED(properties->Write(1, &option, &quality)), "preview-quality");
+  }
+  check(SUCCEEDED(frame->Initialize(properties.Get())), "preview-frame-init");
   frame->SetSize(width, height);
   WICPixelFormatGUID format = GUID_WICPixelFormat24bppBGR;
   frame->SetPixelFormat(&format);
@@ -566,7 +577,7 @@ static std::string jpeg(HBITMAP bitmap, int width, int height) {
   check(SUCCEEDED(GetHGlobalFromStream(stream.Get(), &mem)), "preview-memory");
   STATSTG stat{};
   stream->Stat(&stat, STATFLAG_NONAME);
-  check(stat.cbSize.QuadPart < 40000, "preview-size");
+  check(stat.cbSize.QuadPart < maxBytes, "preview-size");
   auto *bytes = static_cast<BYTE *>(GlobalLock(mem));
   DWORD size = 0;
   CryptBinaryToStringA(bytes, DWORD(stat.cbSize.QuadPart),
@@ -580,6 +591,43 @@ static std::string jpeg(HBITMAP bitmap, int width, int height) {
   if (!encoded.empty() && encoded.back() == 0)
     encoded.pop_back();
   return "data:image/jpeg;base64," + encoded;
+}
+static Data sharePreview() {
+  auto result = data();
+  if (!scene || !output || outputPhase != 2 ||
+      !deadlineNs || os_gettime_ns() >= deadlineNs)
+    return result;
+  auto frame = cinegather::previewFrame(obs_scene_get_source(scene));
+  if (frame.bgra.empty())
+    return result;
+  BITMAPINFO info{};
+  info.bmiHeader.biSize = sizeof(BITMAPINFOHEADER);
+  info.bmiHeader.biWidth = LONG(frame.width);
+  info.bmiHeader.biHeight = -LONG(frame.height);
+  info.bmiHeader.biPlanes = 1;
+  info.bmiHeader.biBitCount = 32;
+  info.bmiHeader.biCompression = BI_RGB;
+  void *pixels = nullptr;
+  HBITMAP bitmap = CreateDIBSection(nullptr, &info, DIB_RGB_COLORS, &pixels, nullptr, 0);
+  check(bitmap && pixels, "preview-bitmap");
+  std::string image;
+  try {
+    std::memcpy(pixels, frame.bgra.data(), frame.bgra.size());
+    try {
+      image = jpeg(bitmap, int(frame.width), int(frame.height), 180000, 0.7f);
+    } catch (const std::exception &error) {
+      if (std::string(error.what()) != "preview-size") throw;
+      image = jpeg(bitmap, int(frame.width), int(frame.height), 180000, 0.4f);
+    }
+  } catch (...) {
+    DeleteObject(bitmap);
+    throw;
+  }
+  DeleteObject(bitmap);
+  obs_data_set_string(result.get(), "image", image.c_str());
+  obs_data_set_int(result.get(), "width", frame.width);
+  obs_data_set_int(result.get(), "height", frame.height);
+  return result;
 }
 static std::string thumbnail(obs_data_t *request) {
   HDC screen = GetDC(nullptr);
@@ -1425,6 +1473,8 @@ static Data handle(obs_data_t *command) {
   std::string type = obs_data_get_string(command, "type");
   if (type == "status" || type == "requestPermission")
     return status();
+  if (type == "preview")
+    return sharePreview();
   if (type == "windows") {
     if (!engineReady)
       restartEngine(0);

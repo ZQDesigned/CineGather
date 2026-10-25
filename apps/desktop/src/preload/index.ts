@@ -84,6 +84,7 @@ const bridge: DesktopBridge = {
   renewNativeCapture: (lease) =>
     ipcRenderer.invoke("desktop:native-renew", lease),
   stopNativeCapture: () => ipcRenderer.invoke("desktop:native-stop"),
+  capturePreview: () => ipcRenderer.invoke("desktop:capture-preview"),
   takeInvitation: () => ipcRenderer.invoke("desktop:take-invitation"),
   sources: () => ipcRenderer.invoke("desktop:sources"),
   sourceThumbnails: (ids) =>
