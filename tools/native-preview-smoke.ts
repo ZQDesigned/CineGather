@@ -63,11 +63,14 @@ export async function nativePreviewSmoke(
       );
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (data) => pipe.receive(data));
-      child.stderr.resume();
+      let fixtureError = "";
+      child.stderr.on("data", (data) => {
+        fixtureError = (fixtureError + String(data)).slice(-4096);
+      });
       child.on("error", (error) => pipe.close(error));
       child.stdin.on("error", () => pipe.close());
       child.on("close", (code) =>
-        pipe.close(new Error(`preview-fixture-exit-${code}`)),
+        pipe.close(new Error(`preview-fixture-exit-${code}: ${fixtureError}`)),
       );
       try {
         await expect

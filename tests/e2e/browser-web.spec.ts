@@ -1,5 +1,6 @@
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
+import { unzipSync, strFromU8 } from "fflate";
 
 async function guest(page: Page, name: string) {
   await page.goto("/");
@@ -390,12 +391,11 @@ test("unsupported browser media APIs keep settings and basic chat usable", async
     await page.getByRole("button", { name: "导出诊断", exact: true }).click();
     const download = await downloaded;
     const { readFile } = await import("node:fs/promises");
-    const report = JSON.parse(await readFile((await download.path())!, "utf8"));
-    expect(report.browser.capabilities).toMatchObject({
-      desktop: false,
-      microphone: false,
-      sourcePicker: false,
-    });
+    const files = unzipSync(await readFile((await download.path())!));
+    const report = JSON.parse(strFromU8(files["current.json"]!));
+    const manifest = JSON.parse(strFromU8(files["manifest.json"]!));
+    expect(manifest.platform).toBe("web");
+    expect(files["timeline.ndjson"]).toBeTruthy();
     expect(report.state).toBe("connected");
     await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
     expect(errors).toEqual([]);

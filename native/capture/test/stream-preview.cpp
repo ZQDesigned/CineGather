@@ -10,7 +10,11 @@
 #include <obs-module.h>
 #include <graphics/vec4.h>
 #include <thread>
+#include <vector>
 #include <util/base.h>
+#ifdef _WIN32
+#include <windows.h>
+#endif
 namespace fs = std::filesystem;
 static std::atomic<uint64_t> renders{0}, redFrames{0};
 static const char *fixtureName(void *) { return "Stream preview fixture"; }
@@ -36,6 +40,11 @@ int main(int argc, char **argv) {
   const int fps = std::stoi(argv[2]);
   const std::string endpoint = argv[3];
   if ((fps != 30 && fps != 60) || endpoint.rfind("http://127.0.0.1:", 0) != 0) return 2;
+#ifdef _WIN32
+  // OBS loads plugin dependencies with LOAD_LIBRARY_SEARCH_DEFAULT_DIRS,
+  // which deliberately ignores PATH. Match the production host's DLL root.
+  if (!SetDllDirectoryW((runtime / "bin/64bit").c_str())) return 9;
+#endif
   base_set_log_handler(quiet, nullptr);
   if (!obs_startup("en-US", nullptr, nullptr)) return 3;
 #ifdef _WIN32
@@ -70,7 +79,11 @@ int main(int argc, char **argv) {
     const auto assets = (runtime / "PlugIns" / (name + ".plugin") / "Contents/Resources").generic_string();
 #endif
     obs_module_t *module = nullptr;
-    if (obs_open_module(&module, path.c_str(), assets.c_str()) != MODULE_SUCCESS || !obs_init_module(module)) return 5;
+    const int opened = obs_open_module(&module, path.c_str(), assets.c_str());
+    if (opened != MODULE_SUCCESS || !obs_init_module(module)) {
+      std::cerr << "preview-module-load " << name << " " << opened << std::endl;
+      return 5;
+    }
   }
   obs_post_load_modules();
   obs_source_info fixture{};
