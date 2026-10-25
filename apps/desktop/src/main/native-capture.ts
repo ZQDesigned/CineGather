@@ -86,9 +86,8 @@ export class NativeCapture {
     if (!this.windows) return undefined;
     const pipe = await this.ensure();
     const inventory = await this.encoders();
-    const lastSession = nativeDiagnosticSchema.parse(
-      await pipe.call({ type: "status" }),
-    );
+    // A synthetic probe must never overwrite evidence from real publication.
+    const lastSession = this.diagnosticStatus;
     const raw = await pipe.call({
       type: "probe",
       encoder: this.options.encoder?.() ?? "auto",
@@ -477,7 +476,10 @@ export class NativeCapture {
         const status = nativeDiagnosticSchema.safeParse(
           await this.pipe.call({ type: "stop" }),
         );
-        this.diagnosticStatus = status.success ? status.data : undefined;
+        if (context)
+          this.diagnosticStatus = status.success
+            ? status.data
+            : this.diagnosticStatus;
       }
     } finally {
       if (context) await this.request(context, "", "DELETE").catch(() => {});

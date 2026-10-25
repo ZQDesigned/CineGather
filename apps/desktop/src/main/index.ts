@@ -430,6 +430,12 @@ function registerIPC() {
   handle("desktop:settings-save", async (input) => {
     finishRecording();
     const next = settingsSchema.parse(input);
+    if (
+      nativeCapture?.isSharing &&
+      next.windowsEncoder !== settings.windowsEncoder
+    )
+      throw new Error("请停止共享后再切换编码器");
+
     try {
       shortcuts(next);
     } catch (error) {
@@ -437,11 +443,6 @@ function registerIPC() {
       throw error;
     }
     await writeFile(settingsPath(), JSON.stringify(next), { mode: 0o600 });
-    if (
-      nativeCapture?.isSharing &&
-      next.windowsEncoder !== settings.windowsEncoder
-    )
-      throw new Error("请停止共享后再切换编码器");
     settings = next;
     updates?.configure(next.autoDownloadUpdates ?? true);
     memberOverlay?.configure(next.memberOverlay);

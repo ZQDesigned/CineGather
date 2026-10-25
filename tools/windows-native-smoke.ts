@@ -21,7 +21,11 @@ const pipe = new NativeProtocol(
 );
 child.stdout.setEncoding("utf8");
 child.stdout.on("data", (data) => pipe.receive(data));
-child.stderr.resume();
+child.stderr.setEncoding("utf8");
+child.stderr.on("data", (data) => {
+  for (const line of String(data).split(/\r?\n/))
+    if (/^CG_HOST_ERROR [a-z-]+$/.test(line)) console.log(line);
+});
 child.on("error", (error) => pipe.close(error));
 child.on("close", (code) =>
   pipe.close(new Error(`Native host exited ${code}`)),

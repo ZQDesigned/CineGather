@@ -1228,16 +1228,22 @@ static bool verifyParent(DWORD expected) {
   return found;
 }
 int wmain(int argc, wchar_t **argv) {
-  if (argc != 4)
+  if (argc != 4) {
+    std::fputs("CG_HOST_ERROR arguments\n", stderr);
     return 2;
+  }
   ownerPid = wcstoul(argv[2], nullptr, 10);
-  if (!verifyParent(ownerPid) || wcscmp(argv[3], L"stdio") != 0)
+  if (!verifyParent(ownerPid) || wcscmp(argv[3], L"stdio") != 0) {
+    std::fputs("CG_HOST_ERROR owner\n", stderr);
     return 2;
+  }
   working = argv[1];
   rootDir = executable().parent_path().parent_path().parent_path();
   ownerProcess = OpenProcess(SYNCHRONIZE, FALSE, ownerPid);
-  if (!ownerProcess)
+  if (!ownerProcess) {
+    std::fputs("CG_HOST_ERROR owner-process\n", stderr);
     return 2;
+  }
   SetDllDirectoryW(executable().parent_path().c_str());
   SetHandleInformation(GetStdHandle(STD_INPUT_HANDLE), HANDLE_FLAG_INHERIT, 0);
   SetHandleInformation(GetStdHandle(STD_OUTPUT_HANDLE), HANDLE_FLAG_INHERIT, 0);
@@ -1289,7 +1295,12 @@ int wmain(int argc, wchar_t **argv) {
         std::fflush(stdout);
       }
     }
-  } catch (...) {
+  } catch (const std::exception &error) {
+    const std::string code = error.what();
+    std::fprintf(stderr, "CG_HOST_ERROR %s\n",
+                 std::regex_match(code, std::regex("[a-z-]{1,80}"))
+                     ? code.c_str()
+                     : "initialization");
     if (engineReady) {
       stopCapture();
       obs_shutdown();

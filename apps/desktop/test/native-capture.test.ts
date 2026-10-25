@@ -309,3 +309,80 @@ const fs=require('node:fs');let active=false;require('node:readline').createInte
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("Windows manual encoder reaches the host, real-session evidence survives repeated synthetic exports, and failed initialization revokes the lease", async () => {
+  const { NativeCapture } = await import("../src/main/native-capture");
+  const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
+    "node:fs/promises"
+  );
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "cg-windows-encoder-"));
+  const work = join(root, "state");
+  await mkdir(join(root, "bin/64bit"), { recursive: true });
+  const hardware = "nvenc:4318:2:3:1";
+  await writeFile(
+    join(root, "bin/64bit/CGScreenCaptureHost.exe"),
+    `#!/usr/bin/env node
+const fs=require('node:fs');let selected='',active=false;const status=()=>({screenPermission:true,outputPhase:active?'active':'stopped',sourceWidth:active?1920:0,sourcesActive:active,outputActive:active,selectedEncoder:selected,requestedEncoder:selected||'auto',encoderBackend:selected==='x264'?'x264':selected?'nvenc':'',hardwareEncoder:selected!=='x264'});require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data=status();if(c.type==='windows')data={windows:[],displays:[{displayId:1,name:'Screen'}]};if(c.type==='encoders')data={adapters:[],encoders:[{id:'x264',backend:'x264',name:'software',available:true,hardware:false,adapterIndex:0}]};if(c.type==='start'){fs.writeFileSync(process.argv[2]+'/start',JSON.stringify(c));if(fs.existsSync(process.argv[2]+'/fail')){console.log(JSON.stringify({ok:false,error:'encoder-initialization'}));return;}selected=c.encoder;active=true;data=status();}if(c.type==='stop'){active=false;data=status();}if(c.type==='probe'){selected='x264';data={status:'ok',synthetic:true,framesEncoded:45,encoder:status()};}console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});
+`,
+    { mode: 0o755 },
+  );
+  let revoked = 0;
+  const expiresAt = new Date(Date.now() + 25000).toISOString();
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      if (request.method === "DELETE") {
+        revoked++;
+        return Response.json({ ok: true });
+      }
+      return Response.json({
+        url: "http://127.0.0.1:9999/whip",
+        token: "private-token",
+        identity: "test",
+        expiresAt,
+      });
+    },
+  });
+  const capture = new NativeCapture(root, work, () => {}, "CineGather.exe", {
+    platform: "win32",
+    encoder: () => hardware,
+  });
+  const context = {
+    apiUrl: `http://127.0.0.1:${server.port}`,
+    sessionToken: "secret",
+    roomId: crypto.randomUUID(),
+    quality: "cinema" as const,
+    lease: {
+      leaseId: crypto.randomUUID(),
+      holderUserId: crypto.randomUUID(),
+      expiresAt,
+      revision: 1,
+    },
+  };
+  try {
+    await capture.select({ sourceId: "native-screen:1", systemAudio: false });
+    await capture.start(context);
+    expect(
+      JSON.parse(await readFile(join(work, "start"), "utf8")).encoder,
+    ).toBe(hardware);
+    await capture.stop();
+    expect(revoked).toBe(1);
+    for (let i = 0; i < 2; i++) {
+      const report = await capture.encoderDiagnostics();
+      expect(report?.lastSession?.selectedEncoder).toBe(hardware);
+      expect(report?.probe.encoder?.selectedEncoder).toBe("x264");
+    }
+    await writeFile(join(work, "fail"), "");
+    await capture.select({ sourceId: "native-screen:1", systemAudio: false });
+    await expect(capture.start(context)).rejects.toThrow("显卡驱动");
+    expect(revoked).toBe(2);
+    expect(capture.isSharing).toBe(false);
+  } finally {
+    await capture.shutdown();
+    server.stop(true);
+    await rm(root, { recursive: true, force: true });
+  }
+});
