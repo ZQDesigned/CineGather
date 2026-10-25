@@ -6,6 +6,10 @@ struct Choice {
   bool available;
 };
 int main() {
+  assert(cinegather::retryEncoderFailure("encoder-initialization"));
+  assert(!cinegather::retryEncoderFailure("audio-initialization"));
+  assert(!cinegather::retryEncoderFailure("window-unavailable"));
+
   const std::vector<Choice> choices = {{"amf:4098:1:1:0", "amf", 0, true},
                                        {"nvenc:4318:2:2:1", "nvenc", 1, true},
                                        {"x264", "x264", 0, true}};

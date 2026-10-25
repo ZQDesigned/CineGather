@@ -4,6 +4,10 @@
 #include <string>
 #include <vector>
 namespace cinegather {
+inline bool retryEncoderFailure(const std::string &code) {
+  return code == "encoder-create" || code == "encoder-initialization" ||
+         code == "encoder-adapter-reroute" || code == "graphics-initialization";
+}
 // Only automatic selection may cross backend/adapter boundaries.
 template <class Choice>
 std::vector<Choice> encoderCandidates(const std::vector<Choice> &choices,

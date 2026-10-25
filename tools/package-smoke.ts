@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
 import { webRTCEncoderProbe } from "./encoder-probe";
+import { windowsWhipSmoke } from "./windows-whip-smoke";
 import { unzipSync, strFromU8 } from "fflate";
 
 const { version } = await Bun.file("apps/desktop/package.json").json();
@@ -52,6 +53,10 @@ try {
         app.commandLine.getSwitchValue("enable-features"),
       ),
     ).toContain("PlatformH264CbpEncoding");
+    await windowsWhipSmoke(
+      page,
+      join(packageDirectory, "win-unpacked/resources/capture/obs"),
+    );
     const encoding = await page.evaluate(webRTCEncoderProbe);
     expect(encoding.mimeType?.toLowerCase()).toBe("video/h264");
     expect(encoding.sdpFmtpLine).toContain("profile-level-id=42e0");

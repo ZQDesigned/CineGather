@@ -95,21 +95,28 @@ env_script.write_text(
 )
 raw = subprocess.check_output(["cmd", "/d", "/c", str(env_script)], text=True)
 env = {
-    **os.environ,
+    **{key.upper(): value for key, value in os.environ.items()},
     **dict(
-        line.split("=", 1)
+        (line.split("=", 1)[0].upper(), line.split("=", 1)[1])
         for line in raw.splitlines()
         if "=" in line and not line.startswith("=")
     ),
 }
 
 
+def command(args):
+    executable = shutil.which(str(args[0]), path=env.get("PATH"))
+    if not executable:
+        raise RuntimeError("Build tool missing: " + str(args[0]))
+    return [executable, *[str(a) for a in args[1:]]]
+
+
 def run(args, **kw):
-    return subprocess.run([str(a) for a in args], env=env, check=True, **kw)
+    return subprocess.run(command(args), env=env, check=True, **kw)
 
 
 def output(args):
-    return subprocess.check_output([str(a) for a in args], env=env, text=True)
+    return subprocess.check_output(command(args), env=env, text=True)
 
 
 if runtime.exists():
@@ -160,7 +167,7 @@ for name in plugins:
     if src.exists():
         shutil.copytree(src, runtime / "data/obs-plugins" / name, dirs_exist_ok=True)
 redist = pathlib.Path(
-    env.get("VCToolsRedistDir", str(pathlib.Path(vs) / "VC/Redist/MSVC"))
+    env.get("VCTOOLSREDISTDIR", str(pathlib.Path(vs) / "VC/Redist/MSVC"))
 )
 crt = list(redist.glob("x64/Microsoft.VC*.CRT")) or list(
     redist.glob("*/x64/Microsoft.VC*.CRT")
@@ -181,7 +188,7 @@ for source, target in queue:
             copy_binary(lookup[key], runtime / "bin/64bit" / lookup[key].name)
         elif not (
             key.startswith(("api-ms-", "ext-ms-"))
-            or (pathlib.Path(env["SystemRoot"]) / "System32" / name).exists()
+            or (pathlib.Path(env["SYSTEMROOT"]) / "System32" / name).exists()
         ):
             raise RuntimeError("Missing DLL dependency: " + name)
 

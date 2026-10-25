@@ -548,7 +548,7 @@ static Data thumbnails(obs_data_t *command) {
 // host.
 struct ProcessAudio {
   obs_source_t *source;
-  HANDLE job = nullptr, process = nullptr, pipe = nullptr;
+  HANDLE job = nullptr, process = nullptr, pipe = nullptr, control = nullptr;
   std::thread reader;
   std::atomic<bool> failed{false};
 };
@@ -571,6 +571,8 @@ static void destroyAudio(void *raw) {
     a->reader.join();
   if (a->pipe)
     CloseHandle(a->pipe);
+  if (a->control)
+    CloseHandle(a->control);
   if (a->process)
     CloseHandle(a->process);
   if (a->job)
@@ -581,10 +583,11 @@ static ProcessAudio *launchAudio(obs_source_t *source, const char *mode,
                                  uint64_t hwnd) {
   auto *a = new ProcessAudio{source};
   HANDLE outRead = nullptr, outWrite = nullptr, errRead = nullptr,
-         errWrite = nullptr;
+         errWrite = nullptr, inputRead = nullptr;
   SECURITY_ATTRIBUTES sa{sizeof(sa), nullptr, TRUE};
   if (!CreatePipe(&outRead, &outWrite, &sa, 0) ||
-      !CreatePipe(&errRead, &errWrite, &sa, 0)) {
+      !CreatePipe(&errRead, &errWrite, &sa, 0) ||
+      !CreatePipe(&inputRead, &a->control, &sa, 0)) {
     if (outRead)
       CloseHandle(outRead);
     if (outWrite)
@@ -593,9 +596,14 @@ static ProcessAudio *launchAudio(obs_source_t *source, const char *mode,
       CloseHandle(errRead);
     if (errWrite)
       CloseHandle(errWrite);
+    if (inputRead)
+      CloseHandle(inputRead);
+    if (a->control)
+      CloseHandle(a->control);
     delete a;
     return nullptr;
   }
+  SetHandleInformation(a->control, HANDLE_FLAG_INHERIT, 0);
   SetHandleInformation(outRead, HANDLE_FLAG_INHERIT, 0);
   SetHandleInformation(errRead, HANDLE_FLAG_INHERIT, 0);
   a->job = CreateJobObjectW(nullptr, nullptr);
@@ -608,6 +616,7 @@ static ProcessAudio *launchAudio(obs_source_t *source, const char *mode,
     CloseHandle(outWrite);
     CloseHandle(errRead);
     CloseHandle(errWrite);
+    CloseHandle(inputRead);
     destroyAudio(a);
     return nullptr;
   }
@@ -621,11 +630,12 @@ static ProcessAudio *launchAudio(obs_source_t *source, const char *mode,
   si.dwFlags = STARTF_USESTDHANDLES;
   si.hStdOutput = outWrite;
   si.hStdError = errWrite;
-  si.hStdInput = nullptr;
+  si.hStdInput = inputRead;
   PROCESS_INFORMATION pi{};
   bool launched = CreateProcessW(nullptr, command.data(), nullptr, nullptr,
                                  TRUE, CREATE_NO_WINDOW | CREATE_SUSPENDED,
                                  nullptr, nullptr, &si, &pi) != FALSE;
+  CloseHandle(inputRead);
   CloseHandle(outWrite);
   CloseHandle(errWrite);
   if (launched && !AssignProcessToJobObject(a->job, pi.hProcess)) {
@@ -888,6 +898,9 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
   selectedEncoder.clear();
   selectedBackend.clear();
   auto options = cinegather::encoderCandidates(choices, requestedEncoder);
+  const std::string server = obs_data_get_string(config, "server");
+  const bool localWhip = synthetic && server.rfind("http://127.0.0.1:", 0) == 0;
+  check(!synthetic || server.empty() || localWhip, "probe-endpoint");
   const std::string quality = obs_data_get_string(config, "quality");
   int width = quality == "saver" ? 1280 : 1920,
       height = quality == "saver" ? 720 : 1080,
@@ -942,7 +955,8 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       if (!synthetic && obs_data_get_bool(config, "systemAudio")) {
         audioSource = obs_source_create(
             "cg_process_audio", "CineGather shared audio", config, nullptr);
-        check(audioSource, "audio-initialization");
+        check(audioSource && obs_obj_get_data(audioSource),
+              "audio-initialization");
         obs_source_set_audio_mixers(audioSource, 1);
         obs_scene_add(scene, audioSource);
         auto audioSettings = data();
@@ -957,14 +971,14 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
                           obs_data_get_string(config, "server"));
       obs_data_set_string(serviceSettings.get(), "bearer_token",
                           obs_data_get_string(config, "token"));
-      if (!synthetic) {
+      if (!synthetic || localWhip) {
         service = obs_service_create("whip_custom", "CineGather WHIP",
                                      serviceSettings.get(), nullptr);
         check(service, "whip-service");
       }
-      output = obs_output_create(synthetic      ? "cg_packet_probe"
-                                 : audioEncoder ? "whip_output"
-                                                : "whip_output_video",
+      output = obs_output_create(synthetic && !localWhip ? "cg_packet_probe"
+                                 : audioEncoder          ? "whip_output"
+                                                         : "whip_output_video",
                                  "CineGather native output", nullptr, nullptr);
       check(output, "output-create");
       obs_output_set_video_encoder(output, videoEncoder);
@@ -991,7 +1005,8 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       lastFailure = e.what();
       attempts.push_back({c.id, c.backend, lastFailure});
       stopCapture();
-      if (requestedEncoder != "auto")
+      if (requestedEncoder != "auto" ||
+          !cinegather::retryEncoderFailure(lastFailure))
         throw;
     }
   }
@@ -1032,15 +1047,25 @@ static Data runProbe(obs_data_t *config) {
   obs_data_set_string(config, "quality", "cinema");
   try {
     startCapture(config, true);
-    auto *p = static_cast<Probe *>(obs_obj_get_data(output));
-    uint64_t end = os_gettime_ns() + 3000000000ull;
-    while (os_gettime_ns() < end && p->frames < 45 &&
-           WaitForSingleObject(ownerProcess, 0) == WAIT_TIMEOUT)
+    const bool localWhip =
+        std::strlen(obs_data_get_string(config, "server")) > 0;
+    auto *p =
+        localWhip ? nullptr : static_cast<Probe *>(obs_obj_get_data(output));
+    auto frames = [&]() {
+      return p ? p->frames.load()
+               : uint64_t(obs_output_get_total_frames(output));
+    };
+    uint64_t end =
+        os_gettime_ns() + (localWhip ? 8000000000ull : 3000000000ull);
+    while (os_gettime_ns() < end && frames() < 45 &&
+           WaitForSingleObject(ownerProcess, 0) == WAIT_TIMEOUT &&
+           outputPhase != 3)
       Sleep(10);
     obs_data_set_string(result.get(), "status",
-                        p->frames >= 30 ? "ok" : "timeout");
-    obs_data_set_int(result.get(), "framesEncoded", p->frames);
-    obs_data_set_int(result.get(), "bytesEncoded", p->bytes);
+                        frames() >= 30 ? "ok" : "timeout");
+    obs_data_set_int(result.get(), "framesEncoded", frames());
+    obs_data_set_int(result.get(), "bytesEncoded",
+                     p ? p->bytes.load() : obs_output_get_total_bytes(output));
     obs_data_set_int(result.get(), "width", 1920);
     obs_data_set_int(result.get(), "height", 1080);
     obs_data_set_int(result.get(), "targetFps", 30);
