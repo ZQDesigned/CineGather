@@ -331,18 +331,21 @@ export function nativePipeline(entries: DiagnosticRecord[]) {
       bytes?: number;
       arrived?: number;
       copied?: number;
+      active?: boolean;
     }
   >();
   return entries.flatMap((entry) => {
     const native = entry.native;
-    if (!native?.sourcesActive || !native.outputActive) return [];
+    if (!native) return [];
     const key = [
       entry.session,
+      native.hostSession,
       native.captureSequence,
       native.selectedEncoder,
     ].join(":");
     const old = previous.get(key),
-      dt = old ? entry.monotonicMs - old.at : 0;
+      sampleTime = native.sampledAt ?? entry.monotonicMs,
+      dt = old ? sampleTime - old.at : 0;
     const reset = Boolean(
       old &&
         native.outputTotalFrames !== undefined &&
@@ -351,6 +354,8 @@ export function nativePipeline(entries: DiagnosticRecord[]) {
     );
     const rate = (current?: number, last?: number) =>
       !reset &&
+      native.outputActive &&
+      old?.active &&
       dt > 0 &&
       dt <= 15000 &&
       current !== undefined &&
@@ -361,7 +366,8 @@ export function nativePipeline(entries: DiagnosticRecord[]) {
     const encodedFps = rate(native.outputTotalFrames, old?.frames),
       bytesPerSecond = rate(native.outputBytes, old?.bytes);
     previous.set(key, {
-      at: entry.monotonicMs,
+      at: sampleTime,
+      active: native.outputActive,
       frames: native.outputTotalFrames,
       bytes: native.outputBytes,
       arrived: native.captureArrivedFrames,
@@ -371,6 +377,16 @@ export function nativePipeline(entries: DiagnosticRecord[]) {
       {
         at: entry.at,
         session: entry.session,
+        sampledAt: native.sampledAt,
+        hostSession: native.hostSession,
+        outputPhase: native.outputPhase,
+        transportPhase: native.transportPhase,
+        transportFailure: native.transportFailure,
+        transportErrorCode: native.transportErrorCode,
+        transportHttpStatus: native.transportHttpStatus,
+        hostExitCode: native.hostExitCode,
+        hostExitReason: native.hostExitReason,
+        hostEventAt: native.hostEventAt,
         captureSequence: native.captureSequence,
         graphicsAdapterIndex: native.graphicsAdapterIndex,
         graphicsVendorId: native.graphicsVendorId,
@@ -505,6 +521,16 @@ export async function diagnosticArchive(
       csv(nativePipeline(safe), [
         "at",
         "session",
+        "sampledAt",
+        "hostSession",
+        "outputPhase",
+        "transportPhase",
+        "transportFailure",
+        "transportErrorCode",
+        "transportHttpStatus",
+        "hostExitCode",
+        "hostExitReason",
+        "hostEventAt",
         "captureSequence",
         "graphicsAdapterIndex",
         "graphicsVendorId",

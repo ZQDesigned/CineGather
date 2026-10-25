@@ -1,4 +1,5 @@
 import { version } from "../../package.json";
+import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
 import { mkdir } from "node:fs/promises";
 import { join } from "node:path";
@@ -42,10 +43,15 @@ export class NativeCapture {
   private pipe?: NativeProtocol;
   private boot?: Promise<NativeProtocol>;
   private bootIssue?: string;
+  private hostSession?: string;
   private rememberStatus(raw: unknown) {
     const status = nativeDiagnosticSchema.safeParse(raw);
     if (status.success)
-      this.diagnosticStatus = { ...status.data, sampledAt: Date.now() };
+      this.diagnosticStatus = {
+        ...status.data,
+        sampledAt: Date.now(),
+        hostSession: this.hostSession,
+      };
   }
   get startupFailure() {
     return this.bootIssue;
@@ -135,6 +141,7 @@ export class NativeCapture {
     if (this.boot) return this.boot;
     this.boot = (async () => {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
+      this.hostSession = randomUUID();
       const child = spawn(
         join(
           this.bundle,
@@ -170,7 +177,7 @@ export class NativeCapture {
           stderrBuffer = stderrBuffer.slice(newline + 1);
           const match = /^CG_HOST_ERROR ([a-z-]{1,80})$/.exec(line);
           if (match) this.bootIssue = match[1];
-          if (line.startsWith("CG_HOST_TRANSPORT ")) {
+          if (this.context && line.startsWith("CG_HOST_TRANSPORT ")) {
             try {
               const status = nativeDiagnosticSchema
                 .pick({
@@ -186,6 +193,7 @@ export class NativeCapture {
                   ...this.diagnosticStatus,
                   ...status.data,
                   hostEventAt: Date.now(),
+                  hostSession: this.hostSession,
                 };
             } catch {
               /* Ignore unknown third-party output. */
@@ -198,15 +206,11 @@ export class NativeCapture {
         pipe.close(new Error("原生采集引擎未安装，请重新构建应用")),
       );
       child.on("close", (code, signal) => {
-        if (
-          this.context ||
-          this.bootIssue ||
-          (code !== 0 && code !== null) ||
-          signal
-        ) {
+        if (this.context) {
           this.diagnosticStatus = {
             ...this.diagnosticStatus,
             hostEventAt: Date.now(),
+            hostSession: this.hostSession,
             ...(code === null ? {} : { hostExitCode: code }),
             hostExitReason:
               this.bootIssue ?? (signal ? "terminated" : "unexpected-exit"),

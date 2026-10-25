@@ -7,6 +7,7 @@ import {
   diagnosticArchive,
   framePipeline,
   summarizeDiagnostics,
+  nativePipeline,
 } from "../src/shared/diagnostics";
 import { DiagnosticHistory } from "../src/main/diagnostic-history";
 import { mkdtemp, rm, appendFile } from "node:fs/promises";
@@ -22,6 +23,51 @@ const entry = (at: number, sequence = 0) => ({
   sequence,
   kind: "event" as const,
   event: { name: "connected" },
+});
+test("native pipeline includes failed negotiations and does not turn stale snapshots into measured frame rates", () => {
+  const rows = [
+    {
+      ...entry(1000),
+      native: {
+        sampledAt: 1000,
+        sourcesActive: true,
+        outputActive: false,
+        outputPhase: "starting" as const,
+        transportPhase: "dtls" as const,
+        outputTotalFrames: 0,
+      },
+    },
+    {
+      ...entry(6000),
+      native: {
+        sampledAt: 1000,
+        sourcesActive: true,
+        outputActive: false,
+        outputPhase: "starting" as const,
+        transportPhase: "dtls" as const,
+        outputTotalFrames: 0,
+      },
+    },
+    {
+      ...entry(7000),
+      native: {
+        sampledAt: 1000,
+        hostExitCode: 3,
+        outputPhase: "failed" as const,
+        transportFailure: "dtls" as const,
+        outputActive: false,
+        sourcesActive: false,
+      },
+    },
+  ];
+  const pipeline = nativePipeline(rows);
+  expect(pipeline).toHaveLength(3);
+  expect(pipeline[2]).toMatchObject({
+    outputPhase: "failed",
+    transportFailure: "dtls",
+    hostExitCode: 3,
+  });
+  expect(pipeline.every((row) => row.encodedFps === undefined)).toBe(true);
 });
 test("diagnostic projection strips secrets, endpoints, IPs and raw native logs", () => {
   const safe = safeDiagnosticRecord({

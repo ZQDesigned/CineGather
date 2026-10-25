@@ -396,7 +396,7 @@ import importlib.util
 spec = importlib.util.spec_from_file_location("source_package", root / "native/capture/source-package.py")
 source_package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(source_package)
-version = json.loads((root / "apps/desktop/package.json").read_text())["version"]
+version = json.loads((root / "apps/desktop/package.json").read_text(encoding="utf-8"))["version"]
 source_artifact = source_package.package_sources(
     source_dir, runtime,
     root / "apps/desktop/release" / ("CineGather-" + version + "-win-x64-native-source.zip"),

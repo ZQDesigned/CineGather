@@ -356,6 +356,7 @@ export const nativeNumbers = [
   "nativeAllocationCount",
 ] as const;
 export const nativeDiagnosticSchema = z.object({
+  hostSession: z.string().uuid().optional(),
   transportPhase: z
     .enum(["none", "setup", "http", "answer", "ice", "dtls", "connected"])
     .optional(),
