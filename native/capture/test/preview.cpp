@@ -25,7 +25,10 @@ static void render(void *, gs_effect_t *) {
 int main(int argc, char **argv) {
   assert(argc == 3);
   assert(obs_startup("en-US", nullptr, nullptr));
-  obs_add_data_path(argv[1]);
+  std::string dataPath = argv[1];
+  std::replace(dataPath.begin(), dataPath.end(), '\\', '/');
+  if (dataPath.back() != '/') dataPath += '/';
+  obs_add_data_path(dataPath.c_str());
   obs_video_info info{};
   info.graphics_module = argv[2];
   info.fps_num = 30;
