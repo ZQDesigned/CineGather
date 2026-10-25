@@ -113,7 +113,17 @@ export class NativeCapture {
         encoder: nativeDiagnosticSchema.optional(),
       })
       .parse(raw);
-    return { inventory, lastSession, probe, queriedAt: Date.now() };
+    return {
+      inventory,
+      lastSession,
+      probe,
+      queriedAt: Date.now(),
+      policy: {
+        backend: "libobs",
+        manualFallback: false,
+        automaticOrder: ["nvenc", "amf", "x264"],
+      },
+    };
   }
   private async ensure() {
     if (this.pipe) return this.pipe;

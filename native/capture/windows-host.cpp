@@ -79,10 +79,11 @@ static obs_encoder_t *videoEncoder, *audioEncoder;
 static obs_service_t *service;
 static obs_output_t *output;
 static std::atomic<int> outputPhase{0}, stopCode{-1};
-static uint64_t deadlineNs;
+static std::atomic<uint64_t> deadlineNs{0}, startupDeadlineNs{0};
 static uint64_t captureSequence = 0;
 static int configuredWidth = 0, configuredHeight = 0, configuredFps = 0;
-static bool engineReady = false, quitting = false, deviceFallback = false;
+static bool engineReady = false, deviceFallback = false;
+static std::atomic<bool> quitting{false};
 static std::string requestedEncoder = "auto", selectedEncoder, selectedBackend,
                    lastFailure;
 struct Adapter {
@@ -107,7 +108,6 @@ struct EncoderError {
 static std::mutex errorMutex;
 static std::vector<EncoderError> encoderErrors;
 static std::atomic<bool> nvencRerouted{false};
-static std::atomic<bool> syntheticLogging{false};
 static std::atomic<int> transportFailure{0}, transportHttpStatus{0},
     transportDetail{0};
 static const char *transportStage() {
@@ -126,6 +126,10 @@ static const char *transportStage() {
     return "ice";
   case 7:
     return "initialization";
+  case 8:
+    return "dtls";
+  case 9:
+    return "fingerprint";
   default:
     return "none";
   }
@@ -135,9 +139,6 @@ static void logging(int level, const char *format, va_list args, void *) {
     return;
   char buffer[4096];
   vsnprintf(buffer, sizeof(buffer), format, args);
-  if (syntheticLogging && std::getenv("CG_NATIVE_SYNTHETIC_TEST_LOG") &&
-      level <= LOG_WARNING)
-    std::fprintf(stderr, "CG_SYNTHETIC_TEST %s\n", buffer);
   std::string text = buffer, lower = text;
   std::transform(lower.begin(), lower.end(), lower.begin(),
                  [](unsigned char c) { return char(std::tolower(c)); });
@@ -196,7 +197,12 @@ static void logging(int level, const char *format, va_list args, void *) {
                           ? "format"
                           : "encoder";
   std::smatch match;
-  std::string code = "not-reported";
+  std::string code =
+      lower.find("current driver version does not support") != std::string::npos
+          ? "CG_DRIVER_API_TOO_OLD"
+      : lower.find("no amf library") != std::string::npos
+          ? "CG_RUNTIME_UNAVAILABLE"
+          : "not-reported";
   if (std::regex_search(
           text, match,
           std::regex("(?:NV_ENC_ERR_[A-Z_]+|AMF_[A-Z_]+|0[xX][0-9A-Fa-f]{8})")))
@@ -209,9 +215,19 @@ static void logging(int level, const char *format, va_list args, void *) {
     encoderErrors.erase(encoderErrors.begin());
   encoderErrors.push_back({backend, stage, code, at});
 } // Raw messages, window titles and WHIP credentials are never persisted.
-static void rtcLog(int, const char *message) {
-  if (syntheticLogging && std::getenv("CG_NATIVE_SYNTHETIC_TEST_LOG"))
-    std::fprintf(stderr, "CG_SYNTHETIC_RTC %s\n", message);
+static void rtcLog(int level, const char *message) {
+  if (level > 3 || !message)
+    return;
+  const std::string_view text(message);
+  int empty = 0;
+  if (text.find("fingerprint") != std::string::npos &&
+      (text.find("match") != std::string::npos ||
+       text.find("verify") != std::string::npos))
+    transportFailure.compare_exchange_strong(empty, 9);
+  else if (text.find("DTLS") != std::string::npos &&
+           (text.find("failed") != std::string::npos ||
+            text.find("Handshake failed") != std::string::npos))
+    transportFailure.compare_exchange_strong(empty, 8);
 }
 static void enumerateAdapters() {
   ComPtr<IDXGIFactory1> factory;
@@ -1144,10 +1160,10 @@ static Data runProbe(obs_data_t *config) {
     obs_data_set_string(result.get(), "status", "skipped-sharing");
     return result;
   }
-  struct TestLogging {
-    TestLogging() { syntheticLogging = true; }
-    ~TestLogging() { syntheticLogging = false; }
-  } loggingGuard;
+  const int probeDeadline = int(obs_data_get_int(config, "remainingMs"));
+  check(probeDeadline >= 0 && probeDeadline <= 3000, "probe-deadline");
+  if (probeDeadline)
+    startupDeadlineNs = os_gettime_ns() + uint64_t(probeDeadline) * 1000000;
   obs_data_set_string(config, "quality", "cinema");
   try {
     startCapture(config, true);
@@ -1183,6 +1199,7 @@ static Data runProbe(obs_data_t *config) {
     obs_data_set_obj(result.get(), "encoder", snapshot.get());
   }
   stopCapture();
+  startupDeadlineNs = 0;
   return result;
 }
 static void init() {
@@ -1308,12 +1325,20 @@ static Data handle(obs_data_t *command) {
                server.rfind("http://localhost:", 0) == 0),
           "publication-endpoint");
     uint64_t expires = os_gettime_ns() + uint64_t(remaining) * 1000000;
-    startCapture(command);
+    startupDeadlineNs = expires;
+    try {
+      startCapture(command);
+    } catch (...) {
+      startupDeadlineNs = 0;
+      throw;
+    }
     if (os_gettime_ns() >= expires) {
       stopCapture();
+      startupDeadlineNs = 0;
       throw std::runtime_error("lease-expired");
     }
     deadlineNs = expires;
+    startupDeadlineNs = 0;
     return status();
   }
   throw std::runtime_error("unknown-command");
@@ -1362,6 +1387,29 @@ int wmain(int argc, wchar_t **argv) {
   fs::create_directories(working);
   try {
     init();
+    // A blocked capture/driver/signaling call cannot extend the publication
+    // lease.
+    struct Watchdog {
+      std::thread worker{[]() {
+        while (!quitting) {
+          const uint64_t active = deadlineNs.load(),
+                         starting = startupDeadlineNs.load(),
+                         expiry = active && starting
+                                      ? std::min(active, starting)
+                                  : active ? active
+                                           : starting;
+          if (WaitForSingleObject(ownerProcess, 0) != WAIT_TIMEOUT ||
+              (expiry && os_gettime_ns() >= expiry))
+            TerminateProcess(GetCurrentProcess(), 3);
+          Sleep(20);
+        }
+      }};
+      ~Watchdog() {
+        quitting = true;
+        if (worker.joinable())
+          worker.join();
+      }
+    } watchdog;
     std::string input;
     HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
     while (!quitting && WaitForSingleObject(ownerProcess, 0) == WAIT_TIMEOUT) {

@@ -357,6 +357,8 @@ export const nativeDiagnosticSchema = z.object({
       "resource-url",
       "invalid-sdp",
       "ice",
+      "dtls",
+      "fingerprint",
       "initialization",
     ])
     .optional(),
@@ -377,7 +379,7 @@ export const nativeDiagnosticSchema = z.object({
           .string()
           .max(100)
           .regex(
-            /^(?:not-reported|NV_ENC_ERR_[A-Z_]+|AMF_[A-Z_]+|0[xX][a-fA-F0-9]{8})$/,
+            /^(?:not-reported|CG_DRIVER_API_TOO_OLD|CG_RUNTIME_UNAVAILABLE|NV_ENC_ERR_[A-Z_]+|AMF_[A-Z_]+|0[xX][a-fA-F0-9]{8})$/,
           ),
         at: z.number().finite(),
       }),

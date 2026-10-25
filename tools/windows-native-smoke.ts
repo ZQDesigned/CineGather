@@ -70,7 +70,14 @@ try {
     "Native Windows OBS inventory/manual x264 real H264 packet probe/no-silent-fallback:",
     JSON.stringify({ inventory, probe, missing }),
   );
-  await pipe.call({ type: "shutdown" });
+  const before = performance.now();
+  await expect(
+    pipe.call({ type: "probe", encoder: "x264", remainingMs: 100 }),
+  ).rejects.toThrow("Native host exited 3");
+  expect(performance.now() - before).toBeLessThan(3000);
+  console.log(
+    "Native capture watchdog terminates capture at the lease deadline while a command is blocked.",
+  );
 } finally {
   child.kill();
   await rm(directory, { recursive: true, force: true });
