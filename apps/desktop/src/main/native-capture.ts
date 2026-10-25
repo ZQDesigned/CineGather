@@ -41,6 +41,10 @@ export class NativeCapture {
   private child?: ChildProcessWithoutNullStreams;
   private pipe?: NativeProtocol;
   private boot?: Promise<NativeProtocol>;
+  private bootIssue?: string;
+  get startupFailure() {
+    return this.bootIssue;
+  }
   private selection?: ReturnType<typeof selectNativeSource>;
   private context?: NativeCaptureRequest;
   private epoch = 0;
@@ -137,13 +141,29 @@ export class NativeCapture {
       child.stdout.on("data", (data) => pipe.receive(data));
       child.stdin.on("error", () => pipe.close());
       child.stdout.on("error", () => pipe.close());
-      // Native/third-party logging is deliberately not exported: WHIP URLs contain secrets.
-      child.stderr.resume();
+      // Discard third-party messages. Only our fixed, credential-free boot code may survive.
+      this.bootIssue = undefined;
+      let stderrBuffer = "";
+      child.stderr.setEncoding("utf8");
+      child.stderr.on("data", (chunk) => {
+        stderrBuffer += String(chunk);
+        for (let newline; (newline = stderrBuffer.indexOf("\n")) >= 0; ) {
+          const line = stderrBuffer.slice(0, newline).trim();
+          stderrBuffer = stderrBuffer.slice(newline + 1);
+          const match = /^CG_HOST_ERROR ([a-z-]{1,80})$/.exec(line);
+          if (match) this.bootIssue = match[1];
+        }
+        if (stderrBuffer.length > 512) stderrBuffer = "";
+      });
       child.on("error", () =>
         pipe.close(new Error("原生采集引擎未安装，请重新构建应用")),
       );
       child.on("close", () => {
-        pipe.close();
+        pipe.close(
+          this.bootIssue
+            ? (nativeFailure(new Error(this.bootIssue)) as Error)
+            : undefined,
+        );
         if (this.child === child) {
           this.child = undefined;
           this.pipe = undefined;

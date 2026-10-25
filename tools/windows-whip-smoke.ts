@@ -22,6 +22,7 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
   child.stdin.on("error", () => pipe.close());
   child.on("error", (error) => pipe.close(error));
   child.on("close", () => pipe.close());
+  let posts = 0;
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
@@ -29,6 +30,7 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
       if (request.method === "DELETE")
         return new Response(null, { status: 204 });
       if (request.method !== "POST") return new Response(null, { status: 405 });
+      posts++;
       const offer = await request.text();
       const answer = await page.evaluate(async (offer) => {
         const peer = new RTCPeerConnection({ iceServers: [] });
@@ -68,6 +70,7 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
       encoder: "x264",
       server: `http://127.0.0.1:${server.port}/whip`,
     });
+    console.log("Native WHIP probe result:", JSON.stringify({ result, posts }));
     expect(result.status).toBe("ok");
     expect(result.framesEncoded).toBeGreaterThanOrEqual(30);
     const received = await page.evaluate(async () => {

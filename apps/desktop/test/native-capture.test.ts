@@ -386,3 +386,33 @@ const fs=require('node:fs');let selected='',active=false;const status=()=>({scre
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("native startup failure retains only a fixed boot stage, never raw third-party stderr", async () => {
+  const { NativeCapture } = await import("../src/main/native-capture");
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "cg-boot-failure-"));
+  await mkdir(join(root, "bin/64bit"), { recursive: true });
+  await writeFile(
+    join(root, "bin/64bit/CGScreenCaptureHost.exe"),
+    `#!/usr/bin/env node
+console.error('raw vendor https://secret/?token=private');console.error('CG_HOST_ERROR graphics-initialization');setTimeout(()=>process.exit(2),10);
+`,
+    { mode: 0o755 },
+  );
+  const capture = new NativeCapture(
+    root,
+    join(root, "state"),
+    () => {},
+    undefined,
+    { platform: "win32" },
+  );
+  try {
+    await expect(capture.encoders()).rejects.toThrow("显卡");
+    expect(capture.startupFailure).toBe("graphics-initialization");
+  } finally {
+    await capture.shutdown();
+    await rm(root, { recursive: true, force: true });
+  }
+});

@@ -106,6 +106,27 @@ struct EncoderError {
 static std::mutex errorMutex;
 static std::vector<EncoderError> encoderErrors;
 static std::atomic<bool> nvencRerouted{false};
+static std::atomic<int> transportFailure{0}, transportHttpStatus{0};
+static const char *transportStage() {
+  switch (transportFailure.load()) {
+  case 1:
+    return "http-request";
+  case 2:
+    return "http-status";
+  case 3:
+    return "empty-answer";
+  case 4:
+    return "resource-url";
+  case 5:
+    return "invalid-sdp";
+  case 6:
+    return "ice";
+  case 7:
+    return "initialization";
+  default:
+    return "none";
+  }
+}
 static void logging(int level, const char *format, va_list args, void *) {
   if (level > LOG_INFO)
     return;
@@ -117,6 +138,28 @@ static void logging(int level, const char *format, va_list args, void *) {
   if (lower.find("non-texture encoder") != std::string::npos &&
       lower.find("nvenc") != std::string::npos)
     nvencRerouted = true;
+  if (lower.find("whip") != std::string::npos) {
+    if (lower.find("response code") != std::string::npos) {
+      transportFailure = 2;
+      std::smatch match;
+      if (std::regex_search(lower, match,
+                            std::regex("response code ([0-9]{3})")))
+        transportHttpStatus = std::stoi(match[1].str());
+    } else if (lower.find("connect failed:") != std::string::npos)
+      transportFailure = 1;
+    else if (lower.find("no data returned") != std::string::npos)
+      transportFailure = 3;
+    else if (lower.find("resource url") != std::string::npos &&
+             level <= LOG_WARNING)
+      transportFailure = 4;
+    else if (lower.find("invalid sdp") != std::string::npos ||
+             lower.find("remote description") != std::string::npos)
+      transportFailure = 5;
+    else if (lower.find("state is now: failed") != std::string::npos)
+      transportFailure = 6;
+    else if (lower.find("error:") != std::string::npos)
+      transportFailure = 7;
+  }
   if (level > LOG_WARNING)
     return;
   std::string backend = lower.find("nvenc") != std::string::npos  ? "nvenc"
@@ -791,6 +834,8 @@ static void stopCapture() {
 }
 static Data status() {
   auto d = data();
+  obs_data_set_string(d.get(), "transportFailure", transportStage());
+  obs_data_set_int(d.get(), "transportHttpStatus", transportHttpStatus);
   obs_data_set_int(d.get(), "captureSequence", captureSequence);
   obs_data_set_int(d.get(), "configuredWidth", configuredWidth);
   obs_data_set_int(d.get(), "configuredHeight", configuredHeight);
@@ -913,6 +958,8 @@ static void createVideoEncoder(const Choice &c, int bitrate) {
 static void startCapture(obs_data_t *config, bool synthetic = false) {
   check(!output, "already-sharing");
   ++captureSequence;
+  transportFailure = 0;
+  transportHttpStatus = 0;
   requestedEncoder = obs_data_get_string(config, "encoder");
   if (requestedEncoder.empty())
     requestedEncoder = "auto";

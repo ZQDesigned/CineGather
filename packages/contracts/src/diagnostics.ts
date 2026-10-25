@@ -345,6 +345,19 @@ export const nativeNumbers = [
   "nativeAllocationCount",
 ] as const;
 export const nativeDiagnosticSchema = z.object({
+  transportFailure: z
+    .enum([
+      "none",
+      "http-request",
+      "http-status",
+      "empty-answer",
+      "resource-url",
+      "invalid-sdp",
+      "ice",
+      "initialization",
+    ])
+    .optional(),
+  transportHttpStatus: z.number().int().min(0).max(599).optional(),
   encoderErrors: z
     .array(
       z.object({

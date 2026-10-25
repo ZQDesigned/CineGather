@@ -231,7 +231,10 @@ export class ProductionDiagnostics {
       try {
         nativeEncoder = await this.native()?.encoderDiagnostics();
       } catch {
-        nativeEncoder = { status: "unavailable" };
+        nativeEncoder = {
+          status: "unavailable",
+          reason: this.native()?.startupFailure,
+        };
         await this.own({
           kind: "event",
           event: { name: "native-encoder-diagnostics-failed" },
