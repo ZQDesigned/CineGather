@@ -11,6 +11,7 @@
 #include <condition_variable>
 #include <cstdint>
 #include <cstdio>
+#include <cstdlib>
 #include <cstring>
 #include <dxgi1_2.h>
 #include <filesystem>
@@ -106,6 +107,7 @@ struct EncoderError {
 static std::mutex errorMutex;
 static std::vector<EncoderError> encoderErrors;
 static std::atomic<bool> nvencRerouted{false};
+static std::atomic<bool> syntheticLogging{false};
 static std::atomic<int> transportFailure{0}, transportHttpStatus{0},
     transportDetail{0};
 static const char *transportStage() {
@@ -133,12 +135,19 @@ static void logging(int level, const char *format, va_list args, void *) {
     return;
   char buffer[4096];
   vsnprintf(buffer, sizeof(buffer), format, args);
+  if (syntheticLogging && std::getenv("CG_NATIVE_SYNTHETIC_TEST_LOG") &&
+      level <= LOG_WARNING)
+    std::fprintf(stderr, "CG_SYNTHETIC_TEST %s\n", buffer);
   std::string text = buffer, lower = text;
   std::transform(lower.begin(), lower.end(), lower.begin(),
                  [](unsigned char c) { return char(std::tolower(c)); });
   if (lower.find("non-texture encoder") != std::string::npos &&
       lower.find("nvenc") != std::string::npos)
     nvencRerouted = true;
+  auto failure = [](int code) {
+    int empty = 0;
+    transportFailure.compare_exchange_strong(empty, code);
+  };
   if (lower.find("whip") != std::string::npos) {
     if (lower.find("did not provide a resource url") != std::string::npos)
       transportDetail = 1;
@@ -147,25 +156,27 @@ static void logging(int level, const char *format, va_list args, void *) {
     if (lower.find("invalid resource url") != std::string::npos)
       transportDetail = 3;
     if (lower.find("response code") != std::string::npos) {
-      transportFailure = 2;
+      failure(2);
       std::smatch match;
       if (std::regex_search(lower, match,
                             std::regex("response code ([0-9]{3})")))
         transportHttpStatus = std::stoi(match[1].str());
     } else if (lower.find("connect failed:") != std::string::npos)
-      transportFailure = 1;
+      failure(1);
     else if (lower.find("no data returned") != std::string::npos)
-      transportFailure = 3;
+      failure(3);
     else if (lower.find("resource url") != std::string::npos &&
              level <= LOG_WARNING)
-      transportFailure = 4;
+      failure(4);
     else if (lower.find("invalid sdp") != std::string::npos ||
              lower.find("remote description") != std::string::npos)
-      transportFailure = 5;
+      failure(5);
     else if (lower.find("state is now: failed") != std::string::npos)
-      transportFailure = 6;
+      failure(6);
+    else if (lower.find("only accepted") != std::string::npos)
+      failure(5);
     else if (lower.find("error:") != std::string::npos)
-      transportFailure = 7;
+      failure(7);
   }
   if (level > LOG_WARNING)
     return;
@@ -1130,6 +1141,10 @@ static Data runProbe(obs_data_t *config) {
     obs_data_set_string(result.get(), "status", "skipped-sharing");
     return result;
   }
+  struct TestLogging {
+    TestLogging() { syntheticLogging = true; }
+    ~TestLogging() { syntheticLogging = false; }
+  } loggingGuard;
   obs_data_set_string(config, "quality", "cinema");
   try {
     startCapture(config, true);

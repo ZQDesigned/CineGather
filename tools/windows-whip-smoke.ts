@@ -10,7 +10,11 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
   const child = spawn(
     join(runtime, "bin/64bit/CGScreenCaptureHost.exe"),
     [directory, String(process.pid), "stdio"],
-    { stdio: "pipe", windowsHide: true },
+    {
+      stdio: "pipe",
+      windowsHide: true,
+      env: { ...process.env, CG_NATIVE_SYNTHETIC_TEST_LOG: "1" },
+    },
   );
   const pipe = new NativeProtocol(
     (data) => child.stdin.write(data),
@@ -18,7 +22,10 @@ export async function windowsWhipSmoke(page: Page, runtime: string) {
   );
   child.stdout.setEncoding("utf8");
   child.stdout.on("data", (data) => pipe.receive(data));
-  child.stderr.resume();
+  child.stderr.setEncoding("utf8");
+  child.stderr.on("data", (data) =>
+    console.log("Controlled synthetic-only native test stderr:", String(data)),
+  );
   child.stdin.on("error", () => pipe.close());
   child.on("error", (error) => pipe.close(error));
   child.on("close", () => pipe.close());
