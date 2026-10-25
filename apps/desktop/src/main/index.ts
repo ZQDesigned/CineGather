@@ -337,6 +337,8 @@ function registerIPC() {
         systemAudio: z.boolean(),
       })
       .parse(input);
+    if (screenLocked || suspended || quitting)
+      throw new Error("设备已锁定或休眠，请解锁后重新选择共享来源");
     if (nativeCapture) {
       await nativeCapture.select(choice);
       return;
@@ -373,6 +375,8 @@ function registerIPC() {
       throw new Error("无效的 API 地址");
     context.apiUrl = url.origin;
     if (!nativeCapture) throw new Error("当前平台不支持此采集引擎");
+    if (screenLocked || suspended || quitting)
+      throw new Error("设备已锁定或休眠，请解锁后重新共享");
     return nativeCapture.start(context);
   });
   handle("desktop:native-renew", (input) => {

@@ -1258,8 +1258,13 @@ static Data handle(obs_data_t *command) {
   if (type == "probe")
     return runProbe(command);
   if (type == "stop") {
+    auto final = status();
     stopCapture();
-    return status();
+    obs_data_set_string(final.get(), "outputPhase", "stopped");
+    for (const char *key : {"sourcesActive", "outputActive",
+                            "videoSourceActive", "audioSourceActive"})
+      obs_data_set_bool(final.get(), key, false);
+    return final;
   }
   if (type == "shutdown") {
     stopCapture();
