@@ -13,6 +13,8 @@ import {
 } from "livekit-client";
 import {
   nativeOwner,
+  type DiagnosticIssue,
+  type MediaDiagnostic,
   qualityPresets,
   type Quality,
   type NoiseReduction,
@@ -691,6 +693,7 @@ export class MediaSession {
       microphoneNoise: detail.microphoneNoise,
       watching: detail.watching,
       capturedAt: new Date().toISOString(),
+      issues: detail.issues,
       tracks: detail.tracks
         .flatMap((track) =>
           track.stats.map((stat) => ({
@@ -709,6 +712,10 @@ export class MediaSession {
           (p) => [...p.trackPublications.values()].map((pub) => ({ p, pub })),
         )
       : [];
+    const issues: DiagnosticIssue[] = [];
+    const issue = (value: DiagnosticIssue) => {
+      if (issues.length < 64) issues.push(value);
+    };
     const reports = await Promise.all(
       tracks
         .sort(
@@ -716,37 +723,85 @@ export class MediaSession {
             Number(b.pub.kind === "video") - Number(a.pub.kind === "video"),
         )
         .slice(0, 40)
-        .map(async ({ p, pub }) => {
-          let participant = this.diagnosticHashes.get(p.identity);
-          if (!participant) {
-            participant = diagnosticHash(p.identity);
-            this.diagnosticHashes.set(p.identity, participant);
-          }
-          return {
-            track: pub.trackSid,
-            participant: await participant,
-            source: pub.source,
-            local: p === room?.localParticipant,
-            kind: pub.kind,
-            muted: pub.isMuted,
-            subscribed: pub.isSubscribed,
-            streamState: pub.track?.streamState,
-            settings: pub.track?.mediaStreamTrack.getSettings(),
-            videoQuality:
-              "videoQuality" in pub
-                ? (pub as RemoteTrackPublication).videoQuality
-                : undefined,
-            enabled:
-              "isEnabled" in pub
-                ? (pub as RemoteTrackPublication).isEnabled
-                : undefined,
-            ...(pub.track
-              ? await boundedStats(() => this.diagnosticReport(pub.track!))
-              : { status: "unavailable" as const, stats: [] }),
-          };
-        }),
+        .map(
+          async (
+            { p, pub },
+            index,
+          ): Promise<MediaDiagnostic["tracks"][number] | undefined> => {
+            const trackIssue = (value: DiagnosticIssue) =>
+              issue({
+                ...value,
+                field: value.field?.replace(
+                  "media.tracks",
+                  `media.tracks.${index}`,
+                ),
+              });
+            try {
+              let participant = this.diagnosticHashes.get(p.identity);
+              if (!participant) {
+                participant = diagnosticHash(p.identity);
+                this.diagnosticHashes.set(p.identity, participant);
+              }
+              let settings: MediaTrackSettings | undefined;
+              try {
+                settings = pub.track?.mediaStreamTrack.getSettings();
+              } catch {
+                trackIssue({
+                  stage: "track",
+                  code: "read-failed",
+                  field: "media.tracks.settings",
+                });
+              }
+              return {
+                track: pub.trackSid,
+                participant: await participant,
+                source: pub.source,
+                local: p === room?.localParticipant,
+                kind: pub.kind,
+                muted: pub.isMuted,
+                subscribed: pub.isSubscribed,
+                streamState: pub.track?.streamState,
+                settings,
+                videoQuality:
+                  "videoQuality" in pub
+                    ? (pub as RemoteTrackPublication).videoQuality
+                    : undefined,
+                enabled:
+                  "isEnabled" in pub
+                    ? (pub as RemoteTrackPublication).isEnabled
+                    : undefined,
+                ...(pub.track
+                  ? await boundedStats(
+                      () => this.diagnosticReport(pub.track!),
+                      1200,
+                      trackIssue,
+                    )
+                  : { status: "unavailable" as const, stats: [] }),
+              };
+            } catch {
+              trackIssue({
+                stage: "track",
+                code: "read-failed",
+                field: "media.tracks",
+              });
+              return undefined;
+            }
+          },
+        ),
     );
+    let playback: MediaDiagnostic["playback"];
+    try {
+      playback = this.playbackProbe.sample();
+    } catch {
+      issue({
+        stage: "playback",
+        code: "sample-failed",
+        field: "media.playback",
+      });
+    }
+    for (const value of this.playbackProbe.takeIssues()) issue(value);
     return {
+      issues: issues.length ? issues : undefined,
       state: room?.state ?? "disconnected",
       watching: this.subscriptions.watching,
       microphoneNoise: this.noiseStatus
@@ -756,8 +811,10 @@ export class MediaSession {
             fallback: Boolean(this.noiseStatus.reason),
           }
         : undefined,
-      tracks: reports,
-      playback: this.playbackProbe.sample(),
+      tracks: reports.filter(
+        (report): report is NonNullable<typeof report> => report !== undefined,
+      ),
+      playback,
     };
   }
   async disconnect() {

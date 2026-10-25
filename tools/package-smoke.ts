@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { spawnSync } from "node:child_process";
+import { webRTCEncoderProbe } from "./encoder-probe";
 import { unzipSync, strFromU8 } from "fflate";
 
 const { version } = await Bun.file("apps/desktop/package.json").json();
@@ -44,6 +45,22 @@ try {
   });
   expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version);
   const page = await app.firstWindow();
+  if (platform === "win32") {
+    expect(
+      await app.evaluate(({ app }) =>
+        app.commandLine.getSwitchValue("enable-features"),
+      ),
+    ).toContain("PlatformH264CbpEncoding");
+    const encoding = await page.evaluate(webRTCEncoderProbe);
+    expect(encoding.mimeType?.toLowerCase()).toBe("video/h264");
+    expect(encoding.sdpFmtpLine).toContain("profile-level-id=42e0");
+    expect(encoding.framesEncoded).toBeGreaterThanOrEqual(45);
+    expect(encoding.framesDecoded).toBeGreaterThanOrEqual(45);
+    console.log(
+      "Packaged Windows actual H264 loopback encoder:",
+      JSON.stringify(encoding),
+    );
+  }
   await expect(page.locator(".version")).toHaveText(`v${version}`);
   const updates = await page.evaluate(() => window.desktop!.updates!.status());
   expect(updates.mode).toBe(platform === "darwin" ? "notify" : "disabled");
@@ -144,9 +161,13 @@ try {
     ),
   ).toBe(true);
   const diagnosticFiles = unzipSync(await readFile(diagnosticPath));
-  expect(
-    JSON.parse(strFromU8(diagnosticFiles["manifest.json"]!)).platform,
-  ).toBe(platform);
+  const manifest = JSON.parse(strFromU8(diagnosticFiles["manifest.json"]!));
+  expect(manifest.platform).toBe(platform);
+  expect(manifest.encodingPolicy).toMatchObject({
+    constrainedBaselineHardwareEnabled: platform === "win32",
+    gpuBlocklistRespected: true,
+    softwareFallbackAllowed: true,
+  });
   expect(strFromU8(diagnosticFiles["timeline.ndjson"]!)).toContain(
     '"resources"',
   );

@@ -283,3 +283,137 @@ test("diagnostic snapshots preserve requested and active noise modes without raw
   });
   expect(JSON.stringify(result)).not.toContain("private-token");
 });
+
+test("partial diagnostics retain playback and RTP evidence when one numeric field is invalid", async () => {
+  const { repairDiagnosticRecord } = await import("@cinegather/contracts");
+  const sample = repairDiagnosticRecord({
+    ...entry(100),
+    kind: "sample",
+    media: {
+      state: "connected",
+      watching: true,
+      tracks: [],
+      playback: {
+        readyState: 4,
+        paused: false,
+        ended: false,
+        hidden: false,
+        width: 1920,
+        height: 1080,
+        currentTime: Infinity,
+        playbackRate: 1,
+        presentedFrames: 300,
+        processingDuration: NaN,
+      },
+    },
+    renderer: { schedulerLagMs: 0, longTaskCount: 0, longTaskMs: 0 },
+    privateToken: "Bearer do-not-export",
+  });
+  expect(sample.media?.playback).toMatchObject({
+    width: 1920,
+    presentedFrames: 300,
+  });
+  expect(sample.media?.playback?.currentTime).toBeUndefined();
+  expect(sample.issues).toContainEqual({
+    stage: "playback",
+    code: "invalid-number",
+    field: "media.playback.currentTime",
+  });
+  expect(sample.issues).toContainEqual({
+    stage: "playback",
+    code: "invalid-number",
+    field: "media.playback.processingDuration",
+  });
+  expect(JSON.stringify(sample)).not.toContain("do-not-export");
+  expect(safeDiagnosticRecord(sample)).toEqual(sample);
+});
+
+test("disk failure fallback retains over one hour, explains the failure and expires old records", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cg-diagnostic-memory-"));
+  const { writeFile } = await import("node:fs/promises");
+  try {
+    const blocked = join(root, "blocked");
+    await writeFile(blocked, "x");
+    let now = 1_800_000_000_000;
+    const history = new DiagnosticHistory(blocked, () => now);
+    for (let i = 0; i < 1900; i++) {
+      now += 2000;
+      await history.append(entry(now, i));
+    }
+    const records = await history.read();
+    expect(records).toHaveLength(1900);
+    expect(records.at(-1)!.at - records[0]!.at).toBeGreaterThan(60 * 60 * 1000);
+    expect(records[0]!.issues).toContainEqual({
+      stage: "storage",
+      code: "storage-failed",
+    });
+    const summary = summarizeDiagnostics(records).summary;
+    expect(summary.collectionIssues).toContainEqual({
+      stage: "storage",
+      code: "storage-failed",
+      count: 1900,
+      firstAt: records[0]!.at,
+      lastAt: records.at(-1)!.at,
+    });
+    now += 3 * 60 * 60 * 1000;
+    expect(await history.read()).toHaveLength(0);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+test("encoder evidence distinguishes actual hardware, software and unknown implementations", async () => {
+  const { encoderMode } = await import("../src/shared/diagnostics");
+  expect(
+    encoderMode({
+      powerEfficientEncoder: true,
+      encoderImplementation: "ExternalEncoder",
+    }),
+  ).toBe("hardware");
+  expect(
+    encoderMode({
+      powerEfficientEncoder: false,
+      encoderImplementation: "OpenH264",
+    }),
+  ).toBe("software");
+  expect(encoderMode({ encoderImplementation: "OpenH264" })).toBe("software");
+  expect(encoderMode({ encoderImplementation: "ExternalEncoder" })).toBe(
+    "unknown",
+  );
+  expect(encoderMode()).toBe("unknown");
+});
+
+test("invalid required metadata removes only the affected track and keeps IPC validation strict", async () => {
+  const { repairDiagnosticRecord } = await import("@cinegather/contracts");
+  const track = {
+    track: "TR_healthy",
+    participant: "a".repeat(64),
+    source: "screen_share",
+    local: true,
+    kind: "video",
+    muted: false,
+    subscribed: true,
+    status: "ok",
+    stats: [{ framesEncoded: 150 }],
+  };
+  const input = {
+    ...entry(100),
+    media: {
+      state: "connected",
+      watching: true,
+      tracks: [{ ...track, track: "TR_bad", muted: Infinity }, track],
+    },
+  };
+  expect(() => safeDiagnosticRecord(input)).toThrow();
+  const result = repairDiagnosticRecord(input);
+  expect(result.media?.tracks).toHaveLength(1);
+  expect(result.media?.tracks[0]?.track).toBe("TR_healthy");
+  expect(result.media?.tracks[0]?.stats[0]?.framesEncoded).toBe(150);
+  expect(result.issues).toContainEqual({
+    stage: "media",
+    code: "invalid-number",
+    field: "media.tracks.0.muted",
+  });
+  expect(() =>
+    repairDiagnosticRecord({ ...input, session: "not-a-session" }),
+  ).toThrow();
+});

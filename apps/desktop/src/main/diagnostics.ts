@@ -5,12 +5,15 @@ import { writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   safeDiagnosticRecord,
+  repairDiagnosticRecord,
+  type DiagnosticIssue,
   diagnosticSnapshotSchema,
   type DiagnosticRecord,
 } from "@cinegather/contracts";
 import { DiagnosticHistory } from "./diagnostic-history";
 import { diagnosticArchive } from "../shared/diagnostics";
 import type { NativeCapture } from "./native-capture";
+import { hardwareEncodingPolicy } from "./encoding-policy";
 export class ProductionDiagnostics {
   private history: DiagnosticHistory;
   private session = randomUUID();
@@ -40,15 +43,17 @@ export class ProductionDiagnostics {
   private async own(
     value: Partial<DiagnosticRecord> & Pick<DiagnosticRecord, "kind">,
   ) {
-    await this.history.append({
-      v: 1,
-      appVersion: app.getVersion(),
-      at: Date.now(),
-      monotonicMs: performance.now(),
-      session: this.session,
-      sequence: this.sequence++,
-      ...value,
-    });
+    await this.history.append(
+      repairDiagnosticRecord({
+        v: 1,
+        appVersion: app.getVersion(),
+        at: Date.now(),
+        monotonicMs: performance.now(),
+        session: this.session,
+        sequence: this.sequence++,
+        ...value,
+      }),
+    );
   }
   start() {
     void app
@@ -77,7 +82,13 @@ export class ProductionDiagnostics {
           supportsOverlays: info.auxAttributes?.supportsOverlays,
         };
       })
-      .catch(() => {});
+      .catch(() => {
+        void this.own({
+          kind: "event",
+          event: { name: "gpu-info-unavailable" },
+          issues: [{ stage: "resources", code: "read-failed" }],
+        });
+      });
     void this.own({ kind: "event", event: { name: "main-start" } });
     powerMonitor.on(
       "suspend",
@@ -137,25 +148,51 @@ export class ProductionDiagnostics {
         total = current.total - this.previousCpu.total,
         idle = current.idle - this.previousCpu.idle;
       this.previousCpu = current;
-      await this.own({
-        kind: "resources",
-        native: this.native()?.diagnostics(),
-        resources: {
-          freeMemory: freemem(),
-          totalMemory: totalmem(),
-          cpuPercent: total > 0 ? (1 - idle / total) * 100 : undefined,
-          load1: loadavg()[0] ?? 0,
-          processes: app.getAppMetrics().map((p) => ({
+      const issues: DiagnosticIssue[] = [];
+      let native: DiagnosticRecord["native"];
+      try {
+        native = this.native()?.diagnostics();
+      } catch {
+        issues.push({ stage: "native", code: "read-failed" });
+      }
+      let processes: NonNullable<DiagnosticRecord["resources"]>["processes"] =
+        [];
+      try {
+        processes = app
+          .getAppMetrics()
+          .slice(0, 30)
+          .map((p) => ({
             type: p.type,
             pid: p.pid,
             cpuPercent: p.cpu.percentCPUUsage,
             workingSetKb: p.memory.workingSetSize,
             peakWorkingSetKb: p.memory.peakWorkingSetSize,
-          })),
+          }));
+      } catch {
+        issues.push({
+          stage: "resources",
+          code: "read-failed",
+          field: "resources.processes",
+        });
+      }
+      await this.own({
+        kind: "resources",
+        native,
+        issues,
+        resources: {
+          freeMemory: freemem(),
+          totalMemory: totalmem(),
+          cpuPercent: total > 0 ? (1 - idle / total) * 100 : undefined,
+          load1: loadavg()[0] ?? 0,
+          processes,
         },
       });
     } catch {
-      /* A metrics API failure must not interrupt a call or room session. */
+      await this.own({
+        kind: "gap",
+        event: { name: "resource-sampling-failed" },
+        issues: [{ stage: "resources", code: "sample-failed" }],
+      });
     }
   }
   async record(input: unknown) {
@@ -202,6 +239,10 @@ export class ProductionDiagnostics {
             node: process.versions.node,
           },
           gpu: { info: this.gpu, features: app.getGPUFeatureStatus() },
+          encodingPolicy: hardwareEncodingPolicy(
+            process.platform,
+            app.commandLine,
+          ),
           history: status,
           storage: "local-minute-journal",
           capabilities: {

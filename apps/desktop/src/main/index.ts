@@ -31,7 +31,9 @@ import { nativeKeyState } from "./key-state";
 import { recordedShortcut } from "../shared/shortcuts";
 import { createUpdates } from "./updates";
 import { supportsProcessAudio, WindowsAudio } from "./windows-audio";
+import { configureHardwareEncoding } from "./encoding-policy";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
+configureHardwareEncoding(process.platform, app.commandLine);
 protocol.registerSchemesAsPrivileged([
   {
     scheme: "app",

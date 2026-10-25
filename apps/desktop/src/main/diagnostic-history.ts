@@ -11,6 +11,7 @@ import {
   diagnosticRetentionMs,
   safeDiagnosticRecord,
   type DiagnosticRecord,
+  type DiagnosticIssue,
   type DiagnosticHistoryStatus,
 } from "@cinegather/contracts";
 
@@ -24,6 +25,31 @@ export class DiagnosticHistory {
   private dropped = 0;
   private fallback: DiagnosticRecord[] = [];
   private lastPrune = 0;
+  private fallbackBytes = 0;
+  private remember(entry: DiagnosticRecord, code: DiagnosticIssue["code"]) {
+    const safe = {
+      ...entry,
+      issues: [
+        ...(entry.issues ?? []).slice(0, 63),
+        { stage: "storage" as const, code },
+      ],
+    };
+    this.fallback.push(safe);
+    this.fallbackBytes += JSON.stringify(safe).length * 2;
+    this.pruneFallback();
+  }
+  private pruneFallback() {
+    while (
+      this.fallback.length &&
+      (this.fallback.length > 7200 ||
+        this.fallbackBytes > 64 * 1024 * 1024 ||
+        this.fallback[0]!.at < this.now() - diagnosticRetentionMs)
+    ) {
+      const value = this.fallback.shift()!;
+      this.fallbackBytes -= JSON.stringify(value).length * 2;
+      this.dropped++;
+    }
+  }
   constructor(
     private directory: string,
     private now = Date.now,
@@ -44,7 +70,7 @@ export class DiagnosticHistory {
       return Promise.resolve(false);
     }
     if (this.pending >= 8) {
-      this.dropped++;
+      this.remember(entry, "queue-full");
       return Promise.resolve(false);
     }
     this.pending++;
@@ -65,13 +91,19 @@ export class DiagnosticHistory {
         }
         return true;
       })
-      .catch(() => {
+      .catch((error: unknown) => {
         this.failures++;
-        this.fallback.push(entry);
-        if (this.fallback.length > 128) {
-          this.fallback.shift();
-          this.dropped++;
-        }
+        const code = (error as NodeJS.ErrnoException)?.code;
+        this.remember(
+          entry,
+          code === "EACCES" || code === "EPERM"
+            ? "permission-denied"
+            : code === "ENOSPC" || code === "EDQUOT"
+              ? "no-space"
+              : code === "EIO"
+                ? "io-failed"
+                : "storage-failed",
+        );
         return false;
       })
       .finally(() => {
@@ -98,6 +130,7 @@ export class DiagnosticHistory {
   }
   async read() {
     await this.queue;
+    this.pruneFallback();
     try {
       await this.prune();
     } catch {

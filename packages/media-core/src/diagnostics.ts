@@ -1,4 +1,10 @@
-import { rtcStatSchema, type MediaDiagnostic } from "@cinegather/contracts";
+import {
+  rtcStatSchema,
+  playbackSchema,
+  projectDiagnosticObject,
+  type DiagnosticIssue,
+  type MediaDiagnostic,
+} from "@cinegather/contracts";
 export async function diagnosticHash(value: string) {
   const digest = await crypto.subtle.digest(
     "SHA-256",
@@ -8,7 +14,10 @@ export async function diagnosticHash(value: string) {
     x.toString(16).padStart(2, "0"),
   ).join("");
 }
-export function projectRTCStats(report: RTCStatsReport) {
+export function projectRTCStats(
+  report: RTCStatsReport,
+  issue: (value: DiagnosticIssue) => void = () => {},
+) {
   const rows: ReturnType<typeof rtcStatSchema.parse>[] = [];
   const relevantCodecs = new Set<string>();
   report.forEach((stat) => {
@@ -45,7 +54,7 @@ export function projectRTCStats(report: RTCStatsReport) {
     )
       return;
     if (stat.type === "codec" && !relevantCodecs.has(String(stat.id))) return;
-    const safe: Record<string, unknown> = { ...stat };
+    const safe: Record<string, unknown> = Object.create(stat);
     if (stat.type === "candidate-pair") {
       const local = report.get(String(stat.localCandidateId)),
         remote = report.get(String(stat.remoteCandidateId));
@@ -54,14 +63,23 @@ export function projectRTCStats(report: RTCStatsReport) {
       safe.transportProtocol = local?.protocol;
       safe.relayProtocol = local?.relayProtocol;
     }
-    const parsed = rtcStatSchema.safeParse(safe);
-    if (parsed.success && rows.length < 32) rows.push(parsed.data);
+    if (rows.length < 32)
+      rows.push(
+        projectDiagnosticObject(
+          rtcStatSchema,
+          safe,
+          "rtc",
+          "media.tracks.stats",
+          issue,
+        ),
+      );
   });
   return rows;
 }
 export async function boundedStats(
   work: () => Promise<RTCStatsReport | undefined>,
   timeoutMs = 1200,
+  issue: (value: DiagnosticIssue) => void = () => {},
 ): Promise<{
   status: MediaDiagnostic["tracks"][number]["status"];
   stats: ReturnType<typeof projectRTCStats>;
@@ -69,18 +87,21 @@ export async function boundedStats(
   let timer: ReturnType<typeof setTimeout> | undefined;
   try {
     return await Promise.race([
-      work().then((report) => ({
-        status: report ? ("ok" as const) : ("unavailable" as const),
-        stats: report ? projectRTCStats(report) : [],
-      })),
+      Promise.resolve()
+        .then(work)
+        .then((report) => ({
+          status: report ? ("ok" as const) : ("unavailable" as const),
+          stats: report ? projectRTCStats(report, issue) : [],
+        })),
       new Promise<{ status: "timeout"; stats: [] }>((resolve) => {
-        timer = setTimeout(
-          () => resolve({ status: "timeout", stats: [] }),
-          timeoutMs,
-        );
+        timer = setTimeout(() => {
+          issue({ stage: "rtc", code: "timeout", field: "media.tracks.stats" });
+          resolve({ status: "timeout", stats: [] });
+        }, timeoutMs);
       }),
     ]);
   } catch {
+    issue({ stage: "rtc", code: "read-failed", field: "media.tracks.stats" });
     return { status: "failed", stats: [] };
   } finally {
     clearTimeout(timer);
@@ -88,6 +109,13 @@ export async function boundedStats(
 }
 
 export class PlaybackProbe {
+  private issues: DiagnosticIssue[] = [];
+  takeIssues() {
+    return this.issues.splice(0);
+  }
+  private issue = (issue: DiagnosticIssue) => {
+    if (this.issues.length < 64) this.issues.push(issue);
+  };
   private element?: HTMLVideoElement;
   private stream?: MediaProvider | null;
   private callback?: number;
@@ -155,48 +183,104 @@ export class PlaybackProbe {
   sample() {
     const video = this.element;
     if (!video) return;
-    const quality = video.getVideoPlaybackQuality?.(),
-      metadata = this.metadata;
-    const sample = {
-      clientWidth: video.clientWidth,
-      clientHeight: video.clientHeight,
-      readyState: video.readyState,
-      paused: video.paused,
-      ended: video.ended,
-      hidden: document.hidden,
-      width: video.videoWidth,
-      height: video.videoHeight,
-      currentTime: video.currentTime,
-      playbackRate: video.playbackRate,
-      totalFrames: quality?.totalVideoFrames,
-      droppedFrames: quality?.droppedVideoFrames,
-      presentedFrames: metadata?.presentedFrames,
-      frameAgeMs:
-        this.lastFrame === undefined
+    let quality: VideoPlaybackQuality | undefined;
+    try {
+      quality = video.getVideoPlaybackQuality?.();
+    } catch {
+      this.issue({
+        stage: "playback",
+        code: "read-failed",
+        field: "media.playback.totalFrames",
+      });
+    }
+    const metadata = this.metadata;
+    const { lastFrame, maxGap, callbacks } = this;
+    const raw = {
+      get clientWidth() {
+        return video.clientWidth;
+      },
+      get clientHeight() {
+        return video.clientHeight;
+      },
+      get readyState() {
+        return video.readyState;
+      },
+      get paused() {
+        return video.paused;
+      },
+      get ended() {
+        return video.ended;
+      },
+      get hidden() {
+        return globalThis.document?.hidden ?? false;
+      },
+      get width() {
+        return video.videoWidth;
+      },
+      get height() {
+        return video.videoHeight;
+      },
+      get currentTime() {
+        return video.currentTime;
+      },
+      get playbackRate() {
+        return video.playbackRate;
+      },
+      get totalFrames() {
+        return quality?.totalVideoFrames;
+      },
+      get droppedFrames() {
+        return quality?.droppedVideoFrames;
+      },
+      get presentedFrames() {
+        return metadata?.presentedFrames;
+      },
+      get frameAgeMs() {
+        return lastFrame === undefined
           ? undefined
-          : performance.now() - this.lastFrame,
-      maxFrameGapMs: this.maxGap,
-      callbackCount: this.callbacks,
-      processingDuration: metadata?.processingDuration,
-      presentationDelayMs:
-        metadata?.presentationTime === undefined
+          : performance.now() - lastFrame;
+      },
+      get maxFrameGapMs() {
+        return maxGap;
+      },
+      get callbackCount() {
+        return callbacks;
+      },
+      get processingDuration() {
+        return metadata?.processingDuration;
+      },
+      get presentationDelayMs() {
+        return metadata?.presentationTime === undefined
           ? undefined
-          : performance.now() - metadata.presentationTime,
-      expectedDisplayDelayMs:
-        metadata?.expectedDisplayTime === undefined
+          : performance.now() - metadata.presentationTime;
+      },
+      get expectedDisplayDelayMs() {
+        return metadata?.expectedDisplayTime === undefined
           ? undefined
-          : metadata.expectedDisplayTime - metadata.presentationTime,
-      captureToReceiveMs:
-        metadata?.captureTime !== undefined &&
-        metadata.receiveTime !== undefined
+          : metadata.expectedDisplayTime - metadata.presentationTime;
+      },
+      get captureToReceiveMs() {
+        return metadata?.captureTime !== undefined &&
+          metadata.receiveTime !== undefined
           ? metadata.receiveTime - metadata.captureTime
-          : undefined,
-      receiveToPresentMs:
-        metadata?.receiveTime === undefined
+          : undefined;
+      },
+      get receiveToPresentMs() {
+        return metadata?.receiveTime === undefined
           ? undefined
-          : metadata.presentationTime - metadata.receiveTime,
-      mediaTime: metadata?.mediaTime,
+          : metadata.presentationTime - metadata.receiveTime;
+      },
+      get mediaTime() {
+        return metadata?.mediaTime;
+      },
     };
+    const sample = projectDiagnosticObject(
+      playbackSchema,
+      raw,
+      "playback",
+      "media.playback",
+      this.issue,
+    );
     this.maxGap = 0;
     this.callbacks = 0;
     return sample;

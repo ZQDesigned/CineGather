@@ -4,8 +4,9 @@ import {
   safeDiagnosticRecord,
   diagnosticServerSchema,
   diagnosticSnapshotSchema,
-  diagnosticRecordSchema,
-  diagnosticRecordLimit,
+  repairDiagnosticRecord,
+  type DiagnosticIssue,
+  type MediaDiagnostic,
   type DiagnosticRecord,
   type DiagnosticHistoryStatus,
 } from "@cinegather/contracts";
@@ -19,6 +20,7 @@ class BrowserHistory {
   private database?: Promise<IDBDatabase>;
   private fallback: DiagnosticRecord[] = [];
   private failures = 0;
+  private fallbackBytes = 0;
   private dropped = 0;
   private lastPrune = 0;
   private open() {
@@ -35,8 +37,14 @@ class BrowserHistory {
           request.result.createObjectStore("meta");
       };
       request.onsuccess = () => resolve(request.result);
-      request.onerror = () => reject(request.error);
-      request.onblocked = () => reject(new Error("diagnostic-storage-blocked"));
+      request.onerror = () => {
+        this.database = undefined;
+        reject(request.error);
+      };
+      request.onblocked = () => {
+        this.database = undefined;
+        reject(new Error("diagnostic-storage-blocked"));
+      };
     }));
   }
   async append(entry: DiagnosticRecord) {
@@ -84,14 +92,24 @@ class BrowserHistory {
       });
     } catch {
       this.failures++;
-      this.fallback.push(entry);
+      const fallback: DiagnosticRecord = {
+        ...entry,
+        issues: [
+          ...(entry.issues ?? []).slice(0, 63),
+          { stage: "storage", code: "storage-failed" },
+        ],
+      };
+      this.fallback.push(fallback);
+      this.fallbackBytes += JSON.stringify(fallback).length * 2;
       // Explicitly report degraded retention if storage is unavailable.
       while (
-        this.fallback.length > 1800 ||
+        this.fallback.length > 7200 ||
+        this.fallbackBytes > 64 * 1024 * 1024 ||
         (this.fallback[0]?.at ?? Date.now()) <
           Date.now() - diagnosticRetentionMs
       ) {
-        this.fallback.shift();
+        const old = this.fallback.shift();
+        if (old) this.fallbackBytes -= JSON.stringify(old).length * 2;
         this.dropped++;
       }
     }
@@ -113,7 +131,9 @@ class BrowserHistory {
     } catch {
       /* The in-memory fallback still exports a declared partial history. */
     }
-    return [...entries, ...this.fallback].sort((a, b) => a.at - b.at);
+    return [...entries, ...this.fallback]
+      .filter((x) => x.at >= Date.now() - diagnosticRetentionMs)
+      .sort((a, b) => a.at - b.at);
   }
   async status(): Promise<DiagnosticHistoryStatus> {
     try {
@@ -177,6 +197,10 @@ export class DiagnosticRecorder {
   private web = new BrowserHistory();
   private previousContext = "";
   private collectionFailures = 0;
+  private pendingIssues: DiagnosticIssue[] = [];
+  private issue(value: DiagnosticIssue) {
+    if (this.pendingIssues.length < 64) this.pendingIssues.push(value);
+  }
   private pendingEvents: {
     name: string;
     durationMs?: number;
@@ -190,13 +214,16 @@ export class DiagnosticRecorder {
   private async record(
     value: Partial<DiagnosticRecord> & Pick<DiagnosticRecord, "kind">,
   ) {
+    const pending = this.pendingIssues.splice(0);
+    let stage: DiagnosticIssue["stage"] = "record";
+    let timedOut = false;
     try {
       const context = this.context();
       if (context.room?.id !== this.roomHash?.id)
         this.roomHash = context.room
           ? { id: context.room.id, hash: await diagnosticHash(context.room.id) }
           : undefined;
-      const candidate = diagnosticRecordSchema.parse({
+      const candidate = repairDiagnosticRecord({
         v: 1,
         appVersion: version,
         at: Date.now(),
@@ -215,21 +242,10 @@ export class DiagnosticRecorder {
           online: navigator.onLine,
         },
         ...value,
+        issues: [...pending, ...(value.issues ?? [])].slice(0, 64),
       });
-      let omitted = 0;
-      while (
-        JSON.stringify(candidate).length > diagnosticRecordLimit &&
-        candidate.media?.tracks.length
-      ) {
-        candidate.media.tracks.pop();
-        omitted++;
-      }
       const entry = safeDiagnosticRecord(candidate);
-      if (omitted)
-        this.pendingEvents.push({
-          name: "track-records-truncated",
-          count: omitted,
-        });
+      stage = "storage";
       let timeout: ReturnType<typeof setTimeout> | undefined;
       try {
         await Promise.race([
@@ -237,10 +253,10 @@ export class DiagnosticRecorder {
             ? window.desktop.diagnostics.record(entry)
             : this.web.append(entry),
           new Promise<never>((_, reject) => {
-            timeout = setTimeout(
-              () => reject(new Error("storage-timeout")),
-              1500,
-            );
+            timeout = setTimeout(() => {
+              timedOut = true;
+              reject(new Error("storage-timeout"));
+            }, 1500);
           }),
         ]);
       } finally {
@@ -248,6 +264,15 @@ export class DiagnosticRecorder {
       }
       return true;
     } catch {
+      for (const value of pending) this.issue(value);
+      this.issue({
+        stage,
+        code: timedOut
+          ? "timeout"
+          : stage === "storage"
+            ? "storage-failed"
+            : "invalid-field",
+      });
       this.collectionFailures++; /* Telemetry must never interrupt playback. */
       return false;
     }
@@ -347,7 +372,27 @@ export class DiagnosticRecorder {
         await this.record({ kind: "event", event });
       if (force || context.room || now - this.lastSample > 15000) {
         this.lastSample = now;
-        const media = await this.media.detailedDiagnostics();
+        let media: MediaDiagnostic | undefined;
+        let deadline: ReturnType<typeof setTimeout> | undefined;
+        let timedOut = false;
+        try {
+          media = await Promise.race([
+            this.media.detailedDiagnostics(),
+            new Promise<never>((_, reject) => {
+              deadline = setTimeout(() => {
+                timedOut = true;
+                reject(new Error("sampling-timeout"));
+              }, 2500);
+            }),
+          ]);
+        } catch {
+          this.issue({
+            stage: "media",
+            code: timedOut ? "timeout" : "sample-failed",
+          });
+        } finally {
+          clearTimeout(deadline);
+        }
         if (
           this.context().room?.id !== context.room?.id ||
           this.context().media.revision !== context.media.revision
@@ -382,6 +427,7 @@ export class DiagnosticRecorder {
         void this.serverSample();
       }
     } catch {
+      this.issue({ stage: "media", code: "sample-failed" });
       this.collectionFailures++;
     } finally {
       this.busy = false;

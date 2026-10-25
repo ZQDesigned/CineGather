@@ -18,6 +18,75 @@ const text = z
       ? "[redacted]"
       : value,
   );
+export const diagnosticIssueSchema = z.object({
+  stage: z.enum([
+    "rtc",
+    "playback",
+    "track",
+    "media",
+    "renderer",
+    "resources",
+    "native",
+    "record",
+    "storage",
+  ]),
+  code: z.enum([
+    "invalid-number",
+    "invalid-field",
+    "read-failed",
+    "timeout",
+    "unavailable",
+    "sample-failed",
+    "storage-failed",
+    "permission-denied",
+    "no-space",
+    "io-failed",
+    "queue-full",
+    "truncated",
+  ]),
+  // Fixed schema paths only; never exception messages, values, or identities.
+  field: z
+    .string()
+    .max(160)
+    .regex(/^[A-Za-z][A-Za-z0-9]*(?:\.[A-Za-z0-9]+)*$/)
+    .optional(),
+});
+export type DiagnosticIssue = z.infer<typeof diagnosticIssueSchema>;
+const diagnosticIssues = z.array(diagnosticIssueSchema).max(64).optional();
+
+// For trusted telemetry producers. Each whitelisted getter/field is independent;
+// IPC/storage still use the strict schema after this projection.
+export function projectDiagnosticObject<S extends z.ZodRawShape>(
+  schema: z.ZodObject<S>,
+  input: object,
+  stage: DiagnosticIssue["stage"],
+  prefix: string,
+  issue: (value: DiagnosticIssue) => void,
+): z.infer<z.ZodObject<S>> {
+  const result: Record<string, unknown> = {};
+  for (const [key, validator] of Object.entries(schema.shape)) {
+    const field = `${prefix}.${key}`;
+    try {
+      const value = (input as Record<string, unknown>)[key];
+      const parsed = (validator as z.ZodType).safeParse(value);
+      if (parsed.success) {
+        if (parsed.data !== undefined) result[key] = parsed.data;
+      } else
+        issue({
+          stage,
+          code:
+            typeof value === "number" && !Number.isFinite(value)
+              ? "invalid-number"
+              : "invalid-field",
+          field,
+        });
+    } catch {
+      issue({ stage, code: "read-failed", field });
+    }
+  }
+  return schema.parse(result);
+}
+
 export const rtcNumbers = [
   "timestamp",
   "ssrc",
@@ -133,36 +202,39 @@ export const rtcStatSchema = z.object({
   powerEfficientDecoder: z.boolean().optional(),
 });
 export type DiagnosticStat = z.infer<typeof rtcStatSchema>;
-export const playbackSchema = z.object({
-  clientWidth: number.optional(),
-  clientHeight: number.optional(),
-  readyState: number,
-  paused: z.boolean(),
-  ended: z.boolean(),
-  hidden: z.boolean(),
-  width: number,
-  height: number,
-  currentTime: number,
-  playbackRate: number,
-  totalFrames: number.optional(),
-  droppedFrames: number.optional(),
-  presentedFrames: number.optional(),
-  frameAgeMs: number.optional(),
-  maxFrameGapMs: number.optional(),
-  callbackCount: number.optional(),
-  processingDuration: number.optional(),
-  presentationDelayMs: number.optional(),
-  expectedDisplayDelayMs: number.optional(),
-  captureToReceiveMs: number.optional(),
-  receiveToPresentMs: number.optional(),
-  mediaTime: number.optional(),
-});
+export const playbackSchema = z
+  .object({
+    clientWidth: number.optional(),
+    clientHeight: number.optional(),
+    readyState: number,
+    paused: z.boolean(),
+    ended: z.boolean(),
+    hidden: z.boolean(),
+    width: number,
+    height: number,
+    currentTime: number,
+    playbackRate: number,
+    totalFrames: number.optional(),
+    droppedFrames: number.optional(),
+    presentedFrames: number.optional(),
+    frameAgeMs: number.optional(),
+    maxFrameGapMs: number.optional(),
+    callbackCount: number.optional(),
+    processingDuration: number.optional(),
+    presentationDelayMs: number.optional(),
+    expectedDisplayDelayMs: number.optional(),
+    captureToReceiveMs: number.optional(),
+    receiveToPresentMs: number.optional(),
+    mediaTime: number.optional(),
+  })
+  .partial();
 const microphoneNoiseSchema = z.object({
   requested: z.enum(["enhanced", "basic", "off"]),
   active: z.enum(["enhanced", "basic", "off"]),
   fallback: z.boolean().optional(),
 });
 export const mediaDiagnosticSchema = z.object({
+  issues: diagnosticIssues,
   microphoneNoise: microphoneNoiseSchema.optional(),
   state: text,
   watching: z.boolean(),
@@ -266,6 +338,7 @@ export const nativeDiagnosticSchema = z.object({
   audioSourceActive: z.boolean().optional(),
 });
 export const diagnosticRecordSchema = z.object({
+  issues: diagnosticIssues,
   v: z.literal(1),
   appVersion: text.optional(),
   at: number,
@@ -355,7 +428,74 @@ export function safeDiagnosticRecord(value: unknown): DiagnosticRecord {
     throw new Error("诊断记录过大");
   return entry;
 }
+// Repair only optional telemetry, never the envelope or permission/identity fields.
+// Called before IPC by our collector; untrusted writes remain strictly validated.
+export function repairDiagnosticRecord(input: unknown): DiagnosticRecord {
+  const candidate = structuredClone(input) as Record<string, unknown>;
+  const issues: DiagnosticIssue[] = [];
+  for (let attempt = 0; attempt < 64; attempt++) {
+    const parsed = diagnosticRecordSchema.safeParse(candidate);
+    if (parsed.success) {
+      const entry = parsed.data;
+      if (issues.length)
+        entry.issues = [...(entry.issues ?? []), ...issues].slice(0, 64);
+      while (
+        JSON.stringify(entry).length > diagnosticRecordLimit &&
+        entry.media?.tracks.length
+      ) {
+        entry.media.tracks.pop();
+        if (!entry.issues?.some((x) => x.code === "truncated"))
+          entry.issues = [
+            ...(entry.issues ?? []).slice(0, 63),
+            { stage: "record", code: "truncated", field: "media.tracks" },
+          ];
+      }
+      return safeDiagnosticRecord(entry);
+    }
+    const error = parsed.error.issues[0]!;
+    const path = error.path as (string | number)[];
+    const root = path[0];
+    if (!["media", "native", "renderer", "resources"].includes(String(root)))
+      throw parsed.error;
+    let parent: Record<string, unknown> | unknown[] = candidate;
+    for (const key of path.slice(0, -1))
+      parent = (parent as Record<string, unknown>)[key] as Record<
+        string,
+        unknown
+      >;
+    const key = path.at(-1)!;
+    const value = (parent as Record<string, unknown>)[key];
+    issues.push({
+      stage:
+        root === "media"
+          ? path[1] === "playback"
+            ? "playback"
+            : "media"
+          : (root as "native" | "renderer" | "resources"),
+      code:
+        typeof value === "number" && !Number.isFinite(value)
+          ? "invalid-number"
+          : "invalid-field",
+      field: path.join("."),
+    });
+    if (value === undefined) {
+      // A required member field cannot be omitted: drop only that member,
+      // preserving the healthy sibling tracks/processes and other telemetry.
+      const member = path.findIndex((key) => typeof key === "number");
+      if (member > 0) {
+        let array: unknown = candidate;
+        for (const key of path.slice(0, member))
+          array = (array as Record<string, unknown>)[key];
+        (array as unknown[]).splice(Number(path[member]), 1);
+      } else delete candidate[String(root)];
+    } else if (attempt === 62) delete candidate[String(root)];
+    else if (Array.isArray(parent)) parent.splice(Number(key), 1);
+    else delete parent[key];
+  }
+  return safeDiagnosticRecord(candidate);
+}
 export const diagnosticSnapshotSchema = z.object({
+  issues: diagnosticIssues,
   microphoneNoise: microphoneNoiseSchema.optional(),
   capturedAt: z.string().max(64).optional(),
   state: text.optional(),

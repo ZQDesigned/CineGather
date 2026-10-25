@@ -30,8 +30,51 @@ export interface DiagnosticInterval {
   droppedFrames?: number;
   rttMs?: number;
   qualityLimitation?: string;
+  encoderImplementation?: string;
+  encoderMode?: "hardware" | "software" | "unknown";
+}
+export function encoderMode(stat?: {
+  powerEfficientEncoder?: boolean;
+  encoderImplementation?: string;
+}) {
+  if (stat?.powerEfficientEncoder === true) return "hardware" as const;
+  if (
+    stat?.powerEfficientEncoder === false ||
+    /OpenH264|libvpx|libaom/i.test(stat?.encoderImplementation ?? "")
+  )
+    return "software" as const;
+  return "unknown" as const;
 }
 export function summarizeDiagnostics(entries: DiagnosticRecord[]) {
+  const failures = new Map<
+    string,
+    {
+      stage: string;
+      code: string;
+      field?: string;
+      count: number;
+      firstAt: number;
+      lastAt: number;
+    }
+  >();
+  for (const entry of entries)
+    for (const issue of [
+      ...(entry.issues ?? []),
+      ...(entry.media?.issues ?? []),
+    ]) {
+      const key = [issue.stage, issue.code, issue.field].join(":");
+      const old = failures.get(key);
+      if (old) {
+        old.count++;
+        old.lastAt = entry.at;
+      } else
+        failures.set(key, {
+          ...issue,
+          count: 1,
+          firstAt: entry.at,
+          lastAt: entry.at,
+        });
+    }
   const previous = new Map<
     string,
     { at: number; monotonicMs: number; stat: Record<string, unknown> }
@@ -123,6 +166,10 @@ export function summarizeDiagnostics(entries: DiagnosticRecord[]) {
           interval.rttMs = number(stat, "roundTripTime")! * 1000;
         if (typeof stat.qualityLimitationReason === "string")
           interval.qualityLimitation = stat.qualityLimitationReason;
+        if (stat.type === "outbound-rtp") {
+          interval.encoderImplementation = stat.encoderImplementation;
+          interval.encoderMode = encoderMode(stat);
+        }
         intervals.push(interval);
       }
   const coverage = [...new Set(entries.map((entry) => entry.session))].map(
@@ -156,6 +203,7 @@ export function summarizeDiagnostics(entries: DiagnosticRecord[]) {
     intervals,
     summary: {
       records: entries.length,
+      collectionIssues: [...failures.values()],
       coverage,
       since: entries[0]?.at,
       until: entries.at(-1)?.at,
@@ -181,6 +229,7 @@ export function summarizeDiagnostics(entries: DiagnosticRecord[]) {
         .slice(-500),
       limitations: [
         "Correlate sender and viewer packages by hashed room, participant and track SID. One endpoint alone cannot always distinguish SFU forwarding from the network path.",
+        "Collection issues identify sanitized stage/code/schema-field paths. Partial samples preserve valid fields; hardware mode is confirmed by powerEfficientEncoder, not by enabling a feature flag. Unknown mode does not imply hardware. Raw exceptions are never exported.",
         "No media is recorded. An unchanged source image is not proof of a capture freeze. Missing/unsupported stats are absent, never fabricated as zero.",
         "UTC alignment uses server midpoint offsets with half-RTT uncertainty when available. WebRTC timestamps are local clocks; rates use differences only.",
         "Freeze, jitter-buffer and processing durations are seconds in raw WebRTC stats; derived interval units are explicit. Counters reset on reconnect; no rates span gaps or resets.",
@@ -267,6 +316,8 @@ export function framePipeline(
           encodeMs: interval?.encodeMs,
           qualityLimitation: interval?.qualityLimitation,
           reportStatus: track.status,
+          encoderImplementation: stat?.encoderImplementation,
+          encoderMode: track.local ? encoderMode(stat) : undefined,
         };
       }),
   );
@@ -287,7 +338,7 @@ function csv(rows: Record<string, unknown>[], columns: string[]) {
     ),
   ].join("\n");
 }
-const guide = `CineGather 诊断包（格式 v1）\n\n先阅读 manifest.json 的时间范围、缺口和能力说明，再检查 summary.json 的问题标记及异常区间。timeline.ndjson 包含逐条原始白名单记录；intervals.csv 是按轨道计算的区间码率、帧率、丢包、冻结、解码和缓冲指标。current.json 是导出时快照。frame-pipeline.csv 对照目标、实际采集、编码、接收、解码与呈现帧率；目标值只用于发送端，观看端的本机画质设置不能代表共享端目标。静态内容可能主动降帧，判断异常应对照持续运动画面。\n\n共享端和观看端请分别导出同一次问题的包。通过 room 哈希、participant 哈希、track SID 关联；session 是每次应用启动随机生成的会话标识。at 是 UTC 毫秒，monotonicMs 是该进程单调时钟。server.capturedAt 与 request.clockOffsetMs/clockUncertaintyMs 用于对齐两端时钟，误差至少为半个请求往返时间。\n\n优先排查：发送端 media-source/编码帧率及质量限制 → 发送码率/重传/远端接收报告 → 服务器 CPU/内存/SFU 转发与丢包 → 接收帧率/丢包/缓冲/解码 → 视频呈现回调间隔/掉帧及渲染线程长任务。对照 resources 中 GPU/渲染进程负载。native 是 macOS 原生采集宿主的安全计数器；Windows 的采集/编码走 WebRTC 报告。\n\n记录仅覆盖应用实际运行时段；退出、休眠、浏览器后台节流、采样失败、磁盘故障或容量限制均可能导致缺口，不能据此声称连续一小时无异常。默认滚动保留两小时，不含音视频、截图、聊天内容、账号凭据、原始用户ID、IP地址、窗口标题、完整SDP或原始第三方日志。服务器指标未启用/旧服务端会明确标为不可用。不能仅凭单端数据保证唯一归因，更不能恢复真实音视频内容。\n`;
+const guide = `CineGather 诊断包（格式 v1）\n\nsummary.json 的 collectionIssues 汇总采样失败的阶段、分类、字段和发生时间，降级时其余有效数据继续保留。frame-pipeline.csv 的 encoderImplementation/encoderMode 是实际运行结果；manifest.encodingPolicy 仅说明启动策略，不能据此认定已使用硬件编码。\n\n先阅读 manifest.json 的时间范围、缺口和能力说明，再检查 summary.json 的问题标记及异常区间。timeline.ndjson 包含逐条原始白名单记录；intervals.csv 是按轨道计算的区间码率、帧率、丢包、冻结、解码和缓冲指标。current.json 是导出时快照。frame-pipeline.csv 对照目标、实际采集、编码、接收、解码与呈现帧率；目标值只用于发送端，观看端的本机画质设置不能代表共享端目标。静态内容可能主动降帧，判断异常应对照持续运动画面。\n\n共享端和观看端请分别导出同一次问题的包。通过 room 哈希、participant 哈希、track SID 关联；session 是每次应用启动随机生成的会话标识。at 是 UTC 毫秒，monotonicMs 是该进程单调时钟。server.capturedAt 与 request.clockOffsetMs/clockUncertaintyMs 用于对齐两端时钟，误差至少为半个请求往返时间。\n\n优先排查：发送端 media-source/编码帧率及质量限制 → 发送码率/重传/远端接收报告 → 服务器 CPU/内存/SFU 转发与丢包 → 接收帧率/丢包/缓冲/解码 → 视频呈现回调间隔/掉帧及渲染线程长任务。对照 resources 中 GPU/渲染进程负载。native 是 macOS 原生采集宿主的安全计数器；Windows 的采集/编码走 WebRTC 报告。\n\n记录仅覆盖应用实际运行时段；退出、休眠、浏览器后台节流、采样失败、磁盘故障或容量限制均可能导致缺口，不能据此声称连续一小时无异常。默认滚动保留两小时，不含音视频、截图、聊天内容、账号凭据、原始用户ID、IP地址、窗口标题、完整SDP或原始第三方日志。服务器指标未启用/旧服务端会明确标为不可用。不能仅凭单端数据保证唯一归因，更不能恢复真实音视频内容。\n`;
 export async function diagnosticArchive(
   entries: DiagnosticRecord[],
   metadata: Record<string, unknown>,
@@ -323,6 +374,8 @@ export async function diagnosticArchive(
     "droppedFrames",
     "rttMs",
     "qualityLimitation",
+    "encoderImplementation",
+    "encoderMode",
   ];
   const files = {
     "manifest.json": strToU8(

@@ -58,3 +58,58 @@ test("a stalled stats promise cannot block the next sampling interval", async ()
     }, 10),
   ).toEqual({ status: "failed", stats: [] });
 });
+
+test("one invalid RTC field does not erase the track's valid frame and encoder evidence", () => {
+  const report = new Map([
+    [
+      "V",
+      {
+        id: "V",
+        type: "outbound-rtp",
+        kind: "video",
+        framesEncoded: 120,
+        totalEncodeTime: NaN,
+        encoderImplementation: "OpenH264",
+        address: "10.0.0.1",
+      },
+    ],
+  ]) as unknown as RTCStatsReport;
+  const rows = projectRTCStats(report);
+  expect(rows).toHaveLength(1);
+  expect(rows[0]).toMatchObject({
+    framesEncoded: 120,
+    encoderImplementation: "OpenH264",
+  });
+  expect(rows[0]?.totalEncodeTime).toBeUndefined();
+  expect(JSON.stringify(rows)).not.toContain("10.0.0.1");
+});
+
+test("a failed playback quality API preserves other display metrics and reports a sanitized cause", async () => {
+  const { PlaybackProbe } = await import("../src/diagnostics");
+  const probe = new PlaybackProbe();
+  const video = {
+    addEventListener() {},
+    removeEventListener() {},
+    clientWidth: 900,
+    clientHeight: 500,
+    readyState: 4,
+    paused: false,
+    ended: false,
+    videoWidth: 1920,
+    videoHeight: 1080,
+    currentTime: 15,
+    playbackRate: 1,
+    getVideoPlaybackQuality() {
+      throw new Error("https://private/?token=secret");
+    },
+  };
+  probe.bind(video as unknown as HTMLVideoElement);
+  expect(probe.sample()).toMatchObject({ width: 1920, currentTime: 15 });
+  const issues = probe.takeIssues();
+  expect(issues).toContainEqual({
+    stage: "playback",
+    code: "read-failed",
+    field: "media.playback.totalFrames",
+  });
+  expect(JSON.stringify(issues)).not.toContain("private");
+});
