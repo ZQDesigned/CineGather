@@ -5,6 +5,10 @@ import { fileURLToPath } from "node:url";
 const path = (relative: string) =>
   fileURLToPath(new URL(relative, import.meta.url));
 const proxy = {
+  "/downloads/windows-latest.json": {
+    target: "https://cgplat.zqdesigned.city",
+    changeOrigin: true,
+  },
   "/api": {
     target: process.env.WEB_API_PROXY ?? "http://127.0.0.1:14310",
     changeOrigin: true,

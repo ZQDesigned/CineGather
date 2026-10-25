@@ -2,6 +2,7 @@
   "name": "@cinegather/desktop",
   "main": "out/main/index.cjs",
   "dependencies": {
+    "@ant-design/icons": "6.3.4",
     "@cinegather/api-client": "workspace:*",
     "@cinegather/client-core": "workspace:*",
     "@cinegather/contracts": "workspace:*",
