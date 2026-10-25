@@ -432,6 +432,8 @@ test("native pipeline uses observed output counters, separates restarts and neve
         hardwareEncoder: false,
         outputTotalFrames: [0, 150, 2, 152][i],
         outputBytes: [0, 300000, 1000, 301000][i],
+        captureArrivedFrames: i * 150,
+        captureCopiedFrames: i * 15,
         renderTotalFrames: i * 150,
         activeFps: 30,
       },
@@ -439,6 +441,8 @@ test("native pipeline uses observed output counters, separates restarts and neve
   );
   const rows = nativePipeline(samples);
   expect(rows[1]?.encodedFps).toBe(30);
+  expect(rows[1]?.captureArrivalFps).toBe(30);
+  expect(rows[1]?.capturedFps).toBe(3);
   expect(rows[1]?.bitrateBps).toBe(480000);
   expect(rows[1]?.encoderMode).toBe("software");
   expect(rows[2]?.encodedFps).toBeUndefined();

@@ -41,6 +41,7 @@ try {
     framesEncoded: number;
     bytesEncoded: number;
     encoder: {
+      captureCountersAvailable: boolean;
       graphicsAdapterVerified: boolean;
       graphicsAdapterIndex: number;
       graphicsVendorId: number;
@@ -55,6 +56,7 @@ try {
   expect(probe.encoder.selectedEncoder).toBe("x264");
   expect(probe.encoder.hardwareEncoder).toBe(false);
   expect(probe.encoder.graphicsAdapterVerified).toBe(true);
+  expect(probe.encoder.captureCountersAvailable).toBe(true);
   expect(probe.encoder.graphicsAdapterIndex).toBe(0);
   expect(probe.encoder.graphicsVendorId).toBe(
     inventory.adapters.find((a) => a.index === 0)?.vendorId,

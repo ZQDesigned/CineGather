@@ -325,6 +325,9 @@ export const nativeNumbers = [
   "graphicsAdapterIndex",
   "graphicsVendorId",
   "graphicsDeviceId",
+  "captureArrivedFrames",
+  "captureCopiedFrames",
+  "captureAgeMs",
   "captureSequence",
   "configuredWidth",
   "configuredHeight",
@@ -350,6 +353,7 @@ export const nativeNumbers = [
 ] as const;
 export const nativeDiagnosticSchema = z.object({
   graphicsAdapterVerified: z.boolean().optional(),
+  captureCountersAvailable: z.boolean().optional(),
   transportDetail: z
     .enum(["none", "missing-location", "relative-base", "invalid-resource"])
     .optional(),

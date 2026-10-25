@@ -239,6 +239,66 @@ flags = [
     "/I" + str(build),
     "/I" + str(root / "native/capture"),
 ]
+# Preserve the pinned OBS WGC implementation; add only numeric frame counters.
+winrt = build / "winrt"
+winrt.mkdir(exist_ok=True)
+for name in [
+    "winrt-capture.cpp",
+    "winrt-capture.h",
+    "winrt-dispatch.cpp",
+    "winrt-dispatch.h",
+]:
+    shutil.copy2(obs / "libobs-winrt" / name, winrt / name)
+run([sys.executable, root / "native/capture/patch-winrt-counters.py", winrt])
+headers = [
+    "d3d11.h",
+    "DispatcherQueue.h",
+    "dwmapi.h",
+    "obs-module.h",
+    "util/windows/ComPtr.hpp",
+    "Windows.Graphics.Capture.Interop.h",
+    "windows.graphics.directx.direct3d11.interop.h",
+    "winrt/Windows.Foundation.Metadata.h",
+    "winrt/Windows.Graphics.Capture.h",
+    "winrt/Windows.System.h",
+]
+pch = winrt / "common.hpp"
+pch.write_text("\n".join("#include <" + h + ">" for h in headers) + "\n")
+winrt_objects = []
+for name in ["winrt-capture", "winrt-dispatch"]:
+    obj = winrt / (name + ".obj")
+    winrt_objects.append(obj)
+    run(
+        [
+            "cl",
+            *flags,
+            "/D_SILENCE_EXPERIMENTAL_COROUTINE_DEPRECATION_WARNINGS",
+            "/FI" + str(pch),
+            "/c",
+            winrt / (name + ".cpp"),
+            "/Fo:" + str(obj),
+        ]
+    )
+run(
+    [
+        "link",
+        "/nologo",
+        "/DLL",
+        "/OUT:" + str(runtime / "bin/64bit/libobs-winrt.dll"),
+        "/IMPLIB:" + str(build / "winrt-patched.lib"),
+        *winrt_objects,
+        obs_lib,
+        "d3d11.lib",
+        "dxgi.lib",
+        "dwmapi.lib",
+        "windowsapp.lib",
+        "runtimeobject.lib",
+        "CoreMessaging.lib",
+        "ole32.lib",
+        "oleaut32.lib",
+    ]
+)
+winrt_lib = import_library("libobs-winrt", runtime / "bin/64bit/libobs-winrt.dll")
 run(
     [
         "cl",
@@ -317,6 +377,9 @@ shutil.copytree(
 shutil.copytree(
     whip, source_dir / "obs-webrtc-modified", ignore=shutil.ignore_patterns("*.obj")
 )
+shutil.copytree(
+    winrt, source_dir / "winrt-modified", ignore=shutil.ignore_patterns("*.obj")
+)
 for name, _, _ in pins:
     if not name.endswith(".zip"):
         shutil.copy2(vendor / name, source_dir / name)
@@ -330,6 +393,10 @@ shutil.copy2(obs / "COPYING", runtime / "COPYING-OBS.txt")
         {
             "obsVersion": "32.2.2",
             "platform": "win32-x64",
+            "captureCounters": "WGC-arrived-copied-QPC-v1",
+            "winrtOutputSha256": hashlib.sha256(
+                (runtime / "bin/64bit/libobs-winrt.dll").read_bytes()
+            ).hexdigest(),
             "sources": [{"file": n, "url": u, "sha256": h} for n, u, h in pins],
             "runtimeInputSha256": hashes,
             "curlSourceSha256": hashlib.sha256(

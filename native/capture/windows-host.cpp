@@ -81,7 +81,18 @@ static obs_service_t *service;
 static obs_output_t *output;
 static std::atomic<int> outputPhase{0}, stopCode{-1};
 static std::atomic<uint64_t> deadlineNs{0}, startupDeadlineNs{0};
-static uint64_t captureSequence = 0;
+static uint64_t captureSequence = 0, captureArrivedBase = 0,
+                captureCopiedBase = 0;
+static bool syntheticCapture = false;
+static bool captureStats(uint64_t &arrived, uint64_t &copied, uint64_t &stamp) {
+  using Read = void (*)(uint64_t *, uint64_t *, uint64_t *);
+  auto read = reinterpret_cast<Read>(GetProcAddress(
+      GetModuleHandleW(L"libobs-winrt.dll"), "cg_capture_stats"));
+  if (!read)
+    return false;
+  read(&arrived, &copied, &stamp);
+  return true;
+}
 static int configuredWidth = 0, configuredHeight = 0, configuredFps = 0;
 static uint64_t graphicsReinitializations = 0;
 static int graphicsAdapter = -1;
@@ -902,6 +913,21 @@ static Data status() {
     obs_data_set_int(d.get(), "graphicsVendorId", graphicsVendor);
     obs_data_set_int(d.get(), "graphicsDeviceId", graphicsDevice);
   }
+  uint64_t arrived = 0, copied = 0, stamp = 0;
+  const bool counters = captureStats(arrived, copied, stamp);
+  obs_data_set_bool(d.get(), "captureCountersAvailable", counters);
+  if (counters && videoSource && !syntheticCapture) {
+    obs_data_set_int(
+        d.get(), "captureArrivedFrames",
+        arrived >= captureArrivedBase ? arrived - captureArrivedBase : 0);
+    obs_data_set_int(d.get(), "captureCopiedFrames",
+                     copied >= captureCopiedBase ? copied - captureCopiedBase
+                                                 : 0);
+    if (stamp)
+      obs_data_set_double(
+          d.get(), "captureAgeMs",
+          double(os_gettime_ns() > stamp ? os_gettime_ns() - stamp : 0) / 1e6);
+  }
   obs_data_set_bool(d.get(), "screenPermission", true);
   obs_data_set_string(d.get(), "outputPhase",
                       outputPhase == 2   ? "active"
@@ -1071,6 +1097,8 @@ static void createVideoEncoder(const Choice &c, int bitrate) {
 static void startCapture(obs_data_t *config, bool synthetic = false) {
   check(!output, "already-sharing");
   ++captureSequence;
+  syntheticCapture = synthetic;
+
   transportFailure = 0;
   transportHttpStatus = 0;
   transportDetail = 0;
@@ -1107,6 +1135,8 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
                               return current.id == c.id && current.available;
                             }),
             "encoder-unavailable");
+      uint64_t captureStamp = 0;
+      captureStats(captureArrivedBase, captureCopiedBase, captureStamp);
       deviceFallback = false;
       scene = obs_scene_create("CineGather native scene");
       check(scene, "scene-create");
