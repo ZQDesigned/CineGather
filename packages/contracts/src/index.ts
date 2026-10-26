@@ -174,8 +174,18 @@ export const roomInvitationSchema = z.object({
   senderName: z.string(),
   token: z.string().min(32).max(128),
   expiresAt: z.iso.datetime({ offset: true }),
+  requestApproved: z.boolean().optional(),
 });
 export type RoomInvitation = z.infer<typeof roomInvitationSchema>;
+export const roomJoinRequestSchema = z.object({
+  id: z.uuid(),
+  userId: z.uuid(),
+  displayName: z.string(),
+  incoming: z.boolean(),
+  status: z.enum(["pending", "approved", "rejected"]),
+  expiresAt: z.iso.datetime({ offset: true }),
+});
+export type RoomJoinRequest = z.infer<typeof roomJoinRequestSchema>;
 export const friendRoomInviteSentSchema = z.object({
   id: z.uuid(),
   expiresAt: z.iso.datetime({ offset: true }),
@@ -187,6 +197,7 @@ export const friendRoomPresenceSchema = z.object({
 export type FriendRoomPresence = z.infer<typeof friendRoomPresenceSchema>;
 export const friendsSchema = z.object({
   roomInvitations: z.array(roomInvitationSchema).default([]),
+  roomJoinRequests: z.array(roomJoinRequestSchema).default([]),
   items: z.array(
     z.object({
       userId: z.uuid(),

@@ -173,7 +173,11 @@ export function RoomInvitationInbox() {
           >
             <List.Item.Meta
               title={invitation.roomName}
-              description={`${invitation.senderName} 邀请你加入`}
+              description={
+                invitation.requestApproved
+                  ? `${invitation.senderName} 已同意你的入房申请`
+                  : `${invitation.senderName} 邀请你加入`
+              }
             />
           </List.Item>
         )}
@@ -208,7 +212,9 @@ export function RoomInvitationNotifications() {
       seen.current.add(invitation.id);
       notification.info({
         key: `room-invitation:${invitation.id}`,
-        title: `${invitation.senderName} 邀请你加入房间`,
+        title: invitation.requestApproved
+          ? `${invitation.senderName} 已同意你的入房申请`
+          : `${invitation.senderName} 邀请你加入房间`,
         description: (
           <Space direction="vertical">
             <span>{invitation.roomName}</span>

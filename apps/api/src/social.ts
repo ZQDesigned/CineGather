@@ -5,6 +5,7 @@ import { fail, uuid } from "./errors";
 import type { User } from "@cinegather/contracts";
 import { presenceLifetimeMs } from "./presence";
 import { listRoomInvitations } from "./friend-room-invitations";
+import { listRoomJoinRequests } from "./friend-room-requests";
 export async function searchFriend(user: User, username: string) {
   const [target] = await db
     .select({
@@ -144,6 +145,7 @@ export async function listFriends(user: User) {
     .limit(100);
   return {
     roomInvitations: await listRoomInvitations(user),
+    roomJoinRequests: await listRoomJoinRequests(user),
     items: rows.map((r) => ({
       userId: r.userId,
       displayName: r.displayName,

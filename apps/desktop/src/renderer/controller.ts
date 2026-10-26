@@ -80,7 +80,8 @@ export const api = createApi(baseUrl, () => sessionToken, {
 const friendRequests = new FriendRequests(
   () => sessionToken,
   async () => unwrap(await api.GET("/api/v1/friends")),
-  (friends, roomInvitations) => update({ friends, roomInvitations }),
+  (friends, roomInvitations, roomJoinRequests) =>
+    update({ friends, roomInvitations, roomJoinRequests }),
 );
 export const refreshFriends = () => friendRequests.refresh();
 let presenceRevision = 0;
@@ -1287,6 +1288,29 @@ export async function dismissRoomInvitation(id: string) {
 export async function openRoomInvitationInbox() {
   if (state().modal === "source") await chooseSource();
   update({ modal: "room-invitations" });
+}
+export async function openRoomRequestInbox() {
+  if (state().modal === "source") await chooseSource();
+  update({ modal: "room-requests" });
+}
+export async function requestFriendRoom(userId: string) {
+  unwrap(
+    await api.POST("/api/v1/friends/{userId}/room-requests", {
+      params: { path: { userId } },
+    }),
+  );
+  await refreshFriends();
+  update({ notice: "入房申请已发送，等待好友处理" });
+}
+export async function decideRoomRequest(requestId: string, approve: boolean) {
+  const params = { path: { requestId } };
+  unwrap(
+    approve
+      ? await api.POST("/api/v1/room-requests/{requestId}/approve", { params })
+      : await api.POST("/api/v1/room-requests/{requestId}/reject", { params }),
+  );
+  await refreshFriends();
+  update({ notice: approve ? "已同意入房申请" : "已拒绝入房申请" });
 }
 export async function acceptRoomInvitation(invitation: RoomInvitation) {
   await roomSession.enter(invitation.roomId, invitation.token);

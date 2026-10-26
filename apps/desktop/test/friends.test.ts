@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import type { RoomInvitation } from "@cinegather/contracts";
+import type { RoomInvitation, RoomJoinRequest } from "@cinegather/contracts";
 import {
   FriendRequests,
   friendPresenceLabel,
@@ -41,6 +41,15 @@ test("old requests cannot restore a handled request or leak into another account
   let identity: string | undefined = "alice";
   let items: Friend[] = [];
   let invitations: RoomInvitation[] = [];
+  let requests: RoomJoinRequest[] = [];
+  const roomRequest: RoomJoinRequest = {
+    id: roomInvitation.id,
+    userId: roomInvitation.senderId,
+    displayName: "朋友",
+    incoming: true,
+    status: "pending",
+    expiresAt: roomInvitation.expiresAt,
+  };
   const pending: ((items: Friend[]) => void)[] = [];
   const friends = new FriendRequests(
     () => identity,
@@ -48,11 +57,16 @@ test("old requests cannot restore a handled request or leak into another account
       const items = await new Promise<Friend[]>((resolve) =>
         pending.push(resolve),
       );
-      return { items, roomInvitations: items.length ? [roomInvitation] : [] };
+      return {
+        items,
+        roomInvitations: items.length ? [roomInvitation] : [],
+        roomJoinRequests: items.length ? [roomRequest] : [],
+      };
     },
-    (next, roomInvitations) => {
+    (next, roomInvitations, roomRequests) => {
       items = next;
       invitations = roomInvitations;
+      requests = roomRequests;
     },
   );
   const old = friends.refresh();
@@ -63,6 +77,7 @@ test("old requests cannot restore a handled request or leak into another account
   await old;
   expect(items).toEqual([]);
   expect(invitations).toEqual([]);
+  expect(requests).toEqual([]);
   const beforeLogout = friends.refresh();
   friends.clear();
   identity = "bob";
@@ -70,10 +85,13 @@ test("old requests cannot restore a handled request or leak into another account
   await beforeLogout;
   expect(items).toEqual([]);
   expect(invitations).toEqual([]);
+  expect(requests).toEqual([]);
   const fresh = friends.refresh();
   pending[3]!([request]);
   await fresh;
   expect(invitations).toEqual([roomInvitation]);
+  expect(requests).toEqual([roomRequest]);
   friends.clear();
   expect(invitations).toEqual([]);
+  expect(requests).toEqual([]);
 });

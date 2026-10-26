@@ -19,6 +19,7 @@ import { RoomSettings } from "./RoomSettings";
 import { Diagnostics } from "./Diagnostics";
 import { FriendSearch } from "./FriendSearch";
 import { FriendRoomPicker, RoomInvitationInbox } from "./RoomInvitations";
+import { RoomRequestInbox } from "./RoomJoinRequests";
 import { useEffect, useState } from "react";
 import { Copy, Monitor, AppWindow, RefreshCw, Shield } from "lucide-react";
 import { useApp, update, type Modal } from "../store";
@@ -61,6 +62,7 @@ function DialogContent({ modal }: { modal: Modal }) {
       </ModalShell>
     );
   if (modal === "room-invitations") return <RoomInvitationInbox />;
+  if (modal === "room-requests") return <RoomRequestInbox />;
   if (modal === "share-unavailable")
     return (
       <ModalShell

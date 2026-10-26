@@ -7,6 +7,7 @@ import type {
   DesktopSettings,
   CaptureSource,
   RoomInvitation,
+  RoomJoinRequest,
 } from "@cinegather/contracts";
 import type { MediaSummary } from "@cinegather/media-core";
 import { defaultSettings } from "../shared/settings";
@@ -22,6 +23,7 @@ export type Modal =
   | "invite"
   | "add-friend"
   | "room-invitations"
+  | "room-requests"
   | "source"
   | "diagnostics"
   | "bans"
@@ -43,6 +45,7 @@ interface State {
   user?: User;
   friends: Friend[];
   roomInvitations: RoomInvitation[];
+  roomJoinRequests: RoomJoinRequest[];
   presenceVisibility?: "online" | "invisible";
   registrationEnabled?: boolean;
   room?: RoomInfo;
@@ -93,6 +96,7 @@ export const useApp = create<State>(() => ({
   rooms: [],
   friends: [],
   roomInvitations: [],
+  roomJoinRequests: [],
   modal: null,
   busy: false,
   cinema: false,

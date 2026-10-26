@@ -1,4 +1,8 @@
-import type { FriendRoomPresence, RoomInvitation } from "@cinegather/contracts";
+import type {
+  FriendRoomPresence,
+  RoomInvitation,
+  RoomJoinRequest,
+} from "@cinegather/contracts";
 
 export interface Friend {
   userId: string;
@@ -26,15 +30,17 @@ export class FriendRequests {
     private readonly load: () => Promise<{
       items: Friend[];
       roomInvitations?: RoomInvitation[];
+      roomJoinRequests?: RoomJoinRequest[];
     }>,
     private readonly changed: (
       friends: Friend[],
       invitations: RoomInvitation[],
+      requests: RoomJoinRequest[],
     ) => void,
   ) {}
   clear() {
     ++this.revision;
-    this.changed([], []);
+    this.changed([], [], []);
   }
   async refresh() {
     const identity = this.identity();
@@ -43,7 +49,11 @@ export class FriendRequests {
     try {
       const friends = await this.load();
       if (identity === this.identity() && revision === this.revision)
-        this.changed(friends.items, friends.roomInvitations ?? []);
+        this.changed(
+          friends.items,
+          friends.roomInvitations ?? [],
+          friends.roomJoinRequests ?? [],
+        );
     } catch (error) {
       if (identity === this.identity() && revision === this.revision)
         throw error;

@@ -33,6 +33,10 @@ import {
   RoomInvitationInboxButton,
   RoomInvitationNotifications,
 } from "./RoomInvitations";
+import {
+  RoomRequestInboxButton,
+  RoomRequestNotifications,
+} from "./RoomJoinRequests";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
   authenticating: "正在验证身份",
@@ -377,6 +381,7 @@ export function App() {
           />
           <div className="topbar-right">
             <RoomInvitationInboxButton />
+            <RoomRequestInboxButton />
             {(home || secondary) && app.room && (
               <Space.Compact
                 className="current-room"
@@ -439,6 +444,7 @@ export function App() {
         </header>
         <Feedback />
         <RoomInvitationNotifications />
+        <RoomRequestNotifications />
         <UpdateCenter />
         {!app.user ? (
           <Welcome />

@@ -99,6 +99,7 @@ export async function listRoomInvitations(user: User) {
       senderId: users.id,
       senderName: users.displayName,
       expiresAt: invites.expiresAt,
+      requestApproved: sql<boolean>`EXISTS (SELECT 1 FROM room_join_requests AS request WHERE request.invite_id = ${invites.id} AND request.status = 'approved')`,
     })
     .from(invites)
     .innerJoin(rooms, eq(rooms.id, invites.roomId))

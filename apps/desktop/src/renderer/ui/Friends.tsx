@@ -17,6 +17,7 @@ import { unwrap } from "@cinegather/api-client";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { friendPresenceLabel, type Friend } from "../friends";
+import { FriendRoomJoinButton } from "./RoomJoinRequests";
 
 const Surface = styled.section`
   flex: 1;
@@ -121,6 +122,9 @@ export function Friends() {
           className="friend"
           key={friend.userId}
           actions={[
+            ...(friend.status === "accepted" && friend.online && friend.room
+              ? [<FriendRoomJoinButton key="join-room" friend={friend} />]
+              : []),
             ...(friend.status === "pending" && friend.incoming
               ? [
                   <Button

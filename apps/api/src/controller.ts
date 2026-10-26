@@ -29,6 +29,7 @@ import {
   dismissRoomInvitation,
 } from "./friend-room-invitations";
 import * as presence from "./presence";
+import { requestFriendRoom, decideRoomRequest } from "./friend-room-requests";
 import { revokeSession } from "./auth";
 import {
   registerAccount,
@@ -438,6 +439,33 @@ export class ApiController {
   @Endpoint("searchFriend", c.friendSearchSchema)
   searchFriend(@Req() req: AuthRequest, @Query("username") username: unknown) {
     return s.searchFriend(req.user, parse(c.usernameInput, username));
+  }
+  @Post("friends/:userId/room-requests")
+  @Endpoint(
+    "requestFriendRoom",
+    c.friendRoomInviteSentSchema,
+    undefined,
+    ["userId"],
+    201,
+  )
+  requestFriendRoom(@Req() req: AuthRequest, @Param("userId") userId: string) {
+    return requestFriendRoom(req.user, userId);
+  }
+  @Post("room-requests/:requestId/approve")
+  @Endpoint("approveRoomRequest", c.okSchema, undefined, ["requestId"], 201)
+  approveRoomRequest(
+    @Req() req: AuthRequest,
+    @Param("requestId") requestId: string,
+  ) {
+    return decideRoomRequest(req.user, requestId, true);
+  }
+  @Post("room-requests/:requestId/reject")
+  @Endpoint("rejectRoomRequest", c.okSchema, undefined, ["requestId"], 201)
+  rejectRoomRequest(
+    @Req() req: AuthRequest,
+    @Param("requestId") requestId: string,
+  ) {
+    return decideRoomRequest(req.user, requestId, false);
   }
   @Get("friends")
   @Endpoint("listFriends", c.friendsSchema)

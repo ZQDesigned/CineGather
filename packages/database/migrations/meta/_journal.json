@@ -92,6 +92,13 @@
       "when": 1793030200000,
       "tag": "0012_friend_room_invitations",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1793030300000,
+      "tag": "0013_friend_room_requests",
+      "breakpoints": true
     }
   ]
 }

@@ -158,6 +158,36 @@ export const invites = pgTable(
     ),
   ],
 );
+export const roomJoinRequests = pgTable(
+  "room_join_requests",
+  {
+    id: uuid("id").primaryKey(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    requesterId: uuid("requester_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    recipientId: uuid("recipient_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    status: text("status").notNull().default("pending"),
+    createdAt: time("created_at").notNull().defaultNow(),
+    expiresAt: time("expires_at").notNull(),
+    inviteId: uuid("invite_id").references(() => invites.id, {
+      onDelete: "set null",
+    }),
+  },
+  (t) => [
+    index("room_requests_recipient_idx").on(t.recipientId, t.expiresAt),
+    index("room_requests_requester_idx").on(t.requesterId, t.createdAt),
+    check(
+      "room_requests_status_check",
+      sql`${t.status} IN ('pending', 'approved', 'rejected')`,
+    ),
+    check("room_requests_not_self", sql`${t.requesterId} <> ${t.recipientId}`),
+  ],
+);
 export const leases = pgTable(
   "share_leases",
   {
