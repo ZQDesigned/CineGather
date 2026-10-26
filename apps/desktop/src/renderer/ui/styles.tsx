@@ -38,6 +38,9 @@ export function GlobalStyles() {
         svg {
           flex-shrink: 0;
         }
+        .ant-btn {
+          vertical-align: middle;
+        }
         h1,
         h2,
         h3,
@@ -1624,10 +1627,18 @@ export const AppSurface = styled.div`
     scrollbar-gutter: stable;
   }
   .cinema-dialog .ant-modal-footer {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: flex-end;
+    gap: 8px;
     flex-shrink: 0;
     margin-top: 16px;
     padding-top: 16px;
     border-top: 1px solid var(--line);
+  }
+  .cinema-dialog .ant-modal-footer > .ant-btn + .ant-btn {
+    margin-inline-start: 0;
   }
   .dialog-header h2 {
     font-size: 21px;
