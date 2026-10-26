@@ -84,12 +84,12 @@ const friendRequests = new FriendRequests(
 export const refreshFriends = () => friendRequests.refresh();
 let presenceRevision = 0;
 let presenceSyncing = false;
-async function syncPresence() {
+async function syncPresence(acceptingSession = false) {
   const identity = sessionToken;
   if (
     !identity ||
     !state().user ||
-    changingCredentials ||
+    (changingCredentials && !acceptingSession) ||
     state().requiredUpdate ||
     presenceSyncing
   )
@@ -949,7 +949,7 @@ async function acceptSession(data: { user: User; sessionToken: string }) {
   localStorage.setItem("cinegather.session", data.sessionToken);
   update({ user: data.user, modal: null, error: undefined });
   update({ presenceVisibility: undefined });
-  await syncPresence();
+  await syncPresence(true);
   await refreshRooms();
   await refreshFriends();
   if (state().joinValue) update({ modal: "join" });

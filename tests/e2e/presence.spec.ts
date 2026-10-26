@@ -1,5 +1,28 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
+import { registerTestAccount } from "./helpers/account";
+
+test("a newly registered account immediately shows its online preference", async ({
+  page,
+}) => {
+  let id: string | undefined;
+  try {
+    await page.goto("/");
+    await registerTestAccount(page, "注册后在线状态");
+    id = await page.evaluate(async () => {
+      const { useApp } = await import("/store.ts" as string);
+      return useApp.getState().user.id as string;
+    });
+    await expect(
+      page.getByRole("button", { name: "设置在线状态", exact: true }),
+    ).toHaveAttribute("title", "在线，点击切换状态", { timeout: 5000 });
+  } finally {
+    if (id)
+      execFileSync("bun", ["tests/e2e/helpers/cleanup-social.ts", id], {
+        stdio: "pipe",
+      });
+  }
+});
 
 test("accepted friends see online state while invisibility survives a reload and logout removes presence", async ({
   browser,
