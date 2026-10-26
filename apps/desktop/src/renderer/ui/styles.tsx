@@ -1046,6 +1046,20 @@ export const AppSurface = styled.div`
     flex: 1;
     min-height: 0;
   }
+  .chat-tab-label {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+  .chat-new-messages {
+    align-self: center;
+    flex-shrink: 0;
+    margin: 6px 0;
+  }
+  .chat-notification p {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+  }
   .chat-messages {
     flex: 1;
     min-height: 0;

@@ -1,3 +1,4 @@
+export * from "./chat";
 export * from "./update-events";
 export * from "./room";
 export * from "./share";

@@ -4557,6 +4557,8 @@ export interface operations {
         parameters: {
             query?: {
                 cursor?: string;
+                /** @description Forward replay after a message ID, or start for an empty baseline */
+                after?: string;
             };
             header?: never;
             path: {

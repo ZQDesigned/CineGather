@@ -9,6 +9,8 @@ import type {
 } from "@cinegather/contracts";
 import type { MediaSummary } from "@cinegather/media-core";
 import { defaultSettings } from "../shared/settings";
+import type { ChatSnapshot } from "@cinegather/client-core";
+import type { ChatMessage } from "@cinegather/contracts";
 import type { Friend } from "./friends";
 export type Modal =
   | "room-settings"
@@ -26,6 +28,10 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  chat: ChatSnapshot;
+  chatTab: "members" | "chat";
+  chatRequest: number;
+  chatNotification?: { roomId: string; message: ChatMessage; unread: number };
   accompaniment: {
     status: "idle" | "starting" | "active";
     source?: string;
@@ -64,6 +70,9 @@ interface State {
   joinValue: string;
 }
 export const useApp = create<State>(() => ({
+  chat: { items: [], unread: 0, loading: false, failed: false },
+  chatTab: "members",
+  chatRequest: 0,
   accompaniment: { status: "idle", volume: 20 },
   roomRevision: 0,
   shareRevision: 0,

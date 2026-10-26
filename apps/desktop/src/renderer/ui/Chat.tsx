@@ -1,53 +1,86 @@
-import { Button, Input, Empty, Tooltip } from "antd";
-import { useEffect, useRef, useState } from "react";
-import { MessageCircle, Send } from "lucide-react";
+import { Button, Input, Empty, Tooltip, Alert, Spin } from "antd";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { MessageCircle, Send, ArrowDown } from "lucide-react";
 import { useApp } from "../store";
 import * as actions from "../controller";
-import { unwrap } from "@cinegather/api-client";
-export function Chat() {
+export function Chat({ active = true }: { active?: boolean }) {
   const room = useApp((s) => s.room)!;
-  const [items, setItems] = useState<
-    { id: string; displayName: string; body: string; createdAt: string }[]
-  >([]);
+  const chat = useApp((s) => s.chat);
   const [body, setBody] = useState("");
   const [sending, setSending] = useState(false);
-  const end = useRef<HTMLDivElement>(null);
+  const scroller = useRef<HTMLDivElement>(null);
+  const following = useRef(true);
+  const visible = () =>
+    active && document.visibilityState === "visible" && document.hasFocus();
+  const view = () => actions.chat.setView(visible(), following.current);
+  const bottom = () => {
+    const element = scroller.current;
+    if (!element) return;
+    element.scrollTop = element.scrollHeight;
+    following.current = true;
+    view();
+  };
+  useLayoutEffect(() => {
+    if (following.current && scroller.current)
+      scroller.current.scrollTop = scroller.current.scrollHeight;
+    view();
+  }, [chat.items, room.id, active]);
   useEffect(() => {
-    let alive = true;
-    const poll = async () => {
-      try {
-        const result = unwrap(
-          await actions.api.GET("/api/v1/rooms/{roomId}/messages", {
-            params: { path: { roomId: room.id } },
-          }),
-        );
-        if (alive) setItems(result.items);
-      } catch (error) {
-        if (alive) actions.report(error);
-      }
-    };
-    void poll();
-    const timer = setInterval(() => void poll(), 2500);
+    view();
+    window.addEventListener("focus", view);
+    window.addEventListener("blur", view);
+    document.addEventListener("visibilitychange", view);
     return () => {
-      alive = false;
-      clearInterval(timer);
+      window.removeEventListener("focus", view);
+      window.removeEventListener("blur", view);
+      document.removeEventListener("visibilitychange", view);
+      actions.chat.setView(false, following.current);
     };
-  }, [room.id]);
-  useEffect(() => {
-    end.current?.scrollIntoView({ block: "nearest" });
-  }, [items.length]);
+  }, [room.id, active]);
   return (
     <div className="chat">
-      <div className="chat-messages">
-        {!items.length && (
-          <Empty
-            className="chat-empty"
-            image={<MessageCircle size={28} />}
-            description="第一句“在吗”，就从这里开始。"
-          />
+      {chat.failed && (
+        <Alert
+          type="warning"
+          title="暂时无法获取聊天消息"
+          action={
+            <Button size="small" onClick={() => void actions.chat.sync()}>
+              重新获取
+            </Button>
+          }
+        />
+      )}
+      <div
+        className="chat-messages"
+        ref={scroller}
+        onScroll={() => {
+          const element = scroller.current;
+          if (!element) return;
+          following.current =
+            element.scrollHeight - element.scrollTop - element.clientHeight <=
+            48;
+          view();
+        }}
+      >
+        {chat.loading && !chat.items.length ? (
+          <div className="chat-empty">
+            <Spin size="small" />
+          </div>
+        ) : (
+          !chat.items.length && (
+            <Empty
+              className="chat-empty"
+              image={<MessageCircle size={28} />}
+              description="第一句“在吗”，就从这里开始。"
+            />
+          )
         )}
-        {items.map((item) => (
-          <article className="chat-message" key={item.id}>
+        {chat.items.map((item) => (
+          <article
+            className="chat-message"
+            key={item.id}
+            data-message-id={item.id}
+          >
             <header>
               <strong>{item.displayName}</strong>
               <time>
@@ -60,29 +93,31 @@ export function Chat() {
             <p>{item.body}</p>
           </article>
         ))}
-        <div ref={end} />
       </div>
+      {chat.unread > 0 && (
+        <Button
+          className="chat-new-messages"
+          size="small"
+          icon={<ArrowDown size={14} />}
+          onClick={bottom}
+        >
+          查看 {chat.unread} 条新消息
+        </Button>
+      )}
       <form
         className="chat-compose"
         onSubmit={(event) => {
           event.preventDefault();
-          if (!body.trim() || sending) return;
+          const sent = body.trim();
+          if (!sent || sending) return;
           setSending(true);
           void actions
-            .run(async () => {
-              const message = unwrap(
-                await actions.api.POST("/api/v1/rooms/{roomId}/messages", {
-                  params: { path: { roomId: room.id } },
-                  body: { body },
-                  headers: { "Idempotency-Key": crypto.randomUUID() },
-                }),
-              );
-              setItems((previous) => [
-                ...previous.filter((m) => m.id !== message.id),
-                message,
-              ]);
-              setBody("");
+            .sendChatMessage(sent)
+            .then(() => {
+              setBody((current) => (current.trim() === sent ? "" : current));
+              requestAnimationFrame(bottom);
             })
+            .catch(actions.report)
             .finally(() => setSending(false));
         }}
       >
@@ -99,6 +134,7 @@ export function Chat() {
             type="primary"
             aria-label="发送消息"
             disabled={!body.trim() || sending}
+            loading={sending}
           >
             <Send size={17} />
           </Button>

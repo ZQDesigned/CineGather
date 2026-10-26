@@ -1,13 +1,51 @@
 import { useEffect } from "react";
-import { App } from "antd";
+import { App, Button } from "antd";
+import { showRoomChat } from "../controller";
 import { useApp, update } from "../store";
 
 export function Feedback() {
+  const chatNotification = useApp((s) => s.chatNotification);
+  const chatUnread = useApp((s) => s.chat.unread);
   const error = useApp((state) => state.error);
   const notice = useApp((state) => state.notice);
   const warning = useApp((state) => state.warning);
   const warningTitle = useApp((state) => state.warningTitle);
   const { message, notification } = App.useApp();
+  useEffect(() => {
+    if (!chatUnread) notification.destroy("room-chat");
+  }, [chatUnread, notification]);
+  useEffect(() => {
+    if (!chatNotification) return;
+    const { roomId, message: item } = chatNotification;
+    const open = () => {
+      showRoomChat(roomId);
+      notification.destroy("room-chat");
+    };
+    notification.info({
+      key: "room-chat",
+      title: `${item.displayName} 发来消息`,
+      description: (
+        <div className="chat-notification">
+          <p>{item.body.slice(0, 160)}</p>
+          <Button
+            size="small"
+            type="link"
+            onClick={(event) => {
+              event.stopPropagation();
+              open();
+            }}
+          >
+            查看消息
+          </Button>
+        </div>
+      ),
+      onClick: open,
+      duration: 5,
+      role: "status",
+    });
+    if (useApp.getState().chatNotification === chatNotification)
+      update({ chatNotification: undefined });
+  }, [chatNotification, notification]);
   useEffect(() => {
     if (!notice) return;
     void message.success({

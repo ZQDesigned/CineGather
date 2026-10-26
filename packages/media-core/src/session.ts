@@ -23,6 +23,8 @@ import {
   type NoiseReduction,
   type RoomControl,
 } from "@cinegather/contracts";
+import { decodeRoomChat } from "./chat-events";
+import type { ChatMessage } from "@cinegather/contracts";
 import { decodeRoomControl } from "./room-control";
 import {
   ACCOMPANIMENT_TRACK,
@@ -118,6 +120,7 @@ export class MediaSession {
     private readonly disconnected?: (reason?: DisconnectReason) => void,
     private readonly controlled?: (command: RoomControl) => void,
     private readonly inputLost?: () => void,
+    private readonly chatted?: (roomId: string, message: ChatMessage) => void,
   ) {
     this.voices = new VoicePlayback(() => this.emit(), this.error);
   }
@@ -212,6 +215,16 @@ export class MediaSession {
       RoomEvent.DataReceived,
       (payload, participant, _kind, topic, _encryption, senderIdentity) => {
         if (this.room !== room || participant) return;
+        const message = decodeRoomChat(
+          payload,
+          topic,
+          senderIdentity,
+          room.name,
+        );
+        if (message) {
+          this.chatted?.(room.name, message);
+          return;
+        }
         const command = decodeRoomControl(
           payload,
           topic,

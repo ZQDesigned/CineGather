@@ -468,7 +468,8 @@ export function Room({ visible = true }: { visible?: boolean }) {
           <Tabs
             className="room-tabs"
             classNames={{ body: "room-tab-body", content: "room-tab-content" }}
-            defaultActiveKey="members"
+            activeKey={app.chatTab}
+            onChange={(key) => update({ chatTab: key as "members" | "chat" })}
             destroyOnHidden
             items={[
               {
@@ -521,9 +522,14 @@ export function Room({ visible = true }: { visible?: boolean }) {
               },
               {
                 key: "chat",
-                label: "聊天",
+                label: (
+                  <span className="chat-tab-label">
+                    聊天
+                    <Badge count={app.chat.unread} size="small" />
+                  </span>
+                ),
                 icon: <MessageCircle size={16} />,
-                children: <Chat />,
+                children: <Chat active={visible && app.chatTab === "chat"} />,
               },
             ]}
           />

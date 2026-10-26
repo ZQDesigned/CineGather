@@ -5,6 +5,7 @@ import leaveCue from "./assets/room-leave.wav";
 import { createApi, unwrap, ApiError } from "@cinegather/api-client";
 import {
   RoomCoordinator,
+  RoomChat,
   ShareCoordinator,
   parseInvitation,
   watchUpdateEvents,
@@ -287,6 +288,39 @@ async function recoverMissingMicrophone(error: unknown) {
   }
   return true;
 }
+export const chat = new RoomChat(
+  async (roomId, after) =>
+    unwrap(
+      await api.GET("/api/v1/rooms/{roomId}/messages", {
+        params: { path: { roomId }, query: { after } },
+      }),
+    ),
+  (chat) => update({ chat }),
+  (message, unread) => {
+    const roomId = state().chat.roomId;
+    if (roomId) update({ chatNotification: { roomId, message, unread } });
+  },
+);
+export function showRoomChat(roomId: string) {
+  if (state().room?.id !== roomId) return;
+  update({
+    chatTab: "chat",
+    chatRequest: state().chatRequest + 1,
+    modal: null,
+  });
+}
+export async function sendChatMessage(body: string) {
+  const roomId = state().room?.id;
+  if (!roomId) throw new Error("请先进入房间");
+  const message = unwrap(
+    await api.POST("/api/v1/rooms/{roomId}/messages", {
+      params: { path: { roomId } },
+      body: { body },
+      headers: { "Idempotency-Key": crypto.randomUUID() },
+    }),
+  );
+  chat.receive(roomId, message);
+}
 const roomCuePlayer = new RoomCuePlayer(
   { enter: enterCue, leave: leaveCue },
   () => state().settings,
@@ -295,6 +329,8 @@ const roomCues = new RoomPresenceCues((cue) => roomCuePlayer.play(cue));
 export const media = new MediaSession(
   (summary) => {
     roomCues.observe(summary);
+    if (summary.state === "connected" && state().media.state !== "connected")
+      void chat.sync();
     const fallback = summary.microphoneNoise?.reason;
     if (fallback && !state().media.microphoneNoise?.reason)
       update({ notice: "增强降噪暂不可用，已使用基础降噪" });
@@ -346,6 +382,7 @@ export const media = new MediaSession(
   () => {
     void refreshAudioDevices(true).catch(report);
   },
+  (roomId, message) => chat.receive(roomId, message),
 );
 export const diagnostics = new DiagnosticRecorder(media, state, async () =>
   unwrap(
@@ -630,9 +667,15 @@ export const roomSession = new RoomCoordinator({
   },
   stopShare,
   changed: (roomState, room, revision) => {
+    if (roomState === "idle" || roomState === "leaving") {
+      chat.leave();
+      update({ chatTab: "members", chatNotification: undefined });
+    }
     if (roomState === "idle") update({ shareRecovery: undefined });
-    if (roomState === "connected") roomCues.enter(state().media);
-    else if (roomState === "leaving") roomCues.leave();
+    if (roomState === "connected") {
+      roomCues.enter(state().media);
+      if (room && state().user) void chat.enter(room.id, state().user!.id);
+    } else if (roomState === "leaving") roomCues.leave();
     else if (roomState === "failed") roomCues.reset();
     if (roomState === "idle" || (roomState === "failed" && !room))
       void window.desktop?.updates?.setInRoom(false).catch(report);
@@ -783,7 +826,18 @@ export async function initialize() {
     }
   };
   const friendsTimer = setInterval(() => void syncFriends(), 5000);
-  const focus = () => void syncFriends();
+  const chatTimer = setInterval(() => {
+    if (state().room) void chat.sync();
+  }, 30_000);
+  const focus = () => {
+    void syncFriends();
+    if (state().room) void chat.sync();
+  };
+  const chatVisibility = () => {
+    if (document.visibilityState === "visible" && state().room)
+      void chat.sync();
+  };
+  document.addEventListener("visibilitychange", chatVisibility);
   window.addEventListener("focus", focus);
   return () => {
     navigator.mediaDevices?.removeEventListener("devicechange", deviceChanged);
@@ -793,6 +847,9 @@ export async function initialize() {
     stopPolicyEvents();
     window.removeEventListener("online", onlinePolicy);
     clearInterval(friendsTimer);
+    clearInterval(chatTimer);
+    document.removeEventListener("visibilitychange", chatVisibility);
+    chat.leave();
     window.removeEventListener("focus", focus);
     unsubscribe?.();
   };

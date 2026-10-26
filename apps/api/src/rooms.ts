@@ -18,6 +18,7 @@ import {
   isNull,
   isNotNull,
   desc,
+  asc,
   or,
   lt,
   inArray,
@@ -1024,11 +1025,21 @@ export async function postMessage(
   key?: string,
 ) {
   roomId = uuid(roomId);
-  return db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id);
+  const message = await db.transaction(async (tx) => {
+    await requireMember(tx, roomId, user.id, false, true);
     return dedup(tx, user.id, key, `message:${roomId}`, { body }, async () => {
       const id = randomUUID();
-      const createdAt = new Date();
+      // Serialize each room and use a strictly increasing millisecond timestamp.
+      // Concurrent commits or a clock adjustment must not fall behind a replay cursor.
+      const [latest] = await tx
+        .select({ createdAt: messages.createdAt })
+        .from(messages)
+        .where(eq(messages.roomId, roomId))
+        .orderBy(desc(messages.createdAt), desc(messages.id))
+        .limit(1);
+      const createdAt = new Date(
+        Math.max(Date.now(), (latest?.createdAt.getTime() ?? 0) + 1),
+      );
       await tx
         .insert(messages)
         .values({ id, roomId, userId: user.id, body, createdAt });
@@ -1041,18 +1052,29 @@ export async function postMessage(
       };
     });
   });
+  // Publication happens only after COMMIT. A transient SFU outage must never
+  // turn a saved message into a failed send or encourage a duplicate resend.
+  await media.chat(roomId, message).catch(() => {});
+  return message;
 }
-export async function getMessages(user: User, roomId: string, cursor?: string) {
+export async function getMessages(
+  user: User,
+  roomId: string,
+  cursor?: string,
+  after?: string,
+) {
+  if (cursor && after) fail(400, "INVALID_CURSOR", "请勿同时指定两个消息游标");
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
     await requireMember(tx, roomId, user.id);
     let before: typeof messages.$inferSelect | undefined;
-    if (cursor) {
-      uuid(cursor);
+    const anchor = cursor || after;
+    if (anchor && !(after === "start" && !cursor)) {
+      uuid(anchor);
       [before] = await tx
         .select()
         .from(messages)
-        .where(and(eq(messages.id, cursor), eq(messages.roomId, roomId)));
+        .where(and(eq(messages.id, anchor), eq(messages.roomId, roomId)));
       if (!before) fail(400, "INVALID_CURSOR", "无效的消息游标");
     }
     const rows = await tx
@@ -1070,24 +1092,28 @@ export async function getMessages(user: User, roomId: string, cursor?: string) {
           eq(messages.roomId, roomId),
           before
             ? or(
-                lt(messages.createdAt, before.createdAt),
+                (after ? gt : lt)(messages.createdAt, before.createdAt),
                 and(
                   eq(messages.createdAt, before.createdAt),
-                  lt(messages.id, before.id),
+                  (after ? gt : lt)(messages.id, before.id),
                 ),
               )
             : undefined,
         ),
       )
-      .orderBy(desc(messages.createdAt), desc(messages.id))
+      .orderBy(
+        (after ? asc : desc)(messages.createdAt),
+        (after ? asc : desc)(messages.id),
+      )
       .limit(51);
     const more = rows.length > 50;
     const page = rows.slice(0, 50);
     return {
-      items: page
-        .reverse()
-        .map((r) => ({ ...r, createdAt: r.createdAt.toISOString() })),
-      nextCursor: more ? page[0]!.id : null,
+      items: (after ? page : [...page].reverse()).map((r) => ({
+        ...r,
+        createdAt: r.createdAt.toISOString(),
+      })),
+      nextCursor: more ? page.at(-1)!.id : null,
     };
   });
 }

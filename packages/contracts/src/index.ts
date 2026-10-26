@@ -147,6 +147,16 @@ export const messageSchema = z.object({
   body: z.string(),
   createdAt: z.string(),
 });
+export type ChatMessage = z.infer<typeof messageSchema>;
+export const ROOM_CHAT_TOPIC = "cinegather-chat-v1";
+export const roomChatEventSchema = z.strictObject({
+  roomId: z.uuid(),
+  message: messageSchema.extend({
+    body: z.string().max(2000),
+    displayName: z.string().max(100),
+    createdAt: z.iso.datetime({ offset: true }),
+  }),
+});
 export const messagesSchema = z.object({
   items: z.array(messageSchema),
   nextCursor: z.string().nullable(),

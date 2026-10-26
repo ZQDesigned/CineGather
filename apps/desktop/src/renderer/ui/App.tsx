@@ -65,6 +65,18 @@ export function App() {
   }, []);
   useEffect(() => setHome(false), [app.room?.id]);
   useEffect(() => {
+    if (!app.chatRequest || !app.room) return;
+    setHome(false);
+    setAdmin(false);
+    history.replaceState(
+      null,
+      "",
+      location.pathname.replace(/\/$/, "") === "/admin"
+        ? "/"
+        : location.pathname,
+    );
+  }, [app.chatRequest]);
+  useEffect(() => {
     const bridge = window.desktop?.memberOverlay;
     if (!bridge) return;
     let previous: string | undefined;
@@ -363,6 +375,7 @@ export function App() {
                     }}
                   >
                     <span className="current-room-name">{app.room.name}</span>
+                    <Badge count={app.chat.unread} size="small" />
                   </Button>
                 </Tooltip>
                 <Tooltip title="退出当前房间">

@@ -14,6 +14,8 @@ import {
   MAX_ROOM_MEMBERS,
   ACCOMPANIMENT_TRACK,
   ROOM_CONTROL_TOPIC,
+  ROOM_CHAT_TOPIC,
+  type ChatMessage,
   type RoomControl,
   nativeIdentity,
   type User,
@@ -160,6 +162,14 @@ export class MediaGateway {
         ],
       },
     });
+  }
+  async chat(roomId: string, message: ChatMessage) {
+    await this.client.sendData(
+      roomId,
+      new TextEncoder().encode(JSON.stringify({ roomId, message })),
+      DataPacket_Kind.RELIABLE,
+      { topic: ROOM_CHAT_TOPIC },
+    );
   }
   async control(userId: string, command: RoomControl) {
     await this.client.sendData(

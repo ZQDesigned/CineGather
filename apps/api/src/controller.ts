@@ -367,13 +367,21 @@ export class ApiController {
   }
   @Get("rooms/:roomId/messages")
   @ApiQuery({ name: "cursor", required: false, type: "string" })
+  @ApiQuery({
+    name: "after",
+    required: false,
+    type: "string",
+    description:
+      "Forward replay after a message ID, or start for an empty baseline",
+  })
   @Endpoint("getMessages", c.messagesSchema, undefined, ["roomId"])
   messages(
     @Req() req: AuthRequest,
     @Param("roomId") roomId: string,
     @Query("cursor") cursor?: string,
+    @Query("after") after?: string,
   ) {
-    return r.getMessages(req.user, roomId, cursor);
+    return r.getMessages(req.user, roomId, cursor, after);
   }
   @Get("friends")
   @Endpoint("listFriends", c.friendsSchema)
