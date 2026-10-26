@@ -1,3 +1,4 @@
+param([string]$UpgradeInstaller)
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $evidence = Join-Path $PSScriptRoot '../.local/windows-upgrade'
@@ -45,21 +46,34 @@ class LockedHelper { static void Main(string[] args) { using (var held = new Fil
 & $compiler /nologo /target:winexe "/out:$helper" $fixture
 if ($LASTEXITCODE -ne 0) { throw 'Cannot build lock fixture' }
 $lock = Start-Process $helper -ArgumentList @("$install\resources\app.asar") -PassThru
+$otherDirectory = 'D:\CGPlat\CineGather-other'
+New-Item -ItemType Directory -Force $otherDirectory | Out-Null
+$otherHelper = Join-Path $otherDirectory 'CGProcessAudioHost.exe'
+Copy-Item $helper $otherHelper
+$otherData = Join-Path $otherDirectory 'unrelated.data'
+'unrelated fixture' | Set-Content $otherData
+$other = Start-Process $otherHelper -ArgumentList @($otherData) -PassThru
 $previousPolicy = Get-ExecutionPolicy -Scope CurrentUser
 $previousProcessPolicy = $env:PSExecutionPolicyPreference
 try {
   Set-ExecutionPolicy -Scope CurrentUser Restricted -Force
   $env:PSExecutionPolicyPreference = 'Restricted'
-  $process = Start-Process -FilePath $installer -ArgumentList @('/S', '--updated', "/D=$install") -PassThru
+  if (-not $UpgradeInstaller) { $UpgradeInstaller = $installer }
+  $process = Start-Process -FilePath $UpgradeInstaller -ArgumentList @('/S', '--updated', "/D=$install") -PassThru
   if (-not $process.WaitForExit(45000)) {
     & taskkill /F /T /PID $process.Id
     $exitCode = 'timeout-with-uninstall-error-dialog'
   } else { $exitCode = $process.ExitCode }
-  $results += @{ phase = 'orphan-helper-upgrade'; exitCode = $exitCode; helperStillRunning = (-not $lock.HasExited); policy = 'Restricted' }
+  $results += @{ phase = 'orphan-helper-upgrade'; exitCode = $exitCode; helperStillRunning = (-not $lock.HasExited); unrelatedStillRunning = (-not $other.HasExited); policy = 'Restricted' }
   $results | ConvertTo-Json | Set-Content (Join-Path $evidence 'result.json')
   if ($exitCode -ne 0) { throw "Upgrade left a capture helper running: $exitCode" }
+  if (-not $lock.HasExited) { throw 'Upgrade did not stop the locked helper' }
+  if ($other.HasExited) { throw 'Upgrade killed an unrelated installation' }
 } finally {
   $env:PSExecutionPolicyPreference = $previousProcessPolicy
   Set-ExecutionPolicy -Scope CurrentUser $previousPolicy -Force
   if (-not $lock.HasExited) { Stop-Process -Id $lock.Id -Force }
+  if (-not $other.HasExited) { Stop-Process -Id $other.Id -Force }
+  $logs = Join-Path $env:LOCALAPPDATA 'CineGather/installer-logs/process-cleanup.jsonl'
+  if (Test-Path $logs) { Copy-Item $logs (Join-Path $evidence 'cleanup.jsonl') }
 }

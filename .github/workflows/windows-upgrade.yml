@@ -12,12 +12,51 @@ jobs:
     timeout-minutes: 12
     steps:
       - uses: actions/checkout@v4
-      - name: Reproduce installed application upgrade
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - run: bun install --frozen-lockfile
+      - name: Reuse unchanged released capture runtime
         shell: pwsh
-        run: ./tools/windows-upgrade-smoke.ps1
+        run: |
+          $ProgressPreference = 'SilentlyContinue'
+          New-Item -ItemType Directory -Force .local/windows-upgrade | Out-Null
+          Invoke-WebRequest 'https://cgplat.zqdesigned.city/downloads/CineGather-0.1.14-win-x64-setup.exe' -OutFile .local/windows-upgrade/CineGather-0.1.14-setup.exe
+          & 7z x .local/windows-upgrade/CineGather-0.1.14-setup.exe '-o.local/upgrade-archive' -y | Out-Null
+          & 7z x '.local/upgrade-archive/$PLUGINSDIR/app-64.7z' '-o.local/upgrade-payload' -y | Out-Null
+          New-Item -ItemType Directory -Force .local/native-runtime/windows | Out-Null
+          Copy-Item .local/upgrade-payload/resources/capture/obs .local/native-runtime/windows/obs -Recurse
+          Copy-Item .local/upgrade-payload/resources/capture/CGProcessAudioHost.exe .local/native-runtime/windows/
+      - name: Build emergency installer and portable
+        working-directory: apps/desktop
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+          VITE_API_URL: https://cgplat.zqdesigned.city
+          VITE_WEB_URL: https://cgplat.zqdesigned.city
+        run: |
+          bun ../../tools/icons.ts
+          bun run build
+          bun ../../tools/third-party.ts win32 x64
+          bunx electron-builder --win --x64 --publish never
+      - name: Verify old-to-new upgrade with a locked capture helper
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          ./tools/windows-upgrade-smoke.ps1 -UpgradeInstaller "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-upgrade-evidence
           include-hidden-files: true
-          path: .local/windows-upgrade/*.json
+          path: |
+            .local/windows-upgrade/*.json
+            .local/windows-upgrade/*.jsonl
+      - uses: actions/upload-artifact@v4
+        with:
+          name: cinegather-windows-emergency
+          path: |
+            apps/desktop/release/*.exe
+            apps/desktop/release/*.blockmap
