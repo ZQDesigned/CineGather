@@ -5,6 +5,8 @@ on:
       - tools/windows-upgrade-smoke.ps1
       - apps/desktop/resources/installer.nsh
       - apps/desktop/resources/installer-processes.ps1
+      - apps/desktop/package.json
+      - bun.lock
       - .github/workflows/windows-upgrade.yml
 jobs:
   upgrade:
