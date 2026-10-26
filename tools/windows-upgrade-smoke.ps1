@@ -38,15 +38,18 @@ $compiler = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
 $fixture = Join-Path $evidence 'LockedHelper.cs'
 @'
 using System;
+using System.IO;
 using System.Threading;
-class LockedHelper { static void Main() { Thread.Sleep(180000); } }
+class LockedHelper { static void Main(string[] args) { using (var held = new FileStream(args[0], FileMode.Open, FileAccess.Read, FileShare.Read)) { Thread.Sleep(180000); } } }
 '@ | Set-Content $fixture
 & $compiler /nologo /target:winexe "/out:$helper" $fixture
 if ($LASTEXITCODE -ne 0) { throw 'Cannot build lock fixture' }
-$lock = Start-Process $helper -PassThru
+$lock = Start-Process $helper -ArgumentList @("$install\resources\app.asar") -PassThru
 $previousPolicy = Get-ExecutionPolicy -Scope CurrentUser
+$previousProcessPolicy = $env:PSExecutionPolicyPreference
 try {
   Set-ExecutionPolicy -Scope CurrentUser Restricted -Force
+  $env:PSExecutionPolicyPreference = 'Restricted'
   $process = Start-Process -FilePath $installer -ArgumentList @('/S', '--updated', "/D=$install") -PassThru
   if (-not $process.WaitForExit(45000)) {
     & taskkill /F /T /PID $process.Id
@@ -56,6 +59,7 @@ try {
   $results | ConvertTo-Json | Set-Content (Join-Path $evidence 'result.json')
   if ($exitCode -ne 0) { throw "Upgrade left a capture helper running: $exitCode" }
 } finally {
+  $env:PSExecutionPolicyPreference = $previousProcessPolicy
   Set-ExecutionPolicy -Scope CurrentUser $previousPolicy -Force
   if (-not $lock.HasExited) { Stop-Process -Id $lock.Id -Force }
 }

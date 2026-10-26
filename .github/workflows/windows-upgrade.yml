@@ -20,4 +20,4 @@ jobs:
         with:
           name: windows-upgrade-evidence
           include-hidden-files: true
-          path: .local/windows-upgrade/
+          path: .local/windows-upgrade/*.json
