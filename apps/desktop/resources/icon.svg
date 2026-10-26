@@ -7,7 +7,7 @@
       <stop stop-color="#322444"/><stop offset="1" stop-color="#21182F"/>
     </linearGradient>
   </defs>
-  <path fill="url(#background)" d="M0 0h1024v1024H0z"/>
+  <rect width="1024" height="1024" rx="224" fill="url(#background)"/>
   <rect x="228" y="367" width="568" height="399" rx="49" fill="url(#body)"/>
   <path d="M254 254h516a26 26 0 0 1 26 26v68H228v-68a26 26 0 0 1 26-26Z" fill="#30223F"/>
   <path d="m302 254 50 94h77l-50-94Zm159 0 50 94h77l-50-94Zm159 0 50 94h77l-50-94Z" fill="#CEB9FF"/>

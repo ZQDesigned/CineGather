@@ -41,7 +41,7 @@ mac:
     NSAudioCaptureUsageDescription: 映聚需要音频采集权限，共享你明确选择的系统声音。
 win:
   target: [nsis, portable]
-  icon: resources/icon.png
+  icon: resources/icon.ico
   signExecutable: false
   extraResources:
     - from: ../../.local/native-runtime/windows/obs
