@@ -1,5 +1,12 @@
 import { registerTestAccount } from "./helpers/account";
-import { test, expect } from "@playwright/test";
+import { test, expect, type Page } from "@playwright/test";
+
+async function openInvite(page: Page) {
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByLabel("房间名称").fill("复制反馈回归");
+  await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+  await page.getByRole("button", { name: "邀请朋友", exact: true }).click();
+}
 
 test("copy feedback floats above an open modal, dismisses itself and can be shown again", async ({
   page,
@@ -7,23 +14,23 @@ test("copy feedback floats above an open modal, dismisses itself and can be show
   await page.context().grantPermissions(["clipboard-read", "clipboard-write"]);
   await page.goto("/");
   await registerTestAccount(page, "消息体验回归");
-  await page.getByRole("menuitem", { name: "好友", exact: true }).click();
-  const copy = page.getByRole("button", { name: /我的用户 ID/ });
+  await openInvite(page);
+  const copy = page.getByRole("button", { name: "复制邀请链接", exact: true });
   for (let i = 0; i < 2; i++) {
     await copy.click();
     await expect(
       page
         .locator(".ant-message")
         .getByRole("status")
-        .filter({ hasText: "你的用户 ID 已复制" }),
-    ).toHaveText("你的用户 ID 已复制");
+        .filter({ hasText: "邀请链接已复制" }),
+    ).toHaveText("邀请链接已复制");
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.locator(".workspace > .toast")).toHaveCount(0);
     await expect(
       page
         .locator(".ant-message")
         .getByRole("status")
-        .filter({ hasText: "你的用户 ID 已复制" }),
+        .filter({ hasText: "邀请链接已复制" }),
     ).toHaveCount(0, { timeout: 6000 });
   }
   await page.mouse.move(0, 0);
@@ -31,8 +38,9 @@ test("copy feedback floats above an open modal, dismisses itself and can be show
   await page.keyboard.press("Escape");
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
-    page.getByRole("menuitem", { name: "好友", exact: true }),
+    page.getByRole("button", { name: "邀请朋友", exact: true }),
   ).toBeFocused();
+  await page.getByRole("button", { name: "离开房间", exact: true }).click();
 });
 
 test("a clipboard failure is reported through Notification while its modal stays usable", async ({
@@ -45,11 +53,13 @@ test("a clipboard failure is reported through Notification while its modal stays
   });
   await page.goto("/");
   await registerTestAccount(page, "复制失败回归");
-  await page.getByRole("menuitem", { name: "好友", exact: true }).click();
-  await page.getByRole("button", { name: /我的用户 ID/ }).click();
+  await openInvite(page);
+  await page.getByRole("button", { name: "复制邀请链接", exact: true }).click();
   await expect(
     page.locator(".ant-notification").getByRole("alert"),
   ).toContainText("无法写入剪贴板");
   await expect(page.getByRole("dialog")).toBeVisible();
-  await page.getByLabel("好友用户 ID").fill("仍可继续输入");
+  await expect(page.getByLabel("房间邀请")).not.toBeEmpty();
+  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await page.getByRole("button", { name: "离开房间", exact: true }).click();
 });

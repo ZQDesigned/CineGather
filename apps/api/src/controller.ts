@@ -402,6 +402,12 @@ export class ApiController {
   ) {
     return r.getMessages(req.user, roomId, cursor, after);
   }
+  @Get("friends/search")
+  @ApiQuery({ name: "username", required: true, type: String })
+  @Endpoint("searchFriend", c.friendSearchSchema)
+  searchFriend(@Req() req: AuthRequest, @Query("username") username: unknown) {
+    return s.searchFriend(req.user, parse(c.usernameInput, username));
+  }
   @Get("friends")
   @Endpoint("listFriends", c.friendsSchema)
   friends(@Req() req: AuthRequest) {

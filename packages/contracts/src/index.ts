@@ -84,6 +84,11 @@ export const messageInput = z.strictObject({
   body: z.string().trim().min(1).max(2000),
 });
 export const friendInput = z.strictObject({ userId: z.uuid().toLowerCase() });
+export const friendSearchSchema = z.object({
+  user: z
+    .object({ userId: z.uuid(), username: z.string(), displayName: z.string() })
+    .nullable(),
+});
 export const moderationInput = z.strictObject({
   ban: z.boolean().default(false),
 });

@@ -1,9 +1,28 @@
 import { friendships, users, credentials } from "@cinegather/database";
-import { and, eq, or, sql } from "drizzle-orm";
+import { and, eq, ne, isNull, isNotNull, or, sql } from "drizzle-orm";
 import { db, audit } from "./context";
 import { fail, uuid } from "./errors";
 import type { User } from "@cinegather/contracts";
 import { presenceLifetimeMs } from "./presence";
+export async function searchFriend(user: User, username: string) {
+  const [target] = await db
+    .select({
+      userId: users.id,
+      username: users.username,
+      displayName: users.displayName,
+    })
+    .from(users)
+    .where(
+      and(
+        eq(users.username, username),
+        ne(users.id, user.id),
+        isNull(users.disabledAt),
+        isNotNull(users.passwordHash),
+      ),
+    )
+    .limit(1);
+  return { user: target ?? null };
+}
 export async function requestFriend(user: User, targetId: string) {
   targetId = uuid(targetId);
   if (user.id === targetId) fail(400, "FRIEND_SELF", "不能添加自己为好友");

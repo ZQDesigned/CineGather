@@ -16,19 +16,12 @@ import {
 import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
 import { ClientDownload } from "./ClientDownload";
+import { FriendSearch } from "./FriendSearch";
 import { UpdateDialog } from "./Updates";
 import { RoomSettings } from "./RoomSettings";
 import { Diagnostics } from "./Diagnostics";
 import { useEffect, useState } from "react";
-import {
-  Copy,
-  Monitor,
-  AppWindow,
-  RefreshCw,
-  UserPlus,
-  Shield,
-  X,
-} from "lucide-react";
+import { Copy, Monitor, AppWindow, RefreshCw, Shield, X } from "lucide-react";
 import { useApp, update, type Modal } from "../store";
 import * as actions from "../controller";
 import { unwrap } from "@cinegather/api-client";
@@ -263,10 +256,7 @@ function Invite() {
         type="primary"
         block
         onClick={() =>
-          void actions
-            .copyText(invite)
-
-            .catch(actions.report)
+          void actions.copyText(invite, "邀请链接已复制").catch(actions.report)
         }
       >
         <Copy size={17} />
@@ -521,42 +511,17 @@ function Friends() {
   const [user] = useState(() => useApp.getState().user!);
   const items = useApp((app) => app.friends);
   const visibility = useApp((app) => app.presenceVisibility);
-  const [target, setTarget] = useState("");
   const load = actions.refreshFriends;
   useEffect(() => {
     void load().catch(actions.report);
   }, []);
-  const submit = () => {
-    void actions.run(async () => {
-      unwrap(
-        await actions.api.POST("/api/v1/friends", {
-          body: { userId: target.trim() },
-        }),
-      );
-      setTarget("");
-      await load();
-      update({ notice: "好友请求已发送" });
-    });
-  };
   return (
     <ModalShell title="朋友们" subtitle="把熟悉的名字，留在身边。">
       <Card size="small" className="identity-card">
         <Space direction="vertical" size={4}>
-          <Typography.Text type="secondary">我的用户 ID</Typography.Text>
-          <Typography.Text code>{user.id}</Typography.Text>
+          <Typography.Text type="secondary">我的用户名</Typography.Text>
+          <Typography.Text strong>{user.username}</Typography.Text>
         </Space>
-        <Tooltip title="复制用户 ID">
-          <Button
-            type="text"
-            aria-label="复制我的用户 ID"
-            icon={<Copy size={16} />}
-            onClick={() =>
-              void actions
-                .copyText(user.id, "你的用户 ID 已复制")
-                .catch(actions.report)
-            }
-          />
-        </Tooltip>
       </Card>
       <Form layout="vertical">
         <Form.Item label="我的在线状态">
@@ -574,26 +539,7 @@ function Friends() {
           />
         </Form.Item>
       </Form>
-      <Form layout="vertical" onFinish={submit}>
-        <Form.Item label="好友用户 ID" required>
-          <Space.Compact block>
-            <Input
-              aria-label="好友用户 ID"
-              placeholder="粘贴朋友的完整用户 ID"
-              value={target}
-              onChange={(e) => setTarget(e.target.value)}
-              required
-            />
-            <Button
-              type="primary"
-              htmlType="submit"
-              icon={<UserPlus size={16} />}
-            >
-              发送好友请求
-            </Button>
-          </Space.Compact>
-        </Form.Item>
-      </Form>
+      <FriendSearch />
       <div className="friends-list">
         {!items.length && (
           <Empty
