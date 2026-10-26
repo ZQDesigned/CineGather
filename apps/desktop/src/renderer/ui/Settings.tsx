@@ -470,6 +470,13 @@ export function Settings() {
                     ]}
                   />
                 </Form.Item>
+                <Form.Item label="进退房提示音">
+                  <Switch
+                    aria-label="进退房提示音"
+                    checked={settings.roomSounds ?? true}
+                    onChange={(value) => change("roomSounds", value)}
+                  />
+                </Form.Item>
                 <Button
                   icon={<Volume2 size={15} />}
                   onClick={() => void beep().catch(actions.report)}

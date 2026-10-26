@@ -270,6 +270,7 @@ export interface MemberOverlayBridge {
   onChange(callback: (view: MemberOverlayView) => void): () => void;
 }
 export interface DesktopSettings {
+  roomSounds?: boolean;
   windowsEncoder?: string;
   autoDownloadUpdates?: boolean;
   noiseReduction: NoiseReduction;

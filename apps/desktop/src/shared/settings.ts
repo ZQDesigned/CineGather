@@ -10,6 +10,7 @@ export const defaultOverlayPreferences: MemberOverlayPreferences = {
   position: "right-top",
 };
 export const settingsSchema = z.strictObject({
+  roomSounds: z.boolean().default(true),
   windowsEncoder: nativeEncoderIdSchema.default("auto"),
   autoDownloadUpdates: z.boolean().default(true),
   memberOverlay: z
@@ -38,6 +39,7 @@ export const settingsSchema = z.strictObject({
   outputDevice: z.string().max(256),
 });
 export const defaultSettings = {
+  roomSounds: true,
   windowsEncoder: "auto",
   autoDownloadUpdates: true,
   noiseReduction: "enhanced",

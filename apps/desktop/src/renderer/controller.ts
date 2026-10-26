@@ -1,3 +1,6 @@
+import { RoomCuePlayer, RoomPresenceCues } from "./room-cues";
+import enterCue from "./assets/room-enter.wav";
+import leaveCue from "./assets/room-leave.wav";
 import { createApi, unwrap, ApiError } from "@cinegather/api-client";
 import {
   RoomCoordinator,
@@ -159,8 +162,14 @@ export async function run(work: () => Promise<void>) {
     update({ busy: false });
   }
 }
+const roomCuePlayer = new RoomCuePlayer(
+  { enter: enterCue, leave: leaveCue },
+  () => state().settings,
+);
+const roomCues = new RoomPresenceCues((cue) => roomCuePlayer.play(cue));
 export const media = new MediaSession(
   (summary) => {
+    roomCues.observe(summary);
     const fallback = summary.microphoneNoise?.reason;
     if (fallback && !state().media.microphoneNoise?.reason)
       update({ notice: "增强降噪暂不可用，已使用基础降噪" });
@@ -464,6 +473,9 @@ export const roomSession = new RoomCoordinator({
   },
   stopShare,
   changed: (roomState, room, revision) => {
+    if (roomState === "connected") roomCues.enter(state().media);
+    else if (roomState === "leaving") roomCues.leave();
+    else if (roomState === "failed") roomCues.reset();
     if (roomState === "idle" || (roomState === "failed" && !room))
       void window.desktop?.updates?.setInRoom(false).catch(report);
     update({
@@ -914,6 +926,7 @@ export async function stopShare() {
 }
 export async function saveSettings(settings: DesktopSettings, close = true) {
   settings = platformSettings(settings, capabilities().desktop);
+  if (settings.roomSounds === false) roomCuePlayer.stop();
   const held = pttHolds.size > 0;
   pttHolds.clear();
   if (
