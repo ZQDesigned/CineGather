@@ -31,6 +31,7 @@ import { nativeKeyState } from "./key-state";
 import { recordedShortcut } from "../shared/shortcuts";
 import { createUpdates } from "./updates";
 import { supportsProcessAudio, WindowsAudio } from "./windows-audio";
+import { createAccompaniment } from "./accompaniment-native";
 import { configureHardwareEncoding } from "./encoding-policy";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 configureHardwareEncoding(process.platform, app.commandLine);
@@ -62,6 +63,7 @@ let pending: (CaptureSelection & { expiresAt: number }) | undefined;
 const devURL = process.env.ELECTRON_RENDERER_URL;
 let nativeCapture: NativeCapture | undefined;
 let windowsAudio: WindowsAudio | undefined;
+let accompaniment: ReturnType<typeof createAccompaniment> | undefined;
 let shutdownStarted = false;
 let pendingInvite: string | undefined = process.argv.find(
   (value) => value.startsWith("cinegather://") && value.length <= 4096,
@@ -215,6 +217,7 @@ async function createWindow() {
     (_event, _url, inPlace, mainFrame) => {
       if (mainFrame && !inPlace) {
         windowsAudio?.stop();
+        accompaniment?.host.stop();
         void nativeCapture?.stopPreview();
         memberOverlay?.publish(null);
       }
@@ -222,6 +225,7 @@ async function createWindow() {
   );
   win.on("closed", () => {
     windowsAudio?.stop();
+    accompaniment?.host.stop();
     memberOverlay?.publish(null);
   });
   win.webContents.on("will-navigate", (event, url) => {
@@ -239,6 +243,7 @@ async function createWindow() {
     finishRecording();
     pending = undefined;
     windowsAudio?.stop();
+    accompaniment?.host.stop();
     void nativeCapture?.stop().catch(() => {});
     sharing = false;
     memberOverlay?.publish(null);
@@ -263,6 +268,8 @@ function registerIPC() {
           "desktop:select-source",
           "desktop:native-start",
           "desktop:process-audio-start",
+          "desktop:accompaniment-sources",
+          "desktop:accompaniment-start",
         ].includes(name) &&
         (screenLocked ||
           suspended ||
@@ -302,6 +309,39 @@ function registerIPC() {
     const value = pendingInvite;
     pendingInvite = undefined;
     return value;
+  });
+  handle(
+    "desktop:accompaniment-sources",
+    () => accompaniment?.host.sources() ?? [],
+  );
+  handle("desktop:accompaniment-start", (input) => {
+    const value = z
+      .object({ sourceId: z.string().uuid(), requestId: z.string().uuid() })
+      .strict()
+      .parse(input);
+    if (!accompaniment || screenLocked || suspended || quitting)
+      throw new Error("当前无法开启伴奏");
+    return accompaniment.host.start(value.sourceId, value.requestId);
+  });
+  handle("desktop:accompaniment-stop", (input) =>
+    accompaniment?.host.stop(z.string().uuid().parse(input)),
+  );
+  ipcMain.on("desktop:accompaniment-ack", (event, input: unknown) => {
+    if (
+      !win ||
+      event.sender !== win.webContents ||
+      event.senderFrame !== win.webContents.mainFrame ||
+      !trustedURL(event.senderFrame.url, devURL)
+    )
+      return;
+    const ack = z
+      .object({
+        sessionId: z.string().uuid(),
+        sequence: z.number().int().positive(),
+      })
+      .safeParse(input);
+    if (ack.success)
+      accompaniment?.acknowledge(ack.data.sessionId, ack.data.sequence);
   });
   handle("desktop:process-audio-start", () => {
     if (!windowsAudio) throw new Error("当前平台不支持应用声音采集");
@@ -579,6 +619,7 @@ else {
   app.on("before-quit", (event) => {
     memberOverlay?.destroy();
     windowsAudio?.stop();
+    accompaniment?.host.stop();
     if (nativeCapture && !shutdownStarted) {
       event.preventDefault();
       shutdownStarted = true;
@@ -669,6 +710,44 @@ else {
             audioFallback: () => sendAction("device-audio-fallback"),
           },
         );
+      if (["win32", "darwin"].includes(process.platform)) {
+        const mac = process.platform === "darwin";
+        accompaniment = createAccompaniment({
+          executable: mac
+            ? join(
+                app.isPackaged
+                  ? join(
+                      process.resourcesPath,
+                      "capture/CGScreenCaptureHost.app",
+                    )
+                  : resolve(
+                      __dirname,
+                      "../../../../.local/native-runtime/CGScreenCaptureHost.app",
+                    ),
+                "Contents/MacOS/CGScreenCaptureHost",
+              )
+            : app.isPackaged
+              ? join(process.resourcesPath, "capture/CGProcessAudioHost.exe")
+              : resolve(
+                  __dirname,
+                  "../../../../.local/native-runtime/windows/CGProcessAudioHost.exe",
+                ),
+          platform: process.platform,
+          release: release(),
+          ownerPid: process.pid,
+          ownBundle: app.isPackaged
+            ? "city.zqdesigned.cinegather"
+            : "com.github.Electron",
+          data: (packet) => {
+            if (win && !win.isDestroyed())
+              win.webContents.send("desktop:accompaniment-data", packet);
+          },
+          failed: (id, message) => {
+            if (win && !win.isDestroyed())
+              win.webContents.send("desktop:accompaniment-error", id, message);
+          },
+        });
+      }
       let announcedMinimum: string | undefined;
       updates = await createUpdates(
         (status) => {
@@ -681,6 +760,7 @@ else {
         },
         async () => {
           windowsAudio?.stop();
+          accompaniment?.host.stop();
           memberOverlay?.publish(null);
           await nativeCapture?.shutdown();
           shutdownStarted = true;
@@ -698,12 +778,14 @@ else {
       capturePermissions();
       powerMonitor.on("suspend", () => {
         windowsAudio?.stop();
+        accompaniment?.host.stop();
         suspended = true;
         previewForeground();
         memberOverlay?.block(true);
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
         sendAction("stop-share");
+        sendAction("stop-accompaniment");
         globalHold?.release();
       });
       powerMonitor.on("resume", () => {
@@ -713,12 +795,14 @@ else {
       });
       powerMonitor.on("lock-screen", () => {
         windowsAudio?.stop();
+        accompaniment?.host.stop();
         screenLocked = true;
         previewForeground();
         memberOverlay?.block(true);
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
         sendAction("stop-share");
+        sendAction("stop-accompaniment");
         globalHold?.release();
       });
       powerMonitor.on("unlock-screen", () => {

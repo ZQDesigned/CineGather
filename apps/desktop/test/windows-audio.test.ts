@@ -218,3 +218,29 @@ test("stereo samples keep channel separation, fill underruns with silence and di
   queue.render(left, right);
   expect(left.every((value) => value === 0.5)).toBe(true);
 });
+
+test("accompaniment requires isolated application audio and never falls back to whole-device capture", async () => {
+  const unsupported = fixture(false);
+  await expect(
+    unsupported.audio.startIsolated({ mode: "window", window: "456" }),
+  ).rejects.toThrow("隔离");
+  expect(unsupported.launch).not.toHaveBeenCalled();
+  const { audio, child, launch } = fixture();
+  const started = audio.startIsolated({ mode: "window", window: "456" });
+  child.stderr.write("ERROR activate-result 80004002\n");
+  await expect(started).rejects.toThrow();
+  expect(launch).toHaveBeenCalledTimes(1);
+  expect(launch.mock.calls[0]![1]).toEqual(["window", "456", "123"]);
+});
+
+test("strict process capture forwards the server-side catalog process incarnation", async () => {
+  const { audio, child, launch } = fixture();
+  const pending = audio.startIsolated({
+    mode: "process",
+    window: "456:123456789",
+  });
+  child.stderr.write("READY\n");
+  await pending;
+  expect(launch.mock.calls[0]![1]).toEqual(["process", "456:123456789", "123"]);
+  audio.stop();
+});

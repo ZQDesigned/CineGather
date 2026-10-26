@@ -5,7 +5,7 @@ import {
   parseInvitation,
   watchUpdateEvents,
 } from "@cinegather/client-core";
-import { MediaSession } from "@cinegather/media-core";
+import { Accompaniment, MediaSession } from "@cinegather/media-core";
 import { DisconnectReason } from "livekit-client";
 import type {
   CaptureSelection,
@@ -165,6 +165,13 @@ export const media = new MediaSession(
     if (fallback && !state().media.microphoneNoise?.reason)
       update({ notice: "增强降噪暂不可用，已使用基础降噪" });
     update({ media: summary });
+    const local = summary.participants.find((p) => p.local);
+    if (
+      (summary.state === "disconnected" ||
+        local?.microphoneAllowed === false) &&
+      state().accompaniment.status !== "idle"
+    )
+      void accompaniment.stop().catch(report);
     if (
       summary.state === "reconnecting" ||
       summary.state === "signalReconnecting"
@@ -187,7 +194,10 @@ export const media = new MediaSession(
       update({ roomState: "failed", error: "媒体连接已断开，请重新连接房间" });
   },
   (command) => {
-    if (command.action === "mute-microphone") {
+    if (command.action === "stop-accompaniment") {
+      void accompaniment.stop().catch(report);
+      update({ warning: "房主已关闭你的伴奏" });
+    } else if (command.action === "mute-microphone") {
       pttHolds.clear();
       update({ warning: "房主已关闭你的麦克风" });
     } else {
@@ -250,6 +260,50 @@ async function handleRemoteRemoval() {
   });
   await refreshRooms();
 }
+const accompanimentAudio = new ProcessAudio((message) => {
+  void accompaniment.stop().catch(report);
+  report(new Error(message));
+});
+export const accompaniment = new Accompaniment({
+  capture: async (source, volume) => {
+    const bridge = window.desktop?.accompaniment;
+    const app = state();
+    if (!bridge)
+      throw new Error("当前浏览器不支持指定应用伴奏，请使用桌面客户端");
+    if (app.roomState !== "connected" || !app.room)
+      throw new Error("请先进入房间");
+    if (
+      app.room.memberPermissions?.find((p) => p.userId === app.user?.id)
+        ?.microphoneAllowed === false
+    )
+      throw new Error("房主已禁止你在此房间开麦，无法发布伴奏");
+    const requestId = crypto.randomUUID();
+    const result = await accompanimentAudio.start(
+      {
+        start: () => bridge.start(source, requestId),
+        stop: () => bridge.stop(requestId),
+        acknowledge: bridge.acknowledge,
+        onData: bridge.onData,
+        onError: bridge.onError,
+      },
+      volume,
+    );
+    return result.track;
+  },
+  stopCapture: () => accompanimentAudio.stop(),
+  publish: (track) => media.publishAccompaniment(track),
+  unpublish: (track) => media.unpublishAccompaniment(track),
+  volume: (value) => accompanimentAudio.volume(value),
+  changed: (status, source) =>
+    update({ accompaniment: { ...state().accompaniment, status, source } }),
+});
+export function accompanimentVolume(volume: number) {
+  const level = Number.isFinite(volume)
+    ? Math.max(0, Math.min(100, volume))
+    : 0;
+  accompaniment.volume(level / 100);
+  update({ accompaniment: { ...state().accompaniment, volume: level } });
+}
 const processAudio = new ProcessAudio((message) => {
   report(new Error(message));
   void shareSession.stop().catch(report);
@@ -311,6 +365,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     });
   },
   publish: async (lease) => {
+    await accompaniment.stop();
     try {
       if (window.desktop?.nativeCapture) {
         if (!sessionToken || !state().room) throw new Error("请先进入房间");
@@ -403,7 +458,9 @@ export const roomSession = new RoomCoordinator({
   },
   disconnect: () => {
     pttHolds.clear();
-    return media.disconnect();
+    return Promise.all([accompaniment.stop(), media.disconnect()]).then(
+      () => {},
+    );
   },
   stopShare,
   changed: (roomState, room, revision) => {
@@ -462,6 +519,10 @@ export async function initialize() {
   webInvitation = undefined;
   if (initial) receiveInvitation(initial);
   const unsubscribe = window.desktop?.onAction((action, value) => {
+    if (action === "stop-accompaniment") {
+      void accompaniment.stop().catch(report);
+      return;
+    }
     if (state().requiredUpdate && action !== "stop-share") return;
     if (action === "invite" && value) {
       receiveInvitation(value);

@@ -4,8 +4,15 @@ import type { DesktopBridge } from "@cinegather/contracts";
 export class ProcessAudio {
   private generation = 0;
   private dispose?: () => Promise<void>;
+  private gain?: GainNode;
+  volume(value: number) {
+    if (this.gain)
+      this.gain.gain.value = Number.isFinite(value)
+        ? Math.max(0, Math.min(1, value))
+        : 0;
+  }
   constructor(private readonly failed: (message: string) => void) {}
-  async start(bridge: NonNullable<DesktopBridge["processAudio"]>) {
+  async start(bridge: NonNullable<DesktopBridge["processAudio"]>, volume = 1) {
     const generation = ++this.generation;
     const previous = this.dispose;
     this.dispose = undefined;
@@ -17,6 +24,7 @@ export class ProcessAudio {
     });
     let sessionId: string | undefined;
     let node: AudioWorkletNode | undefined;
+    let gain: GainNode | undefined;
     let destination: MediaStreamAudioDestinationNode | undefined;
     let unsubscribe = () => {},
       unsubscribeError = () => {};
@@ -29,6 +37,8 @@ export class ProcessAudio {
         node.onprocessorerror = null;
       }
       node?.disconnect();
+      gain?.disconnect();
+      if (this.gain === gain) this.gain = undefined;
       destination?.stream.getTracks().forEach((track) => track.stop());
       await Promise.allSettled([bridge.stop(), context.close()]);
     };
@@ -60,7 +70,10 @@ export class ProcessAudio {
         numberOfOutputs: 1,
         outputChannelCount: [2],
       });
-      node.connect(destination); // Never connect captured audio to speakers.
+      gain = context.createGain();
+      this.gain = gain;
+      this.volume(volume);
+      node.connect(gain).connect(destination); // Never connect captured audio to speakers.
       node.onprocessorerror = () => {
         if (generation === this.generation)
           this.failed("共享声音处理中断，请重新开始共享");
@@ -70,6 +83,12 @@ export class ProcessAudio {
           bridge.acknowledge(sessionId, data);
       };
       unsubscribe = bridge.onData((packet) => {
+        // READY and the first PCM IPC may race the invoke response. Acknowledge
+        // discarded pre-start packets or the helper's bounded credit can stall.
+        if (!sessionId && generation === this.generation) {
+          bridge.acknowledge(packet.sessionId, packet.sequence);
+          return;
+        }
         if (packet.sessionId !== sessionId || generation !== this.generation)
           return;
         const samples = Uint8Array.from(packet.data).buffer;

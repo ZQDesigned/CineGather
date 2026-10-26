@@ -45,6 +45,8 @@ API_AVAILABLE(macos(14.2))
 @public
   std::atomic<bool> blocked, failed;
   obs_source_t *source;
+  cg_pcm_callback callback;
+  void *context;
   AudioObjectID tap, device;
   AudioDeviceIOProcID io;
   AudioStreamBasicDescription format;
@@ -84,6 +86,7 @@ API_AVAILABLE(macos(14.2))
 }
 - (void)fail {
   failed.store(true);blocked.store(true);
+  if (!source) return;
   obs_data_t *state = obs_source_get_private_settings(source);
   obs_data_set_bool(state,"cg_audio_exclusion_failed",true);
   obs_data_release(state);
@@ -117,9 +120,10 @@ API_AVAILABLE(macos(14.2))
 }
 @end
 
-NSObject *cg_start_process_audio(obs_source_t *source, bool system, const char *application, const char *own) {
+static NSObject *startAudio(obs_source_t *source, bool system, const char *application, const char *own, cg_pcm_callback callback, void *context) {
   if (@available(macOS 14.2,*)) {
     CGProcessAudio *capture=[CGProcessAudio new];capture->source=source;capture->blocked=true;capture->failed=false;
+    capture->callback=callback;capture->context=context;
     capture.system=system;capture.application=[NSString stringWithUTF8String:application ?: ""];
     capture.own=[NSString stringWithUTF8String:own ?: ""];
     capture.control=dispatch_queue_create("city.cinegather.audio-filter",DISPATCH_QUEUE_SERIAL);
@@ -144,7 +148,8 @@ NSObject *cg_start_process_audio(obs_source_t *source, bool system, const char *
       audio.samples_per_sec=(uint32_t)active->format.mSampleRate;audio.speakers=SPEAKERS_STEREO;
       audio.format=planar?AUDIO_FORMAT_FLOAT_PLANAR:AUDIO_FORMAT_FLOAT;
       audio.timestamp=AudioConvertHostTimeToNanos((inputTime->mFlags&kAudioTimeStampHostTimeValid)?inputTime->mHostTime:now->mHostTime);
-      obs_source_output_audio(active->source,&audio);
+      if (active->callback) active->callback(active->context,&audio);
+      else obs_source_output_audio(active->source,&audio);
     });
     if (status!=noErr) { cg_stop_process_audio(capture);return nil; }
     capture.listener=^(UInt32 count,const AudioObjectPropertyAddress *addresses){CGProcessAudio *active=weak;if(active&&!active.stopped){active->blocked=true;[active refresh];}};
@@ -160,6 +165,16 @@ NSObject *cg_start_process_audio(obs_source_t *source, bool system, const char *
     return capture;
   }
   return nil;
+}
+NSObject *cg_start_process_audio(obs_source_t *source, bool system, const char *application, const char *own) {
+  return startAudio(source,system,application,own,nullptr,nullptr);
+}
+NSObject *cg_start_application_pcm(const char *application, const char *own, cg_pcm_callback callback, void *context) {
+  return startAudio(nullptr,false,application,own,callback,context);
+}
+bool cg_application_pcm_failed(NSObject *object) {
+  if (@available(macOS 14.2,*)) return ((CGProcessAudio *)object)->failed.load();
+  return true;
 }
 void cg_stop_process_audio(NSObject *object) {
   if (@available(macOS 14.2,*)) {

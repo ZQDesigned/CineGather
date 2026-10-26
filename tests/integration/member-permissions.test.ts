@@ -266,3 +266,70 @@ test("restrictions serialize with lease acquisition, reconciliation cannot resto
     media.client.sendData = send;
   }
 });
+
+test("stopping accompaniment is owner-only, validates membership and mutes only the named audio track", async () => {
+  const [a, b, c] = people as [
+    (typeof people)[number],
+    (typeof people)[number],
+    (typeof people)[number],
+  ];
+  const roomId = await create(a);
+  await req(`/rooms/${roomId}/join`, a.token, {});
+  await req(`/rooms/${roomId}/join`, b.token, {});
+  const participants = media.participants,
+    mute = media.client.mutePublishedTrack,
+    send = media.client.sendData;
+  const calls: unknown[][] = [],
+    packets: unknown[][] = [];
+  try {
+    media.participants = async (id) =>
+      id === roomId
+        ? ([
+            { identity: a.id },
+            {
+              identity: b.id,
+              tracks: [
+                { sid: "voice", source: 2, name: "microphone" },
+                {
+                  sid: "music",
+                  source: 2,
+                  name: "cinegather-accompaniment-v1",
+                },
+                { sid: "video", source: 3 },
+              ],
+            },
+          ] as unknown as Awaited<ReturnType<typeof participants>>)
+        : participants.call(media, id);
+    media.client.mutePublishedTrack = async (...args) => {
+      calls.push(args);
+      return {} as Awaited<ReturnType<typeof mute>>;
+    };
+    media.client.sendData = async (...args) => {
+      packets.push(args);
+    };
+    const path = `/rooms/${roomId}/members/${b.id}/accompaniment/stop`;
+    expect((await req(path, b.token, {})).status).toBe(403);
+    expect((await req(path, c.token, {})).status).toBe(403);
+    expect((await req(path, a.token, { trackSid: "voice" })).status).toBe(400);
+    expect(calls).toHaveLength(0);
+    expect((await req(path, a.token, {})).status).toBe(201);
+    expect(calls).toEqual([[roomId, b.id, "music", true]]);
+    const packet = JSON.parse(
+      new TextDecoder().decode(packets[0]![1] as Uint8Array),
+    );
+    expect(packet).toEqual({ action: "stop-accompaniment", roomId });
+    expect(
+      (
+        await req(
+          `/rooms/${roomId}/members/${a.id}/accompaniment/stop`,
+          a.token,
+          {},
+        )
+      ).status,
+    ).toBe(400);
+  } finally {
+    media.participants = participants;
+    media.client.mutePublishedTrack = mute;
+    media.client.sendData = send;
+  }
+});

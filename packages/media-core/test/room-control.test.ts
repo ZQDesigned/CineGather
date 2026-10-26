@@ -36,3 +36,21 @@ test("only correctly scoped server-origin controls can change capture state; pee
     decodeRoomControl(new Uint8Array([123]), ROOM_CONTROL_TOPIC, "", roomId),
   ).toBeUndefined();
 });
+
+test("only server-originated accompaniment stops are accepted for this room", () => {
+  const stop = { action: "stop-accompaniment" as const, roomId };
+  expect(
+    decodeRoomControl(encode(stop), ROOM_CONTROL_TOPIC, "", roomId),
+  ).toEqual(stop);
+  expect(
+    decodeRoomControl(encode(stop), ROOM_CONTROL_TOPIC, "peer", roomId),
+  ).toBeUndefined();
+  expect(
+    decodeRoomControl(
+      encode(stop),
+      ROOM_CONTROL_TOPIC,
+      "",
+      crypto.randomUUID(),
+    ),
+  ).toBeUndefined();
+});

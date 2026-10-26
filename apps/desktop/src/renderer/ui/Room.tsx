@@ -26,6 +26,7 @@ import {
 import { qualityLabel } from "@cinegather/contracts";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
+import { AccompanimentControl } from "./Accompaniment";
 import { Chat } from "./Chat";
 import { Member } from "./Member";
 import { capabilities } from "../platform";
@@ -412,6 +413,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
                 <span>暂停观看</span>
               </Button>
             )}
+            <AccompanimentControl disabled={!connected || micBlocked} />
             <span className="control-spacer" />
             <Button
               danger

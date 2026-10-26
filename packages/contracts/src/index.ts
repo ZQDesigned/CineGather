@@ -256,6 +256,7 @@ export interface MemberOverlaySnapshot {
     local: boolean;
     owner: boolean;
     microphone: boolean;
+    accompaniment?: boolean;
     speaking: boolean;
     sharing: boolean;
   }>;
@@ -282,6 +283,14 @@ export interface DesktopSettings {
   outputDevice: string;
 }
 export interface DesktopBridge {
+  accompaniment?: {
+    sources(): Promise<{ id: string; name: string }[]>;
+    start(sourceId: string, requestId: string): Promise<ProcessAudioStart>;
+    stop(requestId: string): Promise<void>;
+    acknowledge(sessionId: string, sequence: number): void;
+    onData(callback: (packet: ProcessAudioPacket) => void): () => void;
+    onError(callback: (sessionId: string, message: string) => void): () => void;
+  };
   platform: string;
   diagnostics?: {
     record(entry: import("./diagnostics").DiagnosticRecord): Promise<void>;
@@ -322,6 +331,7 @@ export interface DesktopBridge {
         | "toggle-mute"
         | "ptt-press"
         | "ptt-release"
+        | "stop-accompaniment"
         | "stop-share"
         | "invite"
         | "device-audio-fallback",
@@ -402,8 +412,12 @@ export interface NativeCaptureRequest {
 }
 
 // Only server-originated LiveKit packets may be interpreted as room controls.
+export const ACCOMPANIMENT_TRACK = "cinegather-accompaniment-v1";
 export const ROOM_CONTROL_TOPIC = "cinegather.room-control.v1";
 export const roomControlSchema = z.discriminatedUnion("action", [
+  z
+    .object({ action: z.literal("stop-accompaniment"), roomId: z.uuid() })
+    .strict(),
   z.object({ action: z.literal("mute-microphone"), roomId: z.uuid() }).strict(),
   z
     .object({
@@ -415,6 +429,7 @@ export const roomControlSchema = z.discriminatedUnion("action", [
 ]);
 export type RoomControl = z.infer<typeof roomControlSchema>;
 export const muteMicrophoneInput = z.object({}).strict();
+export const stopAccompanimentInput = z.object({}).strict();
 export * from "./diagnostics";
 
 export * from "./encoder-diagnostics";

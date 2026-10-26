@@ -4,6 +4,7 @@ import {
   Button,
   Dropdown,
   Slider,
+  Tooltip,
   Switch,
   Tag,
   type MenuProps,
@@ -17,6 +18,8 @@ import {
   LogOut,
   Mic,
   MicOff,
+  Music2,
+  Square,
   Signal,
   UserPlus,
   Volume2,
@@ -114,6 +117,11 @@ export function Member({
             disabled: !microphoneAllowed,
           },
           {
+            key: "stop-accompaniment",
+            label: "关闭伴奏",
+            icon: <Square size={15} />,
+          },
+          {
             key: "block-mic",
             role: "menuitemcheckbox" as const,
             "aria-checked": !microphoneAllowed,
@@ -200,6 +208,14 @@ export function Member({
             ? { microphoneAllowed: !microphoneAllowed }
             : { sharingAllowed: !sharingAllowed },
         );
+      } else if (key === "stop-accompaniment" && room.role === "owner") {
+        unwrap(
+          await actions.api.POST(
+            "/api/v1/rooms/{roomId}/members/{userId}/accompaniment/stop",
+            { params: { path: { roomId: room.id, userId: p.id } }, body: {} },
+          ),
+        );
+        update({ notice: `已关闭${p.name}的伴奏` });
       } else if (key === "mute" && room.role === "owner") {
         unwrap(
           await actions.api.POST(
@@ -267,6 +283,21 @@ export function Member({
         </small>
       </div>
       <div className="member-status">
+        {p.accompaniment && (
+          <Tooltip title="正在播放伴奏">
+            <span
+              role="img"
+              aria-label="正在播放伴奏"
+              style={{
+                color: "#bca5ff",
+                display: "inline-flex",
+                flexShrink: 0,
+              }}
+            >
+              <Music2 size={14} />
+            </span>
+          </Tooltip>
+        )}
         <span
           className={`member-quality ${p.quality === "poor" || p.quality === "lost" ? "poor" : ""}`}
           title={`网络质量：${p.quality === "excellent" ? "优秀" : p.quality === "good" ? "良好" : p.quality === "poor" ? "较差" : p.quality === "lost" ? "已丢失" : "测量中"}`}

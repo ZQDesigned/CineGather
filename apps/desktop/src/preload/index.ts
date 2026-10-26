@@ -2,6 +2,54 @@ import { contextBridge, ipcRenderer } from "electron";
 import type { DesktopBridge } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  ...(["win32", "darwin"].includes(process.platform)
+    ? {
+        accompaniment: {
+          sources: () => ipcRenderer.invoke("desktop:accompaniment-sources"),
+          start: (sourceId: string, requestId: string) =>
+            ipcRenderer.invoke("desktop:accompaniment-start", {
+              sourceId,
+              requestId,
+            }),
+          stop: (requestId: string) =>
+            ipcRenderer.invoke("desktop:accompaniment-stop", requestId),
+          acknowledge: (sessionId: string, sequence: number) =>
+            ipcRenderer.send("desktop:accompaniment-ack", {
+              sessionId,
+              sequence,
+            }),
+          onData: (
+            callback: (
+              packet: import("@cinegather/contracts").ProcessAudioPacket,
+            ) => void,
+          ) => {
+            const listener = (
+              _event: Electron.IpcRendererEvent,
+              packet: import("@cinegather/contracts").ProcessAudioPacket,
+            ) => callback(packet);
+            ipcRenderer.on("desktop:accompaniment-data", listener);
+            return () =>
+              ipcRenderer.removeListener(
+                "desktop:accompaniment-data",
+                listener,
+              );
+          },
+          onError: (callback: (id: string, message: string) => void) => {
+            const listener = (
+              _event: Electron.IpcRendererEvent,
+              id: string,
+              message: string,
+            ) => callback(id, message);
+            ipcRenderer.on("desktop:accompaniment-error", listener);
+            return () =>
+              ipcRenderer.removeListener(
+                "desktop:accompaniment-error",
+                listener,
+              );
+          },
+        },
+      }
+    : {}),
   diagnostics: {
     record: (entry) => ipcRenderer.invoke("desktop:diagnostic-record", entry),
     status: () => ipcRenderer.invoke("desktop:diagnostic-status"),

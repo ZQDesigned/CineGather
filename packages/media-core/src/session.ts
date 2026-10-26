@@ -1,6 +1,7 @@
 import {
   Room,
   LocalAudioTrack,
+  createLocalAudioTrack,
   RoomEvent,
   Track,
   ConnectionState,
@@ -22,8 +23,14 @@ import {
   type RoomControl,
 } from "@cinegather/contracts";
 import { decodeRoomControl } from "./room-control";
+import {
+  ACCOMPANIMENT_TRACK,
+  isAccompaniment,
+  voicePublication,
+} from "./audio-publications";
 import { MoviePlayback } from "./movie";
 import { AudioMixer } from "./mixer";
+import { VoiceActivity } from "./voice-activity";
 import { VoicePlayback } from "./voice-playback";
 import { ShareSubscriptions } from "./subscriptions";
 import { BrowserCapture } from "./browser-capture";
@@ -40,6 +47,7 @@ export interface ParticipantSummary {
   local: boolean;
   microphone: boolean;
   microphoneAllowed?: boolean;
+  accompaniment?: boolean;
   speaking: boolean;
   quality: string;
 }
@@ -62,10 +70,14 @@ export class MediaSession {
   private audioElements = new Map<string, HTMLMediaElement[]>();
   private mixer = new AudioMixer();
   private voices: VoicePlayback;
+  private voiceActivity = new VoiceActivity();
+  private speakerPoll?: ReturnType<typeof setInterval>;
   private movie = new MoviePlayback();
   private movieAudio?: { sid: string; track: RemoteAudioTrack };
   private subscriptions = new ShareSubscriptions();
   private microphoneRevision = 0;
+  private microphoneWork?: Promise<void>;
+  private microphoneDevice?: string;
   private microphoneWanted = false;
   private noiseMode: NoiseReduction = "enhanced";
   private noiseStatus?: MicrophoneNoiseStatus;
@@ -251,6 +263,15 @@ export class MediaSession {
       room.localParticipant,
       ...room.remoteParticipants.values(),
     ];
+    const accompanying = participants.some((p) =>
+      [...p.trackPublications.values()].some(isAccompaniment),
+    );
+    if (accompanying && !this.speakerPoll)
+      this.speakerPoll = setInterval(() => this.emit(), 200);
+    if (!accompanying && this.speakerPoll) {
+      clearInterval(this.speakerPoll);
+      this.speakerPoll = undefined;
+    }
     this.subscriptions.sync(room);
     const sharer = participants.find((p) =>
       p.getTrackPublication(Track.Source.ScreenShare),
@@ -272,18 +293,31 @@ export class MediaSession {
       state: room.state,
       participants: participants
         .filter((p) => !nativeOwner(p.identity))
-        .map((p) => ({
-          id: p.identity,
-          name: p.name || "朋友",
-          local: p === room.localParticipant,
-          microphone: p.isMicrophoneEnabled,
-          microphoneAllowed:
-            p.permissions?.canPublish !== false &&
-            (!p.permissions?.canPublishSources.length ||
-              p.permissions.canPublishSources.includes(2)),
-          speaking: p.isSpeaking,
-          quality: p.connectionQuality,
-        })),
+        .map((p) => {
+          const voice = voicePublication<
+            LocalTrackPublication | RemoteTrackPublication
+          >(p.trackPublications);
+          const microphone = Boolean(voice?.track && !voice.isMuted);
+          return {
+            id: p.identity,
+            name: p.name || "朋友",
+            local: p === room.localParticipant,
+            microphone,
+            accompaniment: [...p.trackPublications.values()].some(
+              (pub) => isAccompaniment(pub) && !pub.isMuted,
+            ),
+            microphoneAllowed:
+              p.permissions?.canPublish !== false &&
+              (!p.permissions?.canPublishSources.length ||
+                p.permissions.canPublishSources.includes(2)),
+            speaking:
+              microphone &&
+              (accompanying
+                ? this.voiceActivity.active(voice!.trackSid) === true
+                : p.isSpeaking),
+            quality: p.connectionQuality,
+          };
+        }),
       sharer: sharer
         ? {
             id: nativeOwner(sharer.identity) ?? sharer.identity,
@@ -334,15 +368,23 @@ export class MediaSession {
       return;
     }
     if (track instanceof RemoteAudioTrack) {
+      if (!isAccompaniment(pub))
+        this.voiceActivity.bind(
+          pub.trackSid,
+          new MediaStream([track.mediaStreamTrack]),
+        );
       const el = track.attach();
       el.dataset.cinegatherAudio = pub.source;
+      el.dataset.cinegatherPurpose = isAccompaniment(pub)
+        ? "accompaniment"
+        : "voice";
       el.style.display = "none";
       document.body.append(el);
       this.audioElements.set(pub.trackSid, [el]);
       this.mixer.attach(
         pub.trackSid,
         participant.identity,
-        "voice",
+        isAccompaniment(pub) ? "accompaniment" : "voice",
         this.voices.attach(
           pub.trackSid,
           el.srcObject as MediaStream,
@@ -355,6 +397,7 @@ export class MediaSession {
     this.emit();
   }
   private detach(track: Track, sid: string) {
+    this.voiceActivity.remove(sid);
     this.voices.remove(sid);
     if (this.movieAudio?.sid === sid) {
       this.movieAudio = undefined;
@@ -382,6 +425,9 @@ export class MediaSession {
   private clearElements() {
     this.subscriptions.reset();
     this.voices.clear();
+    this.voiceActivity.clear();
+    clearInterval(this.speakerPoll);
+    this.speakerPoll = undefined;
     this.movie.tracks();
     this.movieAudio = undefined;
     this.videoTrack = undefined;
@@ -412,56 +458,70 @@ export class MediaSession {
           !permission.canPublishSources.includes(2)))
     )
       throw new Error("房主已禁止你在此房间开麦");
-    let revision = ++this.microphoneRevision;
-    let wanted = enabled;
+    ++this.microphoneRevision;
     this.microphoneWanted = enabled;
+    this.microphoneDevice = deviceId;
     if (!room) return;
     if (enabled && !navigator.mediaDevices?.getUserMedia)
       throw new Error(
         "语音需要使用 HTTPS 或本机地址，并允许 Chrome 使用麦克风",
       );
+    if (this.microphoneWork) return this.microphoneWork;
+    const work = this.applyMicrophone(room);
+    this.microphoneWork = work;
+    try {
+      await work;
+    } finally {
+      if (this.microphoneWork === work) this.microphoneWork = undefined;
+    }
+  }
+  private async applyMicrophone(room: Room) {
     while (this.room === room) {
-      let publication: LocalTrackPublication | undefined;
-      const mode = this.noiseMode;
-      try {
-        publication = await room.localParticipant.setMicrophoneEnabled(wanted, {
-          deviceId: deviceId || undefined,
-          ...microphoneConstraints(mode),
+      const revision = this.microphoneRevision,
+        wanted = this.microphoneWanted;
+      let publication = voicePublication(
+        room.localParticipant.trackPublications,
+      );
+      if (wanted && !publication) {
+        // The SDK's source lookup may find the independent accompaniment first.
+        // Own the real microphone explicitly so mute/PTT/device changes stay scoped.
+        const track = await createLocalAudioTrack({
+          deviceId: this.microphoneDevice || undefined,
+          ...microphoneConstraints(this.noiseMode),
         });
-        if (wanted && mode !== "enhanced")
-          this.noiseStatus = { requested: mode, active: mode };
-      } catch (error) {
-        if (
-          this.room !== room ||
-          (revision !== this.microphoneRevision && !this.microphoneWanted)
-        )
+        if (this.room !== room || !this.microphoneWanted) {
+          track.stop();
+          if (this.room !== room) return;
+          continue;
+        }
+        try {
+          publication = await room.localParticipant.publishTrack(track, {
+            name: "cinegather-microphone",
+            source: Track.Source.Microphone,
+            stopMicTrackOnMute: false,
+          });
+        } catch (error) {
+          track.stop();
+          throw error;
+        }
+        if (this.room !== room) {
+          await room.localParticipant.unpublishTrack(track, true);
           return;
-        throw error;
+        }
       }
-      if (this.room !== room) {
-        publication?.track?.stop();
-        return;
+      if (publication?.track instanceof LocalAudioTrack) {
+        if (this.microphoneWanted) await publication.track.unmute();
+        else await publication.track.mute();
+        if (
+          this.microphoneWanted &&
+          (this.noiseMode !== "enhanced" || !publication.track.getProcessor())
+        )
+          await this.noiseReduction(this.noiseMode);
       }
-      // The SDK assigns its audio context only after creating the mic track;
-      // passing a processor into capture options initialises it too early.
-      // Publish with platform suppression, then attach enhancement to that track.
-      if (
-        wanted &&
-        this.microphoneWanted &&
-        (mode !== this.noiseMode ||
-          (mode === "enhanced" &&
-            publication?.track instanceof LocalAudioTrack &&
-            !publication.track.getProcessor()))
-      )
-        await this.noiseReduction(this.noiseMode);
       if (revision === this.microphoneRevision) {
         this.emit();
         return;
       }
-      // A pending OS grant or SDK publication can settle after a newer mute.
-      // Reapply the latest intent, including when the SDK's pending wait expires.
-      revision = this.microphoneRevision;
-      wanted = this.microphoneWanted;
     }
   }
   private async createDenoiser(room: Room) {
@@ -475,9 +535,8 @@ export class MediaSession {
     this.noiseMode = mode;
     this.noiseStatus = undefined;
     const room = this.room;
-    const track = room?.localParticipant.getTrackPublication(
-      Track.Source.Microphone,
-    )?.track;
+    const track =
+      room && voicePublication(room.localParticipant.trackPublications)?.track;
     if (!room || !(track instanceof LocalAudioTrack)) return;
     // These SDK operations retain the existing track's mute/PTT intent.
     await track.applyConstraints(microphoneConstraints(mode));
@@ -509,6 +568,12 @@ export class MediaSession {
       await track.stopProcessor();
       this.noiseStatus = { requested: mode, active: mode };
     }
+    const voice = voicePublication(room.localParticipant.trackPublications);
+    if (voice?.track)
+      this.voiceActivity.bind(
+        voice.trackSid,
+        new MediaStream([voice.track.mediaStreamTrack]),
+      );
     this.emit();
   }
   async share(quality: Quality, systemAudio: boolean) {
@@ -605,6 +670,44 @@ export class MediaSession {
       throw error;
     }
   }
+  async publishAccompaniment(track: MediaStreamTrack) {
+    const room = this.room;
+    const permission = room?.localParticipant.permissions;
+    if (
+      !room ||
+      room.state !== ConnectionState.Connected ||
+      permission?.canPublish === false ||
+      (permission?.canPublishSources.length &&
+        !permission.canPublishSources.includes(2))
+    ) {
+      track.stop();
+      throw new Error("当前无法发布伴奏，请检查房间连接和开麦权限");
+    }
+    try {
+      await room.localParticipant.publishTrack(track, {
+        name: ACCOMPANIMENT_TRACK,
+        source: Track.Source.Microphone,
+        forceStereo: true,
+        dtx: false,
+        red: true,
+        audioPreset: { maxBitrate: 96000 },
+        stopMicTrackOnMute: false,
+      });
+      if (this.room !== room || track.readyState !== "live") {
+        await room.localParticipant.unpublishTrack(track, true);
+        throw new Error("伴奏已停止");
+      }
+      this.emit();
+    } catch (error) {
+      track.stop();
+      throw error;
+    }
+  }
+  async unpublishAccompaniment(track: MediaStreamTrack) {
+    await this.room?.localParticipant.unpublishTrack(track, true);
+    track.stop();
+    this.emit();
+  }
   async selectBrowserShare(quality: Quality, audio: boolean) {
     const selected = await this.browserCapture.select(quality, audio);
     if (selected) {
@@ -682,7 +785,22 @@ export class MediaSession {
   async devices(input?: string, output?: string) {
     if (!this.room) return;
     if (input !== undefined)
-      await this.room.switchActiveDevice("audioinput", input || "default");
+      await voicePublication(
+        this.room.localParticipant.trackPublications,
+      )?.track?.restartTrack({
+        deviceId: input || "default",
+        ...microphoneConstraints(this.noiseMode),
+      });
+    if (input !== undefined) {
+      const voice = voicePublication(
+        this.room.localParticipant.trackPublications,
+      );
+      if (voice?.track)
+        this.voiceActivity.bind(
+          voice.trackSid,
+          new MediaStream([voice.track.mediaStreamTrack]),
+        );
+    }
     if (
       output !== undefined &&
       typeof HTMLMediaElement.prototype.setSinkId === "function"
@@ -839,6 +957,7 @@ export class MediaSession {
     this.browserCapture.stop();
     ++this.revision;
     ++this.microphoneRevision;
+    this.microphoneWork = undefined;
     this.microphoneWanted = false;
     this.noiseStatus = undefined;
     clearInterval(this.poll);

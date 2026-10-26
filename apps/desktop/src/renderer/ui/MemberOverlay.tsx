@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Avatar } from "antd";
 import { Global, css } from "@emotion/react";
 import styled from "@emotion/styled";
-import { Crown, Mic, MicOff, MonitorUp } from "lucide-react";
+import { Crown, Mic, MicOff, MonitorUp, Music2 } from "lucide-react";
 import type { MemberOverlayView } from "@cinegather/contracts";
 import { cinemaFont } from "./styles";
 const Surface = styled.section<{ $backgroundOpacity: number }>`
@@ -167,6 +167,13 @@ export function MemberOverlay() {
                     size={14}
                     className="sharing"
                     aria-label="正在共享"
+                  />
+                )}
+                {member.accompaniment && (
+                  <Music2
+                    size={14}
+                    className="sharing"
+                    aria-label="正在播放伴奏"
                   />
                 )}
                 {member.microphone ? (

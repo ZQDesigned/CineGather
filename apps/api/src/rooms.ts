@@ -810,6 +810,25 @@ export async function muteMember(user: User, roomId: string, targetId: string) {
   });
   return { ok: true as const };
 }
+export async function stopMemberAccompaniment(
+  user: User,
+  roomId: string,
+  targetId: string,
+) {
+  roomId = uuid(roomId);
+  targetId = uuid(targetId);
+  await db.transaction(async (tx) => {
+    await requireMember(tx, roomId, user.id, true, true);
+    if (targetId === user.id)
+      fail(400, "CANNOT_MODERATE_SELF", "请使用自己的伴奏开关");
+    const target = await requirePresentMember(tx, roomId, targetId);
+    await media.stopAccompaniment(roomId, targetId, target.tracks ?? []);
+    await audit(tx, user.id, "member.accompaniment_stopped", roomId, {
+      userId: targetId,
+    });
+  });
+  return { ok: true as const };
+}
 async function memberPolicy(tx: Transaction, roomId: string, userId: string) {
   const [policy] = await tx
     .select()

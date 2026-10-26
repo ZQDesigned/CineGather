@@ -671,8 +671,11 @@ static void serve() {
     }
   }
 }
+int cg_accompaniment_main(int argc, const char **argv);
 int main(int argc, const char **argv) {
   @autoreleasepool {
+    if (argc >= 2 && (!strcmp(argv[1], "--accompaniment") || !strcmp(argv[1], "--audio-applications")))
+      return cg_accompaniment_main(argc, argv);
     if (argc != 2)
       return 0;
     parentPid = getppid();

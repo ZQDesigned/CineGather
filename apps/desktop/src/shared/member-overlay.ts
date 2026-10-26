@@ -17,6 +17,7 @@ export const overlaySnapshotSchema = z.object({
         local: z.boolean(),
         owner: z.boolean(),
         microphone: z.boolean(),
+        accompaniment: z.boolean().optional(),
         speaking: z.boolean(),
         sharing: z.boolean(),
       }),
@@ -40,6 +41,7 @@ interface OverlayInput {
       name: string;
       local: boolean;
       microphone: boolean;
+      accompaniment?: boolean;
       speaking: boolean;
       microphoneAllowed?: boolean;
     }>;
@@ -76,6 +78,7 @@ export function buildMemberOverlay(
           local: p.local,
           owner: p.id === room.ownerUserId,
           microphone,
+          ...(p.accompaniment ? { accompaniment: true } : {}),
           speaking: microphone && p.speaking,
           sharing: media.sharer?.id === p.id,
         };

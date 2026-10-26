@@ -263,6 +263,23 @@ export class ApiController {
     parse(c.muteMicrophoneInput, body);
     return r.muteMember(req.user, roomId, userId);
   }
+  @Post("rooms/:roomId/members/:userId/accompaniment/stop")
+  @Endpoint(
+    "stopMemberAccompaniment",
+    c.okSchema,
+    c.stopAccompanimentInput,
+    ["roomId", "userId"],
+    201,
+  )
+  stopMemberAccompaniment(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Param("userId") userId: string,
+    @Body() body: unknown,
+  ) {
+    parse(c.stopAccompanimentInput, body);
+    return r.stopMemberAccompaniment(req.user, roomId, userId);
+  }
   @Post("rooms/:roomId/share-lease/renew")
   @Endpoint("renewLease", c.leaseSchema, c.leaseInput, ["roomId"], 201)
   renew(

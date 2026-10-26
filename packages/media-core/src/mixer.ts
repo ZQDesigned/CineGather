@@ -4,7 +4,11 @@ export interface AudioSink {
 export class AudioMixer {
   private tracks = new Map<
     string,
-    { userId: string; kind: "voice" | "screen"; sink: AudioSink }
+    {
+      userId: string;
+      kind: "voice" | "screen" | "accompaniment";
+      sink: AudioSink;
+    }
   >();
   private voiceVolume = 1;
   private screenVolume = 1;
@@ -12,7 +16,7 @@ export class AudioMixer {
   attach(
     id: string,
     userId: string,
-    kind: "voice" | "screen",
+    kind: "voice" | "screen" | "accompaniment",
     sink: AudioSink,
   ) {
     this.tracks.set(id, { userId, kind, sink });
@@ -44,7 +48,11 @@ export class AudioMixer {
       sink.setVolume(
         kind === "screen"
           ? this.screenVolume
-          : this.voiceVolume * (this.members.get(userId) ?? 1),
+          : this.voiceVolume *
+              Math.min(
+                kind === "accompaniment" ? 1 : 2,
+                this.members.get(userId) ?? 1,
+              ),
       );
   }
 }

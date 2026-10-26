@@ -26,6 +26,11 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  accompaniment: {
+    status: "idle" | "starting" | "active";
+    source?: string;
+    volume: number;
+  };
   requiredUpdate?: { minimumVersion: string; reason: string };
   user?: User;
   friends: Friend[];
@@ -56,6 +61,7 @@ interface State {
   joinValue: string;
 }
 export const useApp = create<State>(() => ({
+  accompaniment: { status: "idle", volume: 20 },
   roomRevision: 0,
   shareRevision: 0,
   roomState: "idle",

@@ -114,3 +114,27 @@ test("overlay stays anchored to the chosen side of any display work area", () =>
     overlayBounds("right-top", 1, { x: 0, y: 25, width: 1440, height: 875 }),
   ).toEqual({ x: 1176, y: 33, width: 256, height: 80 });
 });
+
+test("accompaniment has its own overlay status while the microphone stays closed", () => {
+  const input = {
+    ...active,
+    media: {
+      ...active.media,
+      participants: [
+        {
+          id: "a",
+          name: "伴奏",
+          local: true,
+          microphone: false,
+          speaking: false,
+          accompaniment: true,
+        },
+      ],
+    },
+  };
+  expect(buildMemberOverlay(input)?.members[0]).toMatchObject({
+    accompaniment: true,
+    microphone: false,
+    speaking: false,
+  });
+});

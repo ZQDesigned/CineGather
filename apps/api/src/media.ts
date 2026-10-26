@@ -12,6 +12,7 @@ import {
 import { config } from "./config";
 import {
   MAX_ROOM_MEMBERS,
+  ACCOMPANIMENT_TRACK,
   ROOM_CONTROL_TOPIC,
   type RoomControl,
   nativeIdentity,
@@ -174,14 +175,31 @@ export class MediaGateway {
   async muteMicrophone(
     roomId: string,
     userId: string,
-    tracks: { sid: string; source: TrackSource }[],
+    tracks: { sid: string; source: TrackSource; name?: string }[],
   ) {
     // The server never accepts a caller-supplied unmute flag or track SID.
     for (const track of tracks)
-      if (track.source === TrackSource.MICROPHONE)
+      if (
+        track.source === TrackSource.MICROPHONE &&
+        track.name !== ACCOMPANIMENT_TRACK
+      )
         await this.client.mutePublishedTrack(roomId, userId, track.sid, true);
     // Covers an OS microphone grant/publication still pending on the client.
     await this.control(userId, { action: "mute-microphone", roomId });
+  }
+  async stopAccompaniment(
+    roomId: string,
+    userId: string,
+    tracks: { sid: string; source: TrackSource; name?: string }[],
+  ) {
+    for (const track of tracks)
+      if (
+        track.source === TrackSource.MICROPHONE &&
+        track.name === ACCOMPANIMENT_TRACK
+      )
+        await this.client.mutePublishedTrack(roomId, userId, track.sid, true);
+    // Also cancel capture/publication still waiting on an OS grant.
+    await this.control(userId, { action: "stop-accompaniment", roomId });
   }
   async remove(roomId: string, userId: string) {
     try {

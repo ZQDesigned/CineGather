@@ -66,6 +66,7 @@ export class WindowsAudio {
       failed(sessionId: string, message: string): void;
       spawn?: typeof spawn;
       timeoutMs?: number;
+      arguments?(target: { mode: string; window: string }): string[];
     },
   ) {}
   grant(selection: CaptureSelection) {
@@ -99,6 +100,12 @@ export class WindowsAudio {
       return this.attempt(target, "device", generation);
     }
   }
+  async startIsolated(target: { mode: string; window: string }) {
+    this.stop();
+    if (!this.options.supported)
+      throw new Error("当前系统不支持应用声音隔离，无法开启伴奏");
+    return this.attempt(target, "isolated", this.generation);
+  }
   private attempt(
     target: ReturnType<typeof audioTarget>,
     mode: ProcessAudioStart["mode"],
@@ -107,7 +114,7 @@ export class WindowsAudio {
     if (generation !== this.generation) throw new Error("声音采集已停止");
     const child = (this.options.spawn ?? spawn)(
       this.options.executable,
-      [
+      this.options.arguments?.(target) ?? [
         mode === "device" ? "device" : target.mode,
         target.window,
         String(this.options.ownerPid),
