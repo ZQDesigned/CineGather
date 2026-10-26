@@ -108,65 +108,55 @@ try {
       ),
     )
     .toBe(true);
-  await expect
-    .poll(read)
-    .toMatchObject({
-      topmost: true,
-      visible: true,
-      focusable: false,
-      clickThrough: true,
-      capturable: true,
-    });
-  // A real HWND can lose WS_EX_TOPMOST while Electron still reports true.
+  await expect.poll(read).toMatchObject({
+    topmost: true,
+    visible: true,
+    focusable: false,
+    clickThrough: true,
+    capturable: true,
+  });
+  // Reproduce native topmost loss independently of Electron's reported flag.
   expect(
     await app.evaluate(() =>
       (globalThis as unknown as { overlayTest: Harness }).overlayTest.legacy(),
     ),
-  ).toEqual({ cached: true, native: false });
+  ).toMatchObject({ native: false });
   await app.evaluate(() =>
     (globalThis as unknown as { overlayTest: Harness }).overlayTest.cover(
       false,
     ),
   );
-  await expect
-    .poll(read, { timeout: 4000 })
-    .toMatchObject({
-      topmost: true,
-      aboveCover: true,
-      foregroundRetained: true,
-    });
+  await expect.poll(read, { timeout: 4000 }).toMatchObject({
+    topmost: true,
+    aboveCover: true,
+    foregroundRetained: true,
+  });
   const demoted = await app.evaluate(() =>
     (globalThis as unknown as { overlayTest: Harness }).overlayTest.demote(),
   );
-  expect(demoted).toMatchObject({ topmost: false, cachedTopmost: true });
-  await expect
-    .poll(read, { timeout: 4000 })
-    .toMatchObject({
-      topmost: true,
-      aboveCover: true,
-      foregroundRetained: true,
-    });
+  expect(demoted).toMatchObject({ topmost: false });
+  await expect.poll(read, { timeout: 4000 }).toMatchObject({
+    topmost: true,
+    aboveCover: true,
+    foregroundRetained: true,
+  });
   await app.evaluate(() =>
     (globalThis as unknown as { overlayTest: Harness }).overlayTest.cover(true),
   );
-  await expect
-    .poll(read, { timeout: 4000 })
-    .toMatchObject({
-      coverFullscreen: true,
-      topmost: true,
-      aboveCover: true,
-      foregroundRetained: true,
-    });
+  await expect.poll(read, { timeout: 4000 }).toMatchObject({
+    coverFullscreen: true,
+    topmost: true,
+    aboveCover: true,
+    foregroundRetained: true,
+  });
   await app.evaluate(() =>
     (globalThis as unknown as { overlayTest: Harness }).overlayTest.hideMain(),
   );
-  await expect
-    .poll(read)
-    .toMatchObject({
-      visible: true,
-      aboveCover: true,
-      foregroundRetained: true,
-    });
+  await expect.poll(read).toMatchObject({
+    visible: true,
+    aboveCover: true,
+    foregroundRetained: true,
+  });
   await app.evaluate(() =>
     (globalThis as unknown as { overlayTest: Harness }).overlayTest.block(true),
   );
@@ -180,16 +170,14 @@ try {
       false,
     ),
   );
-  await expect
-    .poll(read, { timeout: 4000 })
-    .toMatchObject({
-      visible: true,
-      topmost: true,
-      aboveCover: true,
-      foregroundRetained: true,
-      clickThrough: true,
-      capturable: true,
-    });
+  await expect.poll(read, { timeout: 4000 }).toMatchObject({
+    visible: true,
+    topmost: true,
+    aboveCover: true,
+    foregroundRetained: true,
+    clickThrough: true,
+    capturable: true,
+  });
   await app.evaluate(() =>
     (globalThis as unknown as { overlayTest: Harness }).overlayTest.clear(),
   );
@@ -201,7 +189,8 @@ try {
   console.log(
     JSON.stringify({
       windowsNativeOverlay: true,
-      staleElectronTopmostReproduced: true,
+      nativeTopmostLossReproduced: true,
+      electronFlagAfterDemotion: demoted.cachedTopmost,
       actualNativeDemotionRecovered: true,
       laterTopmostWindowRecovered: true,
       borderlessFullscreenRecovered: true,
@@ -211,6 +200,12 @@ try {
       hiddenOverlayNotResurrected: true,
     }),
   );
+} catch (error) {
+  console.error(
+    "Native overlay state at failure:",
+    await read().catch(() => undefined),
+  );
+  throw error;
 } finally {
   await app.close();
   await new Promise<void>((done, reject) =>
