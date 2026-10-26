@@ -50,6 +50,43 @@ try {
     )
     .toBe(false);
   await expect(page.getByRole("group", { name: "窗口控制" })).toBeVisible();
+  for (const name of ["最小化", "最大化", "关闭窗口"]) {
+    await page.getByRole("button", { name, exact: true }).hover();
+    // Wait beyond AntD's hover delay to catch accidental Tooltip wrappers.
+    await page.waitForTimeout(500);
+    await expect(page.getByRole("tooltip")).toHaveCount(0);
+  }
+  await page.mouse.move(0, 0);
+  // Produce a real error Notification without sending a login attempt online.
+  let intercepted = false;
+  await page.route("**/api/v1/accounts/login", (route) => {
+    intercepted = true;
+    return route.fulfill({
+      status: 400,
+      headers: { "Access-Control-Allow-Origin": "*" },
+      json: {
+        code: "NOTIFICATION_LAYOUT_TEST",
+        message: "通知布局测试（本地拦截）",
+      },
+    });
+  });
+  await page
+    .getByLabel("用户名", { exact: true })
+    .fill("notification_layout_test");
+  await page.getByLabel("密码", { exact: true }).fill("Local layout test 123!");
+  await page.getByRole("button", { name: "登录", exact: true }).click();
+  const notice = page.locator(".ant-notification-notice");
+  await expect(notice).toBeVisible();
+  expect(intercepted).toBe(true);
+  await expect
+    .poll(async () => {
+      const notification = await notice.boundingBox();
+      const header = await page.locator(".topbar").boundingBox();
+      return notification && header
+        ? notification.y - header.y - header.height
+        : -1;
+    })
+    .toBeGreaterThanOrEqual(16);
   for (const width of [980, 1360]) {
     await app.evaluate(
       ({ BrowserWindow }, width) =>
@@ -119,6 +156,8 @@ try {
       menusRemoved: true,
       captionOverlayVisible: false,
       frontendControlsInLayout: true,
+      notificationBelowHeader: true,
+      captionTooltipsAbsent: true,
       maximizeRestoreAndMinimize: true,
       closeToTray: true,
     }),

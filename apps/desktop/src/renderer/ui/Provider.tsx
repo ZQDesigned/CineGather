@@ -47,7 +47,7 @@ export function UIProvider({
       {!overlay && <GlobalStyles />}
       <AntApp
         message={{ maxCount: 3 }}
-        notification={{ placement: "topRight", top: 48 }}
+        notification={{ placement: "topRight", top: 72 }}
       >
         {children}
       </AntApp>

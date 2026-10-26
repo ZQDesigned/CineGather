@@ -37,6 +37,25 @@ test("frontend Windows controls occupy header layout and follow window state", a
   });
   const controls = page.getByRole("group", { name: "窗口控制" });
   await expect(controls).toBeVisible();
+  await page.evaluate(async () => {
+    const { update } = await import("/store.ts" as string);
+    update({
+      warningTitle: "通知布局测试",
+      warning: "通知应显示在顶栏下方，窗口按钮保持可操作。",
+    });
+  });
+  const notification = page.locator(".ant-notification-notice");
+  await expect(notification).toBeVisible();
+  await expect
+    .poll(
+      async () => {
+        const notice = await notification.boundingBox();
+        const header = await page.locator(".topbar").boundingBox();
+        return notice && header ? notice.y - header.y - header.height : -1;
+      },
+      { timeout: 2000 },
+    )
+    .toBeGreaterThanOrEqual(16);
   await controls.getByRole("button", { name: "最大化", exact: true }).click();
   await expect(
     controls.getByRole("button", { name: "还原窗口", exact: true }),

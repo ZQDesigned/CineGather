@@ -1,4 +1,4 @@
-import { Button, Tooltip } from "antd";
+import { Button } from "antd";
 import { Copy, Minus, Square, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import type { MainWindowAction } from "@cinegather/contracts";
@@ -42,31 +42,25 @@ export function WindowControls() {
       aria-label="窗口控制"
       onDoubleClick={(event) => event.stopPropagation()}
     >
-      <Tooltip title="最小化">
-        <Button
-          type="text"
-          aria-label="最小化"
-          icon={<Minus size={16} />}
-          onClick={() => run("minimize")}
-        />
-      </Tooltip>
-      <Tooltip title={maximizeLabel}>
-        <Button
-          type="text"
-          aria-label={maximizeLabel}
-          icon={maximized ? <Copy size={14} /> : <Square size={14} />}
-          onClick={() => run("toggle-maximize")}
-        />
-      </Tooltip>
-      <Tooltip title="关闭窗口">
-        <Button
-          type="text"
-          className="window-close"
-          aria-label="关闭窗口"
-          icon={<X size={17} />}
-          onClick={() => run("close")}
-        />
-      </Tooltip>
+      <Button
+        type="text"
+        aria-label="最小化"
+        icon={<Minus size={16} />}
+        onClick={() => run("minimize")}
+      />
+      <Button
+        type="text"
+        aria-label={maximizeLabel}
+        icon={maximized ? <Copy size={14} /> : <Square size={14} />}
+        onClick={() => run("toggle-maximize")}
+      />
+      <Button
+        type="text"
+        className="window-close"
+        aria-label="关闭窗口"
+        icon={<X size={17} />}
+        onClick={() => run("close")}
+      />
     </div>
   );
 }
