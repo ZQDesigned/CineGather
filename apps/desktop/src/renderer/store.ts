@@ -40,6 +40,7 @@ interface State {
   requiredUpdate?: { minimumVersion: string; reason: string };
   user?: User;
   friends: Friend[];
+  presenceVisibility?: "online" | "invisible";
   registrationEnabled?: boolean;
   room?: RoomInfo;
   roomRevision: number;

@@ -3,6 +3,7 @@ export interface Friend {
   displayName: string;
   status: "pending" | "accepted";
   incoming: boolean;
+  online?: boolean;
 }
 
 export const hasIncomingRequests = (friends: Friend[]) =>

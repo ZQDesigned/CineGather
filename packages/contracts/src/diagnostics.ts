@@ -238,6 +238,7 @@ const microphoneNoiseSchema = z.object({
   requested: z.enum(["enhanced", "basic", "off"]),
   active: z.enum(["enhanced", "basic", "off"]),
   fallback: z.boolean().optional(),
+  engine: z.enum(["deepfilternet3", "rnnoise", "platform"]).optional(),
 });
 export const mediaDiagnosticSchema = z.object({
   encoderCapabilities: encoderCapabilitiesSchema.optional(),

@@ -1,3 +1,4 @@
+import { noiseSuppressionAudioWorkletVitePlugin } from "@workadventure/noise-suppression/vite";
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { fileURLToPath } from "node:url";
@@ -19,7 +20,7 @@ const proxy = {
 // default server differs: web deployments use their own origin behind a proxy.
 export default defineConfig({
   root: path("./src/renderer"),
-  plugins: [react()],
+  plugins: [react(), noiseSuppressionAudioWorkletVitePlugin()],
   define: {
     "import.meta.env.VITE_API_URL": JSON.stringify(
       process.env.WEB_API_URL ?? "",

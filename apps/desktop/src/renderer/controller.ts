@@ -82,6 +82,48 @@ const friendRequests = new FriendRequests(
   (friends) => update({ friends }),
 );
 export const refreshFriends = () => friendRequests.refresh();
+let presenceRevision = 0;
+let presenceSyncing = false;
+async function syncPresence() {
+  const identity = sessionToken;
+  if (
+    !identity ||
+    !state().user ||
+    changingCredentials ||
+    state().requiredUpdate ||
+    presenceSyncing
+  )
+    return;
+  presenceSyncing = true;
+  const revision = presenceRevision;
+  try {
+    const result = unwrap(await api.POST("/api/v1/presence/heartbeat"));
+    if (sessionToken === identity && revision === presenceRevision)
+      update({ presenceVisibility: result.visibility });
+  } catch (error) {
+    if (
+      sessionToken === identity &&
+      error instanceof ApiError &&
+      error.status === 401
+    )
+      report(error);
+  } finally {
+    presenceSyncing = false;
+  }
+}
+export async function setPresence(visibility: "online" | "invisible") {
+  const identity = sessionToken;
+  const revision = ++presenceRevision;
+  const result = unwrap(
+    await api.POST("/api/v1/presence", { body: { visibility } }),
+  );
+  if (sessionToken === identity && revision === presenceRevision)
+    update({
+      presenceVisibility: result.visibility,
+      notice:
+        visibility === "invisible" ? "已隐身，好友将看到你离线" : "已设为在线",
+    });
+}
 async function checkClientPolicy() {
   try {
     const response = await fetch(`${baseUrl}/api/v1/client-policy`, {
@@ -333,7 +375,7 @@ export const media = new MediaSession(
       void chat.sync();
     const fallback = summary.microphoneNoise?.reason;
     if (fallback && !state().media.microphoneNoise?.reason)
-      update({ notice: "增强降噪暂不可用，已使用基础降噪" });
+      update({ notice: "高质量降噪暂不可用，已切换兼容降噪" });
     update({ media: summary });
     const local = summary.participants.find((p) => p.local);
     if (
@@ -724,6 +766,7 @@ export async function initialize() {
   if (sessionToken)
     await run(async () => {
       update({ user: unwrap(await api.GET("/api/v1/me")) });
+      await syncPresence();
       await refreshRooms();
       await refreshFriends();
     });
@@ -826,10 +869,12 @@ export async function initialize() {
     }
   };
   const friendsTimer = setInterval(() => void syncFriends(), 5000);
+  const presenceTimer = setInterval(() => void syncPresence(), 15000);
   const chatTimer = setInterval(() => {
     if (state().room) void chat.sync();
   }, 30_000);
   const focus = () => {
+    void syncPresence();
     void syncFriends();
     if (state().room) void chat.sync();
   };
@@ -847,6 +892,7 @@ export async function initialize() {
     stopPolicyEvents();
     window.removeEventListener("online", onlinePolicy);
     clearInterval(friendsTimer);
+    clearInterval(presenceTimer);
     clearInterval(chatTimer);
     document.removeEventListener("visibilitychange", chatVisibility);
     chat.leave();
@@ -902,6 +948,8 @@ async function acceptSession(data: { user: User; sessionToken: string }) {
   sessionToken = data.sessionToken;
   localStorage.setItem("cinegather.session", data.sessionToken);
   update({ user: data.user, modal: null, error: undefined });
+  update({ presenceVisibility: undefined });
+  await syncPresence();
   await refreshRooms();
   await refreshFriends();
   if (state().joinValue) update({ modal: "join" });

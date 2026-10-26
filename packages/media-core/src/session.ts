@@ -1058,6 +1058,7 @@ export class MediaSession {
             requested: this.noiseStatus.requested,
             active: this.noiseStatus.active,
             fallback: Boolean(this.noiseStatus.reason),
+            engine: this.noiseStatus.engine,
           }
         : undefined,
       tracks: reports.filter(

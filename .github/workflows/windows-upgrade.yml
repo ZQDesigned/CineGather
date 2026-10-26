@@ -7,6 +7,7 @@ on:
       - apps/desktop/resources/installer-processes.ps1
       - apps/desktop/package.json
       - bun.lock
+      - tools/noise-package-smoke.ts
       - .github/workflows/windows-upgrade.yml
 jobs:
   upgrade:
@@ -33,7 +34,7 @@ jobs:
           New-Item -ItemType Directory -Force .local/native-runtime/windows | Out-Null
           Copy-Item .local/upgrade-payload/resources/capture/obs .local/native-runtime/windows/obs -Recurse
           Copy-Item .local/upgrade-payload/resources/capture/CGProcessAudioHost.exe .local/native-runtime/windows/
-      - name: Build emergency installer and portable
+      - name: Build installer and portable
         working-directory: apps/desktop
         env:
           CSC_IDENTITY_AUTO_DISCOVERY: "false"
@@ -44,6 +45,8 @@ jobs:
           bun run build
           bun ../../tools/third-party.ts win32 x64
           bunx electron-builder --win --x64 --publish never
+      - name: Verify packaged offline speech enhancement
+        run: bun tools/noise-package-smoke.ts
       - name: Verify old-to-new upgrade with a locked capture helper
         shell: pwsh
         run: |
@@ -57,9 +60,10 @@ jobs:
           path: |
             .local/windows-upgrade/*.json
             .local/windows-upgrade/*.jsonl
+            .local/noise-verification/*.json
       - uses: actions/upload-artifact@v4
         with:
-          name: cinegather-windows-emergency
+          name: cinegather-windows-upgrade-tested
           path: |
             apps/desktop/release/*.exe
             apps/desktop/release/*.blockmap

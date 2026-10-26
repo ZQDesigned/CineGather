@@ -288,7 +288,7 @@ export function Settings() {
       if (settings.noiseReduction === "enhanced") {
         processor = await createMicrophoneDenoiser((status) => {
           if (status.reason && revision === testRevision.current)
-            update({ notice: "增强降噪暂不可用，已使用基础降噪" });
+            update({ notice: "高质量降噪暂不可用，已切换兼容降噪" });
         });
         if (revision !== testRevision.current) {
           stream.getTracks().forEach((track) => track.stop());

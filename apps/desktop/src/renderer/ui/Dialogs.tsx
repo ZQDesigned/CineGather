@@ -520,6 +520,7 @@ function SourcePicker() {
 function Friends() {
   const [user] = useState(() => useApp.getState().user!);
   const items = useApp((app) => app.friends);
+  const visibility = useApp((app) => app.presenceVisibility);
   const [target, setTarget] = useState("");
   const load = actions.refreshFriends;
   useEffect(() => {
@@ -557,6 +558,22 @@ function Friends() {
           />
         </Tooltip>
       </Card>
+      <Form layout="vertical">
+        <Form.Item label="我的在线状态">
+          <Select
+            aria-label="我的在线状态"
+            value={visibility}
+            placeholder="正在连接"
+            options={[
+              { value: "online", label: "在线" },
+              { value: "invisible", label: "隐身（好友看到离线）" },
+            ]}
+            onChange={(value: "online" | "invisible") =>
+              void actions.run(() => actions.setPresence(value))
+            }
+          />
+        </Form.Item>
+      </Form>
       <Form layout="vertical" onFinish={submit}>
         <Form.Item label="好友用户 ID" required>
           <Space.Compact block>
@@ -591,7 +608,9 @@ function Friends() {
               {friend.displayName}
               <small>
                 {friend.status === "accepted"
-                  ? "已成为好友"
+                  ? friend.online
+                    ? "在线"
+                    : "离线"
                   : friend.incoming
                     ? "邀请你成为好友"
                     : "等待对方接受"}

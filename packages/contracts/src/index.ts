@@ -168,8 +168,12 @@ export const friendsSchema = z.object({
       displayName: z.string(),
       status: z.enum(["pending", "accepted"]),
       incoming: z.boolean(),
+      online: z.boolean().default(false),
     }),
   ),
+});
+export const presenceSchema = z.strictObject({
+  visibility: z.enum(["online", "invisible"]),
 });
 export const okSchema = z.object({ ok: z.literal(true) });
 export const qualityPresets = {

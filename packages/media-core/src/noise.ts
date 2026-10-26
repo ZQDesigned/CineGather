@@ -4,6 +4,7 @@ export interface MicrophoneNoiseStatus {
   requested: NoiseReduction;
   active: NoiseReduction;
   reason?: string;
+  engine?: "deepfilternet3" | "rnnoise" | "platform";
 }
 export function microphoneConstraints(mode: NoiseReduction) {
   return {

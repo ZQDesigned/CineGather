@@ -192,7 +192,7 @@ try {
     page.getByRole("button", { name: "停止测试", exact: true }),
   ).toBeVisible();
   await expect(
-    page.getByText("增强降噪暂不可用，已使用基础降噪", { exact: true }),
+    page.getByText("高质量降噪暂不可用，已切换兼容降噪", { exact: true }),
   ).toHaveCount(0);
   await page.getByRole("button", { name: "停止测试", exact: true }).click();
   if (platform === "win32") {
@@ -362,7 +362,7 @@ try {
     )
     .toBe(false);
   console.log(
-    `Native ${platform} package boot, RNNoise assets/microphone test, sandbox, isolated member overlay, N-API loading and global hotkey registration passed; physical key behavior is a separate test.`,
+    `Native ${platform} package boot, noise assets/microphone test, sandbox, isolated member overlay, N-API loading and global hotkey registration passed; physical key behavior is a separate test.`,
   );
 } finally {
   if (app) await app.close();

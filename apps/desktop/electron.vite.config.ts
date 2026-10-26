@@ -1,3 +1,4 @@
+import { noiseSuppressionAudioWorkletVitePlugin } from "@workadventure/noise-suppression/vite";
 import { defineConfig } from "electron-vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
@@ -27,7 +28,7 @@ export default defineConfig({
   renderer: {
     root: resolve("src/renderer"),
     envDir: resolve("../.."),
-    plugins: [react()],
+    plugins: [react(), noiseSuppressionAudioWorkletVitePlugin()],
     server: { host: "127.0.0.1", port: 5173, strictPort: true },
     build: { rollupOptions: { input: resolve("src/renderer/index.html") } },
   },

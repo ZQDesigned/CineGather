@@ -91,6 +91,40 @@ await writeFile(licenseCache, rnnoiseLicense);
 notices.push(
   `RNNoise native module bundled by @sapphi-red/web-noise-suppressor\nDeclared license: BSD-3-Clause\n\n${rnnoiseLicense}`,
 );
+// The npm worklet embeds libDF and its model but only includes the wrapper's
+// MIT license. Preserve the pinned upstream dual-license notices as well.
+for (const [name, expected] of [
+  [
+    "LICENSE-MIT",
+    "24e6bb09c928af8d8e56268082f87413247ce36b39dd5d33add2f9893968065e",
+  ],
+  [
+    "LICENSE-APACHE",
+    "1eaee808c5fb6b4e895ba30425285a5cdc5dd25bba2cd230f264c2200c331aec",
+  ],
+] as const) {
+  const cache = join(
+    root,
+    "node_modules/.cache/cinegather",
+    `deepfilternet-${name}`,
+  );
+  let license = await readFile(cache, "utf8").catch(() => "");
+  if (!license) {
+    const response = await fetch(
+      `https://raw.githubusercontent.com/Rikorose/DeepFilterNet/d375b2d8309e0935d165700c91da9de862a99c31/${name}`,
+      { signal: AbortSignal.timeout(15000) },
+    );
+    if (!response.ok)
+      throw new Error("Unable to obtain pinned DeepFilterNet license");
+    license = await response.text();
+  }
+  if (createHash("sha256").update(license).digest("hex") !== expected)
+    throw new Error("DeepFilterNet license checksum mismatch");
+  await writeFile(cache, license);
+  notices.push(
+    `DeepFilterNet3 / libDF bundled by @workadventure/noise-suppression\n${name}\n\n${license}`,
+  );
+}
 const output = join(
   root,
   platform === "web"

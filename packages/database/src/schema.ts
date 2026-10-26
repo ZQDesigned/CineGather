@@ -21,6 +21,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   screenShareEnabled: boolean("screen_share_enabled").notNull().default(false),
+  presenceVisibility: text("presence_visibility").notNull().default("online"),
   disabledAt: time("disabled_at"),
   createdAt: time("created_at").notNull().defaultNow(),
 });
@@ -47,16 +48,25 @@ export const userRoles = pgTable(
     index("user_roles_role_idx").on(t.roleId),
   ],
 );
-export const credentials = pgTable("user_credentials", {
-  id: uuid("id").primaryKey(),
-  userId: uuid("user_id")
-    .notNull()
-    .references(() => users.id, { onDelete: "cascade" }),
-  kind: text("kind").notNull(),
-  secretHash: text("secret_hash").notNull().unique(),
-  expiresAt: time("expires_at").notNull(),
-  revokedAt: time("revoked_at"),
-});
+export const credentials = pgTable(
+  "user_credentials",
+  {
+    id: uuid("id").primaryKey(),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull(),
+    secretHash: text("secret_hash").notNull().unique(),
+    expiresAt: time("expires_at").notNull(),
+    revokedAt: time("revoked_at"),
+    presenceAt: time("presence_at"),
+  },
+  (t) => [
+    index("credentials_presence_idx")
+      .on(t.userId, t.presenceAt.desc())
+      .where(sql`${t.revokedAt} IS NULL`),
+  ],
+);
 export const settings = pgTable("user_settings", {
   userId: uuid("user_id")
     .primaryKey()

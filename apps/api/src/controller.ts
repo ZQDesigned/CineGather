@@ -24,6 +24,7 @@ import type { Response } from "express";
 import * as c from "@cinegather/contracts";
 import * as r from "./rooms";
 import * as s from "./social";
+import * as presence from "./presence";
 import { revokeSession } from "./auth";
 import {
   registerAccount,
@@ -74,6 +75,24 @@ export class ApiController {
   @Endpoint("me", c.userSchema)
   me(@Req() req: AuthRequest) {
     return req.user;
+  }
+  @Post("presence/heartbeat")
+  @Endpoint("heartbeatPresence", c.presenceSchema, undefined, [], 201)
+  heartbeatPresence(@Req() req: AuthRequest) {
+    return presence.heartbeatPresence(req.user.id, req.sessionId!);
+  }
+  @Get("presence")
+  @Endpoint("getPresence", c.presenceSchema)
+  getPresence(@Req() req: AuthRequest) {
+    return presence.readPresence(req.user.id);
+  }
+  @Post("presence")
+  @Endpoint("setPresence", c.presenceSchema, c.presenceSchema, [], 201)
+  setPresence(@Req() req: AuthRequest, @Body() body: unknown) {
+    return presence.setPresence(
+      req.user.id,
+      parse(c.presenceSchema, body).visibility,
+    );
   }
   @Get("client-policy")
   @Endpoint("clientPolicy", c.clientPolicySchema)

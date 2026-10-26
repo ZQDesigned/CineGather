@@ -1,8 +1,9 @@
-import { friendships, users } from "@cinegather/database";
+import { friendships, users, credentials } from "@cinegather/database";
 import { and, eq, or, sql } from "drizzle-orm";
 import { db, audit } from "./context";
 import { fail, uuid } from "./errors";
 import type { User } from "@cinegather/contracts";
+import { presenceLifetimeMs } from "./presence";
 export async function requestFriend(user: User, targetId: string) {
   targetId = uuid(targetId);
   if (user.id === targetId) fail(400, "FRIEND_SELF", "不能添加自己为好友");
@@ -86,6 +87,11 @@ export async function listFriends(user: User) {
       status: friendships.status,
       userId: users.id,
       displayName: users.displayName,
+      online: sql<boolean>`(${friendships.status} = 'accepted' AND ${users.presenceVisibility} = 'online' AND ${users.disabledAt} IS NULL AND EXISTS (
+        SELECT 1 FROM ${credentials} WHERE ${credentials.userId} = ${users.id}
+        AND ${credentials.kind} = 'account' AND ${credentials.revokedAt} IS NULL
+        AND ${credentials.expiresAt} > NOW() AND ${credentials.presenceAt} > ${new Date(Date.now() - presenceLifetimeMs)}
+      ))`,
     })
     .from(friendships)
     .innerJoin(
@@ -105,6 +111,7 @@ export async function listFriends(user: User) {
       displayName: r.displayName,
       status: r.status as "pending" | "accepted",
       incoming: r.recipientId === user.id,
+      online: r.online,
     })),
   };
 }

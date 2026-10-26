@@ -6,6 +6,7 @@
   "dependencies": {
     "@cinegather/contracts": "workspace:*",
     "@sapphi-red/web-noise-suppressor": "0.4.1",
+    "@workadventure/noise-suppression": "0.2.0",
     "livekit-client": "catalog:"
   },
   "version": "0.1.0",

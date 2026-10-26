@@ -27,6 +27,7 @@ import { capabilities } from "../platform";
 import { matchesShortcut } from "../../shared/shortcuts";
 import { buildMemberOverlay } from "../../shared/member-overlay";
 import { hasIncomingRequests } from "../friends";
+import { PresenceAvatar } from "./Presence";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
   authenticating: "正在验证身份",
@@ -322,7 +323,7 @@ export function App() {
           />
         </div>
         <div className="profile">
-          <Avatar className="purple">{app.user?.displayName[0] ?? "映"}</Avatar>
+          <PresenceAvatar />
           <span>
             {app.user?.displayName ?? "欢迎来到映聚"}
             <small>{app.user?.username ?? "等待你的加入"}</small>

@@ -24,6 +24,7 @@ export async function authenticate(
       revokedAt: credentials.revokedAt,
       expiresAt: credentials.expiresAt,
       credentialId: credentials.id,
+      presenceAt: credentials.presenceAt,
     })
     .from(credentials)
     .innerJoin(users, eq(credentials.userId, users.id))
@@ -35,6 +36,18 @@ export async function authenticate(
     fail(401, "ACCOUNT_DISABLED", "账号已停用，请联系管理员");
   if (user.revokedAt || user.expiresAt.getTime() <= Date.now())
     fail(401, "SESSION_EXPIRED", "登录已失效，请重新登录账号");
+  // Older clients already make authenticated requests but have no heartbeat
+  // endpoint yet. Count their live activity too, without writing on every poll.
+  if (!user.presenceAt || user.presenceAt.getTime() < Date.now() - 15_000)
+    await db
+      .update(credentials)
+      .set({ presenceAt: new Date() })
+      .where(
+        and(
+          eq(credentials.id, user.credentialId),
+          isNull(credentials.revokedAt),
+        ),
+      );
   return {
     id: user.id,
     displayName: user.displayName,
