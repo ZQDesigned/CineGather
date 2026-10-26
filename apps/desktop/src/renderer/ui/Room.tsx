@@ -271,13 +271,39 @@ export function Room({ visible = true }: { visible?: boolean }) {
               showIcon
               title="你正在共享屏幕，请留意画面中的私人信息。"
               action={
+                <div className="share-actions">
+                  <Button
+                    loading={app.switchingSource}
+                    disabled={!connected}
+                    onClick={() => void actions.switchShareSource()}
+                  >
+                    切换来源
+                  </Button>
+                  <Button
+                    htmlType="button"
+                    onClick={() => void actions.stopShare()}
+                  >
+                    停止共享
+                  </Button>
+                </div>
+              }
+            />
+          )}
+          {app.shareRecovery && app.shareState === "idle" && (
+            <Alert
+              type="warning"
+              showIcon
+              title={app.shareRecovery}
+              action={
                 <Button
-                  htmlType="button"
-                  onClick={() => void actions.stopShare()}
+                  disabled={!connected}
+                  onClick={() => void actions.shareSession.start()}
                 >
-                  停止共享
+                  重新选择来源
                 </Button>
               }
+              closable
+              onClose={() => update({ shareRecovery: undefined })}
             />
           )}
           {app.roomState === "failed" && (

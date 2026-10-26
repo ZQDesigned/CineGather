@@ -507,3 +507,80 @@ console.error('raw vendor https://secret/?token=private');console.error('CG_HOST
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("native source switching renews the current lease and never recreates its WHIP publication", async () => {
+  const { NativeCapture } = await import("../src/main/native-capture");
+  const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
+    "node:fs/promises"
+  );
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "cg-source-switch-"));
+  await mkdir(join(root, "bin/64bit"), { recursive: true });
+  const log = join(root, "commands.jsonl");
+  await writeFile(
+    join(root, "bin/64bit/CGScreenCaptureHost.exe"),
+    `#!/usr/bin/env node
+const fs=require('node:fs');let live=false;
+require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);fs.appendFileSync(${JSON.stringify(log)},c.type+'\\n');let data={screenPermission:true,outputPhase:live?'active':'stopped',sourceWidth:1920,sourcesActive:live,outputActive:live};if(c.type==='windows')data={windows:[],displays:[1,2,3].map(displayId=>({displayId,name:'Screen '+displayId}))};if(c.type==='start'){live=true;data={...data,outputPhase:'active',sourcesActive:true,outputActive:true}}if(c.type==='switch-source'&&c.displayId===3){console.log(JSON.stringify({ok:false,error:'source-unavailable'}));return}if(c.type==='stop')live=false;console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10)});`,
+    { mode: 0o755 },
+  );
+  const lease = {
+    leaseId: crypto.randomUUID(),
+    holderUserId: crypto.randomUUID(),
+    revision: 7,
+    expiresAt: new Date(Date.now() + 25000).toISOString(),
+  };
+  const requests: string[] = [];
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(request) {
+      requests.push(new URL(request.url).pathname + ":" + request.method);
+      return Response.json(
+        request.method === "DELETE"
+          ? { ok: true }
+          : request.url.endsWith("/renew")
+            ? lease
+            : {
+                url: "https://example.invalid/whip",
+                token: "fixture-only",
+                identity: "fixture-only",
+                expiresAt: lease.expiresAt,
+              },
+      );
+    },
+  });
+  const capture = new NativeCapture(
+    root,
+    join(root, "state"),
+    () => {},
+    undefined,
+    { platform: "win32" },
+  );
+  try {
+    await capture.select({ sourceId: "native-screen:1", systemAudio: false });
+    await capture.start({
+      apiUrl: `http://127.0.0.1:${server.port}`,
+      sessionToken: "fixture-only",
+      roomId: crypto.randomUUID(),
+      quality: "cinema",
+      lease,
+    });
+    await capture.select({ sourceId: "native-screen:2", systemAudio: false });
+    await capture.switchSource();
+    await capture.select({ sourceId: "native-screen:3", systemAudio: false });
+    await expect(capture.switchSource()).rejects.toThrow();
+    expect(capture.isSharing).toBe(true);
+    const commands = (await readFile(log, "utf8")).trim().split("\n");
+    expect(commands.filter((c) => c === "start")).toHaveLength(1);
+    expect(commands.filter((c) => c === "switch-source")).toHaveLength(2);
+    expect(commands).not.toContain("stop");
+    expect(requests.filter((r) => r.endsWith("/native:POST"))).toHaveLength(1);
+    expect(requests.filter((r) => r.endsWith("/renew:POST"))).toHaveLength(2);
+  } finally {
+    await capture.shutdown().catch(() => {});
+    server.stop(true);
+    await rm(root, { recursive: true, force: true });
+  }
+});

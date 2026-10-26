@@ -1600,6 +1600,11 @@ export const AppSurface = styled.div`
   .volume > small {
     font-size: 10px;
   }
+  .share-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
   .sharing-banner,
   .reconnect-banner {
     margin-top: 12px;

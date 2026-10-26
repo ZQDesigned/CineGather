@@ -405,7 +405,7 @@ function SourcePicker() {
   };
   return (
     <ModalShell
-      title="你想分享哪个画面？"
+      title={app.switchingSource ? "切换共享画面" : "你想分享哪个画面？"}
       wide
       footer={
         <>
@@ -428,7 +428,11 @@ function SourcePicker() {
                 : choose
             }
           >
-            {browser ? "选择并共享" : "确认共享"}
+            {app.switchingSource
+              ? "确认切换"
+              : browser
+                ? "选择并共享"
+                : "确认共享"}
           </Button>
         </>
       }
@@ -487,6 +491,7 @@ function SourcePicker() {
       <div className="capture-audio">
         <Checkbox
           checked={app.systemAudio}
+          disabled={app.switchingSource}
           onChange={(e) => update({ systemAudio: e.target.checked })}
         >
           {deviceAudio

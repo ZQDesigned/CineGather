@@ -1,3 +1,4 @@
+import { audioDeviceOptions, reconcileAudioDevices } from "../audio-devices";
 import {
   App,
   Select,
@@ -139,7 +140,7 @@ export function Settings() {
       autoDownloadUpdates: current.autoDownloadUpdates,
     }));
   }, [current.autoDownloadUpdates]);
-  const [devices, setDevices] = useState<MediaDeviceInfo[]>([]);
+  const devices = useApp((s) => s.audioDevices);
   const [tab, setTab] = useState("audio");
   const [server, setServer] = useState(actions.baseUrl);
   const [testing, setTesting] = useState(false);
@@ -161,12 +162,42 @@ export function Settings() {
     value: DesktopSettings[K],
   ) => setSettings((previous) => ({ ...previous, [key]: value }));
   const refresh = () => {
-    if (!navigator.mediaDevices?.enumerateDevices) return;
-    void navigator.mediaDevices
-      .enumerateDevices()
-      .then(setDevices)
-      .catch(actions.report);
+    void actions.refreshAudioDevices().catch(actions.report);
   };
+  useEffect(() => {
+    setSettings((previous) => {
+      const checked = reconcileAudioDevices(previous, devices);
+      return checked.missing.length
+        ? {
+            ...previous,
+            inputDevice: checked.inputDevice,
+            outputDevice: checked.outputDevice,
+          }
+        : previous;
+    });
+  }, [devices]);
+  const savedDevices = useRef({
+    input: current.inputDevice,
+    output: current.outputDevice,
+  });
+  useEffect(() => {
+    const old = savedDevices.current;
+    setSettings((previous) => ({
+      ...previous,
+      inputDevice:
+        previous.inputDevice === old.input
+          ? current.inputDevice
+          : previous.inputDevice,
+      outputDevice:
+        previous.outputDevice === old.output
+          ? current.outputDevice
+          : previous.outputDevice,
+    }));
+    savedDevices.current = {
+      input: current.inputDevice,
+      output: current.outputDevice,
+    };
+  }, [current.inputDevice, current.outputDevice]);
   useEffect(() => {
     if (!open) {
       setTesting(false);
@@ -228,6 +259,31 @@ export function Settings() {
       }
       context = new AudioContext();
       audioRef.current = { stream, context, frame: 0 };
+      stream.getAudioTracks()[0]?.addEventListener(
+        "ended",
+        () => {
+          if (
+            revision !== testRevision.current ||
+            audioRef.current?.stream !== stream
+          )
+            return;
+          ++testRevision.current;
+          capturePending.current = false;
+          const active = audioRef.current;
+          if (!active) return;
+          audioRef.current = undefined;
+          cancelAnimationFrame(active.frame);
+          active.stream.getTracks().forEach((track) => track.stop());
+          void active.processor?.destroy();
+          if (active.context.state !== "closed")
+            void active.context.close().catch(() => {});
+          setTesting(false);
+          setRequesting(false);
+          setLevel(0);
+          update({ notice: "麦克风测试已中断，请重新连接设备后重试" });
+        },
+        { once: true },
+      );
       let metered = stream;
       if (settings.noiseReduction === "enhanced") {
         processor = await createMicrophoneDenoiser((status) => {
@@ -399,20 +455,11 @@ export function Settings() {
                     disabled={!platform.microphone || testing || requesting}
                     value={settings.inputDevice}
                     onChange={(v) => change("inputDevice", v)}
-                    options={[
-                      { value: "", label: "系统默认麦克风" },
-                      ...devices
-                        .filter(
-                          (d) =>
-                            d.kind === "audioinput" &&
-                            Boolean(d.deviceId) &&
-                            d.deviceId !== "default",
-                        )
-                        .map((d, i) => ({
-                          value: d.deviceId,
-                          label: d.label || `麦克风 ${i + 1}`,
-                        })),
-                    ]}
+                    options={audioDeviceOptions(
+                      "audioinput",
+                      devices,
+                      settings.inputDevice,
+                    )}
                   />
                 </Form.Item>
                 <Form.Item label="麦克风降噪">
@@ -455,19 +502,11 @@ export function Settings() {
                     disabled={!platform.outputSelection}
                     value={settings.outputDevice}
                     onChange={(v) => change("outputDevice", v)}
-                    options={[
-                      { value: "", label: "系统默认输出" },
-                      ...devices
-                        .filter(
-                          (d) =>
-                            d.kind === "audiooutput" &&
-                            d.deviceId !== "default",
-                        )
-                        .map((d, i) => ({
-                          value: d.deviceId,
-                          label: d.label || `扬声器 / 耳机 ${i + 1}`,
-                        })),
-                    ]}
+                    options={audioDeviceOptions(
+                      "audiooutput",
+                      devices,
+                      settings.outputDevice,
+                    )}
                   />
                 </Form.Item>
                 <Form.Item label="进退房提示音">

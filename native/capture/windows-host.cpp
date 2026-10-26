@@ -4,6 +4,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include "encoder-selection.hpp"
 #include "preview-control.hpp"
+#include "source-swap.hpp"
 #include <algorithm>
 #include <atomic>
 #include <audioclient.h>
@@ -1125,6 +1126,45 @@ static void createVideoEncoder(const Choice &c, int bitrate) {
   check(videoEncoder, "encoder-create");
   obs_encoder_set_video(videoEncoder, obs_get_video());
 }
+static void prepareScene(obs_data_t *config, cinegather::CaptureScene &next, bool synthetic = false) {
+      next.scene = obs_scene_create("CineGather native scene");
+      check(next.scene, "scene-create");
+      auto settings = data();
+      if (synthetic)
+        next.video =
+            obs_source_create("cg_test_pattern", "CineGather synthetic pattern",
+                              settings.get(), nullptr);
+      else if (obs_data_has_user_value(config, "displayId")) {
+        refreshMonitors();
+        int64_t id = obs_data_get_int(config, "displayId");
+        auto found = std::find_if(monitors.begin(), monitors.end(),
+                                  [&](const Monitor &m) { return m.id == id; });
+        check(found != monitors.end(), "display-unavailable");
+        obs_data_set_string(settings.get(), "monitor_id", found->key.c_str());
+        obs_data_set_bool(settings.get(), "capture_cursor", false);
+        obs_data_set_int(settings.get(), "method", 2);
+        next.video = obs_source_create("monitor_capture", "CineGather screen",
+                                        settings.get(), nullptr);
+      } else {
+        auto hwnd = reinterpret_cast<HWND>(
+            uintptr_t(obs_data_get_int(config, "windowId")));
+        check(IsWindow(hwnd) &&
+                  windowPid(hwnd) == DWORD(obs_data_get_int(config, "pid")) &&
+                  !ownProcess(windowPid(hwnd)),
+              "window-unavailable");
+        obs_data_set_int(settings.get(), "windowId", int64_t(uintptr_t(hwnd)));
+        obs_data_set_int(settings.get(), "pid", windowPid(hwnd));
+        next.video = obs_source_create("cg_hwnd_capture", "CineGather window",
+                                        settings.get(), nullptr);
+      }
+      check(next.video, "source-create");
+      obs_source_set_muted(next.video, true);
+      if (!synthetic && obs_data_get_bool(config, "systemAudio")) {
+        next.audio = obs_source_create("cg_process_audio", "CineGather shared audio", config, nullptr);
+        check(next.audio && obs_obj_get_data(next.audio), "audio-initialization");
+        obs_source_set_audio_mixers(next.audio, 1);
+      }
+}
 static void startCapture(obs_data_t *config, bool synthetic = false) {
   check(!output, "already-sharing");
   ++captureSequence;
@@ -1171,52 +1211,17 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       uint64_t captureStamp = 0;
       captureStats(captureArrivedBase, captureCopiedBase, captureStamp);
       deviceFallback = false;
-      scene = obs_scene_create("CineGather native scene");
-      check(scene, "scene-create");
-      auto settings = data();
-      if (synthetic)
-        videoSource =
-            obs_source_create("cg_test_pattern", "CineGather synthetic pattern",
-                              settings.get(), nullptr);
-      else if (obs_data_has_user_value(config, "displayId")) {
-        refreshMonitors();
-        int64_t id = obs_data_get_int(config, "displayId");
-        auto found = std::find_if(monitors.begin(), monitors.end(),
-                                  [&](const Monitor &m) { return m.id == id; });
-        check(found != monitors.end(), "display-unavailable");
-        obs_data_set_string(settings.get(), "monitor_id", found->key.c_str());
-        obs_data_set_bool(settings.get(), "capture_cursor", false);
-        obs_data_set_int(settings.get(), "method", 2);
-        videoSource = obs_source_create("monitor_capture", "CineGather screen",
-                                        settings.get(), nullptr);
-      } else {
-        auto hwnd = reinterpret_cast<HWND>(
-            uintptr_t(obs_data_get_int(config, "windowId")));
-        check(IsWindow(hwnd) &&
-                  windowPid(hwnd) == DWORD(obs_data_get_int(config, "pid")) &&
-                  !ownProcess(windowPid(hwnd)),
-              "window-unavailable");
-        obs_data_set_int(settings.get(), "windowId", int64_t(uintptr_t(hwnd)));
-        obs_data_set_int(settings.get(), "pid", windowPid(hwnd));
-        videoSource = obs_source_create("cg_hwnd_capture", "CineGather window",
-                                        settings.get(), nullptr);
-      }
-      check(videoSource, "source-create");
-      obs_source_set_muted(videoSource, true);
-      auto *item = obs_scene_add(scene, videoSource);
+      cinegather::CaptureScene next;
+      prepareScene(config, next, synthetic);
+      auto *item = obs_scene_add(next.scene, next.video);
       obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_SCALE_INNER);
-      vec2 bounds;
-      vec2_set(&bounds, float(width), float(height));
+      vec2 bounds; vec2_set(&bounds, float(width), float(height));
       obs_sceneitem_set_bounds(item, &bounds);
+      if (next.audio) obs_scene_add(next.scene, next.audio);
+      std::swap(scene, next.scene); std::swap(videoSource, next.video); std::swap(audioSource, next.audio);
       obs_set_output_source(0, obs_scene_get_source(scene));
       createVideoEncoder(c, bitrate);
       if (!synthetic && obs_data_get_bool(config, "systemAudio")) {
-        audioSource = obs_source_create(
-            "cg_process_audio", "CineGather shared audio", config, nullptr);
-        check(audioSource && obs_obj_get_data(audioSource),
-              "audio-initialization");
-        obs_source_set_audio_mixers(audioSource, 1);
-        obs_scene_add(scene, audioSource);
         auto audioSettings = data();
         obs_data_set_int(audioSettings.get(), "bitrate", 160);
         audioEncoder = obs_audio_encoder_create(
@@ -1423,6 +1428,21 @@ static void init(int adapter) {
   obs_register_output(&probe);
   refreshChoices();
 }
+static void switchSource(obs_data_t *config) {
+  check(output && obs_output_active(output) && deadlineNs > os_gettime_ns(), "lease-expired");
+  check(obs_data_get_bool(config, "systemAudio") == bool(audioEncoder), "audio-mode-changed");
+  const bool oldFallback = deviceFallback;
+  deviceFallback = false;
+  try {
+    cinegather::CaptureScene next;
+    prepareScene(config, next);
+    next.warm(configuredWidth, configuredHeight, [] { return deadlineNs > os_gettime_ns(); });
+    next.commit(scene, videoSource, audioSource);
+  } catch (...) {
+    deviceFallback = oldFallback;
+    throw;
+  }
+}
 static Data handle(obs_data_t *command) {
   std::string type = obs_data_get_string(command, "type");
   if (type == "status" || type == "requestPermission")
@@ -1474,6 +1494,10 @@ static Data handle(obs_data_t *command) {
     int remaining = int(obs_data_get_int(command, "remainingMs"));
     check(output && remaining > 0 && remaining <= 30000, "lease-renewal");
     deadlineNs = os_gettime_ns() + uint64_t(remaining) * 1000000;
+    return status();
+  }
+  if (type == "switch-source") {
+    switchSource(command);
     return status();
   }
   if (type == "start") {

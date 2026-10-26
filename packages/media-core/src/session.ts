@@ -3,6 +3,7 @@ import {
   LocalAudioTrack,
   createLocalAudioTrack,
   RoomEvent,
+  TrackEvent,
   Track,
   ConnectionState,
   type DisconnectReason,
@@ -116,6 +117,7 @@ export class MediaSession {
     private readonly shareEnded: () => void,
     private readonly disconnected?: (reason?: DisconnectReason) => void,
     private readonly controlled?: (command: RoomControl) => void,
+    private readonly inputLost?: () => void,
   ) {
     this.voices = new VoicePlayback(() => this.emit(), this.error);
   }
@@ -494,6 +496,15 @@ export class MediaSession {
           if (this.room !== room) return;
           continue;
         }
+        track.on(TrackEvent.Ended, () => {
+          if (
+            this.room === room &&
+            this.microphoneWanted &&
+            voicePublication(room.localParticipant.trackPublications)?.track ===
+              track
+          )
+            this.inputLost?.();
+        });
         try {
           publication = await room.localParticipant.publishTrack(track, {
             name: "cinegather-microphone",
@@ -708,10 +719,18 @@ export class MediaSession {
     track.stop();
     this.emit();
   }
-  async selectBrowserShare(quality: Quality, audio: boolean) {
-    const selected = await this.browserCapture.select(quality, audio);
+  async selectBrowserShare(
+    quality: Quality,
+    audio: boolean,
+    replacing = false,
+  ) {
+    const selected = await this.browserCapture.select(
+      quality,
+      audio,
+      replacing,
+    );
     if (selected) {
-      const stream = this.browserCapture.current;
+      const stream = this.browserCapture.selected;
       stream?.getVideoTracks()[0]?.addEventListener(
         "ended",
         () => {
@@ -721,6 +740,72 @@ export class MediaSession {
       );
     }
     return selected;
+  }
+  cancelBrowserSelection() {
+    this.browserCapture.cancelSelection();
+  }
+  async replaceBrowserShare() {
+    const room = this.room,
+      stream = this.browserCapture.selected;
+    const publication = room?.localParticipant.getTrackPublication(
+      Track.Source.ScreenShare,
+    );
+    const video = publication?.track;
+    if (
+      !room ||
+      room.state !== ConnectionState.Connected ||
+      !video ||
+      !stream ||
+      stream === this.browserCapture.current ||
+      stream.getVideoTracks()[0]?.readyState !== "live"
+    )
+      throw new Error("共享已停止或新的画面不可用");
+    const audio = room.localParticipant.getTrackPublication(
+      Track.Source.ScreenShareAudio,
+    )?.track;
+    const oldVideo = video.mediaStreamTrack,
+      oldAudio = audio?.mediaStreamTrack;
+    const nextVideo = stream.getVideoTracks()[0]!,
+      nextAudio = stream.getAudioTracks()[0];
+    let addedAudio = false;
+    const current = () =>
+      this.room === room &&
+      room.localParticipant.getTrackPublication(Track.Source.ScreenShare)
+        ?.track === video &&
+      this.browserCapture.selected === stream;
+    try {
+      await video.replaceTrack(nextVideo, true);
+      if (!current()) throw new Error("共享已停止");
+      if (audio && nextAudio) await audio.replaceTrack(nextAudio, true);
+      else if (nextAudio) {
+        await room.localParticipant.publishTrack(nextAudio, {
+          source: Track.Source.ScreenShareAudio,
+          dtx: false,
+          red: true,
+          forceStereo: true,
+        });
+        addedAudio = true;
+      }
+      if (!current()) throw new Error("共享已停止");
+      if (audio && !nextAudio)
+        await room.localParticipant.unpublishTrack(audio, true);
+      this.browserCapture.commitSelection();
+      oldVideo.stop();
+      oldAudio?.stop();
+      this.emit();
+    } catch (error) {
+      if (current()) {
+        await video.replaceTrack(oldVideo, true).catch(() => {});
+        if (audio && oldAudio && nextAudio)
+          await audio.replaceTrack(oldAudio, true).catch(() => {});
+        if (addedAudio && nextAudio)
+          await room.localParticipant
+            .unpublishTrack(nextAudio, true)
+            .catch(() => {});
+      }
+      this.browserCapture.cancelSelection();
+      throw error;
+    }
   }
   get browserAudioNotice() {
     return this.browserCapture.audioNotice;
@@ -782,20 +867,37 @@ export class MediaSession {
     this.subscriptions.watch(enabled);
     this.emit();
   }
+  get inputRecoveryNeeded() {
+    const room = this.room;
+    const track =
+      room && voicePublication(room.localParticipant.trackPublications)?.track;
+    return Boolean(
+      room &&
+        room.state === ConnectionState.Connected &&
+        this.microphoneWanted &&
+        (!track || track.mediaStreamTrack.readyState === "ended"),
+    );
+  }
   async devices(input?: string, output?: string) {
-    if (!this.room) return;
-    if (input !== undefined)
-      await voicePublication(
-        this.room.localParticipant.trackPublications,
-      )?.track?.restartTrack({
-        deviceId: input || "default",
-        ...microphoneConstraints(this.noiseMode),
-      });
+    if (input !== undefined) this.microphoneDevice = input;
+    const room = this.room;
+    if (!room) return;
     if (input !== undefined) {
-      const voice = voicePublication(
-        this.room.localParticipant.trackPublications,
-      );
-      if (voice?.track)
+      await this.microphoneWork?.catch(() => {});
+      if (this.room !== room) return;
+      let voice = voicePublication(room.localParticipant.trackPublications);
+      if (!voice && this.microphoneWanted) {
+        await this.microphone(true, input);
+        voice = voicePublication(room.localParticipant.trackPublications);
+      } else if (voice?.track instanceof LocalAudioTrack) {
+        // setDeviceId defers reacquisition while muted, retaining PTT/moderation.
+        await voice.track.setDeviceId(input || "default");
+        // SDK device-loss handling may mute a failed track. Only restore it if
+        // the user's current intent is still open; mute/PTT/admin actions clear it.
+        if (this.room === room && this.microphoneWanted && voice.track.isMuted)
+          await this.microphone(true, input);
+      }
+      if (voice?.track && this.room === room)
         this.voiceActivity.bind(
           voice.trackSid,
           new MediaStream([voice.track.mediaStreamTrack]),
@@ -803,9 +905,10 @@ export class MediaSession {
     }
     if (
       output !== undefined &&
+      this.room === room &&
       typeof HTMLMediaElement.prototype.setSinkId === "function"
     )
-      await this.room.switchActiveDevice("audiooutput", output || "default");
+      await room.switchActiveDevice("audiooutput", output || "default");
   }
   async startAudio() {
     await Promise.all([this.room?.startAudio(), this.voices.resume()]);

@@ -311,6 +311,7 @@ export interface DesktopBridge {
   encoders?(): Promise<import("./native-encoders").NativeEncoderInventory>;
   nativeCapture?: boolean;
   startNativeCapture?(request: NativeCaptureRequest): Promise<void>;
+  switchNativeSource?(): Promise<void>;
   renewNativeCapture?(lease: ShareLease): Promise<ShareLease>;
   stopNativeCapture?(): Promise<void>;
   nativePreview?: NativePreviewBridge;
@@ -333,6 +334,7 @@ export interface DesktopBridge {
         | "ptt-press"
         | "ptt-release"
         | "stop-accompaniment"
+        | "capture-ended"
         | "stop-share"
         | "invite"
         | "device-audio-fallback",

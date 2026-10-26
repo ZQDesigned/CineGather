@@ -5,6 +5,7 @@ export interface ShareDependencies {
   release(lease: ShareLease): Promise<void>;
   select(): Promise<boolean>;
   publish(lease: ShareLease): Promise<void>;
+  replace?(lease: ShareLease): Promise<void>;
   stop(): Promise<void>;
   changed(state: ShareState, revision: number): void;
   error(error: unknown): void;
@@ -15,6 +16,7 @@ export class ShareCoordinator {
   private lease?: ShareLease;
   private timer?: ReturnType<typeof setInterval>;
   private starting = false;
+  private switching = false;
   private revokedLeases = new Set<string>();
   private renewing = false;
   private stopping?: Promise<void>;
@@ -24,7 +26,12 @@ export class ShareCoordinator {
     this.deps.changed(state, this.revision);
   }
   async start(preempt = false) {
-    if (this.starting || !["idle", "failed"].includes(this.state)) return;
+    if (
+      this.starting ||
+      this.switching ||
+      !["idle", "failed"].includes(this.state)
+    )
+      return;
     this.starting = true;
     const revision = ++this.revision;
     this.change("acquiringLease");
@@ -62,6 +69,32 @@ export class ShareCoordinator {
       }
     } finally {
       this.starting = false;
+    }
+  }
+  async switchSource() {
+    if (
+      this.switching ||
+      this.starting ||
+      this.state !== "active" ||
+      !this.lease ||
+      !this.deps.replace
+    )
+      return;
+    this.switching = true;
+    const revision = this.revision;
+    try {
+      if (
+        !(await this.deps.select()) ||
+        revision !== this.revision ||
+        this.state !== "active"
+      )
+        return;
+      await this.deps.replace(this.lease!);
+    } catch (error) {
+      // Selection/replacement errors leave the existing share and lease intact.
+      if (revision === this.revision) this.deps.error(error);
+    } finally {
+      this.switching = false;
     }
   }
   private async renew(revision: number) {

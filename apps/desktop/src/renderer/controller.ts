@@ -1,3 +1,4 @@
+import { reconcileAudioDevices } from "./audio-devices";
 import { RoomCuePlayer, RoomPresenceCues } from "./room-cues";
 import enterCue from "./assets/room-enter.wav";
 import leaveCue from "./assets/room-leave.wav";
@@ -162,6 +163,130 @@ export async function run(work: () => Promise<void>) {
     update({ busy: false });
   }
 }
+let settingsWrites = Promise.resolve();
+function persistSettings(
+  transform: (current: DesktopSettings) => DesktopSettings,
+) {
+  const work = settingsWrites
+    .catch(() => {})
+    .then(async () => {
+      const settings = transform(state().settings);
+      if (window.desktop) await window.desktop.saveSettings(settings);
+      else
+        localStorage.setItem("cinegather.settings", JSON.stringify(settings));
+      update({ settings });
+      return settings;
+    });
+  settingsWrites = work.then(
+    () => {},
+    () => {},
+  );
+  return work;
+}
+let deviceWork: Promise<MediaDeviceInfo[]> | undefined;
+let rescanDevices = false,
+  restartInput = false;
+export function refreshAudioDevices(
+  recoverInput = false,
+): Promise<MediaDeviceInfo[]> {
+  rescanDevices = true;
+  restartInput ||= recoverInput;
+  if (deviceWork) return deviceWork;
+  const work = (async () => {
+    while (rescanDevices) {
+      rescanDevices = false;
+      if (!navigator.mediaDevices?.enumerateDevices) return [];
+      const before = state().settings;
+      const devices = await navigator.mediaDevices.enumerateDevices();
+      let granted = false;
+      try {
+        granted =
+          (
+            await navigator.permissions.query({
+              name: "microphone" as PermissionName,
+            })
+          ).state === "granted";
+      } catch {
+        /* Device labels remain a fallback signal on older browsers. */
+      }
+      if (
+        before.inputDevice !== state().settings.inputDevice ||
+        before.outputDevice !== state().settings.outputDevice
+      ) {
+        rescanDevices = true;
+        continue;
+      }
+      update({ audioDevices: devices });
+      const checked = reconcileAudioDevices(before, devices, granted);
+      const forceInput = restartInput;
+      restartInput = false;
+      if (!checked.missing.length && !forceInput) continue;
+      const saved = checked.missing.length
+        ? await persistSettings((current) => ({
+            ...current,
+            ...(current.inputDevice === before.inputDevice
+              ? { inputDevice: checked.inputDevice }
+              : {}),
+            ...(current.outputDevice === before.outputDevice
+              ? { outputDevice: checked.outputDevice }
+              : {}),
+          }))
+        : state().settings;
+      const inputChanged =
+        checked.missing.includes("audioinput") &&
+        saved.inputDevice === checked.inputDevice;
+      const outputChanged =
+        checked.missing.includes("audiooutput") &&
+        saved.outputDevice === checked.outputDevice;
+      const results = await Promise.allSettled([
+        inputChanged || forceInput
+          ? media.devices(saved.inputDevice, undefined)
+          : undefined,
+        outputChanged
+          ? media.devices(undefined, saved.outputDevice)
+          : undefined,
+      ]);
+      if (results.some((r) => r.status === "rejected")) {
+        update({
+          warningTitle: "音频设备不可用",
+          warning:
+            "已改用系统默认设备。请连接麦克风或耳机，并在设置中检查设备权限。",
+        });
+      } else if (inputChanged || outputChanged) {
+        update({
+          notice: `${inputChanged && outputChanged ? "麦克风和输出设备" : inputChanged ? "麦克风" : "输出设备"}已断开，已切换为系统默认`,
+        });
+      }
+    }
+    return state().audioDevices;
+  })();
+  deviceWork = work;
+  void work
+    .finally(() => {
+      if (deviceWork === work) deviceWork = undefined;
+    })
+    .catch(() => {});
+  return work;
+}
+async function recoverMissingMicrophone(error: unknown) {
+  if (
+    !(error instanceof Error) ||
+    !["NotFoundError", "OverconstrainedError"].includes(error.name) ||
+    !state().settings.inputDevice
+  )
+    return false;
+  try {
+    await persistSettings((current) => ({ ...current, inputDevice: "" }));
+    await media.devices("", undefined);
+    update({ notice: "原麦克风不可用，已切换为系统默认麦克风" });
+  } catch {
+    update({
+      warningTitle: "麦克风不可用",
+      warning: "已改为系统默认麦克风。请连接麦克风，并在设置中检查设备权限。",
+    });
+  }
+  return true;
+}
 const roomCuePlayer = new RoomCuePlayer(
   { enter: enterCue, leave: leaveCue },
   () => state().settings,
@@ -217,6 +342,9 @@ export const media = new MediaSession(
         })
         .catch(report);
     }
+  },
+  () => {
+    void refreshAudioDevices(true).catch(report);
   },
 );
 export const diagnostics = new DiagnosticRecorder(media, state, async () =>
@@ -363,7 +491,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     const sources = await window.desktop!.sources();
     if (
       revision !== state().shareRevision ||
-      state().shareState !== "selectingSource"
+      (state().shareState !== "selectingSource" && !state().switchingSource)
     )
       return false;
     if (!sources.length)
@@ -372,6 +500,30 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     return new Promise<boolean>((resolve) => {
       selectResolve = resolve;
     });
+  },
+  replace: async () => {
+    try {
+      if (window.desktop?.nativeCapture)
+        await window.desktop.switchNativeSource!();
+      else {
+        if (capabilities().sourcePicker) {
+          const selected = await media.selectBrowserShare(
+            state().settings.quality,
+            state().systemAudio,
+            true,
+          );
+          if (
+            !selected ||
+            !state().switchingSource ||
+            shareSession.state !== "active"
+          )
+            throw new Error("共享已取消");
+        }
+        await media.replaceBrowserShare();
+      }
+    } finally {
+      await window.desktop?.cancelCapture();
+    }
   },
   publish: async (lease) => {
     await accompaniment.stop();
@@ -426,7 +578,11 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     await window.desktop?.cancelCapture();
   },
   changed: (shareState, revision) => {
-    update({ shareState, shareRevision: revision });
+    update({
+      shareState,
+      shareRevision: revision,
+      ...(shareState === "acquiringLease" ? { shareRecovery: undefined } : {}),
+    });
     void window.desktop?.setSharing(shareState === "active");
   },
   error: report,
@@ -450,6 +606,7 @@ export const roomSession = new RoomCoordinator({
     );
   },
   connect: async (url, token) => {
+    await refreshAudioDevices().catch(report);
     await media.connect(url, token);
     try {
       await media.noiseReduction(state().settings.noiseReduction);
@@ -462,7 +619,7 @@ export const roomSession = new RoomCoordinator({
         state().settings.outputDevice,
       );
     } catch (error) {
-      report(error);
+      if (!(await recoverMissingMicrophone(error))) report(error);
     }
   },
   disconnect: () => {
@@ -473,6 +630,7 @@ export const roomSession = new RoomCoordinator({
   },
   stopShare,
   changed: (roomState, room, revision) => {
+    if (roomState === "idle") update({ shareRecovery: undefined });
     if (roomState === "connected") roomCues.enter(state().media);
     else if (roomState === "leaving") roomCues.leave();
     else if (roomState === "failed") roomCues.reset();
@@ -515,6 +673,11 @@ export async function initialize() {
   } catch {
     update({ settings: defaults });
   }
+  await refreshAudioDevices().catch(report);
+  const deviceChanged = () => {
+    void refreshAudioDevices(media.inputRecoveryNeeded).catch(report);
+  };
+  navigator.mediaDevices?.addEventListener("devicechange", deviceChanged);
   if (sessionToken)
     await run(async () => {
       update({ user: unwrap(await api.GET("/api/v1/me")) });
@@ -533,6 +696,17 @@ export async function initialize() {
   const unsubscribe = window.desktop?.onAction((action, value) => {
     if (action === "stop-accompaniment") {
       void accompaniment.stop().catch(report);
+      return;
+    }
+    if (action === "capture-ended") {
+      void stopShare()
+        .then(() => {
+          if (state().room)
+            update({
+              shareRecovery: value || "共享采集已中断，请重新选择来源",
+            });
+        })
+        .catch(report);
       return;
     }
     if (state().requiredUpdate && action !== "stop-share") return;
@@ -612,6 +786,7 @@ export async function initialize() {
   const focus = () => void syncFriends();
   window.addEventListener("focus", focus);
   return () => {
+    navigator.mediaDevices?.removeEventListener("devicechange", deviceChanged);
     clearInterval(timer);
     clearInterval(policyTimer);
     stopDiagnostics();
@@ -847,7 +1022,7 @@ export async function toggleMicrophone() {
       state().settings.inputDevice,
     );
   } catch (error) {
-    report(error);
+    if (!(await recoverMissingMicrophone(error))) report(error);
   }
 }
 export async function ptt(
@@ -884,15 +1059,17 @@ export async function chooseSource(selection?: CaptureSelection) {
   resolve?.(Boolean(selection));
 }
 export async function chooseBrowserSource() {
+  const switching = state().switchingSource;
   const revision = state().shareRevision;
   try {
     const selected = await media.selectBrowserShare(
       state().settings.quality,
       state().systemAudio,
+      state().switchingSource,
     );
     if (
       revision !== state().shareRevision ||
-      state().shareState !== "selectingSource"
+      (state().shareState !== "selectingSource" && !state().switchingSource)
     )
       return;
     update({ modal: null });
@@ -911,8 +1088,23 @@ export async function chooseBrowserSource() {
       error instanceof DOMException &&
       ["NotAllowedError", "AbortError"].includes(error.name)
     )
-      update({ notice: "未开始共享，可重新选择或检查 Chrome 的共享权限" });
+      update({
+        notice: switching
+          ? "未切换来源，继续共享原画面"
+          : "未开始共享，可重新选择或检查 Chrome 的共享权限",
+      });
     else report(error);
+  }
+}
+export async function switchShareSource() {
+  if (state().switchingSource || shareSession.state !== "active") return;
+  update({ switchingSource: true });
+  try {
+    await shareSession.switchSource();
+  } finally {
+    media.cancelBrowserSelection();
+    await window.desktop?.cancelCapture();
+    update({ switchingSource: false });
   }
 }
 export async function stopShare() {
@@ -934,8 +1126,17 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
     ["connected", "reconnecting"].includes(state().roomState)
   )
     await media.microphone(false);
-  if (window.desktop) await window.desktop.saveSettings(settings);
-  else localStorage.setItem("cinegather.settings", JSON.stringify(settings));
+  const devices = await navigator.mediaDevices?.enumerateDevices();
+  if (devices) {
+    update({ audioDevices: devices });
+    const checked = reconcileAudioDevices(settings, devices);
+    settings = {
+      ...settings,
+      inputDevice: checked.inputDevice,
+      outputDevice: checked.outputDevice,
+    };
+  }
+  settings = await persistSettings(() => settings);
   await media.devices(settings.inputDevice, settings.outputDevice);
   await media.noiseReduction(settings.noiseReduction);
   update({

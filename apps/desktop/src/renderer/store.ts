@@ -54,6 +54,9 @@ interface State {
   voiceVolume: number;
   screenVolume: number;
   systemAudio: boolean;
+  switchingSource: boolean;
+  shareRecovery?: string;
+  audioDevices: MediaDeviceInfo[];
   audioCompatibility: boolean;
   sources: CaptureSource[];
   invite?: string;
@@ -84,6 +87,8 @@ export const useApp = create<State>(() => ({
   voiceVolume: 1,
   screenVolume: 1,
   systemAudio: false,
+  switchingSource: false,
+  audioDevices: [],
   audioCompatibility: false,
   sources: [],
   joinValue: "",

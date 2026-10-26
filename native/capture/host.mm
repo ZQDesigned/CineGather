@@ -14,6 +14,7 @@
 #include <unistd.h>
 #include <util/base.h>
 #include "preview-control.hpp"
+#include "source-swap.hpp"
 
 // SPDX-License-Identifier: MIT
 // Direct libobs host. Commands arrive only through the parent-owned stdio pipe.
@@ -416,6 +417,53 @@ static void initEngine() {
   check(logger, "RTC logger unavailable");
   logger(3, rtcLog);
 }
+static void prepareScene(NSDictionary *config, cinegather::CaptureScene &next) {
+  NSArray *windows = enumerateWindows();
+  NSNumber *windowId = config[@"windowId"];
+  NSString *bundleId = config[@"application"];
+  NSNumber *displayId = config[@"displayId"];
+  bool valid = false;
+  for (NSDictionary *w in windows)
+    if ([w[@"windowId"] isEqual:windowId] &&
+        [w[@"bundleId"] isEqual:bundleId] && [w[@"pid"] isEqual:config[@"pid"]])
+      valid = true;
+  if (displayId) {
+    valid = false;
+    for (NSDictionary *d in enumerateDisplays())
+      if ([d[@"displayId"] isEqual:displayId])
+        valid = true;
+  }
+  check(valid, "共享来源已关闭，请重新选择");
+  next.scene = obs_scene_create("CineGather native libobs scene");
+  check(next.scene, "Scene creation failed");
+  obs_data_t *ws = settings(@{
+    @"type" : displayId ? @0 : @1,
+    @"window" : windowId ?: @0,
+    @"display" : displayId ?: @0,
+    @"show_cursor" : @NO,
+    @"show_hidden_windows" : @YES
+  });
+  next.video = obs_source_create("screen_capture", "CineGather native window",
+                                   ws, nullptr);
+  obs_data_release(ws);
+  check(next.video, "Window source creation failed");
+  obs_source_set_muted(next.video, true);
+  if ([config[@"systemAudio"] boolValue]) {
+    obs_data_t *as = settings(@{
+      @"type" : displayId ? @0 : @1,
+      @"application" : bundleId ?: @"",
+      @"excluded_application" : config[@"excludedApplication"] ?: @"city.zqdesigned.cinegather"
+    });
+    next.audio =
+        obs_source_create("sck_audio_capture",
+                          "CineGather native shared audio", as, nullptr);
+    obs_data_release(as);
+    check(next.audio, "声音采集启动失败，请检查 CGScreenCaptureHost 的系统录音权限");
+    obs_source_set_audio_mixers(next.audio, 1);
+
+
+  }
+}
 static void startCapture(NSDictionary *config) {
   check(!output, "Stop the existing output first");
   check(CGPreflightScreenCaptureAccess(),
@@ -440,58 +488,16 @@ static void startCapture(NSDictionary *config) {
   vi.base_height = vi.output_height = height;
   vi.fps_num = fps;
   check(obs_reset_video(&vi) == OBS_VIDEO_SUCCESS, "Video reset failed");
-  NSArray *windows = enumerateWindows();
-  NSNumber *windowId = config[@"windowId"];
-  NSString *bundleId = config[@"application"];
-  NSNumber *displayId = config[@"displayId"];
-  bool valid = false;
-  for (NSDictionary *w in windows)
-    if ([w[@"windowId"] isEqual:windowId] &&
-        [w[@"bundleId"] isEqual:bundleId] && [w[@"pid"] isEqual:config[@"pid"]])
-      valid = true;
-  if (displayId) {
-    valid = false;
-    for (NSDictionary *d in enumerateDisplays())
-      if ([d[@"displayId"] isEqual:displayId])
-        valid = true;
-  }
-  check(valid, "共享来源已关闭，请重新选择");
-  audioBlocks = 0;
-  audioPeak = 0;
-  scene = obs_scene_create("CineGather native libobs scene");
-  check(scene, "Scene creation failed");
-  obs_data_t *ws = settings(@{
-    @"type" : displayId ? @0 : @1,
-    @"window" : windowId ?: @0,
-    @"display" : displayId ?: @0,
-    @"show_cursor" : @NO,
-    @"show_hidden_windows" : @YES
-  });
-  windowSource = obs_source_create("screen_capture", "CineGather native window",
-                                   ws, nullptr);
-  obs_data_release(ws);
-  check(windowSource, "Window source creation failed");
-  obs_source_set_muted(windowSource, true);
-  obs_sceneitem_t *item = obs_scene_add(scene, windowSource);
+  cinegather::CaptureScene next;
+  prepareScene(config, next);
+  auto *item = obs_scene_add(next.scene, next.video);
   obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_SCALE_INNER);
-  vec2 bounds;
-  vec2_set(&bounds, width, height);
+  vec2 bounds; vec2_set(&bounds, width, height);
   obs_sceneitem_set_bounds(item, &bounds);
-  if ([config[@"systemAudio"] boolValue]) {
-    obs_data_t *as = settings(@{
-      @"type" : displayId ? @0 : @1,
-      @"application" : bundleId ?: @"",
-      @"excluded_application" : config[@"excludedApplication"] ?: @"city.zqdesigned.cinegather"
-    });
-    audioSource =
-        obs_source_create("sck_audio_capture",
-                          "CineGather native shared audio", as, nullptr);
-    obs_data_release(as);
-    check(audioSource, "声音采集启动失败，请检查 CGScreenCaptureHost 的系统录音权限");
-    obs_source_set_audio_mixers(audioSource, 1);
-    obs_source_add_audio_capture_callback(audioSource, audioMeter, nullptr);
-    obs_scene_add(scene, audioSource);
-  }
+  if (next.audio) obs_scene_add(next.scene, next.audio);
+  std::swap(scene, next.scene); std::swap(windowSource, next.video); std::swap(audioSource, next.audio);
+  audioBlocks = 0; audioPeak = 0;
+  if (audioSource) obs_source_add_audio_capture_callback(audioSource, audioMeter, nullptr);
   obs_set_output_source(0, obs_scene_get_source(scene));
   obs_data_t *vs = settings(@{
     @"rate_control" : @"CBR",
@@ -536,6 +542,27 @@ static void startCapture(NSDictionary *config) {
   obs_output_set_service(output, service);
   check(obs_output_start(output), "WHIP output did not start");
 }
+static void switchSource(NSDictionary *config) {
+  check(output && outputPhase == 2 && deadlineNs > monotonicNs(), "共享已停止");
+  check(CGPreflightScreenCaptureAccess(), "屏幕录制权限已失效");
+  check([config[@"systemAudio"] boolValue] == bool(audioEncoder), "切换来源时请保留当前共享声音设置");
+  if (config[@"displayId"] && audioEncoder) {
+    if (@available(macOS 14.2, *)) {} else check(false, "系统声音共享需要 macOS 14.2 或更新版本");
+  }
+  obs_video_info vi = {}; check(obs_get_video_info(&vi), "Video unavailable");
+  cinegather::CaptureScene next;
+  prepareScene(config, next);
+  next.warm(vi.base_width, vi.base_height, [] { return deadlineNs > monotonicNs(); });
+  if (next.audio) {
+    obs_data_t *state = obs_source_get_private_settings(next.audio);
+    bool failed = obs_data_get_bool(state, "cg_audio_exclusion_failed");
+    obs_data_release(state);
+    check(!failed, "新来源的声音采集不可用，请检查录音权限");
+  }
+  if (audioSource) obs_source_remove_audio_capture_callback(audioSource, audioMeter, nullptr);
+  next.commit(scene, windowSource, audioSource);
+  if (audioSource) obs_source_add_audio_capture_callback(audioSource, audioMeter, nullptr);
+}
 static id handle(NSDictionary *command) {
   NSString *type = command[@"type"];
   if ([type isEqual:@"status"])
@@ -567,6 +594,10 @@ static id handle(NSDictionary *command) {
     int timeout = [command[@"remainingMs"] intValue];
     check(output && timeout > 0 && timeout <= 30000, "Invalid renewal");
     deadlineNs = monotonicNs() + int64_t(timeout) * 1000000;
+    return status();
+  }
+  if ([type isEqual:@"switch-source"]) {
+    switchSource(command);
     return status();
   }
   if ([type isEqual:@"start"]) {

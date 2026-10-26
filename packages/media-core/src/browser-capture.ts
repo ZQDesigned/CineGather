@@ -8,6 +8,7 @@ const stop = (stream: MediaStream) =>
 export class BrowserCapture {
   private revision = 0;
   private stream?: MediaStream;
+  private pending?: MediaStream;
   audioNotice = "";
   constructor(
     private readonly capture = (options: DisplayMediaStreamOptions) => {
@@ -32,8 +33,28 @@ export class BrowserCapture {
   get current() {
     return this.stream;
   }
-  async select(quality: Quality, audio: boolean): Promise<boolean> {
-    this.stop();
+  get selected() {
+    return this.pending ?? this.stream;
+  }
+  cancelSelection() {
+    ++this.revision;
+    if (this.pending) stop(this.pending);
+    this.pending = undefined;
+  }
+  commitSelection() {
+    if (!this.pending) return;
+    const previous = this.stream;
+    this.stream = this.pending;
+    this.pending = undefined;
+    if (previous) stop(previous);
+  }
+  async select(
+    quality: Quality,
+    audio: boolean,
+    replacing = false,
+  ): Promise<boolean> {
+    if (replacing) this.cancelSelection();
+    else this.stop();
     const revision = this.revision;
     const preset = qualityPresets[quality];
     const isolate = audio && this.canIsolate();
@@ -91,11 +112,12 @@ export class BrowserCapture {
       this.audioNotice =
         "本次 Chrome 未提供共享声音，当前仅共享画面。共享标签页时可在选择器中开启声音。";
     video.contentHint = quality === "game" ? "motion" : "detail";
-    this.stream = stream;
+    if (replacing) this.pending = stream;
+    else this.stream = stream;
     return true;
   }
   stop() {
-    ++this.revision;
+    this.cancelSelection();
     if (this.stream) stop(this.stream);
     this.stream = undefined;
   }

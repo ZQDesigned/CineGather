@@ -108,3 +108,26 @@ test("sound is never retained when sharing without audio and malformed captures 
   await expect(invalid.select("cinema", true)).rejects.toThrow("画面");
   expect(broken.sound.readyState).toBe("ended");
 });
+
+test("a replacement picker keeps the current stream alive until commit and cancel preserves it", async () => {
+  const first = stream(),
+    second = stream();
+  let next = first.value;
+  const capture = new BrowserCapture(async () => next);
+  await capture.select("cinema", true);
+  next = second.value;
+  await capture.select("cinema", true, true);
+  expect(capture.current).toBe(first.value);
+  expect(first.video.readyState).toBe("live");
+  expect(capture.selected).toBe(second.value);
+  capture.cancelSelection();
+  expect(second.video.readyState).toBe("ended");
+  expect(capture.current).toBe(first.value);
+  const third = stream();
+  next = third.value;
+  await capture.select("cinema", true, true);
+  capture.commitSelection();
+  expect(capture.current).toBe(third.value);
+  expect(first.video.readyState).toBe("ended");
+  capture.stop();
+});

@@ -129,6 +129,7 @@ const bridge: DesktopBridge = {
       : undefined,
   startNativeCapture: (request) =>
     ipcRenderer.invoke("desktop:native-start", request),
+  switchNativeSource: () => ipcRenderer.invoke("desktop:native-switch"),
   renewNativeCapture: (lease) =>
     ipcRenderer.invoke("desktop:native-renew", lease),
   stopNativeCapture: () => ipcRenderer.invoke("desktop:native-stop"),

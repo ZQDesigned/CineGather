@@ -468,6 +468,12 @@ function registerIPC() {
     if (!nativeCapture) throw new Error("当前平台不支持此采集引擎");
     return nativeCapture.renew(leaseSchema.parse(input));
   });
+  handle("desktop:native-switch", async () => {
+    if (screenLocked || suspended || quitting)
+      throw new Error("设备已锁定或休眠");
+    if (!nativeCapture) throw new Error("当前平台不支持此采集引擎");
+    return nativeCapture.switchSource();
+  });
   handle("desktop:native-stop", () => nativeCapture?.stop());
   handle("desktop:cancel-capture", () => {
     windowsAudio?.clearSelection();
@@ -689,7 +695,7 @@ else {
                 "../../../../.local/native-runtime/CGScreenCaptureHost.app",
               ),
           join(app.getPath("userData"), "capture"),
-          () => sendAction("stop-share"),
+          (reason) => sendAction("capture-ended", reason),
           app.isPackaged ? undefined : "com.github.Electron",
           { previewAllowed: foreground },
         );
@@ -702,7 +708,7 @@ else {
                 "../../../../.local/native-runtime/windows/obs",
               ),
           join(app.getPath("userData"), "capture"),
-          () => sendAction("stop-share"),
+          (reason) => sendAction("capture-ended", reason),
           "CineGather.exe",
           {
             previewAllowed: foreground,

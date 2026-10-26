@@ -64,6 +64,7 @@ export class NativeCapture {
   private poll?: ReturnType<typeof setInterval>;
   private polling = false;
   private started = false;
+  private switching = false;
   private previewEpoch = 0;
   private previewId?: string;
   private previewAllowed() {
@@ -157,7 +158,7 @@ export class NativeCapture {
   constructor(
     private readonly bundle: string,
     private readonly directory: string,
-    private readonly ended: () => void,
+    private readonly ended: (reason?: string) => void,
     private readonly ownApplication?: string,
     private readonly options: {
       platform?: NodeJS.Platform;
@@ -312,7 +313,7 @@ export class NativeCapture {
         }
         if (this.context) {
           void this.stop().catch(() => {});
-          this.ended();
+          this.ended("屏幕采集进程已退出，请重新选择共享来源");
         }
       });
       await pipe.call({ type: "status" });
@@ -554,6 +555,47 @@ export class NativeCapture {
       throw this.windows ? nativeFailure(error) : error;
     }
   }
+  async switchSource() {
+    const selection = this.selection,
+      context = this.context;
+    this.cancelSelection();
+    if (
+      !context ||
+      !this.started ||
+      !selection ||
+      selection.expiresAt <= Date.now()
+    )
+      throw new Error("共享已停止或来源选择已失效");
+    if (this.switching) throw new Error("正在切换共享来源");
+    const epoch = this.epoch;
+    this.switching = true;
+    try {
+      // Revalidate ownership/permissions without creating a new native ingress.
+      await this.renew(context.lease);
+      if (epoch !== this.epoch) throw new Error("共享已停止");
+      const status = await this.pipe!.call<Status>({
+        type: "switch-source",
+        windowId: selection.window?.windowId,
+        pid: selection.window?.pid,
+        displayId: selection.displayId,
+        application: selection.application,
+        systemAudio: selection.systemAudio,
+        excludedApplication: this.ownApplication,
+      }).catch(() => {
+        throw new Error(
+          "新的共享来源不可用，请保持目标窗口展开后重新选择；原画面会继续共享",
+        );
+      });
+      if (epoch !== this.epoch) throw new Error("共享已停止");
+      this.activeWindow = selection.window;
+      this.activeDisplayId = selection.displayId;
+      this.rememberStatus(status);
+      if (this.diagnosticStatus?.deviceAudioFallback)
+        this.options.audioFallback?.();
+    } finally {
+      this.switching = false;
+    }
+  }
   async renew(lease: ShareLease): Promise<ShareLease> {
     const context = this.context;
     if (
@@ -574,7 +616,7 @@ export class NativeCapture {
     return next;
   }
   private async check() {
-    if (this.polling || !this.context) return;
+    if (this.polling || this.switching || !this.context) return;
     this.polling = true;
     const epoch = this.epoch;
     try {
@@ -614,12 +656,23 @@ export class NativeCapture {
         !status.sourcesActive
       ) {
         await this.stop();
-        this.ended();
+        this.ended(
+          status.audioCaptureError
+            ? "共享声音采集已中断，请检查声音权限后重新共享"
+            : !status.screenPermission
+              ? "屏幕录制权限已失效，请检查系统授权"
+              : "共享采集已中断，请重新选择来源",
+        );
       }
-    } catch {
+    } catch (error) {
       if (epoch === this.epoch) {
         await this.stop();
-        this.ended();
+        this.ended(
+          error instanceof Error &&
+            ["共享显示器已断开", "共享窗口已关闭"].includes(error.message)
+            ? error.message
+            : "共享采集已中断，请重新选择来源",
+        );
       }
     } finally {
       this.polling = false;
