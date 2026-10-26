@@ -17,6 +17,8 @@ import { ClientDownload } from "./ClientDownload";
 import { UpdateDialog } from "./Updates";
 import { RoomSettings } from "./RoomSettings";
 import { Diagnostics } from "./Diagnostics";
+import { FriendSearch } from "./FriendSearch";
+import { FriendRoomPicker, RoomInvitationInbox } from "./RoomInvitations";
 import { useEffect, useState } from "react";
 import { Copy, Monitor, AppWindow, RefreshCw, Shield } from "lucide-react";
 import { useApp, update, type Modal } from "../store";
@@ -52,6 +54,13 @@ export function Dialogs() {
   );
 }
 function DialogContent({ modal }: { modal: Modal }) {
+  if (modal === "add-friend")
+    return (
+      <ModalShell title="添加好友">
+        <FriendSearch />
+      </ModalShell>
+    );
+  if (modal === "room-invitations") return <RoomInvitationInbox />;
   if (modal === "share-unavailable")
     return (
       <ModalShell
@@ -235,14 +244,32 @@ function JoinRoom() {
   );
 }
 function Invite() {
+  const [room] = useState(() => useApp.getState().room);
+  return (
+    <ModalShell title="邀请朋友">
+      <Tabs
+        defaultActiveKey={room?.role === "owner" ? "link" : "friends"}
+        destroyOnHidden
+        items={[
+          ...(room?.role === "owner"
+            ? [{ key: "link", label: "邀请链接", children: <InviteLink /> }]
+            : []),
+          {
+            key: "friends",
+            label: "邀请好友",
+            children: room ? <FriendRoomPicker roomId={room.id} /> : null,
+          },
+        ]}
+      />
+    </ModalShell>
+  );
+}
+function InviteLink() {
   const app = useApp();
   const invite = app.invite ?? "";
 
   return (
-    <ModalShell
-      title="好座位，留给好朋友"
-      subtitle="邀请在 24 小时内有效，最多可供 10 位新成员使用。"
-    >
+    <>
       <Form layout="vertical">
         <Form.Item label="房间邀请">
           <TextArea aria-label="房间邀请" readOnly rows={3} value={invite} />
@@ -292,7 +319,7 @@ function Invite() {
           撤销这条邀请
         </Button>
       )}
-    </ModalShell>
+    </>
   );
 }
 function SourcePicker() {

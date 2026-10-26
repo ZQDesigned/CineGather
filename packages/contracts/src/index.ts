@@ -166,7 +166,22 @@ export const messagesSchema = z.object({
   items: z.array(messageSchema),
   nextCursor: z.string().nullable(),
 });
+export const roomInvitationSchema = z.object({
+  id: z.uuid(),
+  roomId: z.uuid(),
+  roomName: z.string(),
+  senderId: z.uuid(),
+  senderName: z.string(),
+  token: z.string().min(32).max(128),
+  expiresAt: z.iso.datetime({ offset: true }),
+});
+export type RoomInvitation = z.infer<typeof roomInvitationSchema>;
+export const friendRoomInviteSentSchema = z.object({
+  id: z.uuid(),
+  expiresAt: z.iso.datetime({ offset: true }),
+});
 export const friendsSchema = z.object({
+  roomInvitations: z.array(roomInvitationSchema).default([]),
   items: z.array(
     z.object({
       userId: z.uuid(),

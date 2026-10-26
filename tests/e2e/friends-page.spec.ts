@@ -17,14 +17,22 @@ test("friends has its own page, tabs and URL without displaying an identity card
   await expect(
     page.getByRole("menuitem", { name: "好友", exact: true }),
   ).toHaveClass(/ant-menu-item-selected/);
-  for (const name of ["全部好友", "在线好友", "好友申请", "添加好友"])
+  for (const name of ["全部好友", "在线好友", "好友申请"])
     await expect(
       page.getByRole("tab", { name: new RegExp(name) }),
     ).toBeVisible();
-  await page.getByRole("tab", { name: "添加好友", exact: true }).click();
+  await expect(
+    page.getByRole("tab", { name: "添加好友", exact: true }),
+  ).toHaveCount(0);
+  await page.getByRole("button", { name: "添加好友", exact: true }).click();
+  await expect(
+    page.getByRole("dialog", { name: "添加好友", exact: true }),
+  ).toBeVisible();
   await expect(
     page.getByRole("textbox", { name: "好友用户名", exact: true }),
   ).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(page.getByRole("dialog")).toHaveCount(0);
   await page.reload();
   await expect(page.locator(".friends-page")).toBeVisible();
   await page.getByRole("menuitem", { name: /我的房间/ }).click();

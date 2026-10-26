@@ -142,9 +142,16 @@ export const invites = pgTable(
     maxUses: integer("max_uses").notNull(),
     useCount: integer("use_count").notNull().default(0),
     revokedAt: time("revoked_at"),
+    recipientId: uuid("recipient_id").references(() => users.id, {
+      onDelete: "cascade",
+    }),
+    createdAt: time("created_at").notNull().defaultNow(),
   },
   (t) => [
     index("invites_room_idx").on(t.roomId),
+    index("invites_recipient_idx")
+      .on(t.recipientId, t.expiresAt)
+      .where(sql`${t.recipientId} IS NOT NULL AND ${t.revokedAt} IS NULL`),
     check(
       "invites_uses_check",
       sql`${t.maxUses} > 0 AND ${t.useCount} >= 0 AND ${t.useCount} <= ${t.maxUses}`,

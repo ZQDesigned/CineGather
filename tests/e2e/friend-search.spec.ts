@@ -44,7 +44,13 @@ test("search a unique username, confirm the result and accept the friend request
         page.getByRole("button", { name: "复制我的用户 ID", exact: true }),
       ).toHaveCount(0);
     }
-    await a.getByRole("tab", { name: "添加好友", exact: true }).click();
+    await expect(
+      a.getByRole("tab", { name: "添加好友", exact: true }),
+    ).toHaveCount(0);
+    await a.getByRole("button", { name: "添加好友", exact: true }).click();
+    await expect(
+      a.getByRole("dialog", { name: "添加好友", exact: true }),
+    ).toBeVisible();
     await b.getByRole("tab", { name: /^好友申请/ }).click();
     const input = a.getByRole("textbox", { name: "好友用户名", exact: true });
     await input.fill(accounts[1]!.user.username.toUpperCase());

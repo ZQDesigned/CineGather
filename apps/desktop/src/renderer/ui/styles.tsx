@@ -149,8 +149,19 @@ export const AppSurface = styled.div`
     margin-top: 15px;
     font-size: 11px;
   }
-  .profile > span:not(.ant-avatar) {
+  .profile-details {
     flex: 1;
+    min-width: 0;
+  }
+  .profile-name,
+  .profile small {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .profile > .ant-btn {
+    flex-shrink: 0;
   }
   .profile small {
     display: block;
@@ -1803,6 +1814,28 @@ export const AppSurface = styled.div`
   }
   .friend > span:not(.ant-avatar) {
     flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+  .room-invitation-list {
+    max-height: min(400px, calc(100dvh - 240px));
+    overflow: auto;
+  }
+  .room-invitation-list .ant-list-item {
+    align-items: center;
+    gap: 12px;
+  }
+  .room-invitation-list .ant-list-item-meta {
+    min-width: 0;
+    align-items: center;
+  }
+  .room-invitation-list .ant-list-item-meta-title,
+  .room-invitation-list .ant-list-item-meta-description {
+    overflow-wrap: anywhere;
+  }
+  .room-invitation-list .ant-list-item-action {
+    flex-shrink: 0;
+    margin-inline-start: 8px;
   }
   .friend .ant-avatar {
     flex-shrink: 0;

@@ -32,6 +32,7 @@ import type { User, RoomInfo, ShareLease } from "@cinegather/contracts";
 import { nativeOwner, requireNativeLease } from "./native-authority";
 import { config } from "./config";
 import { hashRoomPassword, verifyRoomPassword } from "./passwords";
+import { areAcceptedFriends } from "./friend-access";
 
 async function roomInfo(
   tx: Transaction,
@@ -185,7 +186,7 @@ export async function listRooms(user: User) {
 }
 // Count connected humans and seats reserved by issued join tokens once.
 // Native publishers use the extra transport slot, not a human admission seat.
-async function occupiedUserIds(
+export async function occupiedUserIds(
   tx: Transaction,
   roomId: string,
   participants: readonly { identity: string }[],
@@ -336,7 +337,13 @@ export async function joinRoom(
         .for("update");
       if (!invite || (!member && invite.useCount >= invite.maxUses))
         fail(403, "INVITE_INVALID", "邀请无效、已用完或已过期");
-      if (!member)
+      if (
+        invite.recipientId &&
+        (invite.recipientId !== user.id ||
+          !(await areAcceptedFriends(tx, invite.createdBy, user.id)))
+      )
+        fail(403, "INVITE_INVALID", "此好友邀请已失效或不属于你");
+      if (!member || (invite.recipientId && invite.useCount === 0))
         await tx
           .update(invites)
           .set({ useCount: invite.useCount + 1 })

@@ -24,6 +24,10 @@ import type { Response } from "express";
 import * as c from "@cinegather/contracts";
 import * as r from "./rooms";
 import * as s from "./social";
+import {
+  inviteFriendToRoom,
+  dismissRoomInvitation,
+} from "./friend-room-invitations";
 import * as presence from "./presence";
 import { revokeSession } from "./auth";
 import {
@@ -401,6 +405,33 @@ export class ApiController {
     @Query("after") after?: string,
   ) {
     return r.getMessages(req.user, roomId, cursor, after);
+  }
+  @Post("rooms/:roomId/friend-invitations")
+  @Endpoint(
+    "inviteFriendToRoom",
+    c.friendRoomInviteSentSchema,
+    c.friendInput,
+    ["roomId"],
+    201,
+  )
+  inviteFriendToRoom(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return inviteFriendToRoom(
+      req.user,
+      roomId,
+      parse(c.friendInput, body).userId,
+    );
+  }
+  @Delete("room-invitations/:inviteId")
+  @Endpoint("dismissRoomInvitation", c.okSchema, undefined, ["inviteId"])
+  dismissRoomInvitation(
+    @Req() req: AuthRequest,
+    @Param("inviteId") inviteId: string,
+  ) {
+    return dismissRoomInvitation(req.user, inviteId);
   }
   @Get("friends/search")
   @ApiQuery({ name: "username", required: true, type: String })

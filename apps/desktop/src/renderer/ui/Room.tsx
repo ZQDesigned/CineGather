@@ -122,12 +122,10 @@ export function Room({ visible = true }: { visible?: boolean }) {
               房间设置
             </Button>
           )}
-          {app.room!.role === "owner" && (
-            <Button onClick={() => void actions.run(actions.createInvite)}>
-              <UserPlus size={16} />
-              邀请朋友
-            </Button>
-          )}
+          <Button onClick={() => void actions.run(actions.createInvite)}>
+            <UserPlus size={16} />
+            邀请朋友
+          </Button>
           <Tooltip title="影院模式">
             <Button
               type="text"

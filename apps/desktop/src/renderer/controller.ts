@@ -17,6 +17,7 @@ import type {
   DesktopSettings,
   RoomInfo,
   User,
+  RoomInvitation,
 } from "@cinegather/contracts";
 import { state, update, defaults } from "./store";
 import { serverOrigin } from "./server-address";
@@ -78,8 +79,8 @@ export const api = createApi(baseUrl, () => sessionToken, {
 });
 const friendRequests = new FriendRequests(
   () => sessionToken,
-  async () => unwrap(await api.GET("/api/v1/friends")).items,
-  (friends) => update({ friends }),
+  async () => unwrap(await api.GET("/api/v1/friends")),
+  (friends, roomInvitations) => update({ friends, roomInvitations }),
 );
 export const refreshFriends = () => friendRequests.refresh();
 let presenceRevision = 0;
@@ -1255,7 +1256,14 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
   });
 }
 export async function createInvite() {
-  const roomId = state().room!.id;
+  const room = state().room;
+  if (!room) return;
+  await refreshFriends();
+  if (room.role !== "owner") {
+    update({ invite: undefined, inviteId: undefined, modal: "invite" });
+    return;
+  }
+  const roomId = room.id;
   const invite = unwrap(
     await api.POST("/api/v1/rooms/{roomId}/invites", {
       params: { path: { roomId } },
@@ -1267,6 +1275,28 @@ export async function createInvite() {
     inviteId: invite.id,
     modal: "invite",
   });
+}
+export async function dismissRoomInvitation(id: string) {
+  unwrap(
+    await api.DELETE("/api/v1/room-invitations/{inviteId}", {
+      params: { path: { inviteId: id } },
+    }),
+  );
+  await refreshFriends();
+}
+export async function openRoomInvitationInbox() {
+  if (state().modal === "source") await chooseSource();
+  update({ modal: "room-invitations" });
+}
+export async function acceptRoomInvitation(invitation: RoomInvitation) {
+  await roomSession.enter(invitation.roomId, invitation.token);
+  await refreshRooms();
+  await refreshFriends();
+  if (
+    state().room?.id === invitation.roomId &&
+    state().roomState === "connected"
+  )
+    update({ modal: null });
 }
 function invitationLink(roomId: string, token: string) {
   const web = !window.desktop ? location.origin : import.meta.env.VITE_WEB_URL;

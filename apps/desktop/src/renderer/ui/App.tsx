@@ -29,6 +29,10 @@ import { matchesShortcut } from "../../shared/shortcuts";
 import { buildMemberOverlay } from "../../shared/member-overlay";
 import { hasIncomingRequests } from "../friends";
 import { PresenceAvatar } from "./Presence";
+import {
+  RoomInvitationInboxButton,
+  RoomInvitationNotifications,
+} from "./RoomInvitations";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
   authenticating: "正在验证身份",
@@ -66,7 +70,13 @@ export function App() {
     window.addEventListener("hashchange", changed);
     return () => window.removeEventListener("hashchange", changed);
   }, []);
-  useEffect(() => setHome(false), [app.room?.id]);
+  useEffect(() => {
+    setHome(false);
+    if (app.room) {
+      setSection("main");
+      history.replaceState(null, "", mainPath());
+    }
+  }, [app.room?.id]);
   useEffect(() => {
     if (!app.chatRequest || !app.room) return;
     setHome(false);
@@ -328,15 +338,18 @@ export function App() {
         </div>
         <div className="profile">
           <PresenceAvatar />
-          <span>
-            {app.user?.displayName ?? "欢迎来到映聚"}
-            <small>{app.user?.username ?? "等待你的加入"}</small>
+          <span className="profile-details">
+            <span className="profile-name" title={app.user?.displayName}>
+              {app.user?.displayName ?? "欢迎来到映聚"}
+            </span>
+            <small title={app.user?.username ?? undefined}>
+              {app.user?.username ?? "等待你的加入"}
+            </small>
           </span>
           {app.user && (
             <Tooltip title={"退出登录"}>
               <Button
                 type="text"
-                title={"退出登录"}
                 aria-label={"退出登录"}
                 onClick={() => void actions.run(actions.logout)}
               >
@@ -363,6 +376,7 @@ export function App() {
             ]}
           />
           <div className="topbar-right">
+            <RoomInvitationInboxButton />
             {(home || secondary) && app.room && (
               <Space.Compact
                 className="current-room"
@@ -424,6 +438,7 @@ export function App() {
           </div>
         </header>
         <Feedback />
+        <RoomInvitationNotifications />
         <UpdateCenter />
         {!app.user ? (
           <Welcome />

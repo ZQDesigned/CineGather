@@ -2,7 +2,6 @@ import {
   Avatar,
   Badge,
   Button,
-  Card,
   Empty,
   List,
   Select,
@@ -15,8 +14,7 @@ import styled from "@emotion/styled";
 import { UserPlus, X } from "lucide-react";
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { unwrap } from "@cinegather/api-client";
-import { FriendSearch } from "./FriendSearch";
-import { useApp } from "../store";
+import { useApp, update } from "../store";
 import * as actions from "../controller";
 import type { Friend } from "../friends";
 
@@ -78,20 +76,6 @@ const Surface = styled.section`
   .friend-name {
     max-width: 100%;
     display: block;
-  }
-  .friend-search-card {
-    max-width: 640px;
-  }
-  .friend-search-card .friend {
-    min-width: 0;
-  }
-  .friend-search-card .friend > span:not(.ant-avatar) {
-    min-width: 0;
-    overflow-wrap: anywhere;
-  }
-  .friend-search-card .friend small {
-    display: block;
-    margin-top: 5px;
   }
   @media (max-width: 1100px) {
     padding: 16px;
@@ -231,7 +215,7 @@ export function Friends() {
           <Button
             type="primary"
             icon={<UserPlus size={16} />}
-            onClick={() => setTab("add")}
+            onClick={() => update({ modal: "add-friend" })}
           >
             添加好友
           </Button>
@@ -262,15 +246,6 @@ export function Friends() {
               >{`好友申请（${requests.length}）`}</Badge>
             ),
             children: list(requests, "暂无好友申请"),
-          },
-          {
-            key: "add",
-            label: "添加好友",
-            children: (
-              <Card size="small" className="friend-search-card">
-                <FriendSearch />
-              </Card>
-            ),
           },
         ]}
       />
