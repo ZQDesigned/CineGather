@@ -200,7 +200,10 @@ export function App() {
     };
   }, []);
   return (
-    <AppSurface className={`app ${app.cinema ? "cinema" : ""}`}>
+    <AppSurface
+      className={`app ${app.cinema ? "cinema" : ""}`}
+      data-platform={window.desktop?.platform ?? "browser"}
+    >
       <aside className="sidebar">
         <a
           className="brand"

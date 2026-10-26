@@ -33,6 +33,7 @@ import { createUpdates } from "./updates";
 import { supportsProcessAudio, WindowsAudio } from "./windows-audio";
 import { createAccompaniment } from "./accompaniment-native";
 import { configureHardwareEncoding } from "./encoding-policy";
+import { mainWindowChrome, configureMainWindowMenu } from "./window-chrome";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 configureHardwareEncoding(process.platform, app.commandLine);
 // Native preview is deliberately bound to 127.0.0.1. Chromium excludes the
@@ -178,7 +179,7 @@ async function createWindow() {
     minHeight: 680,
     backgroundColor: "#0d0f14",
     title: "映聚 CineGather",
-    titleBarStyle: process.platform === "darwin" ? "hiddenInset" : "default",
+    ...mainWindowChrome(process.platform),
     autoHideMenuBar: true,
     webPreferences: {
       preload: join(__dirname, "../preload/index.cjs"),
@@ -189,6 +190,7 @@ async function createWindow() {
       backgroundThrottling: false,
     },
   });
+  configureMainWindowMenu(process.platform, Menu, win);
   win.webContents.setWindowOpenHandler(({ url }) => {
     if (allowedExternal(url)) void shell.openExternal(url);
     return { action: "deny" };
