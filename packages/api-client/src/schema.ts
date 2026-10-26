@@ -5670,6 +5670,11 @@ export interface operations {
                             incoming: boolean;
                             /** @default false */
                             online: boolean;
+                            /** @default null */
+                            room: {
+                                memberCount: number;
+                                maxMembers: number;
+                            } | null;
                         }[];
                     };
                 };

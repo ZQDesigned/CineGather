@@ -180,6 +180,11 @@ export const friendRoomInviteSentSchema = z.object({
   id: z.uuid(),
   expiresAt: z.iso.datetime({ offset: true }),
 });
+export const friendRoomPresenceSchema = z.object({
+  memberCount: z.number().int().min(1),
+  maxMembers: z.number().int().min(2).max(MAX_ROOM_MEMBERS),
+});
+export type FriendRoomPresence = z.infer<typeof friendRoomPresenceSchema>;
 export const friendsSchema = z.object({
   roomInvitations: z.array(roomInvitationSchema).default([]),
   items: z.array(
@@ -189,6 +194,7 @@ export const friendsSchema = z.object({
       status: z.enum(["pending", "accepted"]),
       incoming: z.boolean(),
       online: z.boolean().default(false),
+      room: friendRoomPresenceSchema.nullable().default(null),
     }),
   ),
 });

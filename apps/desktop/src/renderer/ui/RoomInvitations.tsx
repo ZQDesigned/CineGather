@@ -7,6 +7,7 @@ import { useApp, update } from "../store";
 import { ModalShell } from "./Modal";
 import { useDialogOpen } from "./Modal";
 import type { RoomInvitation } from "@cinegather/contracts";
+import { friendPresenceLabel } from "../friends";
 
 export function FriendRoomPicker({ roomId }: { roomId: string }) {
   const friends = useApp((state) => state.friends).filter(
@@ -86,7 +87,7 @@ export function FriendRoomPicker({ roomId }: { roomId: string }) {
                 <Avatar className="amber">{friend.displayName[0]}</Avatar>
               }
               title={friend.displayName}
-              description={friend.online ? "在线" : "离线"}
+              description={friendPresenceLabel(friend)}
             />
           </List.Item>
         );

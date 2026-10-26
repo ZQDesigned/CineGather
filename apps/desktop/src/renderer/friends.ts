@@ -1,4 +1,4 @@
-import type { RoomInvitation } from "@cinegather/contracts";
+import type { FriendRoomPresence, RoomInvitation } from "@cinegather/contracts";
 
 export interface Friend {
   userId: string;
@@ -6,7 +6,15 @@ export interface Friend {
   status: "pending" | "accepted";
   incoming: boolean;
   online?: boolean;
+  room?: FriendRoomPresence | null;
 }
+
+export const friendPresenceLabel = (friend: Friend) => {
+  if (!friend.online || friend.status !== "accepted") return "离线";
+  return friend.room
+    ? `房间中（${friend.room.memberCount}/${friend.room.maxMembers}）`
+    : "在线";
+};
 
 export const hasIncomingRequests = (friends: Friend[]) =>
   friends.some((friend) => friend.incoming && friend.status === "pending");

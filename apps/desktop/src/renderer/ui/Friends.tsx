@@ -16,7 +16,7 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import { unwrap } from "@cinegather/api-client";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
-import type { Friend } from "../friends";
+import { friendPresenceLabel, type Friend } from "../friends";
 
 const Surface = styled.section`
   flex: 1;
@@ -181,7 +181,7 @@ export function Friends() {
               friend.status === "accepted" ? (
                 <Badge
                   color={friend.online ? "#75c99c" : "#8e93a4"}
-                  text={<small>{friend.online ? "在线" : "离线"}</small>}
+                  text={<small>{friendPresenceLabel(friend)}</small>}
                 />
               ) : (
                 <small>

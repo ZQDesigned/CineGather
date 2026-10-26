@@ -76,7 +76,7 @@ test("friends and owner moderation work across independent real room clients", a
     await expect(friend.locator(".friend")).toContainText("社交房主");
     await friend.getByRole("button", { name: "接受", exact: true }).click();
     await friend.getByRole("tab", { name: /^全部好友/ }).click();
-    await expect(friend.locator(".friend small")).toHaveText("在线", {
+    await expect(friend.locator(".friend small")).toHaveText("房间中（2/5）", {
       timeout: 10000,
     });
     await expect(
@@ -87,7 +87,7 @@ test("friends and owner moderation work across independent real room clients", a
       .click();
     await page.getByRole("menuitem", { name: "好友", exact: true }).click();
     await expect(page.locator(".friend")).toContainText("社交成员");
-    await expect(page.locator(".friend small")).toHaveText("在线", {
+    await expect(page.locator(".friend small")).toHaveText("房间中（2/5）", {
       timeout: 10000,
     });
     await page

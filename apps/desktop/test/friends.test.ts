@@ -2,6 +2,7 @@ import { expect, test } from "bun:test";
 import type { RoomInvitation } from "@cinegather/contracts";
 import {
   FriendRequests,
+  friendPresenceLabel,
   hasIncomingRequests,
   type Friend,
 } from "../src/renderer/friends";
@@ -21,6 +22,15 @@ const roomInvitation: RoomInvitation = {
   token: "a".repeat(64),
   expiresAt: "2030-01-01T00:00:00Z",
 };
+test("friend room status follows visibility and handles older servers", () => {
+  const friend = { ...request, status: "accepted" as const, online: true };
+  expect(friendPresenceLabel(friend)).toBe("在线");
+  expect(friendPresenceLabel({ ...friend, room: null })).toBe("在线");
+  const room = { memberCount: 2, maxMembers: 5 };
+  expect(friendPresenceLabel({ ...friend, room })).toBe("房间中（2/5）");
+  expect(friendPresenceLabel({ ...friend, room, online: false })).toBe("离线");
+  expect(friendPresenceLabel({ ...request, room, online: true })).toBe("离线");
+});
 test("only incoming pending requests need a sidebar dot", () => {
   expect(hasIncomingRequests([])).toBe(false);
   expect(hasIncomingRequests([{ ...request, incoming: false }])).toBe(false);

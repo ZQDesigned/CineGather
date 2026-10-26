@@ -100,6 +100,11 @@ export async function removeFriend(user: User, targetId: string) {
   return { ok: true as const };
 }
 export async function listFriends(user: User) {
+  const online = sql<boolean>`(${friendships.status} = 'accepted' AND ${users.presenceVisibility} = 'online' AND ${users.disabledAt} IS NULL AND EXISTS (
+    SELECT 1 FROM ${credentials} WHERE ${credentials.userId} = ${users.id}
+    AND ${credentials.kind} = 'account' AND ${credentials.revokedAt} IS NULL
+    AND ${credentials.expiresAt} > NOW() AND ${credentials.presenceAt} > ${new Date(Date.now() - presenceLifetimeMs)}
+  ))`;
   const rows = await db
     .select({
       requesterId: friendships.requesterId,
@@ -107,11 +112,23 @@ export async function listFriends(user: User) {
       status: friendships.status,
       userId: users.id,
       displayName: users.displayName,
-      online: sql<boolean>`(${friendships.status} = 'accepted' AND ${users.presenceVisibility} = 'online' AND ${users.disabledAt} IS NULL AND EXISTS (
-        SELECT 1 FROM ${credentials} WHERE ${credentials.userId} = ${users.id}
-        AND ${credentials.kind} = 'account' AND ${credentials.revokedAt} IS NULL
-        AND ${credentials.expiresAt} > NOW() AND ${credentials.presenceAt} > ${new Date(Date.now() - presenceLifetimeMs)}
-      ))`,
+      online,
+      // Admission leases exclude departed users and synthetic media publishers.
+      room: sql<{
+        memberCount: number;
+        maxMembers: number;
+      } | null>`CASE WHEN ${online} THEN (
+        SELECT json_build_object(
+          'memberCount', (SELECT count(*)::int FROM room_members AS occupants
+            WHERE occupants.room_id = location.room_id AND occupants.admitted_until > NOW()),
+          'maxMembers', current_room.max_members)
+        FROM room_members AS location
+        JOIN rooms AS current_room ON current_room.id = location.room_id
+        WHERE location.user_id = ${users.id} AND location.admitted_until > NOW()
+          AND current_room.status = 'active'
+        ORDER BY location.joined_at DESC, current_room.id
+        LIMIT 1
+      ) ELSE NULL END`,
     })
     .from(friendships)
     .innerJoin(
@@ -133,6 +150,7 @@ export async function listFriends(user: User) {
       status: r.status as "pending" | "accepted",
       incoming: r.recipientId === user.id,
       online: r.online,
+      room: r.room,
     })),
   };
 }

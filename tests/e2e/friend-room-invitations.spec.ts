@@ -76,6 +76,9 @@ test("room friends receive a real invitation, confirm switching rooms and join a
       invite.getByRole("button", { name: "已邀请邀请接收端", exact: true }),
     ).toBeDisabled();
     await b.getByRole("menuitem", { name: "好友", exact: true }).click();
+    await expect(b.locator(".friend small")).toHaveText("房间中（1/5）", {
+      timeout: 15000,
+    });
     await expect(b.locator(".ant-notification")).toContainText("邀请发布端", {
       timeout: 15000,
     });
@@ -97,8 +100,25 @@ test("room friends receive a real invitation, confirm switching rooms and join a
       b.getByRole("button", { name: "房间邀请", exact: true }),
     ).toHaveCount(0);
     await a.getByRole("button", { name: "关闭对话框", exact: true }).click();
+    await b.getByRole("menuitem", { name: "好友", exact: true }).click();
+    await expect(b.locator(".friend small")).toHaveText("房间中（2/5）", {
+      timeout: 15000,
+    });
+    await a.getByRole("button", { name: "设置在线状态", exact: true }).click();
+    await a.getByRole("menuitem", { name: "隐身", exact: true }).click();
+    await expect(b.locator(".friend small")).toHaveText("离线", {
+      timeout: 15000,
+    });
+    await a.getByRole("button", { name: "设置在线状态", exact: true }).click();
+    await a.getByRole("menuitem", { name: "在线", exact: true }).click();
+    await expect(b.locator(".friend small")).toHaveText("房间中（2/5）", {
+      timeout: 15000,
+    });
     await a.getByRole("button", { name: "离开房间", exact: true }).click();
-    await b.getByRole("button", { name: "离开房间", exact: true }).click();
+    await expect(b.locator(".friend small")).toHaveText("在线", {
+      timeout: 15000,
+    });
+    await b.getByRole("button", { name: "退出当前房间", exact: true }).click();
   } finally {
     await Promise.allSettled(contexts.map((context) => context.close()));
     const { execFileSync } = await import("node:child_process");
