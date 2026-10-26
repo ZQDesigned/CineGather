@@ -21,6 +21,7 @@ jobs:
         with:
           node-version: 24.18.1
       - run: bun install --frozen-lockfile
+      - run: bun run setup
       - name: Reuse unchanged released capture runtime
         shell: pwsh
         run: |
