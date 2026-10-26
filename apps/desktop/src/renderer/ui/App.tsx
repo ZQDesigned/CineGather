@@ -15,6 +15,7 @@ import {
 import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { Admin } from "./Admin";
+import { Friends } from "./Friends";
 import { Dialogs } from "./Dialogs";
 import { Welcome } from "./Welcome";
 import { Home } from "./Home";
@@ -37,30 +38,31 @@ const roomStates: Record<string, string> = {
   leaving: "正在离开",
   failed: "连接已断开",
 };
+function readSection(): "main" | "admin" | "friends" {
+  const route = location.hash
+    ? location.hash.slice(1)
+    : location.pathname.replace(/\/$/, "");
+  return route === "/admin"
+    ? "admin"
+    : route === "/friends"
+      ? "friends"
+      : "main";
+}
+const mainPath = () =>
+  /^\/(admin|friends)\/?$/.test(location.pathname) ? "/" : location.pathname;
 export function App() {
   const app = useApp();
   const [home, setHome] = useState(false);
-  const [admin, setAdmin] = useState(
-    location.pathname.replace(/\/$/, "") === "/admin" ||
-      location.hash === "#/admin",
-  );
+  const [section, setSection] = useState(readSection);
+  const admin = section === "admin";
+  const secondary = section !== "main";
   const showHome = () => {
-    setAdmin(false);
+    setSection("main");
     setHome(true);
-    history.replaceState(
-      null,
-      "",
-      location.pathname.replace(/\/$/, "") === "/admin"
-        ? "/"
-        : location.pathname,
-    );
+    history.replaceState(null, "", mainPath());
   };
   useEffect(() => {
-    const changed = () =>
-      setAdmin(
-        location.hash === "#/admin" ||
-          location.pathname.replace(/\/$/, "") === "/admin",
-      );
+    const changed = () => setSection(readSection());
     window.addEventListener("hashchange", changed);
     return () => window.removeEventListener("hashchange", changed);
   }, []);
@@ -68,14 +70,8 @@ export function App() {
   useEffect(() => {
     if (!app.chatRequest || !app.room) return;
     setHome(false);
-    setAdmin(false);
-    history.replaceState(
-      null,
-      "",
-      location.pathname.replace(/\/$/, "") === "/admin"
-        ? "/"
-        : location.pathname,
-    );
+    setSection("main");
+    history.replaceState(null, "", mainPath());
   }, [app.chatRequest]);
   useEffect(() => {
     const bridge = window.desktop?.memberOverlay;
@@ -210,7 +206,9 @@ export function App() {
         <Menu
           className="sidebar-menu"
           mode="inline"
-          selectedKeys={admin ? ["admin"] : app.room && !home ? [] : ["home"]}
+          selectedKeys={
+            secondary ? [section] : app.room && !home ? [] : ["home"]
+          }
           items={[
             ...(hasAdminAccess(app.user)
               ? [
@@ -219,7 +217,7 @@ export function App() {
                     icon: <ShieldCheck size={18} />,
                     label: "管理后台",
                     onClick: () => {
-                      setAdmin(true);
+                      setSection("admin");
                       location.hash = "/admin";
                       update({ modal: null });
                     },
@@ -253,7 +251,11 @@ export function App() {
               ),
               label: "好友",
               disabled: !app.user,
-              onClick: () => update({ modal: "friends" }),
+              onClick: () => {
+                setSection("friends");
+                location.hash = "/friends";
+                update({ modal: null });
+              },
             },
           ]}
         />
@@ -263,7 +265,9 @@ export function App() {
             <Menu
               className="sidebar-menu room-menu"
               mode="inline"
-              selectedKeys={app.room && !home ? [app.room.id] : []}
+              selectedKeys={
+                app.room && !home && !secondary ? [app.room.id] : []
+              }
               items={app.rooms.map((room) => ({
                 key: room.id,
                 icon: (
@@ -350,14 +354,16 @@ export function App() {
               {
                 title: admin
                   ? "管理后台"
-                  : app.room && !home
-                    ? app.room.name
-                    : "放映厅",
+                  : section === "friends"
+                    ? "好友"
+                    : app.room && !home
+                      ? app.room.name
+                      : "放映厅",
               },
             ]}
           />
           <div className="topbar-right">
-            {(home || admin) && app.room && (
+            {(home || secondary) && app.room && (
               <Space.Compact
                 className="current-room"
                 role="group"
@@ -424,12 +430,14 @@ export function App() {
         ) : (
           <>
             {app.room && (
-              <div className="room-slot" hidden={home || admin}>
-                <Room visible={!home && !admin} />
+              <div className="room-slot" hidden={home || secondary}>
+                <Room visible={!home && !secondary} />
               </div>
             )}
             {admin ? (
               <Admin onHome={showHome} />
+            ) : section === "friends" ? (
+              <Friends />
             ) : (
               (!app.room || home) && <Home onEnterRoom={() => setHome(false)} />
             )}

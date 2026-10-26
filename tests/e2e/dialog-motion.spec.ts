@@ -58,7 +58,7 @@ test("settings keeps its panel and mask mounted until their exit animations comp
   await expect(trigger).toBeFocused();
 });
 
-test("create, join, friends and diagnostics animate every supported close action", async ({
+test("create, join and diagnostics animate every supported close action", async ({
   page,
 }) => {
   await page.goto("/");
@@ -77,9 +77,9 @@ test("create, join, friends and diagnostics animate every supported close action
       close: "escape",
     },
     {
-      role: "menuitem" as const,
-      trigger: "好友",
-      title: "朋友们",
+      role: "button" as const,
+      trigger: "创建私人房间",
+      title: "创建私人房间",
       close: "mask",
     },
     {

@@ -1788,19 +1788,6 @@ export const AppSurface = styled.div`
   .shortcut-fields.single-shortcut {
     grid-template-columns: minmax(0, 1fr);
   }
-  .identity-card {
-    margin-bottom: 24px;
-  }
-  .identity-card .ant-card-body {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    gap: 8px;
-  }
-  .identity-card .ant-typography code {
-    font-size: 11px;
-    overflow-wrap: anywhere;
-  }
   .invite-note {
     margin-top: 20px;
   }

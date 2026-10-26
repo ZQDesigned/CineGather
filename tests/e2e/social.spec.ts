@@ -68,19 +68,23 @@ test("friends and owner moderation work across independent real room clients", a
       page.locator(".friend-request-indicator .ant-badge-dot"),
     ).toHaveCount(0);
     await friend.getByRole("menuitem", { name: "好友", exact: true }).click();
+    await friend.getByRole("tab", { name: /^好友申请/ }).click();
     const friendId = await friend.evaluate(async () => {
       const { useApp } = await import("/store.ts" as string);
       return useApp.getState().user.id as string;
     });
     await expect(friend.locator(".friend")).toContainText("社交房主");
     await friend.getByRole("button", { name: "接受", exact: true }).click();
+    await friend.getByRole("tab", { name: /^全部好友/ }).click();
     await expect(friend.locator(".friend small")).toHaveText("在线", {
       timeout: 10000,
     });
     await expect(
       friend.locator(".friend-request-indicator .ant-badge-dot"),
     ).toHaveCount(0);
-    await friend.getByRole("button", { name: "关闭对话框" }).click();
+    await friend
+      .getByRole("button", { name: "返回当前房间", exact: true })
+      .click();
     await page.getByRole("menuitem", { name: "好友", exact: true }).click();
     await expect(page.locator(".friend")).toContainText("社交成员");
     await expect(page.locator(".friend small")).toHaveText("在线", {
@@ -90,7 +94,9 @@ test("friends and owner moderation work across independent real room clients", a
       .getByRole("button", { name: "移除社交成员", exact: true })
       .click();
     await expect(page.locator(".friend")).toHaveCount(0);
-    await page.getByRole("button", { name: "关闭对话框" }).click();
+    await page
+      .getByRole("button", { name: "返回当前房间", exact: true })
+      .click();
     await page.getByRole("button", { name: "管理房间黑名单" }).click();
     await page.getByLabel("要封禁的用户 ID").fill(friendId!);
     await page.getByRole("button", { name: "封禁成员", exact: true }).click();

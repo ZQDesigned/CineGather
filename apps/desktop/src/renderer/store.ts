@@ -20,7 +20,6 @@ export type Modal =
   | "download"
   | "invite"
   | "source"
-  | "friends"
   | "diagnostics"
   | "bans"
   | "share-unavailable"

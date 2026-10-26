@@ -76,6 +76,15 @@ test("room chat pushes while hidden, tracks unread, opens from lobby and preserv
     await expect(viewer.locator(".chat-message").last()).toContainText(
       "大厅未读验证",
     );
+    await viewer.getByRole("menuitem", { name: "好友", exact: true }).click();
+    await send(sender, "好友页未读验证");
+    await expect(viewer.locator(".current-room .ant-badge")).toHaveText("1");
+    await viewer.getByRole("button", { name: "查看消息", exact: true }).click();
+    await expect(viewer.locator(".friends-page")).toHaveCount(0);
+    await expect(viewer.getByLabel("聊天消息", { exact: true })).toBeVisible();
+    await expect(viewer.locator(".chat-message").last()).toContainText(
+      "好友页未读验证",
+    );
     // Fill enough real persisted messages to scroll without clicking through 30 sends.
     await sender.evaluate(async () => {
       const { sendChatMessage } = await import("/controller.ts" as string);
@@ -84,7 +93,7 @@ test("room chat pushes while hidden, tracks unread, opens from lobby and preserv
           `历史消息 ${i} ` + "用于检验阅读位置。".repeat(30),
         );
     });
-    await expect(viewer.locator(".chat-message")).toHaveCount(16);
+    await expect(viewer.locator(".chat-message")).toHaveCount(17);
     await viewer.bringToFront();
     await viewer.locator(".chat-messages").evaluate((e) => {
       e.scrollTop = 0;

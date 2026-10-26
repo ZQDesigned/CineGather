@@ -7,8 +7,6 @@ import {
   Tabs,
   Empty,
   Avatar,
-  Tooltip,
-  Typography,
   Alert,
   Space,
   Spin,
@@ -16,12 +14,11 @@ import {
 import { Button, TextArea, Input } from "./Controls";
 import { Settings } from "./Settings";
 import { ClientDownload } from "./ClientDownload";
-import { FriendSearch } from "./FriendSearch";
 import { UpdateDialog } from "./Updates";
 import { RoomSettings } from "./RoomSettings";
 import { Diagnostics } from "./Diagnostics";
 import { useEffect, useState } from "react";
-import { Copy, Monitor, AppWindow, RefreshCw, Shield, X } from "lucide-react";
+import { Copy, Monitor, AppWindow, RefreshCw, Shield } from "lucide-react";
 import { useApp, update, type Modal } from "../store";
 import * as actions from "../controller";
 import { unwrap } from "@cinegather/api-client";
@@ -77,7 +74,6 @@ function DialogContent({ modal }: { modal: Modal }) {
   if (modal === "updates") return <UpdateDialog />;
   if (modal === "invite") return <Invite />;
   if (modal === "source") return <SourcePicker />;
-  if (modal === "friends") return <Friends />;
   if (modal === "diagnostics") return <Diagnostics />;
   if (modal === "bans") return <Bans />;
   return null;
@@ -503,104 +499,6 @@ function SourcePicker() {
             description={deviceAudioDescription}
           />
         )}
-      </div>
-    </ModalShell>
-  );
-}
-function Friends() {
-  const [user] = useState(() => useApp.getState().user!);
-  const items = useApp((app) => app.friends);
-  const visibility = useApp((app) => app.presenceVisibility);
-  const load = actions.refreshFriends;
-  useEffect(() => {
-    void load().catch(actions.report);
-  }, []);
-  return (
-    <ModalShell title="朋友们" subtitle="把熟悉的名字，留在身边。">
-      <Card size="small" className="identity-card">
-        <Space direction="vertical" size={4}>
-          <Typography.Text type="secondary">我的用户名</Typography.Text>
-          <Typography.Text strong>{user.username}</Typography.Text>
-        </Space>
-      </Card>
-      <Form layout="vertical">
-        <Form.Item label="我的在线状态">
-          <Select
-            aria-label="我的在线状态"
-            value={visibility}
-            placeholder="正在连接"
-            options={[
-              { value: "online", label: "在线" },
-              { value: "invisible", label: "隐身（好友看到离线）" },
-            ]}
-            onChange={(value: "online" | "invisible") =>
-              void actions.run(() => actions.setPresence(value))
-            }
-          />
-        </Form.Item>
-      </Form>
-      <FriendSearch />
-      <div className="friends-list">
-        {!items.length && (
-          <Empty
-            image={Empty.PRESENTED_IMAGE_SIMPLE}
-            description="暂无好友，可以在房间里向成员发送好友请求。"
-          />
-        )}
-        {items.map((friend) => (
-          <div className="friend" key={friend.userId}>
-            <Avatar className="amber">{friend.displayName[0]}</Avatar>
-            <span>
-              {friend.displayName}
-              <small>
-                {friend.status === "accepted"
-                  ? friend.online
-                    ? "在线"
-                    : "离线"
-                  : friend.incoming
-                    ? "邀请你成为好友"
-                    : "等待对方接受"}
-              </small>
-            </span>
-            {friend.status === "pending" && friend.incoming && (
-              <Button
-                onClick={() =>
-                  void actions.run(async () => {
-                    unwrap(
-                      await actions.api.POST(
-                        "/api/v1/friends/{userId}/accept",
-                        { params: { path: { userId: friend.userId } } },
-                      ),
-                    );
-                    await load();
-                  })
-                }
-              >
-                接受
-              </Button>
-            )}
-            <Tooltip title="移除关系">
-              <Button
-                type="text"
-                danger
-                title="移除关系"
-                aria-label={`移除${friend.displayName}`}
-                onClick={() =>
-                  void actions.run(async () => {
-                    unwrap(
-                      await actions.api.DELETE("/api/v1/friends/{userId}", {
-                        params: { path: { userId: friend.userId } },
-                      }),
-                    );
-                    await load();
-                  })
-                }
-              >
-                <X size={15} />
-              </Button>
-            </Tooltip>
-          </div>
-        ))}
       </div>
     </ModalShell>
   );
