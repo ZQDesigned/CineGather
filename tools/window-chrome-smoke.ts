@@ -74,7 +74,7 @@ try {
     .getByLabel("用户名", { exact: true })
     .fill("notification_layout_test");
   await page.getByLabel("密码", { exact: true }).fill("Local layout test 123!");
-  await page.getByRole("button", { name: "登录", exact: true }).click();
+  await page.getByRole("button", { name: "登录映聚", exact: true }).click();
   const notice = page.locator(".ant-notification-notice");
   await expect(notice).toBeVisible();
   expect(intercepted).toBe(true);

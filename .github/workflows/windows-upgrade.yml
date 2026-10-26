@@ -9,6 +9,7 @@ on:
       - apps/desktop/package.json
       - bun.lock
       - tools/noise-package-smoke.ts
+      - tools/window-chrome-smoke.ts
       - .github/workflows/windows-upgrade.yml
 jobs:
   upgrade:
