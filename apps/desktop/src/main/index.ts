@@ -33,7 +33,12 @@ import { createUpdates } from "./updates";
 import { supportsProcessAudio, WindowsAudio } from "./windows-audio";
 import { createAccompaniment } from "./accompaniment-native";
 import { configureHardwareEncoding } from "./encoding-policy";
-import { mainWindowChrome, configureMainWindowMenu } from "./window-chrome";
+import {
+  mainWindowChrome,
+  configureMainWindowMenu,
+  mainWindowState,
+  controlMainWindow,
+} from "./window-chrome";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 configureHardwareEncoding(process.platform, app.commandLine);
 // Native preview is deliberately bound to 127.0.0.1. Chromium excludes the
@@ -204,6 +209,18 @@ async function createWindow() {
       if (value) recording.candidate = { code: input.code, value };
     }
   });
+  if (process.platform === "win32") {
+    const window = win;
+    const publishState = () => {
+      if (!window.isDestroyed())
+        window.webContents.send(
+          "desktop:window-state",
+          mainWindowState(window),
+        );
+    };
+    window.on("maximize", publishState);
+    window.on("unmaximize", publishState);
+  }
   win.on("move", () => memberOverlay?.relayout());
   win.on("blur", () => finishRecording());
   win.on("focus", previewForeground);
@@ -281,6 +298,10 @@ function registerIPC() {
         throw new Error("设备已锁定或休眠，请解锁后重新选择共享来源");
       return run(input);
     });
+  }
+  if (process.platform === "win32") {
+    handle("desktop:window-state", () => mainWindowState(win!));
+    handle("desktop:window-action", (input) => controlMainWindow(win!, input));
   }
   handle("desktop:overlay-state", (input) =>
     memberOverlay?.publish(overlaySnapshotSchema.nullable().parse(input)),

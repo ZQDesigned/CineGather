@@ -21,6 +21,7 @@ import { Welcome } from "./Welcome";
 import { Home } from "./Home";
 import { Room } from "./Room";
 import { Feedback } from "./Feedback";
+import { WindowControls } from "./WindowControls";
 import { UpdateCenter } from "./Updates";
 import { AppSurface } from "./styles";
 import { hasAdminAccess } from "@cinegather/contracts";
@@ -443,6 +444,7 @@ export function App() {
               {roomStates[app.roomState]}
             </span>
             <span className="version">v{version}</span>
+            <WindowControls />
           </div>
         </header>
         <Feedback />

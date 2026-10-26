@@ -1,7 +1,29 @@
 import { contextBridge, ipcRenderer } from "electron";
-import type { DesktopBridge } from "@cinegather/contracts";
+import type {
+  DesktopBridge,
+  MainWindowAction,
+  MainWindowState,
+} from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  ...(process.platform === "win32"
+    ? {
+        windowControls: {
+          state: () => ipcRenderer.invoke("desktop:window-state"),
+          action: (action: MainWindowAction) =>
+            ipcRenderer.invoke("desktop:window-action", action),
+          onState: (callback: (state: MainWindowState) => void) => {
+            const listener = (
+              _event: Electron.IpcRendererEvent,
+              state: MainWindowState,
+            ) => callback(state);
+            ipcRenderer.on("desktop:window-state", listener);
+            return () =>
+              ipcRenderer.removeListener("desktop:window-state", listener);
+          },
+        },
+      }
+    : {}),
   ...(["win32", "darwin"].includes(process.platform)
     ? {
         accompaniment: {

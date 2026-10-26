@@ -2,11 +2,14 @@ import { expect, test } from "bun:test";
 import {
   mainWindowChrome,
   configureMainWindowMenu,
+  controlMainWindow,
+  mainWindowState,
 } from "../src/main/window-chrome";
-test("Windows integrates native caption buttons into the 56px app title bar", () => {
+test("Windows uses a frameless window without a native caption overlay", () => {
   expect(mainWindowChrome("win32")).toEqual({
     titleBarStyle: "hidden",
-    titleBarOverlay: { color: "#0d0f14", symbolColor: "#d5d7e2", height: 56 },
+    frame: false,
+    titleBarOverlay: false,
   });
 });
 test("Mac keeps inset traffic lights and other platforms retain their frame", () => {
@@ -27,4 +30,50 @@ test("Windows removes menus rather than allowing Alt to reveal an auto-hidden on
   calls.length = 0;
   configureMainWindowMenu("darwin", menu, win);
   expect(calls).toEqual([]);
+});
+
+test("frontend commands use current OS maximize state and close through the existing window lifecycle", () => {
+  const calls: string[] = [];
+  let maximized = false;
+  const window = {
+    isDestroyed: () => false,
+    isMaximized: () => maximized,
+    maximize: () => {
+      maximized = true;
+      calls.push("maximize");
+    },
+    unmaximize: () => {
+      maximized = false;
+      calls.push("unmaximize");
+    },
+    minimize: () => {
+      calls.push("minimize");
+    },
+    close: () => {
+      calls.push("close");
+    },
+  };
+  controlMainWindow(window, "toggle-maximize");
+  expect(mainWindowState(window)).toEqual({ maximized: true });
+  controlMainWindow(window, "toggle-maximize");
+  expect(mainWindowState(window)).toEqual({ maximized: false });
+  maximized = true; // A snap or title-bar double-click can change state outside React.
+  controlMainWindow(window, "toggle-maximize");
+  controlMainWindow(window, "minimize");
+  controlMainWindow(window, "close");
+  expect(calls).toEqual([
+    "maximize",
+    "unmaximize",
+    "unmaximize",
+    "minimize",
+    "close",
+  ]);
+  for (const input of ["quit", "destroy", null, { action: "close" }])
+    expect(() => controlMainWindow(window, input)).toThrow();
+  expect(calls).toHaveLength(5);
+  const destroyed = { ...window, isDestroyed: () => true };
+  controlMainWindow(destroyed, "toggle-maximize");
+  controlMainWindow(destroyed, "close");
+  expect(mainWindowState(destroyed)).toEqual({ maximized: false });
+  expect(calls).toHaveLength(5);
 });

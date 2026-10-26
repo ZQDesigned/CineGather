@@ -1,12 +1,18 @@
-import type { BrowserWindowConstructorOptions } from "electron";
+import type { BrowserWindow, BrowserWindowConstructorOptions } from "electron";
+import { z } from "zod";
+import type { MainWindowState } from "@cinegather/contracts";
 
 export function mainWindowChrome(
   platform: string,
-): Pick<BrowserWindowConstructorOptions, "titleBarStyle" | "titleBarOverlay"> {
+): Pick<
+  BrowserWindowConstructorOptions,
+  "frame" | "titleBarStyle" | "titleBarOverlay"
+> {
   if (platform === "win32")
     return {
       titleBarStyle: "hidden",
-      titleBarOverlay: { color: "#0d0f14", symbolColor: "#d5d7e2", height: 56 },
+      frame: false,
+      titleBarOverlay: false,
     };
   return { titleBarStyle: platform === "darwin" ? "hiddenInset" : "default" };
 }
@@ -19,4 +25,29 @@ export function configureMainWindowMenu(
   if (platform !== "win32") return;
   menu.setApplicationMenu(null);
   window.removeMenu();
+}
+
+type ControlledWindow = Pick<
+  BrowserWindow,
+  | "isDestroyed"
+  | "isMaximized"
+  | "minimize"
+  | "maximize"
+  | "unmaximize"
+  | "close"
+>;
+export function mainWindowState(window: ControlledWindow): MainWindowState {
+  return { maximized: !window.isDestroyed() && window.isMaximized() };
+}
+const windowAction = z.enum(["minimize", "toggle-maximize", "close"]);
+export function controlMainWindow(
+  window: ControlledWindow,
+  input: unknown,
+): void {
+  const action = windowAction.parse(input);
+  if (window.isDestroyed()) return;
+  if (action === "minimize") window.minimize();
+  else if (action === "close") window.close();
+  else if (window.isMaximized()) window.unmaximize();
+  else window.maximize();
 }

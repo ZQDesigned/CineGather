@@ -334,7 +334,16 @@ export interface DesktopSettings {
   inputDevice: string;
   outputDevice: string;
 }
+export interface MainWindowState {
+  maximized: boolean;
+}
+export type MainWindowAction = "minimize" | "toggle-maximize" | "close";
 export interface DesktopBridge {
+  windowControls?: {
+    state(): Promise<MainWindowState>;
+    action(action: MainWindowAction): Promise<void>;
+    onState(callback: (state: MainWindowState) => void): () => void;
+  };
   accompaniment?: {
     sources(): Promise<{ id: string; name: string }[]>;
     start(sourceId: string, requestId: string): Promise<ProcessAudioStart>;

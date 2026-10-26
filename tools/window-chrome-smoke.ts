@@ -48,7 +48,8 @@ try {
         ),
       ),
     )
-    .toBe(true);
+    .toBe(false);
+  await expect(page.getByRole("group", { name: "窗口控制" })).toBeVisible();
   for (const width of [980, 1360]) {
     await app.evaluate(
       ({ BrowserWindow }, width) =>
@@ -57,15 +58,24 @@ try {
     );
     await expect
       .poll(() =>
-        page
-          .locator(".version")
-          .evaluate((el) => innerWidth - el.getBoundingClientRect().right),
+        page.locator(".window-controls").evaluate((el) => {
+          const controls = el.getBoundingClientRect();
+          const version = document
+            .querySelector(".version")!
+            .getBoundingClientRect();
+          return (
+            controls.left > version.right &&
+            controls.right <= innerWidth &&
+            controls.bottom <= 56
+          );
+        }),
       )
-      .toBeGreaterThanOrEqual(150);
+      .toBe(true);
   }
-  await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]!.maximize(),
-  );
+  await page.getByRole("button", { name: "最大化", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "还原窗口", exact: true }),
+  ).toBeVisible();
   await expect
     .poll(() =>
       app.evaluate(({ BrowserWindow }) =>
@@ -73,9 +83,7 @@ try {
       ),
     )
     .toBe(true);
-  await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]!.unmaximize(),
-  );
+  await page.getByRole("button", { name: "还原窗口", exact: true }).click();
   await expect
     .poll(() =>
       app.evaluate(({ BrowserWindow }) =>
@@ -83,9 +91,7 @@ try {
       ),
     )
     .toBe(false);
-  await app.evaluate(({ BrowserWindow }) =>
-    BrowserWindow.getAllWindows()[0]!.minimize(),
-  );
+  await page.getByRole("button", { name: "最小化", exact: true }).click();
   await expect
     .poll(() =>
       app.evaluate(({ BrowserWindow }) =>
@@ -97,8 +103,8 @@ try {
     const w = BrowserWindow.getAllWindows()[0]!;
     w.restore();
     w.show();
-    w.close();
   });
+  await page.getByRole("button", { name: "关闭窗口", exact: true }).click();
   expect(
     await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()[0]!.isVisible(),
@@ -111,14 +117,14 @@ try {
     JSON.stringify({
       platform: process.platform,
       menusRemoved: true,
-      captionOverlayVisible: true,
-      reservedCaptionSpace: true,
+      captionOverlayVisible: false,
+      frontendControlsInLayout: true,
       maximizeRestoreAndMinimize: true,
       closeToTray: true,
     }),
   );
   console.log(
-    "Packaged Windows caption overlay and native window lifecycle verified",
+    "Packaged Windows frontend controls and native window lifecycle verified",
   );
 } finally {
   await app.close();

@@ -224,15 +224,7 @@ export const AppSurface = styled.div`
   }
   &[data-platform="win32"] .topbar {
     gap: 16px;
-    /* Caption geometry is reported in CSS pixels, including Windows DPI.
-       Leave a safe fallback before Chromium publishes its overlay geometry. */
-    padding-right: calc(
-      max(
-          138px,
-          100vw - env(titlebar-area-x, 0px) - env(titlebar-area-width, 100vw)
-        ) +
-        16px
-    );
+    padding-right: 12px;
   }
   &[data-platform="win32"] .topbar .ant-breadcrumb {
     flex: 1 1 0;
@@ -262,6 +254,28 @@ export const AppSurface = styled.div`
   }
   &.cinema[data-platform="win32"] .topbar {
     display: flex;
+  }
+  .window-controls {
+    display: flex;
+    align-items: center;
+    flex-shrink: 0;
+    gap: 2px;
+    -webkit-app-region: no-drag;
+  }
+  .window-controls .ant-btn {
+    width: 36px;
+    height: 32px;
+    padding: 0;
+    border-radius: 7px;
+    color: var(--muted);
+  }
+  .window-controls .ant-btn:hover {
+    color: #e9e9ef;
+    background: rgba(255, 255, 255, 0.08);
+  }
+  .window-controls .window-close:hover {
+    color: #fff;
+    background: #c5414e;
   }
   .current-room {
     min-width: 0;
