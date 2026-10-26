@@ -1,0 +1,32 @@
+name: windows-overlay
+on:
+  push:
+    paths:
+      - apps/desktop/src/main/member-overlay.ts
+      - apps/desktop/src/main/overlay-stacking.ts
+      - apps/desktop/src/main/windows-overlay.ts
+      - apps/desktop/src/preload/member-overlay.ts
+      - tools/overlay-topmost-smoke.ts
+      - .github/workflows/overlay-windows.yml
+  pull_request:
+    paths:
+      - apps/desktop/src/main/member-overlay.ts
+      - apps/desktop/src/main/overlay-stacking.ts
+      - apps/desktop/src/main/windows-overlay.ts
+      - apps/desktop/src/preload/member-overlay.ts
+      - tools/overlay-topmost-smoke.ts
+      - .github/workflows/overlay-windows.yml
+jobs:
+  native-z-order:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - run: bun install --frozen-lockfile
+      - run: bun tools/overlay-topmost-smoke.ts

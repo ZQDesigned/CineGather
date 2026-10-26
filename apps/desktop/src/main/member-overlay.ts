@@ -9,9 +9,12 @@ import type {
 import { defaultOverlayPreferences } from "../shared/settings";
 import { overlayBounds } from "../shared/member-overlay";
 import { trustedURL } from "./security";
+import { OverlayStacking } from "./overlay-stacking";
+import { windowsOverlayRaise } from "./windows-overlay";
 
 export class MemberOverlay {
   private window?: BrowserWindow;
+  private stacking?: OverlayStacking;
   private snapshot: MemberOverlaySnapshot | null = null;
   private preferences = defaultOverlayPreferences;
   private blocked = false;
@@ -124,7 +127,18 @@ export class MemberOverlay {
     });
     this.window = w;
     this.ready = false;
-    w.setAlwaysOnTop(true, "floating");
+    let raise: (() => void) | undefined;
+    if (process.platform === "win32") {
+      try {
+        raise = windowsOverlayRaise(
+          w,
+          app.isPackaged ? process.resourcesPath : undefined,
+        );
+      } catch {
+        console.warn("overlay-topmost-native-unavailable");
+      }
+    }
+    this.stacking = new OverlayStacking(w, process.platform, raise);
     w.setIgnoreMouseEvents(true);
     if (process.platform === "darwin")
       // Panels can float over fullscreen apps without hiding the entire app's Dock icon.
@@ -149,6 +163,8 @@ export class MemberOverlay {
     });
     w.on("closed", () => {
       if (this.window === w) {
+        this.stacking?.destroy();
+        this.stacking = undefined;
         this.window = undefined;
         this.ready = false;
       }
@@ -164,6 +180,7 @@ export class MemberOverlay {
       this.snapshot && this.preferences.enabled && !this.blocked,
     );
     if (!visible) {
+      this.stacking?.visible(false);
       if (this.window && !this.window.isDestroyed()) {
         this.window.hide();
         if (this.ready)
@@ -194,6 +211,7 @@ export class MemberOverlay {
     if (this.ready) {
       w.webContents.send("overlay:changed", this.view());
       if (!w.isVisible()) w.showInactive();
+      this.stacking?.visible(true);
     }
   }
   destroy() {
@@ -201,6 +219,7 @@ export class MemberOverlay {
     screen.removeListener("display-added", this.displayChanged);
     screen.removeListener("display-removed", this.displayChanged);
     screen.removeListener("display-metrics-changed", this.displayChanged);
+    this.stacking?.destroy();
     this.window?.destroy();
     this.window = undefined;
   }
