@@ -425,7 +425,7 @@ test("updating from a real room waits for server leave and keeps the installer s
     "install",
   );
   await expect(confirm).toBeVisible();
-  await confirm.getByRole("button", { name: "重启更新", exact: true }).click();
+  await confirm.getByRole("button", { name: /重启更新/ }).click();
   await expect.poll(() => attempts).toBe(2);
   await expect
     .poll(() =>

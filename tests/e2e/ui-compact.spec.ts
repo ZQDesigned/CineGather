@@ -67,7 +67,7 @@ test("room controls, sound sliders and chat compose fit the minimum and default 
     await page.screenshot({ path: ".local/ui-compact/room-wide.png" });
     await page.setViewportSize({ width: 980, height: 680 });
     await page.screenshot({ path: ".local/ui-compact/room-min.png" });
-    await page.route("**/api/v1/rooms/*/messages", (route) =>
+    await page.route("**/api/v1/rooms/*/messages*", (route) =>
       route.fulfill({
         json: {
           items: Array.from({ length: 40 }, (_, i) => ({
@@ -82,6 +82,10 @@ test("room controls, sound sliders and chat compose fit the minimum and default 
       }),
     );
     await page.getByRole("tab", { name: "聊天", exact: true }).click();
+    await page.evaluate(async () => {
+      const { chat } = await import("/controller.ts" as string);
+      await chat.sync();
+    });
     await expect(page.locator(".chat-message")).toHaveCount(40);
     await expect
       .poll(() =>

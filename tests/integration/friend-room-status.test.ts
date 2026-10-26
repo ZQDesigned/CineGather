@@ -35,24 +35,20 @@ const friend = async () =>
 const admission = () => new Date(Date.now() + 120_000);
 beforeAll(async () => {
   for (const [index, person] of people.entries()) {
-    await db
-      .insert(users)
-      .values({
-        id: person.id,
-        username: "rs_" + person.id.replaceAll("-", "").slice(0, 20),
-        displayName: `房间状态${index}`,
-        passwordHash: "fixture-unused",
-      });
-    await db
-      .insert(credentials)
-      .values({
-        id: randomUUID(),
-        userId: person.id,
-        kind: "account",
-        secretHash: hash(person.token),
-        expiresAt: new Date(Date.now() + 3600_000),
-        presenceAt: new Date(),
-      });
+    await db.insert(users).values({
+      id: person.id,
+      username: "rs_" + person.id.replaceAll("-", "").slice(0, 20),
+      displayName: `房间状态${index}`,
+      passwordHash: "fixture-unused",
+    });
+    await db.insert(credentials).values({
+      id: randomUUID(),
+      userId: person.id,
+      kind: "account",
+      secretHash: hash(person.token),
+      expiresAt: new Date(Date.now() + 3600_000),
+      presenceAt: new Date(),
+    });
   }
   await db.insert(friendships).values([
     {
@@ -67,16 +63,14 @@ beforeAll(async () => {
     },
   ]);
   for (const [index, id] of roomIds.entries())
-    await db
-      .insert(rooms)
-      .values({
-        id,
-        code: id.slice(0, 8).toUpperCase(),
-        ownerUserId: people[1]!.id,
-        name: "不可对外暴露的房间名",
-        passwordHash: "private-room-secret",
-        maxMembers: index ? 3 : 5,
-      });
+    await db.insert(rooms).values({
+      id,
+      code: id.slice(0, 8).toUpperCase(),
+      ownerUserId: people[1]!.id,
+      name: "不可对外暴露的房间名",
+      passwordHash: "private-room-secret",
+      maxMembers: index ? 3 : 5,
+    });
   await db.insert(members).values([
     {
       roomId: roomIds[0]!,
@@ -167,15 +161,13 @@ test("invisible, offline and disabled peers do not reveal room activity", async 
     .where(eq(users.id, people[1]!.id));
 });
 test("the latest active admission wins and expired, left or closed memberships are ignored", async () => {
-  await db
-    .insert(members)
-    .values({
-      roomId: roomIds[1]!,
-      userId: people[1]!.id,
-      role: "owner",
-      joinedAt: new Date(Date.now() + 1000),
-      admittedUntil: admission(),
-    });
+  await db.insert(members).values({
+    roomId: roomIds[1]!,
+    userId: people[1]!.id,
+    role: "owner",
+    joinedAt: new Date(Date.now() + 1000),
+    admittedUntil: admission(),
+  });
   expect((await friend()).room).toEqual({ memberCount: 1, maxMembers: 3 });
   await db
     .update(rooms)
