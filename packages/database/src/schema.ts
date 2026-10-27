@@ -60,6 +60,11 @@ export const credentials = pgTable(
     expiresAt: time("expires_at").notNull(),
     revokedAt: time("revoked_at"),
     presenceAt: time("presence_at"),
+    createdAt: time("created_at"),
+    deviceName: text("device_name").notNull().default("未知设备"),
+    clientPlatform: text("client_platform").notNull().default("unknown"),
+    clientVersion: text("client_version"),
+    loginAddress: text("login_address"),
   },
   (t) => [
     index("credentials_presence_idx")
@@ -195,6 +200,7 @@ export const leases = pgTable(
       .primaryKey()
       .references(() => rooms.id, { onDelete: "cascade" }),
     holderUserId: uuid("holder_user_id").references(() => users.id),
+    credentialId: uuid("credential_id").references(() => credentials.id),
     leaseId: uuid("lease_id"),
     expiresAt: time("expires_at"),
     revision: integer("revision").notNull().default(0),
@@ -298,6 +304,7 @@ export const nativePublications = pgTable("native_publications", {
   holderUserId: uuid("holder_user_id")
     .notNull()
     .references(() => users.id),
+  credentialId: uuid("credential_id").references(() => credentials.id),
   ingressId: text("ingress_id").notNull().unique(),
   identity: text("identity").notNull().unique(),
 });
@@ -312,4 +319,53 @@ export const registrationPolicy = pgTable(
       .default(false),
   },
   (t) => [check("registration_policy_singleton", sql`${t.id} = 1`)],
+);
+
+export const roomSessions = pgTable(
+  "room_sessions",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    credentialId: uuid("credential_id")
+      .notNull()
+      .references(() => credentials.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    admittedUntil: time("admitted_until"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.roomId, t.credentialId] }),
+    index("room_sessions_credential_idx").on(t.credentialId),
+  ],
+);
+
+export const shareRequests = pgTable(
+  "share_requests",
+  {
+    id: uuid("id").primaryKey(),
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    credentialId: uuid("credential_id")
+      .notNull()
+      .references(() => credentials.id, { onDelete: "cascade" }),
+    leaseId: uuid("lease_id").notNull(),
+    revision: integer("revision").notNull(),
+    status: text("status").notNull().default("pending"),
+    createdAt: time("created_at").notNull().defaultNow(),
+    expiresAt: time("expires_at").notNull(),
+  },
+  (t) => [
+    uniqueIndex("share_requests_member_idx").on(t.roomId, t.userId),
+    index("share_requests_room_idx").on(t.roomId, t.createdAt),
+    check(
+      "share_requests_status_check",
+      sql`${t.status} IN ('pending','approved')`,
+    ),
+  ],
 );

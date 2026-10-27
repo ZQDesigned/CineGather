@@ -1,3 +1,4 @@
+import { allowedViewingWindow } from "./viewing-window-policy";
 import {
   app,
   BrowserWindow,
@@ -176,6 +177,7 @@ function previewForeground() {
   if (win && !win.isDestroyed())
     win.webContents.send("desktop:foreground", active);
 }
+let viewingWindow: BrowserWindow | undefined;
 async function createWindow() {
   win = new BrowserWindow({
     width: 1360,
@@ -196,9 +198,58 @@ async function createWindow() {
     },
   });
   configureMainWindowMenu(process.platform, Menu, win);
-  win.webContents.setWindowOpenHandler(({ url }) => {
+  win.webContents.setWindowOpenHandler(({ url, frameName }) => {
+    if (allowedViewingWindow(url, frameName, win!.webContents.getURL())) {
+      if (viewingWindow && !viewingWindow.isDestroyed()) {
+        viewingWindow.focus();
+        return { action: "deny" };
+      }
+      return {
+        action: "allow",
+        overrideBrowserWindowOptions: {
+          width: 640,
+          height: 410,
+          minWidth: 360,
+          minHeight: 240,
+          frame: false,
+          alwaysOnTop: true,
+          autoHideMenuBar: true,
+          backgroundColor: "#0d0f14",
+          webPreferences: {
+            preload: join(__dirname, "../preload/viewing-window.cjs"),
+            contextIsolation: true,
+            sandbox: true,
+            nodeIntegration: false,
+            webSecurity: true,
+            backgroundThrottling: false,
+          },
+        },
+      };
+    }
     if (allowedExternal(url)) void shell.openExternal(url);
     return { action: "deny" };
+  });
+  win.webContents.on("did-create-window", (child, details) => {
+    if (
+      !allowedViewingWindow(
+        details.url,
+        details.frameName,
+        win!.webContents.getURL(),
+      )
+    ) {
+      child.close();
+      return;
+    }
+    viewingWindow = child;
+    child.removeMenu();
+    child.setAlwaysOnTop(true, "floating");
+    child.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
+    child.webContents.on("will-navigate", (event, url) => {
+      if (url !== details.url) event.preventDefault();
+    });
+    child.on("closed", () => {
+      if (viewingWindow === child) viewingWindow = undefined;
+    });
   });
   win.webContents.on("before-input-event", (event, input) => {
     if (!recording) return;
@@ -235,6 +286,7 @@ async function createWindow() {
     "did-start-navigation",
     (_event, _url, inPlace, mainFrame) => {
       if (mainFrame && !inPlace) {
+        viewingWindow?.close();
         windowsAudio?.stop();
         accompaniment?.host.stop();
         void nativeCapture?.stopPreview();
@@ -243,6 +295,7 @@ async function createWindow() {
     },
   );
   win.on("closed", () => {
+    viewingWindow?.close();
     windowsAudio?.stop();
     accompaniment?.host.stop();
     memberOverlay?.publish(null);
@@ -257,6 +310,7 @@ async function createWindow() {
     }
   });
   win.webContents.on("render-process-gone", () => {
+    viewingWindow?.close();
     if (updates?.controller.snapshot().status !== "installing")
       updates?.controller.setInRoom(true);
     finishRecording();
@@ -572,6 +626,23 @@ function registerIPC() {
     if (sharing) updates?.controller.setInRoom(true);
     updateTray();
     win?.setTitle(sharing ? "正在共享：映聚 CineGather" : "映聚 CineGather");
+  });
+  handle("desktop:viewing-action", (input) => {
+    if (!["return", "toggle-top", "close"].includes(String(input)))
+      throw new Error("无效的小窗操作");
+    if (input === "return") {
+      win!.show();
+      win!.restore();
+      win!.focus();
+    }
+    if (!viewingWindow || viewingWindow.isDestroyed()) return false;
+    if (input === "toggle-top") {
+      const value = !viewingWindow.isAlwaysOnTop();
+      viewingWindow.setAlwaysOnTop(value, "floating");
+      return value;
+    }
+    viewingWindow.close();
+    return false;
   });
   handle("desktop:diagnostic-record", (input) => diagnostics!.record(input));
   handle("desktop:diagnostic-status", () => diagnostics!.status());

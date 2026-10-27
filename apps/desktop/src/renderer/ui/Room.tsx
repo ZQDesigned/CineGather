@@ -1,3 +1,6 @@
+import { PictureInPicture2 } from "lucide-react";
+import { useViewingWindow } from "./ViewingWindow";
+import { ShareQueue } from "./ShareQueue";
 import { App, Slider, Alert, Tabs, Tooltip, Tag, Badge } from "antd";
 import { Button } from "./Controls";
 import { useEffect, useRef, type ReactNode } from "react";
@@ -69,6 +72,9 @@ export function Room({ visible = true }: { visible?: boolean }) {
   }, [nativeSharing, preview.video]);
   const otherSharing =
     !nativeSharing && Boolean(app.media.sharer && !app.media.sharer.local);
+  const viewingWindow = useViewingWindow(
+    otherSharing && app.media.watching && app.roomState === "connected",
+  );
   const canPreempt = app.room?.role === "owner" && otherSharing && !sharing;
   const connected = app.roomState === "connected";
   useEffect(() => {
@@ -116,6 +122,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
           </Tag>
         </div>
         <div className="heading-actions">
+          <ShareQueue />
           {app.room!.role === "owner" && (
             <Button onClick={() => update({ modal: "room-settings" })}>
               <Settings size={16} />
@@ -174,6 +181,15 @@ export function Room({ visible = true }: { visible?: boolean }) {
               />
             ) : (
               <Video />
+            )}
+            {viewingWindow.presentation}
+            {viewingWindow.control}
+            {viewingWindow.active && (
+              <div className="stage-empty">
+                <PictureInPicture2 size={42} />
+                <h2>正在小窗观看</h2>
+                <Button onClick={viewingWindow.close}>返回主窗口</Button>
+              </div>
             )}
             {!app.media.sharer && !nativeSharing && (
               <div className="stage-empty">
@@ -247,6 +263,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
               </div>
             )}
             {!sharingOwnScreen &&
+              !viewingWindow.active &&
               (!otherSharing || app.media.watching) &&
               capabilities().fullscreen && (
                 <Tooltip title="全屏画面">

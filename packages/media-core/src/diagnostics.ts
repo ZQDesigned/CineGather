@@ -212,7 +212,9 @@ export class PlaybackProbe {
         return video.ended;
       },
       get hidden() {
-        return globalThis.document?.hidden ?? false;
+        return (
+          video.ownerDocument?.hidden ?? globalThis.document?.hidden ?? false
+        );
       },
       get width() {
         return video.videoWidth;

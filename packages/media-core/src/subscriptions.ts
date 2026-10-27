@@ -1,5 +1,5 @@
 import { Track } from "livekit-client";
-import { nativeOwner } from "@cinegather/contracts";
+import { nativeOwner, participantOwner } from "@cinegather/contracts";
 
 interface Publication {
   trackSid: string;
@@ -30,7 +30,10 @@ export class ShareSubscriptions {
       ),
     );
     const screen =
-      sharer && nativeOwner(sharer.identity) !== room.localParticipant.identity
+      sharer &&
+      nativeOwner(sharer.identity) !==
+        (participantOwner(room.localParticipant.identity) ??
+          room.localParticipant.identity)
         ? [...sharer.trackPublications.values()].find(
             (t) => t.source === Track.Source.ScreenShare,
           )

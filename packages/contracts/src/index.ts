@@ -339,6 +339,9 @@ export interface MainWindowState {
 }
 export type MainWindowAction = "minimize" | "toggle-maximize" | "close";
 export interface DesktopBridge {
+  viewingWindow?: {
+    action(action: "return" | "toggle-top" | "close"): Promise<boolean>;
+  };
   windowControls?: {
     state(): Promise<MainWindowState>;
     action(action: MainWindowAction): Promise<void>;
@@ -498,3 +501,35 @@ export * from "./diagnostics";
 export * from "./encoder-diagnostics";
 
 export * from "./native-encoders";
+
+export * from "./member-identity";
+
+export const deviceSessionSchema = z.object({
+  id: z.uuid(),
+  current: z.boolean(),
+  deviceName: z.string(),
+  clientPlatform: z.string(),
+  clientVersion: z.string().nullable(),
+  createdAt: z.iso.datetime().nullable(),
+  lastActiveAt: z.iso.datetime().nullable(),
+  loginAddress: z.string().nullable(),
+  expiresAt: z.iso.datetime(),
+});
+export type DeviceSession = z.infer<typeof deviceSessionSchema>;
+export const deviceSessionsSchema = z.object({
+  items: z.array(deviceSessionSchema),
+});
+
+export const shareRequestSchema = z.object({
+  id: z.uuid(),
+  userId: z.uuid(),
+  displayName: z.string(),
+  status: z.enum(["pending", "approved"]),
+  createdAt: z.iso.datetime(),
+  expiresAt: z.iso.datetime(),
+  current: z.boolean(),
+});
+export const shareRequestsSchema = z.object({
+  items: z.array(shareRequestSchema),
+});
+export type ShareRequest = z.infer<typeof shareRequestSchema>;

@@ -99,6 +99,20 @@
       "when": 1793030300000,
       "tag": "0013_friend_room_requests",
       "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1793030400000,
+      "tag": "0014_device_sessions",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1793030500000,
+      "tag": "0015_share_requests",
+      "breakpoints": true
     }
   ]
 }

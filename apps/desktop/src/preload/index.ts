@@ -6,6 +6,9 @@ import type {
 } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  viewingWindow: {
+    action: (action) => ipcRenderer.invoke("desktop:viewing-action", action),
+  },
   ...(process.platform === "win32"
     ? {
         windowControls: {

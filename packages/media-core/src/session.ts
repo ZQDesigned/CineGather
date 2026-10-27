@@ -16,6 +16,7 @@ import {
 } from "livekit-client";
 import {
   nativeOwner,
+  participantOwner,
   type DiagnosticIssue,
   type MediaDiagnostic,
   qualityPresets,
@@ -314,7 +315,7 @@ export class MediaSession {
           >(p.trackPublications);
           const microphone = Boolean(voice?.track && !voice.isMuted);
           return {
-            id: p.identity,
+            id: participantOwner(p.identity) ?? p.identity,
             name: p.name || "朋友",
             local: p === room.localParticipant,
             microphone,
@@ -332,14 +333,33 @@ export class MediaSession {
                 : p.isSpeaking),
             quality: p.connectionQuality,
           };
-        }),
+        })
+        .reduce<ParticipantSummary[]>((all, p) => {
+          const i = all.findIndex((other) => other.id === p.id);
+          const previous = all[i];
+          if (previous)
+            all[i] = {
+              ...(p.local ? p : previous),
+              local: previous.local || p.local,
+              microphone: previous.microphone || p.microphone,
+              speaking: previous.speaking || p.speaking,
+              accompaniment: previous.accompaniment || p.accompaniment,
+            };
+          else all.push(p);
+          return all;
+        }, []),
       sharer: sharer
         ? {
-            id: nativeOwner(sharer.identity) ?? sharer.identity,
+            id:
+              nativeOwner(sharer.identity) ??
+              participantOwner(sharer.identity) ??
+              sharer.identity,
             name: sharer.name || "朋友",
             local:
               sharer === room.localParticipant ||
-              nativeOwner(sharer.identity) === room.localParticipant.identity,
+              nativeOwner(sharer.identity) ===
+                (participantOwner(room.localParticipant.identity) ??
+                  room.localParticipant.identity),
             hasVideo: Boolean(next),
           }
         : undefined,
@@ -368,7 +388,11 @@ export class MediaSession {
     if (
       track instanceof RemoteAudioTrack &&
       pub.source === Track.Source.ScreenShareAudio &&
-      nativeOwner(participant.identity) === this.room?.localParticipant.identity
+      nativeOwner(participant.identity) ===
+        (this.room
+          ? (participantOwner(this.room.localParticipant.identity) ??
+            this.room.localParticipant.identity)
+          : undefined)
     ) {
       pub.setSubscribed(false);
       return;
@@ -378,7 +402,14 @@ export class MediaSession {
       pub.source === Track.Source.ScreenShareAudio
     ) {
       this.movieAudio = { sid: pub.trackSid, track };
-      this.mixer.attach(pub.trackSid, participant.identity, "screen", track);
+      this.mixer.attach(
+        pub.trackSid,
+        participantOwner(participant.identity) ??
+          nativeOwner(participant.identity) ??
+          participant.identity,
+        "screen",
+        track,
+      );
       this.emit();
       return;
     }
@@ -398,7 +429,7 @@ export class MediaSession {
       this.audioElements.set(pub.trackSid, [el]);
       this.mixer.attach(
         pub.trackSid,
-        participant.identity,
+        participantOwner(participant.identity) ?? participant.identity,
         isAccompaniment(pub) ? "accompaniment" : "voice",
         this.voices.attach(
           pub.trackSid,
@@ -452,14 +483,20 @@ export class MediaSession {
     this.audioElements.clear();
     this.mixer.clear();
   }
+  private viewingVideo?: HTMLVideoElement;
+  setViewingVideoElement(element?: HTMLVideoElement) {
+    this.viewingVideo = element;
+    this.movie.bind(element ?? this.video);
+    this.playbackProbe.bind(this.previewVideo ?? element ?? this.video);
+  }
   setVideoElement(element?: HTMLVideoElement) {
     this.video = element;
-    this.playbackProbe.bind(this.previewVideo ?? element);
-    this.movie.bind(element);
+    this.playbackProbe.bind(this.previewVideo ?? this.viewingVideo ?? element);
+    this.movie.bind(this.viewingVideo ?? element);
   }
   setPreviewVideoElement(element?: HTMLVideoElement) {
     this.previewVideo = element;
-    this.playbackProbe.bind(element ?? this.video);
+    this.playbackProbe.bind(element ?? this.viewingVideo ?? this.video);
   }
   async microphone(enabled: boolean, deviceId?: string) {
     const room = this.room;

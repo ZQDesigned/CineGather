@@ -50,7 +50,7 @@ test("owner microphone mute preserves independent accompaniment and screen audio
     return {} as Awaited<ReturnType<typeof gateway.client.mutePublishedTrack>>;
   };
   gateway.control = async () => {};
-  await gateway.muteMicrophone("room", "user", [
+  const tracks = [
     { sid: "voice", source: TrackSource.MICROPHONE },
     {
       sid: "accompaniment",
@@ -58,7 +58,12 @@ test("owner microphone mute preserves independent accompaniment and screen audio
       name: "cinegather-accompaniment-v1",
     },
     { sid: "screen", source: TrackSource.SCREEN_SHARE_AUDIO },
-  ]);
+  ];
+  gateway.participants = async () =>
+    [{ identity: "user", rawIdentity: "user", tracks }] as unknown as Awaited<
+      ReturnType<typeof gateway.participants>
+    >;
+  await gateway.muteMicrophone("room", "user", tracks);
   expect(muted).toEqual([{ sid: "voice", mute: true }]);
 });
 
@@ -73,7 +78,7 @@ test("owner can stop just accompaniment without touching voice/video or granting
   gateway.control = async (_id, command) => {
     packets.push(command);
   };
-  await gateway.stopAccompaniment("room", "member", [
+  const tracks = [
     {
       sid: "music",
       source: TrackSource.MICROPHONE,
@@ -81,7 +86,12 @@ test("owner can stop just accompaniment without touching voice/video or granting
     },
     { sid: "voice", source: TrackSource.MICROPHONE, name: "microphone" },
     { sid: "screen", source: TrackSource.SCREEN_SHARE_AUDIO, name: "影片声音" },
-  ]);
+  ];
+  gateway.participants = async () =>
+    [
+      { identity: "member", rawIdentity: "member", tracks },
+    ] as unknown as Awaited<ReturnType<typeof gateway.participants>>;
+  await gateway.stopAccompaniment("room", "member", tracks);
   expect(calls).toEqual([["room", "member", "music", true]]);
   expect(packets).toEqual([{ action: "stop-accompaniment", roomId: "room" }]);
   await gateway.stopAccompaniment("room", "member", []);

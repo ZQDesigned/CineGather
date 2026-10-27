@@ -1,3 +1,6 @@
+import { sessionCredential } from "./session-context";
+import { refreshSessionAdmission } from "./auth";
+import { memberIdentity, memberSession } from "@cinegather/contracts";
 import {
   nativePublications,
   roomMemberPermissions,
@@ -9,6 +12,8 @@ import {
   messages,
   users,
   credentials,
+  roomSessions,
+  shareRequests,
   type Transaction,
 } from "@cinegather/database";
 import {
@@ -60,7 +65,11 @@ async function roomInfo(
 }
 const passwordFailures = new Map<string, { count: number; until: number }>();
 
-async function activeSession(tx: Transaction, userId: string) {
+async function activeSession(
+  tx: Transaction,
+  userId: string,
+  credentialId?: string,
+) {
   const [session] = await tx
     .select({ id: credentials.id })
     .from(credentials)
@@ -68,6 +77,7 @@ async function activeSession(tx: Transaction, userId: string) {
     .where(
       and(
         eq(credentials.userId, userId),
+        credentialId ? eq(credentials.id, credentialId) : undefined,
         isNull(credentials.revokedAt),
         eq(credentials.kind, "account"),
         isNotNull(users.username),
@@ -75,11 +85,16 @@ async function activeSession(tx: Transaction, userId: string) {
         gt(credentials.expiresAt, new Date()),
       ),
     )
-    .limit(1);
+    .limit(1)
+    .for("share", { of: credentials });
   return session;
 }
-async function requireActiveSession(tx: Transaction, userId: string) {
-  if (!(await activeSession(tx, userId)))
+async function requireActiveSession(
+  tx: Transaction,
+  userId: string,
+  credentialId?: string,
+) {
+  if (!(await activeSession(tx, userId, credentialId)))
     fail(401, "SESSION_EXPIRED", "登录已失效，请重新登录账号");
 }
 export async function requireMember(
@@ -124,7 +139,7 @@ export async function createRoom(
       : null;
   return db.transaction((tx) =>
     dedup(tx, user.id, key, "room.create", input, async () => {
-      await requireActiveSession(tx, user.id);
+      await requireActiveSession(tx, user.id, sessionCredential(user));
       const id = randomUUID();
       let created: typeof rooms.$inferSelect | undefined;
       for (let attempt = 0; attempt < 10 && !created; attempt++) {
@@ -312,7 +327,7 @@ export async function joinRoom(
     if (!room || room.status !== "active")
       fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
     roomId = room.id;
-    await requireActiveSession(tx, user.id);
+    await requireActiveSession(tx, user.id, sessionCredential(user));
     const [ban] = await tx
       .select()
       .from(bans)
@@ -391,6 +406,19 @@ export async function joinRoom(
           occupying.has(user.id) && member ? member.joinedAt : new Date(),
       })
       .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
+    if (sessionCredential(user))
+      await tx
+        .insert(roomSessions)
+        .values({
+          roomId,
+          userId: user.id,
+          credentialId: sessionCredential(user)!,
+          admittedUntil: new Date(Date.now() + 70_000),
+        })
+        .onConflictDoUpdate({
+          target: [roomSessions.roomId, roomSessions.credentialId],
+          set: { admittedUntil: new Date(Date.now() + 70_000) },
+        });
     await audit(tx, user.id, "room.joined", roomId);
     return {
       room: await roomInfo(tx, room, user.id),
@@ -413,18 +441,47 @@ export async function leaveRoom(user: User, roomId: string) {
       .for("update");
     if (!room || room.status === "closed") return;
     await requireMember(tx, roomId, user.id, false, true);
-    await revokeNative(tx, roomId, user.id);
-    await media.remove(roomId, user.id);
-    await tx
-      .update(members)
-      .set({ admittedUntil: null })
-      .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
-    await tx
-      .update(leases)
-      .set({ holderUserId: null, leaseId: null, expiresAt: null })
-      .where(and(eq(leases.roomId, roomId), eq(leases.holderUserId, user.id)));
+    const credentialId = sessionCredential(user);
+    const [lease] = await tx
+      .select()
+      .from(leases)
+      .where(eq(leases.roomId, roomId));
+    if (!credentialId || lease?.credentialId === credentialId) {
+      await revokeNative(tx, roomId, user.id);
+      await tx
+        .update(leases)
+        .set({
+          holderUserId: null,
+          credentialId: null,
+          leaseId: null,
+          expiresAt: null,
+        })
+        .where(
+          and(eq(leases.roomId, roomId), eq(leases.holderUserId, user.id)),
+        );
+    }
+    await media.remove(
+      roomId,
+      credentialId ? memberIdentity(user.id, credentialId) : user.id,
+    );
+    if (credentialId) {
+      await tx
+        .update(roomSessions)
+        .set({ admittedUntil: null })
+        .where(
+          and(
+            eq(roomSessions.roomId, roomId),
+            eq(roomSessions.credentialId, credentialId),
+          ),
+        );
+      await refreshSessionAdmission(tx, roomId, user.id);
+    } else
+      await tx
+        .update(members)
+        .set({ admittedUntil: null })
+        .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
     await audit(tx, user.id, "room.left", roomId);
-    await settleRoom(tx, roomId, user.id);
+    await settleRoom(tx, roomId);
   });
   return { ok: true as const };
 }
@@ -532,8 +589,18 @@ export async function closeRoom(tx: Transaction, roomId: string) {
     .where(eq(invites.roomId, roomId));
   await tx
     .update(leases)
-    .set({ holderUserId: null, leaseId: null, expiresAt: null })
+    .set({
+      holderUserId: null,
+      credentialId: null,
+      leaseId: null,
+      expiresAt: null,
+    })
     .where(eq(leases.roomId, roomId));
+  await tx
+    .update(roomSessions)
+    .set({ admittedUntil: null })
+    .where(eq(roomSessions.roomId, roomId));
+  await tx.delete(shareRequests).where(eq(shareRequests.roomId, roomId));
   await tx
     .update(members)
     .set({ admittedUntil: null })
@@ -547,7 +614,7 @@ function leaseResult(row: typeof leases.$inferSelect): ShareLease {
     revision: row.revision,
   };
 }
-async function requireScreenShare(
+export async function requireScreenShare(
   tx: Transaction,
   userId: string,
   roomId: string,
@@ -568,16 +635,54 @@ export async function acquireLease(
   user: User,
   roomId: string,
   preempt = false,
+  handoffId?: string,
 ) {
   roomId = uuid(roomId);
-  let granted = false;
+  let grantedIdentity: string | undefined;
   let previous: { userId: string; leaseId: string } | undefined;
   try {
     const result = await db.transaction(async (tx) => {
       await requireMember(tx, roomId, user.id, preempt, true);
+      await requireActiveSession(tx, user.id, sessionCredential(user));
       const policy = await requireScreenShare(tx, user.id, roomId);
+      if (handoffId) {
+        const [request] = await tx
+          .select()
+          .from(shareRequests)
+          .where(
+            and(
+              eq(shareRequests.id, uuid(handoffId)),
+              eq(shareRequests.roomId, roomId),
+            ),
+          );
+        const [current] = await tx
+          .select()
+          .from(leases)
+          .where(eq(leases.roomId, roomId));
+        if (
+          !request ||
+          request.userId !== user.id ||
+          request.credentialId !== sessionCredential(user) ||
+          request.status !== "approved" ||
+          request.expiresAt.getTime() <= Date.now() ||
+          !current?.expiresAt ||
+          current.expiresAt.getTime() <= Date.now() ||
+          current.leaseId !== request.leaseId ||
+          current.revision !== request.revision
+        )
+          fail(409, "SHARE_REQUEST_EXPIRED", "接棒申请已失效，请重新申请");
+      }
       const participants = await media.participants(roomId);
-      if (!participants.some((p) => p.identity === user.id))
+      if (
+        !participants.some(
+          (p) =>
+            p.identity === user.id &&
+            (!sessionCredential(user) ||
+              !p.rawIdentity ||
+              p.rawIdentity === user.id ||
+              p.rawIdentity.endsWith("/" + sessionCredential(user))),
+        )
+      )
         fail(409, "MEDIA_NOT_CONNECTED", "请先连接房间语音");
       const [lease] = await tx
         .select()
@@ -589,8 +694,12 @@ export async function acquireLease(
         lease.expiresAt &&
         lease.expiresAt.getTime() > Date.now()
       ) {
-        if (lease.holderUserId === user.id) return leaseResult(lease);
-        if (!preempt) fail(409, "SHARE_BUSY", "已有成员正在共享");
+        if (
+          lease.holderUserId === user.id &&
+          lease.credentialId === (sessionCredential(user) ?? null)
+        )
+          return leaseResult(lease);
+        if (!preempt && !handoffId) fail(409, "SHARE_BUSY", "已有成员正在共享");
       }
       if (lease.holderUserId && lease.leaseId)
         previous = { userId: lease.holderUserId, leaseId: lease.leaseId };
@@ -598,20 +707,33 @@ export async function acquireLease(
       // Revoke first: LiveKit SetPermission removes all tracks from disallowed sources.
       for (const p of participants)
         if (!nativeOwner(p.identity))
-          await media.setShare(roomId, p.identity, false);
-      await media.setShare(roomId, user.id, true, policy.microphoneAllowed);
-      granted = true;
+          await media.setShare(roomId, p.rawIdentity ?? p.identity, false);
+      const peer = participants.find(
+        (p) =>
+          p.identity === user.id &&
+          (!p.rawIdentity ||
+            p.rawIdentity.endsWith("/" + sessionCredential(user))),
+      );
+      const identity = peer?.rawIdentity ?? user.id;
+      await media.setShare(roomId, identity, true, policy.microphoneAllowed);
+      grantedIdentity = identity;
       const next = {
         leaseId: randomUUID(),
         holderUserId: user.id,
+        credentialId: sessionCredential(user) ?? null,
         expiresAt: new Date(Date.now() + 30_000),
         revision: lease.revision + 1,
       };
       await tx.update(leases).set(next).where(eq(leases.roomId, roomId));
+      await tx.delete(shareRequests).where(eq(shareRequests.roomId, roomId));
       await audit(
         tx,
         user.id,
-        preempt ? "share.preempted" : "share.acquired",
+        handoffId
+          ? "share.handoff"
+          : preempt
+            ? "share.preempted"
+            : "share.acquired",
         roomId,
         {
           previousHolder: previous?.userId,
@@ -624,9 +746,28 @@ export async function acquireLease(
       await notifyShareStopped(roomId, previous.userId, previous.leaseId);
     return result;
   } catch (error) {
-    if (granted)
-      await media
-        .setShare(roomId, user.id, false)
+    if (grantedIdentity)
+      await db
+        .transaction(async (tx) => {
+          await tx
+            .select()
+            .from(rooms)
+            .where(eq(rooms.id, roomId))
+            .for("update");
+          const [current] = await tx
+            .select()
+            .from(leases)
+            .where(eq(leases.roomId, roomId));
+          // A newer successful request for this device must survive compensation.
+          if (
+            current?.holderUserId === user.id &&
+            current.credentialId === (sessionCredential(user) ?? null) &&
+            current.expiresAt &&
+            current.expiresAt.getTime() > Date.now()
+          )
+            return;
+          await media.setShare(roomId, grantedIdentity!, false);
+        })
         .catch(() =>
           console.error(
             JSON.stringify({ event: "share.compensation_required", roomId }),
@@ -643,6 +784,7 @@ export async function renewLease(
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
     await requireMember(tx, roomId, user.id, false, true);
+    await requireActiveSession(tx, user.id, sessionCredential(user));
     await requireScreenShare(tx, user.id, roomId);
     const [lease] = await tx
       .select()
@@ -651,6 +793,7 @@ export async function renewLease(
     if (
       !lease ||
       lease.holderUserId !== user.id ||
+      lease.credentialId !== (sessionCredential(user) ?? null) ||
       lease.leaseId !== input.leaseId ||
       lease.revision !== input.revision ||
       !lease.expiresAt ||
@@ -680,7 +823,9 @@ export async function releaseLease(
       !lease ||
       lease.revision !== input.revision ||
       (lease.holderUserId !== null &&
-        (lease.holderUserId !== user.id || lease.leaseId !== input.leaseId))
+        (lease.holderUserId !== user.id ||
+          lease.credentialId !== (sessionCredential(user) ?? null) ||
+          lease.leaseId !== input.leaseId))
     )
       fail(409, "LEASE_LOST", "这次共享已结束");
     if (lease.holderUserId) {
@@ -691,7 +836,12 @@ export async function releaseLease(
         await media.setShare(roomId, user.id, false);
       await tx
         .update(leases)
-        .set({ holderUserId: null, leaseId: null, expiresAt: null })
+        .set({
+          holderUserId: null,
+          credentialId: null,
+          leaseId: null,
+          expiresAt: null,
+        })
         .where(eq(leases.roomId, roomId));
       await audit(tx, user.id, "share.released", roomId, {
         revision: input.revision,
@@ -789,6 +939,7 @@ export async function stopMemberShare(
       .update(leases)
       .set({
         holderUserId: null,
+        credentialId: null,
         leaseId: null,
         expiresAt: null,
         revision: lease.revision + 1,
@@ -867,12 +1018,25 @@ async function applyMemberPolicy(
   const ownsLease =
     lease?.holderUserId === userId &&
     Boolean(lease.expiresAt && lease.expiresAt.getTime() > Date.now());
-  await media.setPermissions(
-    roomId,
-    userId,
-    microphoneAllowed,
-    sharingAllowed && ownsLease && !native,
-  );
+  if (ownsLease && lease?.credentialId) {
+    for (const p of (await media.participants(roomId)).filter(
+      (p) => p.identity === userId,
+    ))
+      await media.setPermissions(
+        roomId,
+        p.rawIdentity ?? p.identity,
+        microphoneAllowed,
+        sharingAllowed &&
+          !native &&
+          memberSession(p.rawIdentity ?? p.identity) === lease.credentialId,
+      );
+  } else
+    await media.setPermissions(
+      roomId,
+      userId,
+      microphoneAllowed,
+      sharingAllowed && ownsLease && !native,
+    );
 }
 async function liftOwnerRestrictions(
   tx: Transaction,
@@ -932,6 +1096,7 @@ export async function updateMemberPermissions(
           .update(leases)
           .set({
             holderUserId: null,
+            credentialId: null,
             leaseId: null,
             expiresAt: null,
             revision: lease.revision + 1,
@@ -982,6 +1147,19 @@ export async function moderate(
     await revokeNative(tx, roomId, targetId);
     await media.remove(roomId, targetId);
     await tx
+      .delete(roomSessions)
+      .where(
+        and(eq(roomSessions.roomId, roomId), eq(roomSessions.userId, targetId)),
+      );
+    await tx
+      .delete(shareRequests)
+      .where(
+        and(
+          eq(shareRequests.roomId, roomId),
+          eq(shareRequests.userId, targetId),
+        ),
+      );
+    await tx
       .delete(members)
       .where(and(eq(members.roomId, roomId), eq(members.userId, targetId)));
     if (ban)
@@ -991,7 +1169,12 @@ export async function moderate(
         .onConflictDoNothing();
     await tx
       .update(leases)
-      .set({ holderUserId: null, leaseId: null, expiresAt: null })
+      .set({
+        holderUserId: null,
+        credentialId: null,
+        leaseId: null,
+        expiresAt: null,
+      })
       .where(and(eq(leases.roomId, roomId), eq(leases.holderUserId, targetId)));
     await audit(tx, user.id, ban ? "member.banned" : "member.kicked", roomId, {
       userId: targetId,
@@ -1153,6 +1336,7 @@ export async function reconcileRoom(roomId: string) {
       ? await tx
           .select({
             userId: credentials.userId,
+            credentialId: credentials.id,
             screenShareEnabled: users.screenShareEnabled,
           })
           .from(credentials)
@@ -1185,11 +1369,20 @@ export async function reconcileRoom(roomId: string) {
       policies.find((p) => p.userId === lease.holderUserId)?.sharingAllowed !==
         false &&
       validSessions.some(
-        (c) => c.userId === lease.holderUserId && c.screenShareEnabled,
+        (c) =>
+          c.userId === lease.holderUserId &&
+          c.screenShareEnabled &&
+          (!lease.credentialId || c.credentialId === lease.credentialId),
       ) &&
       lease?.expiresAt &&
       lease.expiresAt.getTime() > Date.now() &&
-      participants.some((p) => p.identity === lease.holderUserId)
+      participants.some(
+        (p) =>
+          p.identity === lease.holderUserId &&
+          (!lease.credentialId ||
+            !p.rawIdentity ||
+            memberSession(p.rawIdentity) === lease.credentialId),
+      )
         ? lease.holderUserId
         : null;
     let [publication] = await tx
@@ -1207,8 +1400,30 @@ export async function reconcileRoom(roomId: string) {
           await media.remove(roomId, participant.identity);
         continue;
       }
-      if (!authorized(participant.identity)) {
-        await media.remove(roomId, participant.identity);
+      const sid = memberSession(
+        participant.rawIdentity ?? participant.identity,
+      );
+      const [admission] = sid
+        ? await tx
+            .select()
+            .from(roomSessions)
+            .where(
+              and(
+                eq(roomSessions.roomId, roomId),
+                eq(roomSessions.credentialId, sid),
+              ),
+            )
+        : [];
+      if (
+        !authorized(participant.identity) ||
+        (sid &&
+          (!admission?.admittedUntil ||
+            !validSessions.some((c) => c.credentialId === sid)))
+      ) {
+        await media.remove(
+          roomId,
+          participant.rawIdentity ?? participant.identity,
+        );
         continue;
       }
       await tx
@@ -1220,10 +1435,23 @@ export async function reconcileRoom(roomId: string) {
             eq(members.userId, participant.identity),
           ),
         );
+      if (sid)
+        await tx
+          .update(roomSessions)
+          .set({ admittedUntil: new Date(Date.now() + 30_000) })
+          .where(
+            and(
+              eq(roomSessions.roomId, roomId),
+              eq(roomSessions.credentialId, sid),
+            ),
+          );
       const allowsScreen =
         participant.permission?.canPublishSources.includes(3) ||
         participant.permission?.canPublishSources.includes(4);
-      const shouldShare = participant.identity === activeHolder && !validNative;
+      const shouldShare =
+        participant.identity === activeHolder &&
+        (!lease?.credentialId || sid === lease.credentialId) &&
+        !validNative;
       const micAllowed =
         policies.find((p) => p.userId === participant.identity)
           ?.microphoneAllowed !== false;
@@ -1235,7 +1463,7 @@ export async function reconcileRoom(roomId: string) {
       if (Boolean(allowsScreen) !== shouldShare || allowsMic !== micAllowed)
         await media.setPermissions(
           roomId,
-          participant.identity,
+          participant.rawIdentity ?? participant.identity,
           micAllowed,
           shouldShare,
         );
@@ -1260,7 +1488,12 @@ export async function reconcileRoom(roomId: string) {
     if (lease?.holderUserId && !activeHolder) {
       await tx
         .update(leases)
-        .set({ holderUserId: null, leaseId: null, expiresAt: null })
+        .set({
+          holderUserId: null,
+          credentialId: null,
+          leaseId: null,
+          expiresAt: null,
+        })
         .where(eq(leases.roomId, roomId));
       await audit(tx, null, "share.reconciled", roomId, {
         revision: lease.revision,
@@ -1342,11 +1575,14 @@ export async function nativePublication(
   try {
     return await db.transaction(async (tx) => {
       await requireMember(tx, roomId, user.id, false, true);
+      await requireActiveSession(tx, user.id, sessionCredential(user));
       const policy = await requireScreenShare(tx, user.id, roomId);
       const [lease] = await tx
         .select()
         .from(leases)
         .where(eq(leases.roomId, roomId));
+      if (lease?.credentialId !== (sessionCredential(user) ?? null))
+        fail(409, "LEASE_LOST", "共享授权已失效，请重新共享");
       requireNativeLease(
         lease,
         user.id,
@@ -1383,6 +1619,7 @@ export async function nativePublication(
           leaseId: input.leaseId,
           revision: input.revision,
           holderUserId: user.id,
+          credentialId: sessionCredential(user) ?? null,
           ingressId: ingress.ingressId,
           identity: ingress.participantIdentity,
         });

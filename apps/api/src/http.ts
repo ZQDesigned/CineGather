@@ -22,6 +22,7 @@ import {
   type User,
   type AdminPermission,
 } from "@cinegather/contracts";
+import { bindSession } from "./session-context";
 import { authenticate } from "./auth";
 import { fail } from "./errors";
 export type AuthRequest = Request & {
@@ -138,6 +139,7 @@ export class AuthGuard implements CanActivate {
       permissions: identity.permissions,
     };
     req.sessionId = identity.credentialId;
+    bindSession(req.user, identity.credentialId);
     return true;
   }
 }

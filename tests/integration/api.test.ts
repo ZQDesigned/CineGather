@@ -372,7 +372,7 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
     const claims = JSON.parse(
       Buffer.from(join.body.token.split(".")[1], "base64url").toString(),
     );
-    expect(claims.sub).toBe(b.id);
+    expect(claims.sub).toStartWith(`cinegather/member/v1/${b.id}/`);
     expect(claims.video.canPublishSources).toEqual(["microphone"]);
     const c = await account();
     expect(
@@ -796,7 +796,7 @@ describe("owner room settings", () => {
     const { media } = await import("../../apps/api/src/media");
     expect(
       (await media.client.listRooms([created.id]))[0]!.maxParticipants,
-    ).toBe(11);
+    ).toBe(51);
   });
   test("strict settings validation and occupied admission seats prevent invalid or destructive edits", async () => {
     const a = await account(),

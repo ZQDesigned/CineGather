@@ -1,3 +1,4 @@
+import { sessionCredential } from "./session-context";
 import {
   DataPacket_Kind,
   IngressClient,
@@ -18,6 +19,8 @@ import {
   type ChatMessage,
   type RoomControl,
   nativeIdentity,
+  memberIdentity,
+  participantOwner,
   type User,
 } from "@cinegather/contracts";
 import { randomUUID } from "node:crypto";
@@ -67,7 +70,12 @@ export class MediaGateway {
   async participants(roomId: string, verifyLive = false) {
     try {
       const listed = await this.client.listParticipants(roomId);
-      if (!verifyLive) return listed;
+      if (!verifyLive)
+        return listed.map((p) => ({
+          ...p,
+          rawIdentity: p.identity,
+          identity: participantOwner(p.identity) ?? p.identity,
+        }));
       // Redis can outlive the serving SFU node. A no-op RPC verifies the room
       // without changing metadata, permissions or existing media tracks.
       const live = await Promise.all(
@@ -85,7 +93,13 @@ export class MediaGateway {
           }
         }),
       );
-      return live.filter((p) => p !== undefined);
+      return live
+        .filter((p) => p !== undefined)
+        .map((p) => ({
+          ...p,
+          rawIdentity: p.identity,
+          identity: participantOwner(p.identity) ?? p.identity,
+        }));
     } catch (e) {
       if (isNotFound(e)) return [];
       throw e;
@@ -96,7 +110,7 @@ export class MediaGateway {
       name: roomId,
       // A live SFU room's ceiling is immutable. Reserve the application maximum
       // plus one native publisher; admission enforces the editable business cap.
-      maxParticipants: MAX_ROOM_MEMBERS + 1,
+      maxParticipants: MAX_ROOM_MEMBERS * 5 + 1,
       emptyTimeout: 300,
       departureTimeout: 60,
     });
@@ -110,7 +124,9 @@ export class MediaGateway {
   }
   async issue(roomId: string, user: User, microphoneAllowed = true) {
     const access = new AccessToken(config.livekitKey, config.livekitSecret, {
-      identity: user.id,
+      identity: sessionCredential(user)
+        ? memberIdentity(user.id, sessionCredential(user)!)
+        : user.id,
       name: user.displayName,
       ttl: 60,
     });
@@ -125,21 +141,30 @@ export class MediaGateway {
     });
     return access.toJwt();
   }
+  private async targets(roomId: string, id: string) {
+    if (!participantOwner(id) || id.startsWith("cinegather/")) return [id];
+    const peers = await this.participants(roomId);
+    const identities = peers
+      .filter((p) => p.identity === id)
+      .map((p) => p.rawIdentity ?? p.identity);
+    return identities.length ? identities : [id];
+  }
   async setShare(
     roomId: string,
     userId: string,
     allow: boolean,
     microphoneAllowed?: boolean,
   ) {
-    if (microphoneAllowed === undefined) {
-      const participant = await this.client.getParticipant(roomId, userId);
-      const permission = participant.permission;
-      microphoneAllowed =
-        permission?.canPublish !== false &&
-        (!permission?.canPublishSources.length ||
-          permission.canPublishSources.includes(TrackSource.MICROPHONE));
+    for (const identity of await this.targets(roomId, userId)) {
+      const p = await this.client.getParticipant(roomId, identity);
+      const permission = p.permission;
+      const mic =
+        microphoneAllowed ??
+        (permission?.canPublish !== false &&
+          (!permission?.canPublishSources.length ||
+            permission.canPublishSources.includes(TrackSource.MICROPHONE)));
+      await this.setPermissions(roomId, identity, mic, allow);
     }
-    await this.setPermissions(roomId, userId, microphoneAllowed, allow);
   }
   async setPermissions(
     roomId: string,
@@ -147,21 +172,21 @@ export class MediaGateway {
     microphoneAllowed: boolean,
     sharingAllowed: boolean,
   ) {
-    await this.client.updateParticipant(roomId, userId, {
-      permission: {
-        // An empty canPublishSources list with canPublish=true allows ALL sources.
-        canPublish: microphoneAllowed || sharingAllowed,
-        canSubscribe: true,
-        canPublishData: false,
-        canUpdateMetadata: false,
-        canPublishSources: [
-          ...(microphoneAllowed ? [TrackSource.MICROPHONE] : []),
-          ...(sharingAllowed
-            ? [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO]
-            : []),
-        ],
-      },
-    });
+    for (const identity of await this.targets(roomId, userId))
+      await this.client.updateParticipant(roomId, identity, {
+        permission: {
+          canPublish: microphoneAllowed || sharingAllowed,
+          canSubscribe: true,
+          canPublishData: false,
+          canUpdateMetadata: false,
+          canPublishSources: [
+            ...(microphoneAllowed ? [TrackSource.MICROPHONE] : []),
+            ...(sharingAllowed
+              ? [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO]
+              : []),
+          ],
+        },
+      });
   }
   async chat(roomId: string, message: ChatMessage) {
     await this.client.sendData(
@@ -177,48 +202,56 @@ export class MediaGateway {
       new TextEncoder().encode(JSON.stringify(command)),
       DataPacket_Kind.RELIABLE,
       {
-        destinationIdentities: [userId],
+        destinationIdentities: await this.targets(command.roomId, userId),
         topic: ROOM_CONTROL_TOPIC,
       },
     );
   }
+  private async muteTracks(
+    roomId: string,
+    userId: string,
+    accompaniment: boolean,
+  ) {
+    for (const p of (await this.participants(roomId)).filter(
+      (p) => p.identity === userId || p.rawIdentity === userId,
+    ))
+      for (const t of p.tracks ?? [])
+        if (
+          t.source === TrackSource.MICROPHONE &&
+          (t.name === ACCOMPANIMENT_TRACK) === accompaniment
+        )
+          await this.client.mutePublishedTrack(
+            roomId,
+            p.rawIdentity ?? p.identity,
+            t.sid,
+            true,
+          );
+  }
   async muteMicrophone(
     roomId: string,
     userId: string,
-    tracks: { sid: string; source: TrackSource; name?: string }[],
+    _tracks: { sid: string; source: TrackSource; name?: string }[],
   ) {
-    // The server never accepts a caller-supplied unmute flag or track SID.
-    for (const track of tracks)
-      if (
-        track.source === TrackSource.MICROPHONE &&
-        track.name !== ACCOMPANIMENT_TRACK
-      )
-        await this.client.mutePublishedTrack(roomId, userId, track.sid, true);
-    // Covers an OS microphone grant/publication still pending on the client.
+    await this.muteTracks(roomId, userId, false);
     await this.control(userId, { action: "mute-microphone", roomId });
   }
   async stopAccompaniment(
     roomId: string,
     userId: string,
-    tracks: { sid: string; source: TrackSource; name?: string }[],
+    _tracks: { sid: string; source: TrackSource; name?: string }[],
   ) {
-    for (const track of tracks)
-      if (
-        track.source === TrackSource.MICROPHONE &&
-        track.name === ACCOMPANIMENT_TRACK
-      )
-        await this.client.mutePublishedTrack(roomId, userId, track.sid, true);
-    // Also cancel capture/publication still waiting on an OS grant.
+    await this.muteTracks(roomId, userId, true);
     await this.control(userId, { action: "stop-accompaniment", roomId });
   }
   async remove(roomId: string, userId: string) {
-    try {
-      await this.client.removeParticipant(roomId, userId, {
-        revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)),
-      });
-    } catch (e) {
-      if (!isNotFound(e)) throw e;
-    }
+    for (const identity of await this.targets(roomId, userId))
+      try {
+        await this.client.removeParticipant(roomId, identity, {
+          revokeTokenTs: BigInt(Math.floor(Date.now() / 1000)),
+        });
+      } catch (e) {
+        if (!isNotFound(e)) throw e;
+      }
   }
 }
 function isNotFound(e: unknown) {

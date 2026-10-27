@@ -26,6 +26,12 @@ export class ShareCoordinator {
     this.deps.changed(state, this.revision);
   }
   async start(preempt = false) {
+    return this.begin(() => this.deps.acquire(preempt));
+  }
+  async startHandoff(acquire: () => Promise<ShareLease>) {
+    return this.begin(acquire, true);
+  }
+  private async begin(acquire: () => Promise<ShareLease>, sourceFirst = false) {
     if (
       this.starting ||
       this.switching ||
@@ -36,7 +42,17 @@ export class ShareCoordinator {
     const revision = ++this.revision;
     this.change("acquiringLease");
     try {
-      const lease = await this.deps.acquire(preempt);
+      if (sourceFirst) {
+        this.change("selectingSource");
+        const selected = await this.deps.select();
+        if (revision !== this.revision) return;
+        if (!selected) {
+          await this.stop();
+          return;
+        }
+        this.change("acquiringLease");
+      }
+      const lease = await acquire();
       if (revision !== this.revision) {
         await this.deps.release(lease);
         return;
@@ -47,12 +63,14 @@ export class ShareCoordinator {
         return;
       }
       this.timer = setInterval(() => void this.renew(revision), 10_000);
-      this.change("selectingSource");
-      const selected = await this.deps.select();
-      if (revision !== this.revision) return;
-      if (!selected) {
-        await this.stop();
-        return;
+      if (!sourceFirst) {
+        this.change("selectingSource");
+        const selected = await this.deps.select();
+        if (revision !== this.revision) return;
+        if (!selected) {
+          await this.stop();
+          return;
+        }
       }
       this.change("publishing");
       await this.deps.publish(this.lease!);

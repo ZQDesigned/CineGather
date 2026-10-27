@@ -12,14 +12,21 @@ import {
 } from "./account-passwords";
 import { readRegistrationPolicy, registrationLock } from "./registration";
 import { readAccess } from "./access";
+import { sessionDevice } from "./session-device";
 const failures = new Map<string, { count: number; until: number }>();
-async function session(tx: Transaction, user: User) {
+async function session(
+  tx: Transaction,
+  user: User,
+  device?: ReturnType<typeof sessionDevice>,
+) {
   const sessionToken = token();
   const expiresAt = new Date(Date.now() + 30 * 24 * 3600_000);
   await tx.insert(credentials).values({
     id: randomUUID(),
     userId: user.id,
     kind: "account",
+    createdAt: new Date(),
+    ...device,
     secretHash: hash(sessionToken),
     expiresAt,
   });
@@ -47,6 +54,7 @@ function uniqueConflict(error: unknown): boolean {
 export async function registerAccount(
   input: { username: string; displayName: string; password: string },
   existing?: User,
+  device?: ReturnType<typeof sessionDevice>,
 ) {
   if (existing) fail(409, "ALREADY_REGISTERED", "请先退出当前账号后再注册");
   if (!(await readRegistrationPolicy()).enabled)
@@ -70,7 +78,7 @@ export async function registerAccount(
           screenShareEnabled: policy.screenShareDefaultEnabled,
         })
         .returning();
-      const result = await session(tx, await publicUser(tx, stored!));
+      const result = await session(tx, await publicUser(tx, stored!), device);
       await audit(tx, stored!.id, "account.registered", stored!.id);
       return result;
     });
@@ -83,6 +91,7 @@ export async function registerAccount(
 export async function loginAccount(
   input: { username: string; password: string },
   address: string,
+  device?: ReturnType<typeof sessionDevice>,
 ) {
   const key = `${address}:${input.username}`;
   const now = Date.now();
@@ -122,7 +131,7 @@ export async function loginAccount(
     if (current.disabledAt)
       fail(403, "ACCOUNT_DISABLED", "账号已停用，请联系管理员");
     failures.delete(key);
-    const result = await session(tx, await publicUser(tx, current));
+    const result = await session(tx, await publicUser(tx, current), device);
     await audit(tx, current.id, "account.logged_in", current.id);
     return result;
   });
@@ -130,6 +139,7 @@ export async function loginAccount(
 export async function changeAccountPassword(
   user: User,
   input: { currentPassword: string; password: string },
+  device?: ReturnType<typeof sessionDevice>,
 ) {
   const [candidate] = await db
     .select()
@@ -162,7 +172,7 @@ export async function changeAccountPassword(
         and(eq(credentials.userId, user.id), isNull(credentials.revokedAt)),
       );
     await audit(tx, user.id, "account.password_changed", user.id);
-    return session(tx, await publicUser(tx, current!));
+    return session(tx, await publicUser(tx, current!), device);
   });
   await clearUserMedia(user.id);
   return result;

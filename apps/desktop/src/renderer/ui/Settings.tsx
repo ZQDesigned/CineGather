@@ -26,6 +26,7 @@ import { ShortcutRecorder } from "./ShortcutRecorder";
 import { serverOrigin, verifyServer } from "../server-address";
 import { defaultOverlayPreferences } from "../../shared/settings";
 import { capabilities } from "../platform";
+import { DeviceSessions } from "./DeviceSessions";
 import { AccountForm } from "./AccountForm";
 import { UpdatePanel } from "./Updates";
 import {
@@ -425,6 +426,7 @@ export function Settings() {
                         用户名：{user.username}
                       </p>
                       <AccountForm mode="password" />
+                      <DeviceSessions />
                     </>
                   ),
                 },

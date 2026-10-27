@@ -90,6 +90,7 @@ test("a failed playback quality API preserves other display metrics and reports 
   const video = {
     addEventListener() {},
     removeEventListener() {},
+    ownerDocument: { hidden: false },
     clientWidth: 900,
     clientHeight: 500,
     readyState: 4,
@@ -104,7 +105,11 @@ test("a failed playback quality API preserves other display metrics and reports 
     },
   };
   probe.bind(video as unknown as HTMLVideoElement);
-  expect(probe.sample()).toMatchObject({ width: 1920, currentTime: 15 });
+  expect(probe.sample()).toMatchObject({
+    width: 1920,
+    currentTime: 15,
+    hidden: false,
+  });
   const issues = probe.takeIssues();
   expect(issues).toContainEqual({
     stage: "playback",

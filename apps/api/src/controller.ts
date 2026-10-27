@@ -1,3 +1,6 @@
+import * as queue from "./share-requests";
+import { listSessions, revokeDevices } from "./account-sessions";
+import { sessionDevice } from "./session-device";
 import {
   Body,
   Controller,
@@ -121,17 +124,40 @@ export class ApiController {
   @Post("accounts/register")
   @Endpoint("registerAccount", c.sessionSchema, c.registerInput, [], 201)
   register(@Req() req: AuthRequest, @Body() body: unknown) {
-    return registerAccount(parse(c.registerInput, body), req.user);
+    return registerAccount(parse(c.registerInput, body), req.user, device(req));
   }
   @Post("accounts/login")
   @Endpoint("loginAccount", c.sessionSchema, c.loginInput, [], 201)
   login(@Req() req: AuthRequest, @Body() body: unknown) {
-    return loginAccount(parse(c.loginInput, body), req.ip ?? "unknown");
+    return loginAccount(
+      parse(c.loginInput, body),
+      req.ip ?? "unknown",
+      device(req),
+    );
   }
   @Post("accounts/password")
   @Endpoint("changeAccountPassword", c.sessionSchema, c.passwordInput, [], 201)
   password(@Req() req: AuthRequest, @Body() body: unknown) {
-    return changeAccountPassword(req.user, parse(c.passwordInput, body));
+    return changeAccountPassword(
+      req.user,
+      parse(c.passwordInput, body),
+      device(req),
+    );
+  }
+  @Get("accounts/sessions")
+  @Endpoint("listDeviceSessions", c.deviceSessionsSchema)
+  sessions(@Req() req: AuthRequest) {
+    return listSessions(req.user);
+  }
+  @Delete("accounts/sessions")
+  @Endpoint("revokeOtherSessions", c.okSchema)
+  revokeOthers(@Req() req: AuthRequest) {
+    return revokeDevices(req.user);
+  }
+  @Delete("accounts/sessions/:sessionId")
+  @Endpoint("revokeDeviceSession", c.okSchema, undefined, ["sessionId"])
+  revokeDevice(@Req() req: AuthRequest, @Param("sessionId") id: string) {
+    return revokeDevices(req.user, id);
   }
   @Delete("session")
   @Endpoint("revokeSession", c.okSchema)
@@ -220,6 +246,66 @@ export class ApiController {
     @Param("inviteId") inviteId: string,
   ) {
     return r.revokeInvite(req.user, roomId, inviteId);
+  }
+  @Get("rooms/:roomId/share-requests")
+  @Endpoint("listShareRequests", c.shareRequestsSchema, undefined, ["roomId"])
+  shareQueue(@Req() req: AuthRequest, @Param("roomId") id: string) {
+    return queue.readQueue(req.user, id);
+  }
+  @Post("rooms/:roomId/share-requests")
+  @Endpoint("requestShareHandoff", c.okSchema, undefined, ["roomId"], 201)
+  requestShare(@Req() req: AuthRequest, @Param("roomId") id: string) {
+    return queue.requestShare(req.user, id);
+  }
+  @Delete("rooms/:roomId/share-requests")
+  @Endpoint("cancelShareHandoff", c.okSchema, undefined, ["roomId"])
+  cancelShare(@Req() req: AuthRequest, @Param("roomId") id: string) {
+    return queue.cancelShareRequest(req.user, id);
+  }
+  @Post("rooms/:roomId/share-requests/:requestId/approve")
+  @Endpoint(
+    "approveShareHandoff",
+    c.okSchema,
+    undefined,
+    ["roomId", "requestId"],
+    201,
+  )
+  approveShare(
+    @Req() req: AuthRequest,
+    @Param("roomId") id: string,
+    @Param("requestId") rid: string,
+  ) {
+    return queue.decideShareRequest(req.user, id, rid, true);
+  }
+  @Post("rooms/:roomId/share-requests/:requestId/reject")
+  @Endpoint(
+    "rejectShareHandoff",
+    c.okSchema,
+    undefined,
+    ["roomId", "requestId"],
+    201,
+  )
+  rejectShare(
+    @Req() req: AuthRequest,
+    @Param("roomId") id: string,
+    @Param("requestId") rid: string,
+  ) {
+    return queue.decideShareRequest(req.user, id, rid, false);
+  }
+  @Post("rooms/:roomId/share-requests/:requestId/acquire")
+  @Endpoint(
+    "acceptShareHandoff",
+    c.leaseSchema,
+    undefined,
+    ["roomId", "requestId"],
+    201,
+  )
+  acceptShare(
+    @Req() req: AuthRequest,
+    @Param("roomId") id: string,
+    @Param("requestId") rid: string,
+  ) {
+    return r.acquireLease(req.user, id, false, rid);
   }
   @Post("rooms/:roomId/share-lease")
   @Endpoint("acquireLease", c.leaseSchema, undefined, ["roomId"], 201)
@@ -516,4 +602,13 @@ export class ApiController {
     if (event.room?.name) await r.reconcileRoom(event.room.name);
     res.json({ ok: true });
   }
+}
+
+function device(req: AuthRequest) {
+  return sessionDevice({
+    platform: req.get("X-CineGather-Platform"),
+    version: req.get("X-CineGather-Version"),
+    agent: req.get("User-Agent"),
+    address: req.ip,
+  });
 }
