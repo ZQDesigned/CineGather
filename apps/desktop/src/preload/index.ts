@@ -6,6 +6,17 @@ import type {
 } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   platform: process.platform,
+  watchVisibility: {
+    observe: (watching) =>
+      ipcRenderer.invoke("desktop:watch-visibility", watching),
+    onChange: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, visible: boolean) =>
+        callback(visible);
+      ipcRenderer.on("desktop:watch-visibility", listener);
+      return () =>
+        ipcRenderer.removeListener("desktop:watch-visibility", listener);
+    },
+  },
   viewingWindow: {
     action: (action) => ipcRenderer.invoke("desktop:viewing-action", action),
   },

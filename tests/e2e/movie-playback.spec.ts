@@ -9,6 +9,18 @@ async function guest(page: Page, name: string) {
 }
 async function observeMedia(page: Page) {
   await page.addInitScript(() => {
+    // Keep multi-peer fixtures visible unless a test explicitly changes it;
+    // browser-window occlusion is verified separately with native fixtures.
+    const visibility = { hidden: false };
+    Object.assign(window, { visibilityProbe: visibility });
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => visibility.hidden,
+    });
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => (visibility.hidden ? "hidden" : "visible"),
+    });
     const connections: RTCPeerConnection[] = [];
     const Original = RTCPeerConnection;
     class Observed extends Original {
@@ -249,7 +261,7 @@ test("film audio/video share one presentation element and removing audio keeps t
           .locator('audio[data-cinegather-audio="screen_share_audio"]')
           .count(),
       ).toBe(0);
-      const sharedTrackIds = await viewer
+      let sharedTrackIds = await viewer
         .locator("video")
         .evaluate((v: HTMLVideoElement) =>
           (v.srcObject as MediaStream).getTracks().map((t) => t.id),
@@ -257,6 +269,91 @@ test("film audio/video share one presentation element and removing audio keeps t
       await expect
         .poll(() => receivedBytes(viewer, sharedTrackIds))
         .toBeGreaterThan(0);
+      if (cycle === 0) {
+        const tracks = await viewer
+          .locator("video")
+          .evaluate((v: HTMLVideoElement) => {
+            const stream = v.srcObject as MediaStream;
+            return {
+              video: stream.getVideoTracks().map((t) => t.id),
+              audio: stream.getAudioTracks().map((t) => t.id),
+              time: v.currentTime,
+            };
+          });
+        await viewer.evaluate(() => {
+          (
+            window as unknown as { visibilityProbe: { hidden: boolean } }
+          ).visibilityProbe.hidden = true;
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+        await expect
+          .poll(() =>
+            viewer
+              .locator("video")
+              .evaluate((v: HTMLVideoElement) => ({
+                video:
+                  (v.srcObject as MediaStream | null)?.getVideoTracks()
+                    .length ?? 0,
+                audio:
+                  (v.srcObject as MediaStream | null)?.getAudioTracks()
+                    .length ?? 0,
+              })),
+          )
+          .toEqual({ video: 0, audio: 1 });
+        await expect
+          .poll(async () => {
+            const before = await receivedBytes(viewer, tracks.video);
+            await new Promise((resolve) => setTimeout(resolve, 500));
+            return (await receivedBytes(viewer, tracks.video)) - before;
+          })
+          .toBe(0);
+        const audioBefore = await receivedBytes(viewer, tracks.audio);
+        await expect
+          .poll(() => receivedBytes(viewer, tracks.audio))
+          .toBeGreaterThan(audioBefore);
+        await expect
+          .poll(() =>
+            viewer
+              .locator("video")
+              .evaluate((v: HTMLVideoElement) => v.currentTime),
+          )
+          .toBeGreaterThan(tracks.time + 0.5);
+        await expect(
+          viewer.getByRole("button", { name: "暂停观看", exact: true }),
+        ).toBeVisible();
+        await expect(
+          viewer.getByRole("button", { name: "加入观看", exact: true }),
+        ).toHaveCount(0);
+        await viewer.evaluate(() => {
+          (
+            window as unknown as { visibilityProbe: { hidden: boolean } }
+          ).visibilityProbe.hidden = false;
+          document.dispatchEvent(new Event("visibilitychange"));
+        });
+        await expect
+          .poll(() =>
+            viewer
+              .locator("video")
+              .evaluate(
+                (v: HTMLVideoElement) =>
+                  (v.srcObject as MediaStream | null)?.getVideoTracks()
+                    .length ?? 0,
+              ),
+          )
+          .toBe(1);
+        await expect
+          .poll(() =>
+            viewer
+              .locator("video")
+              .evaluate((v: HTMLVideoElement) => v.videoWidth),
+          )
+          .toBeGreaterThan(0);
+        sharedTrackIds = await viewer
+          .locator("video")
+          .evaluate((v: HTMLVideoElement) =>
+            (v.srcObject as MediaStream).getTracks().map((t) => t.id),
+          );
+      }
       await viewer
         .getByRole("button", { name: "暂停观看", exact: true })
         .click();

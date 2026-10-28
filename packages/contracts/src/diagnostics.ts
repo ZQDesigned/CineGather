@@ -246,6 +246,7 @@ export const mediaDiagnosticSchema = z.object({
   microphoneNoise: microphoneNoiseSchema.optional(),
   state: text,
   watching: z.boolean(),
+  videoPaused: z.boolean().optional(),
   tracks: z
     .array(
       z.object({
@@ -466,6 +467,7 @@ export const diagnosticRecordSchema = z.object({
       noiseReduction: z.enum(["off", "basic", "enhanced"]).optional(),
       pushToTalk: z.boolean().optional(),
       watching: z.boolean(),
+      videoPaused: z.boolean().optional(),
       hidden: z.boolean(),
       online: z.boolean(),
     })
@@ -609,6 +611,7 @@ export const diagnosticSnapshotSchema = z.object({
   capturedAt: z.string().max(64).optional(),
   state: text.optional(),
   watching: z.boolean().optional(),
+  videoPaused: z.boolean().optional(),
   tracks: z
     .array(
       rtcStatSchema.extend({

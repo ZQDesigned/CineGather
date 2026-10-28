@@ -45,6 +45,8 @@ import {
   configureWindowsAppIdentity,
 } from "./window-chrome";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
+import { WindowVisibilityMonitor } from "./watch-visibility";
+import { nativeWindowVisibility } from "./native-window-visibility";
 configureWindowsAppIdentity(process.platform, app);
 configureHardwareEncoding(process.platform, app.commandLine);
 // Native preview is deliberately bound to 127.0.0.1. Chromium excludes the
@@ -64,6 +66,7 @@ protocol.registerSchemesAsPrivileged([
   },
 ]);
 let win: BrowserWindow | undefined;
+let watchVisibility: WindowVisibilityMonitor | undefined;
 let memberOverlay: MemberOverlay | undefined;
 let diagnostics: ProductionDiagnostics | undefined;
 let tray: Tray | undefined;
@@ -177,6 +180,7 @@ function foreground() {
   );
 }
 function previewForeground() {
+  watchVisibility?.sync();
   const active = foreground();
   if (!active) void nativeCapture?.stopPreview();
   if (win && !win.isDestroyed())
@@ -203,6 +207,22 @@ async function createWindow() {
     },
   });
   configureMainWindowMenu(process.platform, Menu, win);
+  watchVisibility?.dispose();
+  watchVisibility = new WindowVisibilityMonitor({
+    windows: () =>
+      [win, viewingWindow].filter((window): window is BrowserWindow =>
+        Boolean(window),
+      ),
+    blocked: () => screenLocked || suspended || quitting,
+    probe: nativeWindowVisibility(
+      process.platform,
+      app.isPackaged ? process.resourcesPath : undefined,
+    ),
+    changed: (visible) => {
+      if (win && !win.isDestroyed() && !win.webContents.isDestroyed())
+        win.webContents.send("desktop:watch-visibility", visible);
+    },
+  });
   win.webContents.setWindowOpenHandler(({ url, frameName }) => {
     if (allowedViewingWindow(url, frameName, win!.webContents.getURL())) {
       if (viewingWindow && !viewingWindow.isDestroyed()) {
@@ -254,6 +274,7 @@ async function createWindow() {
     });
     child.on("closed", () => {
       if (viewingWindow === child) viewingWindow = undefined;
+      watchVisibility?.sync();
     });
   });
   win.webContents.on("before-input-event", (event, input) => {
@@ -291,6 +312,7 @@ async function createWindow() {
     "did-start-navigation",
     (_event, _url, inPlace, mainFrame) => {
       if (mainFrame && !inPlace) {
+        watchVisibility?.watch(false);
         viewingWindow?.close();
         windowsAudio?.stop();
         accompaniment?.host.stop();
@@ -300,6 +322,7 @@ async function createWindow() {
     },
   );
   win.on("closed", () => {
+    watchVisibility?.watch(false);
     viewingWindow?.close();
     windowsAudio?.stop();
     accompaniment?.host.stop();
@@ -315,6 +338,7 @@ async function createWindow() {
     }
   });
   win.webContents.on("render-process-gone", () => {
+    watchVisibility?.watch(false);
     viewingWindow?.close();
     if (updates?.controller.snapshot().status !== "installing")
       updates?.controller.setInRoom(true);
@@ -482,6 +506,10 @@ function registerIPC() {
     return nativeCapture ? nativeCapture.sourceThumbnails(ids) : [];
   });
   handle("desktop:foreground", foreground);
+  handle(
+    "desktop:watch-visibility",
+    (input) => watchVisibility?.watch(z.boolean().parse(input)) ?? true,
+  );
   handle(
     "desktop:preview-start",
     (input) =>
@@ -724,6 +752,7 @@ else {
     }
   });
   app.on("before-quit", (event) => {
+    watchVisibility?.dispose();
     memberOverlay?.destroy();
     windowsAudio?.stop();
     accompaniment?.host.stop();

@@ -340,6 +340,10 @@ export interface MainWindowState {
 }
 export type MainWindowAction = "minimize" | "toggle-maximize" | "close";
 export interface DesktopBridge {
+  watchVisibility?: {
+    observe(watching: boolean): Promise<boolean>;
+    onChange(callback: (visible: boolean) => void): () => void;
+  };
   viewingWindow?: {
     action(action: "return" | "toggle-top" | "close"): Promise<boolean>;
   };

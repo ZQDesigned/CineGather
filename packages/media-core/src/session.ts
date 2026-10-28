@@ -62,6 +62,7 @@ export interface MediaSummary {
   sharer?: { id: string; name: string; local: boolean; hasVideo: boolean };
   audioBlocked: boolean;
   watching: boolean;
+  videoPaused?: boolean;
   systemAudio: boolean;
   microphoneNoise?: MicrophoneNoiseStatus;
 }
@@ -295,7 +296,11 @@ export class MediaSession {
     const publication = sharer?.getTrackPublication(Track.Source.ScreenShare);
     const viewing =
       sharer === room.localParticipant || this.subscriptions.watching;
-    const next = viewing ? publication?.track : undefined;
+    const next =
+      viewing &&
+      (sharer === room.localParticipant || this.subscriptions.videoVisible)
+        ? publication?.track
+        : undefined;
     this.videoTrack = next;
     const filmAudio = viewing
       ? sharer?.getTrackPublication(Track.Source.ScreenShareAudio)?.track
@@ -366,6 +371,8 @@ export class MediaSession {
       microphoneNoise: this.noiseStatus,
       audioBlocked: !room.canPlaybackAudio || this.voices.blocked,
       watching: this.subscriptions.watching,
+      videoPaused:
+        this.subscriptions.watching && !this.subscriptions.videoVisible,
       systemAudio: Boolean(
         sharer?.getTrackPublication(Track.Source.ScreenShareAudio),
       ),
@@ -377,10 +384,12 @@ export class MediaSession {
     participant: RemoteParticipant,
   ) {
     if (
-      !this.subscriptions.watching &&
-      [Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(
-        pub.source,
-      )
+      (!this.subscriptions.watching &&
+        [Track.Source.ScreenShare, Track.Source.ScreenShareAudio].includes(
+          pub.source,
+        )) ||
+      (pub.source === Track.Source.ScreenShare &&
+        !this.subscriptions.videoVisible)
     ) {
       pub.setSubscribed(false);
       return;
@@ -917,6 +926,12 @@ export class MediaSession {
     this.subscriptions.watch(enabled);
     this.emit();
   }
+  setVideoVisible(visible: boolean) {
+    if (this.subscriptions.videoVisible === visible) return;
+    this.subscriptions.setVideoVisible(visible);
+    this.diagnoseEvent(visible ? "view-video-visible" : "view-video-hidden");
+    this.emit();
+  }
   get inputRecoveryNeeded() {
     const room = this.room;
     const track =
@@ -970,6 +985,7 @@ export class MediaSession {
       state: detail.state,
       microphoneNoise: detail.microphoneNoise,
       watching: detail.watching,
+      videoPaused: detail.videoPaused,
       capturedAt: new Date().toISOString(),
       issues: detail.issues,
       encoderCapabilities: detail.encoderCapabilities,
@@ -1090,6 +1106,8 @@ export class MediaSession {
       encoderCapabilities: videoCapabilities(),
       state: room?.state ?? "disconnected",
       watching: this.subscriptions.watching,
+      videoPaused:
+        this.subscriptions.watching && !this.subscriptions.videoVisible,
       microphoneNoise: this.noiseStatus
         ? {
             requested: this.noiseStatus.requested,

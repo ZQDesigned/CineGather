@@ -20,7 +20,8 @@ import type {
   User,
   RoomInvitation,
 } from "@cinegather/contracts";
-import { state, update, defaults } from "./store";
+import { state, update, defaults, useApp } from "./store";
+import { bindWatchVisibility } from "./watch-visibility";
 import { serverOrigin } from "./server-address";
 import {
   capabilities,
@@ -785,6 +786,20 @@ function receiveInvitation(value: string) {
 }
 export async function initialize() {
   const stopDiagnostics = diagnostics.start();
+  const stopWatchVisibility = bindWatchVisibility({
+    bridge: window.desktop?.watchVisibility,
+    document,
+    setVideoVisible: (visible) => media.setVideoVisible(visible),
+    subscribeWatching: (changed) => {
+      const sync = () =>
+        changed(
+          Boolean(state().media.watching && !state().media.sharer?.local),
+        );
+      sync();
+      return useApp.subscribe(sync);
+    },
+    error: report,
+  });
   await window.desktop?.updates?.setInRoom(Boolean(state().room)).catch(report);
   try {
     const loaded = window.desktop
@@ -931,6 +946,7 @@ export async function initialize() {
     clearInterval(timer);
     clearInterval(policyTimer);
     stopDiagnostics();
+    stopWatchVisibility();
     stopPolicyEvents();
     window.removeEventListener("online", onlinePolicy);
     clearInterval(friendsTimer);

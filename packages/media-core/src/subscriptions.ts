@@ -22,6 +22,10 @@ interface SubscriptionRoom {
 export class ShareSubscriptions {
   private screenId?: string;
   watching = false;
+  videoVisible = true;
+  setVideoVisible(visible: boolean) {
+    this.videoVisible = visible;
+  }
   sync(room: SubscriptionRoom) {
     const participants = [...room.remoteParticipants.values()];
     const sharer = participants.find((p) =>
@@ -47,7 +51,11 @@ export class ShareSubscriptions {
         const shared =
           pub.source === Track.Source.ScreenShare ||
           pub.source === Track.Source.ScreenShareAudio;
-        const desired = shared ? this.watching && p === sharer : true;
+        const desired = shared
+          ? this.watching &&
+            p === sharer &&
+            (pub.source !== Track.Source.ScreenShare || this.videoVisible)
+          : true;
         if (pub.isDesired !== desired) pub.setSubscribed(desired);
       }
     }

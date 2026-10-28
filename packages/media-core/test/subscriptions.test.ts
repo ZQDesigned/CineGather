@@ -119,3 +119,51 @@ test("disconnect resets viewing selection before the same publication is seen ag
     false,
   ]);
 });
+
+test("fully hidden presentation pauses only video and restores consent without touching audio or voice", () => {
+  const f = fixture();
+  f.policy.sync(f.room);
+  f.policy.watch(true);
+  f.policy.sync(f.room);
+  f.policy.setVideoVisible(false);
+  f.policy.sync(f.room);
+  expect([
+    f.policy.watching,
+    f.video.isDesired,
+    f.audio.isDesired,
+    f.voice.isDesired,
+  ]).toEqual([true, false, true, true]);
+  f.policy.setVideoVisible(true);
+  f.policy.sync(f.room);
+  expect([
+    f.policy.watching,
+    f.video.isDesired,
+    f.audio.isDesired,
+    f.voice.isDesired,
+  ]).toEqual([true, true, true, true]);
+});
+test("manual pause and changed publication while hidden never resume a different share automatically", () => {
+  const f = fixture();
+  f.policy.sync(f.room);
+  f.policy.watch(true);
+  f.policy.setVideoVisible(false);
+  f.policy.sync(f.room);
+  f.policy.watch(false);
+  f.policy.setVideoVisible(true);
+  f.policy.sync(f.room);
+  expect([f.video.isDesired, f.audio.isDesired]).toEqual([false, false]);
+  f.policy.watch(true);
+  f.policy.setVideoVisible(false);
+  f.policy.sync(f.room);
+  f.other.trackPublications.delete("screen");
+  const next = publication("replacement", Track.Source.ScreenShare);
+  f.other.trackPublications.set(next.trackSid, next);
+  f.policy.sync(f.room);
+  f.policy.setVideoVisible(true);
+  f.policy.sync(f.room);
+  expect([f.policy.watching, next.isDesired, f.audio.isDesired]).toEqual([
+    false,
+    false,
+    false,
+  ]);
+});

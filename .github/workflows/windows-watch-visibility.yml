@@ -1,0 +1,34 @@
+name: windows-watch-visibility
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - apps/desktop/src/main/watch-visibility.ts
+      - apps/desktop/src/main/native-window-visibility.ts
+      - apps/desktop/test/watch-visibility.test.ts
+      - packages/media-core/src/subscriptions.ts
+      - packages/media-core/test/subscriptions.test.ts
+      - tools/watch-visibility-smoke.ts
+      - .github/workflows/windows-watch-visibility.yml
+jobs:
+  native-visibility:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - run: bun install --frozen-lockfile
+      - run: bun run setup
+      - run: bun test apps/desktop/test/watch-visibility.test.ts packages/media-core/test/subscriptions.test.ts
+      - run: bun tools/watch-visibility-smoke.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-watch-visibility-evidence
+          include-hidden-files: true
+          path: .local/watch-visibility-verification/*.json

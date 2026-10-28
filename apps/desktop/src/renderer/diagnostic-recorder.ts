@@ -177,7 +177,7 @@ type Context = {
   roomState: string;
   shareState: string;
   settings: DesktopSettings;
-  media: { watching: boolean; revision?: number };
+  media: { watching: boolean; revision?: number; videoPaused?: boolean };
   user?: unknown;
 };
 export class DiagnosticRecorder {
@@ -238,6 +238,7 @@ export class DiagnosticRecorder {
           noiseReduction: context.settings.noiseReduction,
           pushToTalk: context.settings.pushToTalk,
           watching: context.media.watching,
+          videoPaused: context.media.videoPaused,
           hidden: document.hidden,
           online: navigator.onLine,
         },
@@ -356,6 +357,7 @@ export class DiagnosticRecorder {
         context.roomState,
         context.shareState,
         context.media.watching,
+        context.media.videoPaused,
         context.settings.quality,
       ]);
       if (stamp !== this.previousContext) {
