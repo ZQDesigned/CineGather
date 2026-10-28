@@ -4,6 +4,8 @@ import {
   configureMainWindowMenu,
   controlMainWindow,
   mainWindowState,
+  configureWindowsAppIdentity,
+  windowsAppId,
 } from "../src/main/window-chrome";
 test("Windows uses a frameless window without a native caption overlay", () => {
   expect(mainWindowChrome("win32")).toEqual({
@@ -76,4 +78,21 @@ test("frontend commands use current OS maximize state and close through the exis
   controlMainWindow(destroyed, "close");
   expect(mainWindowState(destroyed)).toEqual({ maximized: false });
   expect(calls).toHaveLength(5);
+});
+
+test("Windows runtime identity matches the installer's version-independent taskbar identity", async () => {
+  const config = await Bun.file("apps/desktop/electron-builder.yml").text();
+  const appId = /^appId: (.+)$/m.exec(config)?.[1] ?? "";
+  expect(windowsAppId).toBe(appId);
+  const calls: string[] = [];
+  const application = {
+    setAppUserModelId: (id: string) => {
+      calls.push(id);
+    },
+  };
+  configureWindowsAppIdentity("win32", application);
+  expect(calls).toEqual(["city.zqdesigned.cinegather"]);
+  configureWindowsAppIdentity("darwin", application);
+  configureWindowsAppIdentity("linux", application);
+  expect(calls).toHaveLength(1);
 });

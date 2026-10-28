@@ -2,6 +2,16 @@ import type { BrowserWindow, BrowserWindowConstructorOptions } from "electron";
 import { z } from "zod";
 import type { MainWindowState } from "@cinegather/contracts";
 
+// Match NSIS shortcut metadata. Never include the executable path or version:
+// Windows must recognize pinned shortcuts and running windows as the same app.
+export const windowsAppId = "city.zqdesigned.cinegather";
+export function configureWindowsAppIdentity(
+  platform: string,
+  application: { setAppUserModelId(id: string): void },
+) {
+  if (platform === "win32") application.setAppUserModelId(windowsAppId);
+}
+
 export function mainWindowChrome(
   platform: string,
 ): Pick<

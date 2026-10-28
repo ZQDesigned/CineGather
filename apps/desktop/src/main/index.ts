@@ -39,8 +39,10 @@ import {
   configureMainWindowMenu,
   mainWindowState,
   controlMainWindow,
+  configureWindowsAppIdentity,
 } from "./window-chrome";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
+configureWindowsAppIdentity(process.platform, app);
 configureHardwareEncoding(process.platform, app.commandLine);
 // Native preview is deliberately bound to 127.0.0.1. Chromium excludes the
 // loopback interface by default; enumerate it rather than relying on LAN ICE.

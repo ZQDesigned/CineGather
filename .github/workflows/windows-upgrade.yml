@@ -10,6 +10,10 @@ on:
       - bun.lock
       - tools/noise-package-smoke.ts
       - tools/window-chrome-smoke.ts
+      - tools/windows-identity-probe.ts
+      - tools/windows-in-app-upgrade-smoke.ts
+      - tools/windows-shortcut-probe.ps1
+      - apps/desktop/src/main/window-chrome.ts
       - tools/viewing-window-smoke.ts
       - tools/update-gate-smoke.ts
       - .github/workflows/windows-upgrade.yml
@@ -62,6 +66,11 @@ jobs:
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
           ./tools/windows-upgrade-smoke.ps1 -UpgradeInstaller "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+      - name: Verify in-app updates preserve installed shortcuts and Windows identity
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          bun tools/windows-in-app-upgrade-smoke.ts "apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

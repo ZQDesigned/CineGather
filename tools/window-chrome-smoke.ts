@@ -2,6 +2,8 @@ import { _electron, expect } from "@playwright/test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { windowsProcessIdentity } from "./windows-identity-probe";
+import { windowsAppId } from "../apps/desktop/src/main/window-chrome";
 import { defaultSettings } from "../apps/desktop/src/shared/settings";
 if (process.platform !== "win32")
   throw new Error("Run this packaged caption test on Windows");
@@ -20,6 +22,10 @@ const app = await _electron.launch({
 });
 try {
   const page = await app.firstWindow();
+  expect(await windowsProcessIdentity(app)).toMatchObject({
+    hresult: 0,
+    identity: windowsAppId,
+  });
   await expect(page.locator(".app")).toHaveAttribute("data-platform", "win32");
   expect(
     await app.evaluate(({ Menu }) => Menu.getApplicationMenu() === null),
