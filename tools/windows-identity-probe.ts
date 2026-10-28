@@ -1,12 +1,11 @@
-/* eslint-disable @typescript-eslint/no-require-imports -- Electron debugging contexts expose require but no dynamic-import hook. */
 import type { ElectronApplication } from "@playwright/test";
 
 export async function windowsProcessIdentity(application: ElectronApplication) {
   return application.evaluate(({ app }) => {
-    const { createRequire } =
-      require("node:module") as typeof import("node:module");
-    const { join } = require("node:path") as typeof import("node:path");
-    const load = createRequire(join(app.getAppPath(), "package.json"));
+    const entry = (process as NodeJS.Process & { mainModule: NodeModule })
+      .mainModule;
+    const load = entry.require.bind(entry);
+    const { join } = load("node:path") as typeof import("node:path");
     const ffi = load(
       join(process.resourcesPath, "native/node_modules/koffi/index.cjs"),
     ) as typeof import("koffi");
