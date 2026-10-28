@@ -866,10 +866,21 @@ export const AppSurface = styled.div`
     font-size: 8px;
     margin-top: 13px;
   }
-  .stage-fullscreen {
+  .stage-view-controls {
     position: absolute;
     bottom: 12px;
     right: 12px;
+    z-index: 3;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .stage-action.ant-btn {
+    width: 36px;
+    height: 36px;
+    padding: 0;
+    border: 0;
+    border-radius: 8px;
     background: #090b1040;
     color: #757d90;
   }
@@ -1227,7 +1238,7 @@ export const AppSurface = styled.div`
   .stage:fullscreen > video {
     object-fit: contain;
   }
-  .stage:fullscreen > .stage-fullscreen {
+  .stage:fullscreen > .stage-view-controls {
     position: absolute;
     bottom: 25px;
     right: 25px;

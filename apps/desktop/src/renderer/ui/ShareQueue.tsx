@@ -1,11 +1,12 @@
-import { useEffect, useRef, useState } from "react";
-import { App, Popover, Flex, Typography, Badge, Empty, Alert } from "antd";
-import { ListOrdered } from "lucide-react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { App, Flex } from "antd";
+import { MonitorUp } from "lucide-react";
 import type { ShareRequest } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import { useApp } from "../store";
 import { api, report, shareSession } from "../controller";
 import { Button } from "./Controls";
+
 export function ShareQueue() {
   const room = useApp((s) => s.room),
     sharer = useApp((s) => s.media.sharer),
@@ -13,64 +14,105 @@ export function ShareQueue() {
     shareState = useApp((s) => s.shareState);
   const { notification } = App.useApp();
   const [items, setItems] = useState<ShareRequest[]>([]),
-    [busy, setBusy] = useState(false),
-    [error, setError] = useState(false),
-    [open, setOpen] = useState(false);
-  const noticed = useRef(new Set<string>());
+    [busy, setBusy] = useState(false);
+  const pending = useRef(false);
+  const revision = useRef(0);
+  const notices = useRef(new Map<string, string>());
   const roomId = room?.id;
+  const connected = status === "connected";
   const own = items.find((r) => r.current);
-  const publisher = sharer?.local;
-  const start = (requestId: string) => {
-    setOpen(false);
-    notification.destroy("share-handoff");
-    void shareSession.startHandoff(async () =>
-      unwrap(
-        await api.POST(
-          "/api/v1/rooms/{roomId}/share-requests/{requestId}/acquire",
-          { params: { path: { roomId: roomId!, requestId } } },
-        ),
-      ),
+  const publisher = Boolean(sharer?.local);
+  const idle = ["idle", "failed"].includes(shareState);
+  const blocked = room?.memberPermissions?.some(
+    (p) => p.userId === useApp.getState().user?.id && !p.sharingAllowed,
+  );
+  const refresh = useCallback(async () => {
+    const next = unwrap(
+      await api.GET("/api/v1/rooms/{roomId}/share-requests", {
+        params: { path: { roomId: roomId! } },
+      }),
     );
-  };
+    if (useApp.getState().room?.id === roomId) setItems(next.items);
+  }, [roomId]);
+  const mutate = useCallback(
+    async (
+      action: "request" | "cancel" | "approve" | "reject",
+      requestId?: string,
+    ) => {
+      if (!roomId || pending.current || useApp.getState().room?.id !== roomId)
+        return;
+      pending.current = true;
+      ++revision.current;
+      setBusy(true);
+      try {
+        const params = { path: { roomId, requestId: requestId! } };
+        unwrap(
+          action === "request"
+            ? await api.POST("/api/v1/rooms/{roomId}/share-requests", {
+                params,
+              })
+            : action === "cancel"
+              ? await api.DELETE("/api/v1/rooms/{roomId}/share-requests", {
+                  params,
+                })
+              : action === "approve"
+                ? await api.POST(
+                    "/api/v1/rooms/{roomId}/share-requests/{requestId}/approve",
+                    { params },
+                  )
+                : await api.POST(
+                    "/api/v1/rooms/{roomId}/share-requests/{requestId}/reject",
+                    { params },
+                  ),
+        );
+        await refresh();
+      } catch (error) {
+        report(error);
+        // Remove expired requests even when the decision itself was rejected.
+        await refresh().catch(() => {});
+      } finally {
+        pending.current = false;
+        setBusy(false);
+      }
+    },
+    [roomId, refresh],
+  );
+  const start = useCallback(
+    (requestId: string) => {
+      if (useApp.getState().room?.id !== roomId) return;
+      // Keep the notification available after the source picker is cancelled.
+      void shareSession.startHandoff(async () =>
+        unwrap(
+          await api.POST(
+            "/api/v1/rooms/{roomId}/share-requests/{requestId}/acquire",
+            {
+              params: { path: { roomId: roomId!, requestId } },
+            },
+          ),
+        ),
+      );
+    },
+    [roomId],
+  );
   useEffect(() => {
-    if (!roomId || status !== "connected") return;
+    if (!roomId || !connected) return;
     let active = true,
-      pending = false;
+      polling = false;
     const poll = async () => {
-      if (pending) return;
-      pending = true;
+      if (polling || pending.current) return;
+      polling = true;
+      const version = revision.current;
       try {
         const next = unwrap(
           await api.GET("/api/v1/rooms/{roomId}/share-requests", {
             params: { path: { roomId } },
           }),
         );
-        if (active) {
-          setItems(next.items);
-          setError(false);
-          const approved = next.items.find(
-            (r) => r.current && r.status === "approved",
-          );
-          if (!approved) notification.destroy("share-handoff");
-          if (approved && !noticed.current.has(approved.id)) {
-            noticed.current.add(approved.id);
-            notification.info({
-              key: "share-handoff",
-              title: "可以接棒共享了",
-              description: "选择你的共享来源并确认后切换画面。",
-              duration: 0,
-              actions: (
-                <Button type="primary" onClick={() => start(approved.id)}>
-                  选择来源
-                </Button>
-              ),
-            });
-          }
-        }
+        if (active && version === revision.current) setItems(next.items);
       } catch {
-        if (active) setError(true);
+        // Retain existing actionable notifications through a transient network failure.
       } finally {
-        pending = false;
+        polling = false;
       }
     };
     void poll();
@@ -78,131 +120,126 @@ export function ShareQueue() {
     return () => {
       active = false;
       clearInterval(timer);
-      notification.destroy("share-handoff");
     };
-    // Request callbacks use the stable room ID captured by this effect.
-  }, [roomId, status]);
-  const mutate = async (
-    action: "request" | "cancel" | "approve" | "reject",
-    requestId?: string,
-  ) => {
-    if (!roomId || busy) return;
-    setBusy(true);
-    try {
-      const params = { path: { roomId, requestId: requestId! } };
-      unwrap(
-        action === "request"
-          ? await api.POST("/api/v1/rooms/{roomId}/share-requests", { params })
-          : action === "cancel"
-            ? await api.DELETE("/api/v1/rooms/{roomId}/share-requests", {
-                params,
-              })
-            : action === "approve"
-              ? await api.POST(
-                  "/api/v1/rooms/{roomId}/share-requests/{requestId}/approve",
-                  { params },
-                )
-              : await api.POST(
-                  "/api/v1/rooms/{roomId}/share-requests/{requestId}/reject",
-                  { params },
-                ),
-      );
-      setItems(
-        unwrap(
-          await api.GET("/api/v1/rooms/{roomId}/share-requests", {
-            params: { path: { roomId } },
-          }),
-        ).items,
-      );
-    } catch (e) {
-      report(e);
-    } finally {
-      setBusy(false);
-    }
-  };
-  if (!sharer && !items.length) return null;
-  return (
-    <Popover
-      trigger="click"
-      open={open}
-      onOpenChange={setOpen}
-      placement="bottomRight"
-      title="共享接棒"
-      content={
-        <Flex
-          vertical
-          gap={12}
-          style={{ width: 300, maxHeight: 360, overflowY: "auto" }}
-        >
-          {error && <Alert type="warning" title="暂时无法获取队列" />}
-          {!items.length ? (
-            <Empty
-              image={Empty.PRESENTED_IMAGE_SIMPLE}
-              description="还没有接棒申请"
-            />
-          ) : (
-            items.map((r, i) => (
-              <Flex key={r.id} align="center" gap={8}>
-                <Typography.Text style={{ flex: 1, minWidth: 0 }} ellipsis>
-                  {i + 1}. {r.displayName}
-                  {r.current ? "（你）" : ""}
-                </Typography.Text>
-                {r.status === "approved" ? (
-                  <Typography.Text type="secondary">等待确认</Typography.Text>
-                ) : (
-                  publisher && (
-                    <>
-                      <Button
-                        size="small"
-                        disabled={busy || i !== 0}
-                        onClick={() => void mutate("approve", r.id)}
-                      >
-                        同意
-                      </Button>
-                      <Button
-                        size="small"
-                        disabled={busy}
-                        onClick={() => void mutate("reject", r.id)}
-                      >
-                        拒绝
-                      </Button>
-                    </>
-                  )
-                )}
-              </Flex>
-            ))
-          )}
-          {own?.status === "approved" && (
-            <Button
-              type="primary"
-              disabled={busy || !["idle", "failed"].includes(shareState)}
-              onClick={() => start(own.id)}
-            >
-              选择来源并接棒
-            </Button>
-          )}
-          {!publisher &&
-            sharer &&
-            (own ? (
-              <Button disabled={busy} onClick={() => void mutate("cancel")}>
-                取消申请
-              </Button>
-            ) : (
-              <Button
-                type="primary"
-                loading={busy}
-                onClick={() => void mutate("request")}
-              >
-                申请接棒
-              </Button>
-            ))}
-        </Flex>
+  }, [roomId, connected]);
+  useEffect(
+    () => () => {
+      for (const key of notices.current.keys()) notification.destroy(key);
+      notices.current.clear();
+    },
+    [notification],
+  );
+  useEffect(() => {
+    // The publisher handles the head of the queue directly in its notification.
+    // Other requests become actionable once the preceding one has been resolved.
+    const relevant =
+      connected && sharer
+        ? publisher
+          ? items.slice(0, 1)
+          : items.filter((r) => r.current)
+        : [];
+    const keys = new Set(relevant.map((r) => `share-request:${r.id}`));
+    for (const key of notices.current.keys()) {
+      if (!keys.has(key)) {
+        notification.destroy(key);
+        notices.current.delete(key);
       }
+    }
+    for (const request of relevant) {
+      const key = `share-request:${request.id}`;
+      const signature = JSON.stringify([
+        request,
+        publisher,
+        busy,
+        idle,
+        blocked,
+      ]);
+      if (notices.current.get(key) === signature) continue;
+      notices.current.set(key, signature);
+      const approved = request.status === "approved";
+      notification.info({
+        key,
+        title: publisher
+          ? approved
+            ? "已同意共享申请"
+            : `${request.displayName} 申请共享`
+          : approved
+            ? "共享申请已同意"
+            : "共享申请已发送",
+        description: publisher
+          ? approved
+            ? `等待${request.displayName}选择来源并确认。`
+            : "同意后，对方确认共享来源才会切换画面。"
+          : approved
+            ? "选择共享来源并确认后开始共享。"
+            : "等待当前共享者同意。",
+        duration: 0,
+        closable: false,
+        actions: (
+          <Flex gap={8}>
+            {publisher ? (
+              <>
+                <Button
+                  disabled={busy}
+                  onClick={() => void mutate("reject", request.id)}
+                >
+                  {approved ? "撤销同意" : "拒绝"}
+                </Button>
+                {!approved && (
+                  <Button
+                    type="primary"
+                    disabled={busy}
+                    onClick={() => void mutate("approve", request.id)}
+                  >
+                    同意
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                <Button
+                  disabled={busy || !idle}
+                  onClick={() => void mutate("cancel")}
+                >
+                  取消申请
+                </Button>
+                {approved && (
+                  <Button
+                    type="primary"
+                    disabled={busy || !idle || blocked}
+                    onClick={() => start(request.id)}
+                  >
+                    选择来源
+                  </Button>
+                )}
+              </>
+            )}
+          </Flex>
+        ),
+      });
+    }
+  }, [
+    items,
+    publisher,
+    sharer,
+    connected,
+    busy,
+    idle,
+    blocked,
+    mutate,
+    start,
+    notification,
+  ]);
+  if (!connected || !sharer || publisher) return null;
+  return (
+    <Button
+      type="text"
+      className="control-button"
+      disabled={busy || !idle || (!own && blocked)}
+      onClick={() => void mutate(own ? "cancel" : "request")}
     >
-      <Button aria-label="共享接棒" icon={<ListOrdered size={16} />}>
-        <span>共享接棒</span>
-        <Badge count={items.length} size="small" />
-      </Button>
-    </Popover>
+      <MonitorUp size={21} />
+      <span>{own ? "取消申请" : "申请共享"}</span>
+    </Button>
   );
 }

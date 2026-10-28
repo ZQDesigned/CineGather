@@ -278,7 +278,7 @@ export function useViewingWindow(enabled: boolean) {
         aria-label={active ? "返回主窗口" : "观看小窗"}
         onClick={() => (active ? close() : void open())}
         icon={<PictureInPicture2 size={17} />}
-        style={{ position: "absolute", bottom: 16, right: 64, zIndex: 3 }}
+        className="stage-action"
       />
     ) : null,
     presentation,

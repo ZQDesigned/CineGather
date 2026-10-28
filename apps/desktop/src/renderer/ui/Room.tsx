@@ -122,7 +122,6 @@ export function Room({ visible = true }: { visible?: boolean }) {
           </Tag>
         </div>
         <div className="heading-actions">
-          <ShareQueue />
           {app.room!.role === "owner" && (
             <Button onClick={() => update({ modal: "room-settings" })}>
               <Settings size={16} />
@@ -183,7 +182,6 @@ export function Room({ visible = true }: { visible?: boolean }) {
               <Video />
             )}
             {viewingWindow.presentation}
-            {viewingWindow.control}
             {viewingWindow.active && (
               <div className="stage-empty">
                 <PictureInPicture2 size={42} />
@@ -262,22 +260,21 @@ export function Room({ visible = true }: { visible?: boolean }) {
                 )}
               </div>
             )}
-            {!sharingOwnScreen &&
-              !viewingWindow.active &&
-              (!otherSharing || app.media.watching) &&
-              capabilities().fullscreen && (
-                <Tooltip title="全屏画面">
+            <div className="stage-view-controls">
+              {viewingWindow.control}
+              {!sharingOwnScreen &&
+                !viewingWindow.active &&
+                (!otherSharing || app.media.watching) &&
+                capabilities().fullscreen && (
                   <Button
                     type="text"
-                    className="stage-fullscreen"
-                    title="全屏画面"
+                    className="stage-action"
                     aria-label="全屏画面"
                     onClick={fullscreen}
-                  >
-                    <Maximize size={17} />
-                  </Button>
-                </Tooltip>
-              )}
+                    icon={<Maximize size={17} />}
+                  />
+                )}
+            </div>
           </div>
           {app.shareState === "active" && (
             <Alert
@@ -405,43 +402,46 @@ export function Room({ visible = true }: { visible?: boolean }) {
               </Button>
             </div>
             <div className="control-divider" />
-            <Button
-              type="text"
-              aria-pressed={sharing}
-              className={`control-button ${sharing ? "sharing-control" : ""}`}
-              disabled={
-                !connected ||
-                (shareBlocked && !sharing) ||
-                (otherSharing && !canPreempt && !sharing)
-              }
-              onClick={() => {
-                if (sharing) void actions.stopShare();
-                else if (canPreempt)
-                  modal.confirm({
-                    title: "抢占当前共享？",
-                    content: `将停止${app.media.sharer!.name}的共享，并开始选择你的共享画面。`,
-                    okText: "抢占共享",
-                    cancelText: "取消",
-                    onOk: () => {
-                      void actions.shareSession.start(true);
-                    },
-                  });
-                else void actions.shareSession.start();
-              }}
-            >
-              <MonitorUp size={21} />
-              <span>
-                {sharing
-                  ? app.shareState === "active"
-                    ? "停止共享"
-                    : "取消共享"
-                  : shareBlocked
-                    ? "已被禁止共享"
-                    : canPreempt
-                      ? "抢占共享"
-                      : "共享屏幕"}
-              </span>
-            </Button>
+            {(!otherSharing || canPreempt || sharing) && (
+              <Button
+                type="text"
+                aria-pressed={sharing}
+                className={`control-button ${sharing ? "sharing-control" : ""}`}
+                disabled={
+                  !connected ||
+                  (shareBlocked && !sharing) ||
+                  (otherSharing && !canPreempt && !sharing)
+                }
+                onClick={() => {
+                  if (sharing) void actions.stopShare();
+                  else if (canPreempt)
+                    modal.confirm({
+                      title: "抢占当前共享？",
+                      content: `将停止${app.media.sharer!.name}的共享，并开始选择你的共享画面。`,
+                      okText: "抢占共享",
+                      cancelText: "取消",
+                      onOk: () => {
+                        void actions.shareSession.start(true);
+                      },
+                    });
+                  else void actions.shareSession.start();
+                }}
+              >
+                <MonitorUp size={21} />
+                <span>
+                  {sharing
+                    ? app.shareState === "active"
+                      ? "停止共享"
+                      : "取消共享"
+                    : shareBlocked
+                      ? "已被禁止共享"
+                      : canPreempt
+                        ? "抢占共享"
+                        : "共享屏幕"}
+                </span>
+              </Button>
+            )}
+            <ShareQueue key={app.room!.id} />
             {otherSharing && app.media.watching && (
               <Button
                 type="text"

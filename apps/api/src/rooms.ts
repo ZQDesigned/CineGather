@@ -670,7 +670,7 @@ export async function acquireLease(
           current.leaseId !== request.leaseId ||
           current.revision !== request.revision
         )
-          fail(409, "SHARE_REQUEST_EXPIRED", "接棒申请已失效，请重新申请");
+          fail(409, "SHARE_REQUEST_EXPIRED", "共享申请已失效，请重新申请");
       }
       const participants = await media.participants(roomId);
       if (

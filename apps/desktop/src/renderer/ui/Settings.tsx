@@ -388,7 +388,7 @@ export function Settings() {
             >
               {verifying ? "正在验证…" : "保存地址"}
             </Button>
-          ) : tab !== "account" && tab !== "updates" ? (
+          ) : tab !== "account" && tab !== "devices" && tab !== "updates" ? (
             <Button
               type="primary"
               htmlType="submit"
@@ -426,9 +426,13 @@ export function Settings() {
                         用户名：{user.username}
                       </p>
                       <AccountForm mode="password" />
-                      <DeviceSessions />
                     </>
                   ),
+                },
+                {
+                  key: "devices",
+                  label: "登录设备",
+                  children: <DeviceSessions />,
                 },
               ]
             : []),

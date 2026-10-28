@@ -10,6 +10,7 @@ on:
       - bun.lock
       - tools/noise-package-smoke.ts
       - tools/window-chrome-smoke.ts
+      - tools/viewing-window-smoke.ts
       - .github/workflows/windows-upgrade.yml
 jobs:
   upgrade:
@@ -51,6 +52,8 @@ jobs:
         run: bun tools/noise-package-smoke.ts
       - name: Verify packaged Windows caption controls
         run: bun tools/window-chrome-smoke.ts
+      - name: Verify packaged viewing window lifecycle
+        run: bun tools/viewing-window-smoke.ts
       - name: Verify old-to-new upgrade with a locked capture helper
         shell: pwsh
         run: |
@@ -66,6 +69,7 @@ jobs:
             .local/windows-upgrade/*.jsonl
             .local/noise-verification/*.json
             .local/window-chrome-verification/*.json
+            .local/viewing-window-verification/*.json
       - uses: actions/upload-artifact@v4
         with:
           name: cinegather-windows-upgrade-tested

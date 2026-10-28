@@ -131,7 +131,7 @@ export async function requestShare(user: User, roomId: string) {
         fail(
           409,
           "SHARE_REQUEST_OTHER_DEVICE",
-          "你已在另一台设备申请接棒，请在该设备继续操作",
+          "你已在另一台设备申请共享，请在该设备继续操作",
         );
       return { ok: true as const };
     }
@@ -177,9 +177,9 @@ export async function decideShareRequest(
       lease?.holderUserId !== user.id ||
       lease.credentialId !== sessionCredential(user)
     )
-      fail(403, "FORBIDDEN", "仅当前共享者可以处理接棒申请");
+      fail(403, "FORBIDDEN", "仅当前共享者可以处理共享申请");
     const request = rows.find((r) => r.id === requestId);
-    if (!request) fail(409, "SHARE_REQUEST_EXPIRED", "接棒申请已失效");
+    if (!request) fail(409, "SHARE_REQUEST_EXPIRED", "共享申请已失效");
     if (approve) {
       if (rows[0]?.id !== request.id)
         fail(409, "SHARE_QUEUE_ORDER", "请先处理排在前面的申请");
