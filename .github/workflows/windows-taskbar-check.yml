@@ -1,0 +1,73 @@
+name: windows-taskbar-check
+on:
+  workflow_dispatch:
+    inputs:
+      artifact-run:
+        description: Existing windows-upgrade run with an unchanged application build
+        required: true
+        default: "40695514727"
+  push:
+    branches: [feat/windows-taskbar-upgrade]
+    paths:
+      - tools/windows-in-app-upgrade-smoke.ts
+      - tools/windows-shortcut-probe.ps1
+      - tools/windows-identity-probe.ts
+      - .github/workflows/windows-taskbar-check.yml
+permissions:
+  contents: read
+  actions: read
+jobs:
+  check:
+    runs-on: windows-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - name: Verify reused build provenance
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          ARTIFACT_RUN: ${{ inputs.artifact-run || '40695514727' }}
+        run: |
+          $run = gh api "repos/$env:GITHUB_REPOSITORY/actions/runs/$env:ARTIFACT_RUN" | ConvertFrom-Json
+          if ($run.head_repository.full_name -ne $env:GITHUB_REPOSITORY) { throw 'Foreign build rejected' }
+          if ($run.path -ne '.github/workflows/windows-upgrade.yml') { throw 'Unexpected build workflow' }
+          $diff = gh api "repos/$env:GITHUB_REPOSITORY/compare/$($run.head_sha)...$env:GITHUB_SHA" | ConvertFrom-Json
+          if (@($diff.files).Count -ge 290) { throw 'Comparison may be truncated' }
+          $runtimeChanges = @($diff.files | Where-Object { $_.filename -notmatch '^(tools/|\.github/|apps/desktop/test/)' })
+          if ($runtimeChanges.Count) { throw 'Application changed: a new build is required' }
+          Write-Host "Verified application build $($run.head_sha)"
+      - run: bun install --frozen-lockfile
+      - run: bun run setup
+      - uses: actions/download-artifact@v4
+        with:
+          name: cinegather-windows-upgrade-tested
+          run-id: ${{ inputs.artifact-run || '40695514727' }}
+          github-token: ${{ github.token }}
+          path: apps/desktop/release
+      - name: Extract verified installer payload
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          & 7z x "apps/desktop/release/CineGather-$version-win-x64-setup.exe" '-o.local/taskbar-archive' -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
+          & 7z x '.local/taskbar-archive/$PLUGINSDIR/app-64.7z' '-oapps/desktop/release/win-unpacked' -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Payload extraction failed' }
+      - name: Verify actual in-app upgrade and uninstall
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          bun tools/windows-in-app-upgrade-smoke.ts "apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-taskbar-evidence
+          include-hidden-files: true
+          path: |
+            .local/windows-upgrade/*.json
+            .local/windows-upgrade/*.error

@@ -28,9 +28,15 @@ const powershell = (script: string) =>
     { encoding: "utf8", timeout: 150_000 },
   ).trim();
 const publicInstaller = join(directory, "CineGather-0.1.20-public-setup.exe");
+console.log("Downloading the released 0.1.20 baseline");
 powershell(
-  `$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest 'https://cgplat.zqdesigned.city/downloads/CineGather-0.1.20-win-x64-setup.exe' -OutFile '${publicInstaller}'; $p=Start-Process '${publicInstaller}' -ArgumentList @('/S','--updated','/D=${install}') -PassThru -Wait; if($p.ExitCode -ne 0){throw 'Baseline installation failed'}`,
+  `$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest 'https://cgplat.zqdesigned.city/downloads/CineGather-0.1.20-win-x64-setup.exe' -TimeoutSec 90 -OutFile '${publicInstaller}'; @{ stage='downloaded'; bytes=(Get-Item '${publicInstaller}').Length } | ConvertTo-Json | Set-Content '${join(directory, "baseline-download.json")}'`,
 );
+console.log("Installing the released baseline");
+powershell(
+  `$ErrorActionPreference='Stop'; $p=Start-Process '${publicInstaller}' -ArgumentList @('/S','--updated','/D=${install}') -PassThru; if(-not $p.WaitForExit(90000)){Get-CimInstance Win32_Process | Select-Object ProcessId,ParentProcessId,Name,ExecutablePath | ConvertTo-Json | Set-Content '${join(directory, "baseline-timeout.json")}'; & taskkill /F /T /PID $p.Id; throw 'Baseline installation timed out'}; if($p.ExitCode -ne 0){throw "Baseline installation failed: $($p.ExitCode)"}`,
+);
+console.log("Baseline installed; checking shortcut metadata");
 interface Shortcut {
   kind: string;
   path: string;
@@ -73,6 +79,7 @@ const results: unknown[] = [];
 let application: ElectronApplication | undefined;
 try {
   for (let round = 1; round <= 2; round++) {
+    console.log(`Starting in-app upgrade round ${round}`);
     application = await _electron.launch({
       executablePath: executable,
       args: ["--mute-audio"],
@@ -158,6 +165,7 @@ try {
       (await application.firstWindow()).locator(".app"),
     ).toBeVisible();
     const identityAfter = await windowsProcessIdentity(application);
+    console.log(JSON.stringify({ round, identityBefore, identityAfter }));
     expect(identityAfter).toMatchObject({ hresult: 0, identity: windowsAppId });
     await application.close();
     application = undefined;
