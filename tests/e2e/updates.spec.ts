@@ -48,8 +48,10 @@ async function fixture(page: Page, mode: UpdateStatus["mode"]) {
             calls.push("auto-download:" + String(settings.autoDownloadUpdates));
           },
           updates: {
-            requireUpdate: async (minimumVersion: string, reason: string) =>
-              emit({ required: true, minimumVersion, reason }),
+            requireUpdate: async (minimumVersion: string, reason: string) => {
+              calls.push("require:" + reason);
+              emit({ required: true, minimumVersion, reason });
+            },
             quit: async () => {
               calls.push("quit");
             },
@@ -433,4 +435,44 @@ test("updating from a real room waits for server leave and keeps the installer s
     )
     .toBe(true);
   expect(errors).toEqual([]);
+});
+
+test("native update status never echoes back through IPC and equal-version reasons remain stable", async ({
+  page,
+}) => {
+  await fixture(page, "install");
+  await page.evaluate(
+    (minimumVersion) =>
+      window.updateTest!.emit({
+        required: true,
+        minimumVersion,
+        reason: "清单说明",
+        status: "downloading",
+        progress: 30,
+      }),
+    nextClientVersion,
+  );
+  const gate = page.getByRole("dialog", { name: "需要更新映聚" });
+  await expect(gate).toContainText("清单说明");
+  await page.evaluate((minimumVersion) => {
+    for (let i = 0; i < 50; i++)
+      window.updateTest!.emit({
+        required: true,
+        minimumVersion,
+        reason: i % 2 ? "清单说明" : "服务端说明",
+        status: "downloading",
+        progress: 31 + i,
+      });
+  }, nextClientVersion);
+  await expect(gate).toContainText("清单说明");
+  await expect(gate).not.toContainText("服务端说明");
+  expect(
+    (await page.evaluate(() => window.updateTest!.calls)).filter((c) =>
+      c.startsWith("require:"),
+    ),
+  ).toEqual([]);
+  await expect(gate.getByRole("progressbar")).toHaveAttribute(
+    "aria-valuenow",
+    "80",
+  );
 });

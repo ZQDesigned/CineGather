@@ -11,6 +11,7 @@ on:
       - tools/noise-package-smoke.ts
       - tools/window-chrome-smoke.ts
       - tools/viewing-window-smoke.ts
+      - tools/update-gate-smoke.ts
       - .github/workflows/windows-upgrade.yml
 jobs:
   upgrade:
@@ -54,6 +55,8 @@ jobs:
         run: bun tools/window-chrome-smoke.ts
       - name: Verify packaged viewing window lifecycle
         run: bun tools/viewing-window-smoke.ts
+      - name: Verify stable mandatory update notification
+        run: bun tools/update-gate-smoke.ts
       - name: Verify old-to-new upgrade with a locked capture helper
         shell: pwsh
         run: |
@@ -70,6 +73,7 @@ jobs:
             .local/noise-verification/*.json
             .local/window-chrome-verification/*.json
             .local/viewing-window-verification/*.json
+            .local/update-gate-verification/*.json
       - uses: actions/upload-artifact@v4
         with:
           name: cinegather-windows-upgrade-tested

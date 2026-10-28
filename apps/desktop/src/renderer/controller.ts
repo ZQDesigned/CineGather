@@ -1,3 +1,4 @@
+import { shouldAdvanceUpdateRequirement } from "../shared/update-requirement";
 import { reconcileAudioDevices } from "./audio-devices";
 import { RoomCuePlayer, RoomPresenceCues } from "./room-cues";
 import enterCue from "./assets/room-enter.wav";
@@ -36,11 +37,7 @@ import {
   deviceAudioDescription,
 } from "./audio-compatibility";
 import { version } from "../../package.json";
-import {
-  versionBelow,
-  clientPolicySchema,
-  clientUpdateOrigin,
-} from "@cinegather/contracts";
+import { clientPolicySchema, clientUpdateOrigin } from "@cinegather/contracts";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
 let changingCredentials = false;
 const baseUrl = defaultServer(
@@ -54,17 +51,26 @@ let webInvitation = !window.desktop
       history.replaceState(null, "", clean),
     )
   : undefined;
-export function requireClientUpdate(minimumVersion: string, reason: string) {
-  if (!versionBelow(version, minimumVersion)) return;
-  const previous = state().requiredUpdate;
-  if (previous && versionBelow(minimumVersion, previous.minimumVersion)) return;
-  if (previous?.minimumVersion === minimumVersion && previous.reason === reason)
+export function requireClientUpdate(
+  minimumVersion: string,
+  reason: string,
+  notifyNative = true,
+) {
+  if (
+    !shouldAdvanceUpdateRequirement(
+      version,
+      state().requiredUpdate?.minimumVersion,
+      minimumVersion,
+    )
+  )
     return;
   update({ requiredUpdate: { minimumVersion, reason } });
-  void window.desktop?.updates
-    ?.requireUpdate?.(minimumVersion, reason)
-    .catch(report);
+  if (notifyNative)
+    void window.desktop?.updates
+      ?.requireUpdate?.(minimumVersion, reason)
+      .catch(report);
 }
+
 export const api = createApi(baseUrl, () => sessionToken, {
   identity: {
     version,

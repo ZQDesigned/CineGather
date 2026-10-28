@@ -478,3 +478,47 @@ test("a compatibility cutoff raised during installation preparation prevents exe
     await rm(dir, { recursive: true, force: true });
   }
 });
+
+test("conflicting reasons for the same mandatory version cannot ping-pong update state or disturb a download", async () => {
+  let changes = 0;
+  const controller = new UpdateController(
+    "install",
+    "0.1.2",
+    {
+      latest: async () => release,
+      cancel: () => {
+        throw new Error("usable download cancelled");
+      },
+      download: async () => {},
+      install: async () => {},
+    },
+    () => {
+      changes++;
+    },
+  );
+  controller.requireUpdate("0.1.3", "服务端说明");
+  for (let i = 0; i < 100; i++)
+    controller.requireUpdate("0.1.3", i % 2 ? "服务端说明" : "清单说明");
+  expect(changes).toBe(1);
+  expect(controller.snapshot().reason).toBe("服务端说明");
+  controller.requireUpdate("0.1.4", "下一次升级");
+  expect(changes).toBe(2);
+  expect(controller.snapshot().minimumVersion).toBe("0.1.4");
+});
+
+test("same-cutoff metadata changes preserve an in-flight installer and its progress", async () => {
+  const s = setup();
+  await s.controller.check();
+  s.controller.requireUpdate("0.1.3", "服务端说明");
+  const downloading = s.controller.download();
+  await Promise.resolve();
+  const before = s.controller.snapshot();
+  for (let i = 0; i < 20; i++) {
+    s.controller.requireUpdate("0.1.3", i % 2 ? "服务端说明" : "清单说明");
+    expect(s.controller.snapshot()).toEqual(before);
+  }
+  expect(s.calls.filter((c) => c === "cancel")).toEqual([]);
+  s.finish();
+  await downloading;
+  expect(s.controller.snapshot().status).toBe("downloaded");
+});

@@ -37,6 +37,7 @@ export function UpdateCenter() {
         requireClientUpdate(
           status.minimumVersion,
           status.reason ?? "当前版本已不受支持，请更新后继续使用。",
+          false,
         );
     });
     const initial = revision;
@@ -49,6 +50,7 @@ export function UpdateCenter() {
             requireClientUpdate(
               status.minimumVersion,
               status.reason ?? "当前版本已不受支持，请更新后继续使用。",
+              false,
             );
         }
       })

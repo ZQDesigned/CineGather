@@ -1,3 +1,4 @@
+import { shouldAdvanceUpdateRequirement } from "../shared/update-requirement";
 import type { UpdateStatus } from "@cinegather/contracts";
 import { clientVersionSchema, versionBelow } from "@cinegather/contracts";
 import { newerVersion, type Release } from "./update-release";
@@ -183,16 +184,12 @@ export class UpdateController {
   }
   requireUpdate(minimumVersion: string, reason: string) {
     clientVersionSchema.parse(minimumVersion);
-    if (!versionBelow(this.state.currentVersion, minimumVersion)) return;
     if (
-      this.state.minimumVersion &&
-      versionBelow(minimumVersion, this.state.minimumVersion)
-    )
-      return;
-    if (
-      this.state.required &&
-      this.state.minimumVersion === minimumVersion &&
-      this.state.reason === reason
+      !shouldAdvanceUpdateRequirement(
+        this.state.currentVersion,
+        this.state.minimumVersion,
+        minimumVersion,
+      )
     )
       return;
     this.patch({
