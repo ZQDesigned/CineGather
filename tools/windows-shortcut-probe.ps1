@@ -21,12 +21,16 @@ foreach ($location in $locations) {
       continue
     }
     $item = $shell.Namespace($file.DirectoryName).ParseName($file.Name)
+    $hasher = [Security.Cryptography.SHA256]::Create()
+    try {
+      $digest = [BitConverter]::ToString($hasher.ComputeHash([IO.File]::ReadAllBytes($file.FullName))).Replace('-', '')
+    } finally { $hasher.Dispose() }
     $items += @{
       kind = $location.kind
       path = $file.FullName
       target = $link.TargetPath
       appId = $item.ExtendedProperty('System.AppUserModel.ID')
-      sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash
+      sha256 = $digest
       created = $file.CreationTimeUtc.ToString('o')
     }
   }
