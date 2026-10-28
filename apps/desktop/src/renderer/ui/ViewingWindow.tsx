@@ -203,7 +203,7 @@ export function useViewingWindow(enabled: boolean) {
           </Typography.Text>
           <div style={noDrag}>
             <Button
-              type="text"
+              type={pinned ? "primary" : "text"}
               aria-label={pinned ? "取消置顶" : "置顶"}
               aria-pressed={pinned}
               icon={<Pin size={15} />}

@@ -15,6 +15,9 @@ on:
       - tools/windows-shortcut-probe.ps1
       - apps/desktop/src/main/window-chrome.ts
       - tools/viewing-window-smoke.ts
+      - tools/viewing-window-controls-smoke.ts
+      - apps/desktop/src/main/viewing-window-policy.ts
+      - apps/desktop/src/renderer/ui/ViewingWindow.tsx
       - tools/update-gate-smoke.ts
       - .github/workflows/windows-upgrade.yml
 jobs:
@@ -59,6 +62,8 @@ jobs:
         run: bun tools/window-chrome-smoke.ts
       - name: Verify packaged viewing window lifecycle
         run: bun tools/viewing-window-smoke.ts
+      - name: Verify actual viewing window buttons
+        run: bun tools/viewing-window-controls-smoke.ts apps/desktop/release/win-unpacked/CineGather.exe
       - name: Verify stable mandatory update notification
         run: bun tools/update-gate-smoke.ts
       - name: Verify old-to-new upgrade with a locked capture helper
@@ -82,6 +87,8 @@ jobs:
             .local/noise-verification/*.json
             .local/window-chrome-verification/*.json
             .local/viewing-window-verification/*.json
+            .local/viewing-window-controls-verification/*.json
+            .local/viewing-window-controls-verification/*.png
             .local/update-gate-verification/*.json
       - uses: actions/upload-artifact@v4
         if: always()

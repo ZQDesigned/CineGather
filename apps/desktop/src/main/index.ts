@@ -1,4 +1,7 @@
-import { allowedViewingWindow } from "./viewing-window-policy";
+import {
+  allowedViewingWindow,
+  setViewingWindowPinned,
+} from "./viewing-window-policy";
 import {
   app,
   BrowserWindow,
@@ -244,7 +247,7 @@ async function createWindow() {
     }
     viewingWindow = child;
     child.removeMenu();
-    child.setAlwaysOnTop(true, "floating");
+    setViewingWindowPinned(child, true, process.platform);
     child.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
     child.webContents.on("will-navigate", (event, url) => {
       if (url !== details.url) event.preventDefault();
@@ -639,9 +642,11 @@ function registerIPC() {
     }
     if (!viewingWindow || viewingWindow.isDestroyed()) return false;
     if (input === "toggle-top") {
-      const value = !viewingWindow.isAlwaysOnTop();
-      viewingWindow.setAlwaysOnTop(value, "floating");
-      return value;
+      return setViewingWindowPinned(
+        viewingWindow,
+        !viewingWindow.isAlwaysOnTop(),
+        process.platform,
+      );
     }
     viewingWindow.close();
     return false;
