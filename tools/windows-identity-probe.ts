@@ -21,7 +21,7 @@ export async function windowsProcessIdentity(application: ElectronApplication) {
     let identity: string | null = null;
     if (pointer[0]) {
       try {
-        identity = ffi.decode(pointer[0], "str16") as string;
+        identity = ffi.decode.string16(pointer[0]);
       } finally {
         free(pointer[0]);
       }
