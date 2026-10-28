@@ -34,7 +34,6 @@ try {
   const owned = await app.browserWindow(child);
   const options = await owned.evaluate((w) => ({
     pinned: w.isAlwaysOnTop(),
-    frame: w.hasTitleBar(),
     preferences: w.webContents.getLastWebPreferences(),
   }));
   expect(options.pinned).toBe(true);
