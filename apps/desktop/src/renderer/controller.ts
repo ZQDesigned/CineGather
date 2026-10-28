@@ -848,7 +848,17 @@ function receiveInvitation(value: string) {
   });
 }
 export async function initialize() {
-  const stopNotifications = bindClientNotifications(baseUrl, (item) => {
+  const stopNotifications = bindClientNotifications(baseUrl, async (item) => {
+    const userId = state().user?.id;
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        /* Continue to the requested page if fullscreen was already exited. */
+      }
+    }
+    if (state().user?.id !== userId) return;
+    if (state().cinema) update({ cinema: false });
     if (state().requiredUpdate) {
       update({ modal: "updates" });
       return;
@@ -865,7 +875,7 @@ export async function initialize() {
         (invitation) => invitation.id === item.entityId,
       )
     )
-      void openRoomInvitationInbox();
+      void openRoomInvitationInbox().catch(report);
     if (
       item.target === "room-requests" &&
       state().roomJoinRequests.some(
@@ -873,7 +883,7 @@ export async function initialize() {
           request.id === item.entityId && request.status === "pending",
       )
     )
-      void openRoomRequestInbox();
+      void openRoomRequestInbox().catch(report);
     if (
       (item.target === "share" || item.target === "room") &&
       item.roomId === state().room?.id

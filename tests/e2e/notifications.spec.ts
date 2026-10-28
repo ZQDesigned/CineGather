@@ -6,11 +6,13 @@ test("notification preferences, merged history, sharing privacy and account isol
 }) => {
   await page.addInitScript(() => {
     const delivery: { title: string; body?: string }[] = [];
+    const instances: { onclick?: () => void }[] = [];
     class Notice {
       static permission = "granted";
       onclick?: () => void;
       onclose?: () => void;
       constructor(title: string, options: { body?: string }) {
+        instances.push(this);
         delivery.push({ title, body: options.body });
       }
       close() {
@@ -20,6 +22,7 @@ test("notification preferences, merged history, sharing privacy and account isol
     Object.assign(window, {
       Notification: Notice,
       notificationTestDelivery: delivery,
+      notificationTestInstances: instances,
     });
     Object.defineProperty(document, "hasFocus", {
       configurable: true,
@@ -75,6 +78,40 @@ test("notification preferences, merged history, sharing privacy and account isol
     page.getByRole("button", { name: "通知", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "通知", exact: true }).click();
+  await page.evaluate(async () => {
+    let active = true,
+      exits = 0;
+    Object.defineProperty(document, "fullscreenElement", {
+      configurable: true,
+      get: () => (active ? document.querySelector(".app") : null),
+    });
+    document.exitFullscreen = async () => {
+      active = false;
+      exits++;
+    };
+    Object.assign(window, { notificationExitProbe: () => exits });
+    const { update } = await import("/store.ts" as string);
+    update({ cinema: true });
+    (
+      window as unknown as {
+        notificationTestInstances: { onclick?: () => void }[];
+      }
+    ).notificationTestInstances[0]!.onclick?.();
+  });
+  await expect
+    .poll(() =>
+      page.evaluate(() =>
+        (
+          window as unknown as { notificationExitProbe: () => number }
+        ).notificationExitProbe(),
+      ),
+    )
+    .toBe(1);
+  await expect(page.locator(".app")).not.toHaveClass(/cinema/);
+  await expect(
+    page.getByRole("dialog", { name: "连接诊断", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "通知", exact: true }).click();
   await page.getByRole("switch", { name: "免打扰", exact: true }).click();
