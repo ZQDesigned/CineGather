@@ -1,8 +1,12 @@
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 test.use({ actionTimeout: 15000 });
-for (const decision of ["同意", "拒绝"] as const) {
-  test(`friends can request a room, while invisible room members remain offline, and their friend can ${decision}`, async ({
+for (const { decision, switching } of [
+  { decision: "同意", switching: false },
+  { decision: "同意", switching: true },
+  { decision: "拒绝", switching: false },
+] as const) {
+  test(`friends can request a room, while invisible room members remain offline, and their friend can ${decision}${switching ? "并自动切换房间" : ""}`, async ({
     browser,
     request,
   }) => {
@@ -48,6 +52,22 @@ for (const decision of ["同意", "拒绝"] as const) {
         b = await contexts[1]!.newPage();
       await a.goto("/");
       await b.goto("/");
+      if (switching) {
+        await b
+          .getByRole("button", { name: "创建私人房间", exact: true })
+          .click();
+        await b.getByLabel("房间名称").fill("申请人原来的房间");
+        await b
+          .getByRole("button", { name: "创建并进入", exact: true })
+          .click();
+        await expect(b.locator(".connection")).toHaveText("已连接");
+        roomIds.push(
+          await b.evaluate(async () => {
+            const { useApp } = await import("/store.ts" as string);
+            return useApp.getState().room.id as string;
+          }),
+        );
+      }
       await a
         .getByRole("button", { name: "创建私人房间", exact: true })
         .click();
@@ -111,6 +131,19 @@ for (const decision of ["同意", "拒绝"] as const) {
       await expect(
         b.getByRole("button", { name: "等待好友处理", exact: true }),
       ).toBeDisabled();
+      // The applying window retains intent across a reload; another window
+      // with the same login receives approval data without auto-connecting.
+      const sibling =
+        decision === "同意" && !switching
+          ? await contexts[1]!.newPage()
+          : undefined;
+      if (sibling) {
+        await sibling.goto("/");
+        await b.reload();
+        await expect(
+          b.getByRole("button", { name: "等待好友处理", exact: true }),
+        ).toBeDisabled();
+      }
       await a
         .getByRole("button", { name: "入房申请", exact: true })
         .click({ timeout: 15000 });
@@ -118,17 +151,26 @@ for (const decision of ["同意", "拒绝"] as const) {
       await expect(inbox).toContainText("申请入房好友");
       await inbox.getByRole("button", { name: decision, exact: true }).click();
       if (decision === "同意") {
-        await expect(b.locator(".ant-notification")).toContainText(
-          "已同意你的入房申请",
-          { timeout: 15000 },
-        );
-        await b.getByRole("button", { name: "房间邀请", exact: true }).click();
-        await b
-          .getByRole("dialog", { name: "房间邀请", exact: true })
-          .getByRole("button", { name: "加入房间", exact: true })
-          .click();
-        await expect(b.locator(".room-heading h1")).toHaveText("好友入房审批");
+        // Applying already expresses consent: approval connects the applicant
+        // without opening the invitation inbox or accepting a second time.
+        await expect(b.locator(".room-heading h1")).toHaveText("好友入房审批", {
+          timeout: 15000,
+        });
+        await expect(b.locator(".connection")).toHaveText("已连接");
+        await expect(
+          b.getByRole("dialog", { name: "房间邀请", exact: true }),
+        ).toHaveCount(0);
         await expect(b.getByLabel("房间密码", { exact: true })).toHaveCount(0);
+        if (sibling) {
+          await expect(sibling.locator(".connection")).toHaveText("未连接房间");
+          await expect(sibling.locator(".room-heading")).toHaveCount(0);
+        }
+        if (switching) {
+          const previous = await request.get(api + `/rooms/${roomIds[0]}`, {
+            headers: headers(1),
+          });
+          expect(previous.status()).toBe(404);
+        }
         await b.getByRole("button", { name: "离开房间", exact: true }).click();
       } else {
         await expect(b.locator(".ant-notification")).toContainText(

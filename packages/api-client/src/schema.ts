@@ -7275,6 +7275,8 @@ export interface operations {
                             /** Format: date-time */
                             expiresAt: string;
                             requestApproved?: boolean;
+                            /** Format: uuid */
+                            requestId?: string;
                         }[];
                         /** @default [] */
                         roomJoinRequests: {

@@ -30,6 +30,7 @@ import {
 } from "./platform";
 import { settingsSchema } from "../shared/settings";
 import { FriendRequests } from "./friends";
+import { ApprovedRoomEntry } from "./approved-room-entry";
 import { DiagnosticRecorder } from "./diagnostic-recorder";
 import { ProcessAudio } from "./process-audio";
 import {
@@ -83,11 +84,43 @@ export const api = createApi(baseUrl, () => sessionToken, {
   },
   onUpdateRequired: requireClientUpdate,
 });
+const automaticRoomEntry = new ApprovedRoomEntry({
+  identity: () =>
+    sessionToken && state().user ? `${baseUrl}/${state().user!.id}` : undefined,
+  ready: () =>
+    !state().busy &&
+    !changingCredentials &&
+    !state().requiredUpdate &&
+    !selectResolve &&
+    !state().switchingSource &&
+    !["joining", "leaving", "reconnecting", "authenticating"].includes(
+      state().roomState,
+    ),
+  load: () => sessionStorage.getItem("cinegather.pending-room-entry"),
+  save: (value) => {
+    if (value) sessionStorage.setItem("cinegather.pending-room-entry", value);
+    else sessionStorage.removeItem("cinegather.pending-room-entry");
+  },
+  join: async (invitation) => {
+    if (
+      state().room?.id === invitation.roomId &&
+      state().roomState === "connected"
+    )
+      return;
+    await run(async () => {
+      update({ notice: `${invitation.senderName} 已同意你的入房申请` });
+      await acceptRoomInvitation(invitation);
+    });
+  },
+  error: report,
+});
 const friendRequests = new FriendRequests(
   () => sessionToken,
   async () => unwrap(await api.GET("/api/v1/friends")),
-  (friends, roomInvitations, roomJoinRequests) =>
-    update({ friends, roomInvitations, roomJoinRequests }),
+  (friends, roomInvitations, roomJoinRequests) => {
+    update({ friends, roomInvitations, roomJoinRequests });
+    void automaticRoomEntry.sync(roomInvitations);
+  },
 );
 export const refreshFriends = () => friendRequests.refresh();
 let presenceRevision = 0;
@@ -175,6 +208,7 @@ export function report(error: unknown) {
   if (error instanceof ApiError && error.status === 401) {
     const connected = Boolean(sessionToken && state().room);
     sessionToken = undefined;
+    automaticRoomEntry.clear();
     friendRequests.clear();
     localStorage.removeItem("cinegather.session");
     update({ user: undefined });
@@ -952,6 +986,7 @@ async function syncRooms() {
   }
 }
 async function acceptSession(data: { user: User; sessionToken: string }) {
+  automaticRoomEntry.clear();
   friendRequests.clear();
   sessionToken = data.sessionToken;
   localStorage.setItem("cinegather.session", data.sessionToken);
@@ -1300,11 +1335,14 @@ export async function openRoomRequestInbox() {
   update({ modal: "room-requests" });
 }
 export async function requestFriendRoom(userId: string) {
-  unwrap(
+  const identity = sessionToken;
+  const request = unwrap(
     await api.POST("/api/v1/friends/{userId}/room-requests", {
       params: { path: { userId } },
     }),
   );
+  if (identity !== sessionToken || !state().user) return;
+  automaticRoomEntry.remember(request);
   await refreshFriends();
   update({ notice: "入房申请已发送，等待好友处理" });
 }
@@ -1341,6 +1379,7 @@ function invitationLink(roomId: string, token: string) {
   return `cinegather://join?room=${roomId}&invite=${token}`;
 }
 export async function logout() {
+  automaticRoomEntry.clear();
   await roomSession.leave();
   unwrap(await api.DELETE("/api/v1/session"));
   sessionToken = undefined;
@@ -1349,6 +1388,7 @@ export async function logout() {
   update({ user: undefined, rooms: [] });
 }
 export function configureServer(url: string) {
+  automaticRoomEntry.clear();
   localStorage.setItem("cinegather.api", serverOrigin(url));
   localStorage.removeItem("cinegather.session");
   location.reload();

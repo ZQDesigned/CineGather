@@ -209,6 +209,9 @@ export function RoomInvitationNotifications() {
       }
     for (const invitation of invitations) {
       if (seen.current.has(invitation.id)) continue;
+      // Approved applications are consumed automatically by their originating
+      // window. Keep the inbox for recovery, without a second acceptance prompt.
+      if (invitation.requestApproved) continue;
       seen.current.add(invitation.id);
       notification.info({
         key: `room-invitation:${invitation.id}`,

@@ -100,6 +100,9 @@ export async function listRoomInvitations(user: User) {
       senderName: users.displayName,
       expiresAt: invites.expiresAt,
       requestApproved: sql<boolean>`EXISTS (SELECT 1 FROM room_join_requests AS request WHERE request.invite_id = ${invites.id} AND request.status = 'approved')`,
+      requestId: sql<
+        string | null
+      >`(SELECT request.id FROM room_join_requests AS request WHERE request.invite_id = ${invites.id} AND request.status = 'approved' LIMIT 1)`,
     })
     .from(invites)
     .innerJoin(rooms, eq(rooms.id, invites.roomId))
@@ -119,8 +122,9 @@ export async function listRoomInvitations(user: User) {
     )
     .orderBy(desc(invites.createdAt))
     .limit(50);
-  return rows.map((row) => ({
+  return rows.map(({ requestId, ...row }) => ({
     ...row,
+    ...(requestId ? { requestId } : {}),
     expiresAt: row.expiresAt.toISOString(),
     token: friendRoomToken(row.id, row.roomId, user.id),
   }));

@@ -134,6 +134,7 @@ test("a room friend handles a scoped request and approval grants passwordless jo
     (i: { roomId: string }) => i.roomId === id,
   );
   expect(invite.requestApproved).toBe(true);
+  expect(invite.requestId).toBe(sent.body.id);
   expect((await decide(sent.body.id, "approve")).status).toBe(201);
   expect((await decide(sent.body.id, "reject")).status).toBe(409);
   expect(

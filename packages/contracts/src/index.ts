@@ -175,6 +175,7 @@ export const roomInvitationSchema = z.object({
   token: z.string().min(32).max(128),
   expiresAt: z.iso.datetime({ offset: true }),
   requestApproved: z.boolean().optional(),
+  requestId: z.uuid().optional(),
 });
 export type RoomInvitation = z.infer<typeof roomInvitationSchema>;
 export const roomJoinRequestSchema = z.object({
