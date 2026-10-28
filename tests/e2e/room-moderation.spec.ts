@@ -155,7 +155,10 @@ test("owner stops/preempts real media, mutes without unmuting, and transfers con
     await expect(member.locator(".sharing-banner")).toHaveCount(0);
     await expect(
       member.getByRole("button", { name: "共享屏幕", exact: true }),
-    ).toBeDisabled();
+    ).toHaveCount(0);
+    await expect(
+      member.getByRole("button", { name: "申请共享", exact: true }),
+    ).toBeEnabled();
     await page
       .getByRole("button", { name: "被管理成员的成员操作", exact: true })
       .click();

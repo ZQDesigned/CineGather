@@ -1,3 +1,4 @@
+import { participantOwner } from "@cinegather/contracts";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 import { RoomServiceClient, TrackSource } from "livekit-server-sdk";
@@ -313,10 +314,13 @@ test("a real screen publisher holds the only server lease and stopping removes i
         headers: { Authorization: `Bearer ${viewerToken}` },
       })
     ).json();
-    expect(
-      (await livekit.getParticipant(roomId, viewerIdentity.id)).permission
-        ?.canPublishSources,
-    ).toContain(TrackSource.SCREEN_SHARE);
+    const viewerPeers = (await livekit.listParticipants(roomId)).filter(
+      (p) => participantOwner(p.identity) === viewerIdentity.id,
+    );
+    expect(viewerPeers).toHaveLength(1);
+    expect(viewerPeers[0]!.permission?.canPublishSources).toContain(
+      TrackSource.SCREEN_SHARE,
+    );
     await viewer.getByRole("button", { name: "选择屏幕开始共享" }).click();
     await viewer
       .getByRole("button", { name: "选择并共享", exact: true })
@@ -338,7 +342,7 @@ test("a real screen publisher holds the only server lease and stopping removes i
       .poll(
         async () =>
           (
-            await livekit.getParticipant(roomId, viewerIdentity.id)
+            await livekit.getParticipant(roomId, viewerPeers[0]!.identity)
           ).permission?.canPublishSources.includes(TrackSource.SCREEN_SHARE),
         { timeout: 15000 },
       )
@@ -421,7 +425,7 @@ test("revoking an active account session disconnects its existing media identity
   );
   await expect(
     page.locator(".ant-notification").getByRole("alert"),
-  ).toContainText("登录已失效");
+  ).toContainText("此设备已被退出登录");
   await expect(
     page.locator(".ant-notification").getByRole("alert"),
   ).not.toContainText("房主移出");
