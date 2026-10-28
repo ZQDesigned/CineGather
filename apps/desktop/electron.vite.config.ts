@@ -21,6 +21,7 @@ export default defineConfig({
           index: resolve("src/preload/index.ts"),
           "viewing-window": resolve("src/preload/viewing-window.ts"),
           "member-overlay": resolve("src/preload/member-overlay.ts"),
+          "notification-card": resolve("src/preload/notification-card.ts"),
         },
         output: { format: "cjs", entryFileNames: "[name].cjs" },
       },

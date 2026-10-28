@@ -36,11 +36,12 @@ export class FriendRequests {
       friends: Friend[],
       invitations: RoomInvitation[],
       requests: RoomJoinRequest[],
+      reset?: boolean,
     ) => void,
   ) {}
   clear() {
     ++this.revision;
-    this.changed([], [], []);
+    this.changed([], [], [], true);
   }
   async refresh() {
     const identity = this.identity();

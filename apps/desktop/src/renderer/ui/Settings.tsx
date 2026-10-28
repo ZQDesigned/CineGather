@@ -18,6 +18,7 @@ import * as actions from "../controller";
 import {
   qualityPresets,
   qualityLabel,
+  watchProfiles,
   type DesktopSettings,
   type NativeEncoderInventory,
 } from "@cinegather/contracts";
@@ -29,6 +30,7 @@ import { capabilities } from "../platform";
 import { DeviceSessions } from "./DeviceSessions";
 import { AccountForm } from "./AccountForm";
 import { UpdatePanel } from "./Updates";
+import { NotificationSettings } from "./NotificationSettings";
 import {
   createMicrophoneDenoiser,
   microphoneConstraints,
@@ -395,9 +397,11 @@ export function Settings() {
               form={
                 tab === "audio"
                   ? "audio-settings"
-                  : tab === "overlay"
-                    ? "overlay-settings"
-                    : "sharing-settings"
+                  : tab === "notifications"
+                    ? "notification-settings"
+                    : tab === "overlay"
+                      ? "overlay-settings"
+                      : "sharing-settings"
               }
               icon={<Check size={17} />}
             >
@@ -412,6 +416,24 @@ export function Settings() {
         activeKey={tab}
         onChange={setTab}
         items={[
+          {
+            key: "notifications",
+            label: "通知",
+            children: (
+              <Form
+                id="notification-settings"
+                layout="vertical"
+                onFinish={() =>
+                  void actions.run(() => actions.saveSettings(settings))
+                }
+              >
+                <NotificationSettings
+                  value={settings.notifications}
+                  onChange={(value) => change("notifications", value)}
+                />
+              </Form>
+            ),
+          },
           ...(window.desktop?.updates
             ? [{ key: "updates", label: "版本更新", children: <UpdatePanel /> }]
             : []),
@@ -587,6 +609,16 @@ export function Settings() {
                       )}
                     </Form.Item>
                   )}
+                <Form.Item label="默认观看档位">
+                  <Select
+                    aria-label="默认观看档位"
+                    value={settings.watchProfile ?? "balanced"}
+                    onChange={(value) => change("watchProfile", value)}
+                    options={Object.entries(watchProfiles).map(
+                      ([value, item]) => ({ value, label: item.label }),
+                    )}
+                  />
+                </Form.Item>
                 <Form.Item label="默认共享画质">
                   <Select
                     aria-label="默认共享画质"

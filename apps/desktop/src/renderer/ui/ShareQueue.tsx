@@ -1,3 +1,8 @@
+import {
+  publishClientNotification,
+  resolveClientNotification,
+} from "../client-notifications";
+
 import { useCallback, useEffect, useRef, useState } from "react";
 import { App, Flex } from "antd";
 import { MonitorUp } from "lucide-react";
@@ -141,6 +146,7 @@ export function ShareQueue() {
     const keys = new Set(relevant.map((r) => `share-request:${r.id}`));
     for (const key of notices.current.keys()) {
       if (!keys.has(key)) {
+        resolveClientNotification(key);
         notification.destroy(key);
         notices.current.delete(key);
       }
@@ -157,6 +163,23 @@ export function ShareQueue() {
       if (notices.current.get(key) === signature) continue;
       notices.current.set(key, signature);
       const approved = request.status === "approved";
+      if (publisher || approved)
+        publishClientNotification({
+          eventId: `${key}:${request.status}`,
+          groupId: key,
+          category: "share-request",
+          title: publisher
+            ? approved
+              ? "已同意共享申请"
+              : `${request.displayName} 申请共享`
+            : "共享申请已同意",
+          body: approved
+            ? "选择来源并确认后才会切换共享画面。"
+            : "可返回房间处理申请。",
+          target: "share",
+          roomId: roomId,
+          entityId: request.id,
+        });
       notification.info({
         key,
         title: publisher

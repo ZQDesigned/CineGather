@@ -1,0 +1,131 @@
+import { test, expect } from "@playwright/test";
+import { registerTestAccount } from "./helpers/account";
+
+test("notification preferences, merged history, sharing privacy and account isolation survive real UI transitions", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const delivery: { title: string; body?: string }[] = [];
+    class Notice {
+      static permission = "granted";
+      onclick?: () => void;
+      onclose?: () => void;
+      constructor(title: string, options: { body?: string }) {
+        delivery.push({ title, body: options.body });
+      }
+      close() {
+        this.onclose?.();
+      }
+    }
+    Object.assign(window, {
+      Notification: Notice,
+      notificationTestDelivery: delivery,
+    });
+    Object.defineProperty(document, "hasFocus", {
+      configurable: true,
+      value: () => false,
+    });
+  });
+  await page.goto("/");
+  await registerTestAccount(page, "通知偏好验证");
+  const publish = async (id: string, body: string, groupId = "device-group") =>
+    page.evaluate(
+      async ({ id, body, groupId }) => {
+        const { publishClientNotification } = await import(
+          "/client-notifications.ts" as string
+        );
+        publishClientNotification({
+          eventId: id,
+          groupId,
+          category: "system",
+          title: "设备提醒",
+          body,
+          target: "diagnostics",
+        });
+      },
+      { id, body, groupId },
+    );
+  await publish("one", "第一条提醒");
+  await publish("two", "第二条提醒");
+  await publish("two", "重复内容不应替换");
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { notificationTestDelivery: unknown[] })
+          .notificationTestDelivery.length,
+    ),
+  ).toBe(1);
+  await page
+    .getByRole("button", { name: "通知，1 条未读", exact: true })
+    .click();
+  const inbox = page.locator('[aria-label="通知中心"]');
+  await expect(inbox).toContainText("第二条提醒");
+  await expect(inbox.locator("article")).toHaveCount(1);
+  await expect(inbox).not.toContainText("重复内容不应替换");
+  await page.screenshot({
+    path: ".local/notifications-watch/notification-center.png",
+  });
+  await inbox.getByRole("button", { name: "全部已读", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "通知", exact: true }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "通知", exact: true }).click();
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("tab", { name: "通知", exact: true }).click();
+  await page.getByRole("switch", { name: "免打扰", exact: true }).click();
+  await page.screenshot({
+    path: ".local/notifications-watch/notification-settings.png",
+  });
+  await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await publish("quiet", "免打扰仍保留历史", "quiet-group");
+  expect(
+    await page.evaluate(
+      () =>
+        (window as unknown as { notificationTestDelivery: unknown[] })
+          .notificationTestDelivery.length,
+    ),
+  ).toBe(1);
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "退出登录", exact: true }),
+  ).toBeVisible();
+  await page
+    .getByRole("button", { name: "通知，1 条未读", exact: true })
+    .click();
+  await expect(inbox).toContainText("免打扰仍保留历史");
+  await page
+    .getByRole("button", { name: "通知，1 条未读", exact: true })
+    .click();
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("tab", { name: "通知", exact: true }).click();
+  await expect(
+    page.getByRole("switch", { name: "免打扰", exact: true }),
+  ).toHaveAttribute("aria-checked", "true");
+  await page.getByRole("switch", { name: "免打扰", exact: true }).click();
+  await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await page.evaluate(async () => {
+    const { update } = await import("/store.ts" as string);
+    update({ shareState: "publishing" });
+  });
+  await publish("private", "不应泄露的通知正文", "private-group");
+  const delivery = await page.evaluate(
+    () =>
+      (
+        window as unknown as {
+          notificationTestDelivery: { title: string; body?: string }[];
+        }
+      ).notificationTestDelivery,
+  );
+  expect(delivery.at(-1)).toEqual({ title: "映聚", body: "收到一条新提醒" });
+  await page.evaluate(async () => {
+    const { update } = await import("/store.ts" as string);
+    update({ shareState: "idle" });
+  });
+  await page.getByRole("button", { name: "退出登录", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "登录映聚", exact: true }),
+  ).toBeVisible();
+  await registerTestAccount(page, "通知隔离验证");
+  await page.getByRole("button", { name: "通知", exact: true }).click();
+  await expect(inbox).toContainText("暂无通知");
+});

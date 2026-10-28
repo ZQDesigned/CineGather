@@ -21,6 +21,34 @@ test("room chat pushes while hidden, tracks unread, opens from lobby and preserv
     b = await browser.newContext();
   const sender = await a.newPage(),
     viewer = await b.newPage();
+  await viewer.addInitScript(() => {
+    const visibility = { hidden: false };
+    Object.assign(window, { notificationVisibilityProbe: visibility });
+    Object.defineProperty(document, "hidden", {
+      configurable: true,
+      get: () => visibility.hidden,
+    });
+    Object.defineProperty(document, "visibilityState", {
+      configurable: true,
+      get: () => (visibility.hidden ? "hidden" : "visible"),
+    });
+    const items: { title: string; body?: string }[] = [];
+    class BrowserNotice {
+      static permission = "granted";
+      onclick?: () => void;
+      onclose?: () => void;
+      constructor(title: string, options: { body?: string }) {
+        items.push({ title, body: options.body });
+      }
+      close() {
+        this.onclose?.();
+      }
+    }
+    Object.assign(window, {
+      Notification: BrowserNotice,
+      systemNotificationProbe: items,
+    });
+  });
   try {
     await sender.goto("/");
     await registerTestAccount(sender, "聊天实时发布测试");
@@ -56,15 +84,45 @@ test("room chat pushes while hidden, tracks unread, opens from lobby and preserv
       if (r.method() === "GET" && r.url().includes("/messages")) pulls++;
     });
     await sender.getByRole("tab", { name: /聊天/ }).click();
+    await viewer.evaluate(() => {
+      (
+        window as unknown as {
+          notificationVisibilityProbe: { hidden: boolean };
+        }
+      ).notificationVisibilityProbe.hidden = true;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
     await send(sender, "即时推送验证");
     await expect(viewer.locator(".ant-notification")).toContainText(
       "即时推送验证",
       { timeout: 2000 },
     );
     await expect(viewer.locator(".chat-tab-label .ant-badge")).toHaveText("1");
+    await expect
+      .poll(() =>
+        viewer.evaluate(
+          () =>
+            (window as unknown as { systemNotificationProbe: unknown[] })
+              .systemNotificationProbe.length,
+        ),
+      )
+      .toBe(1);
     expect(pulls).toBe(0);
+    await viewer.evaluate(() => {
+      (
+        window as unknown as {
+          notificationVisibilityProbe: { hidden: boolean };
+        }
+      ).notificationVisibilityProbe.hidden = false;
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
     await viewer.bringToFront();
-    await viewer.getByRole("button", { name: "查看消息", exact: true }).click();
+    await viewer
+      .getByRole("button", { name: "通知，1 条未读", exact: true })
+      .click();
+    const inbox = viewer.locator('[aria-label="通知中心"]');
+    await expect(inbox).toContainText("即时推送验证");
+    await inbox.getByRole("button", { name: "查看", exact: true }).click();
     await expect(viewer.locator(".chat-message")).toContainText("即时推送验证");
     await expect(viewer.locator(".chat-tab-label .ant-badge")).toBeEmpty();
     await viewer.getByRole("menuitem", { name: /我的房间/ }).click();

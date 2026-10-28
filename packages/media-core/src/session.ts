@@ -41,6 +41,12 @@ import { BrowserCapture } from "./browser-capture";
 import { boundedStats, diagnosticHash, PlaybackProbe } from "./diagnostics";
 import { senderDiagnostics, videoCapabilities } from "./encoder-diagnostics";
 import {
+  WatchPlaybackPolicy,
+  WatchHealth,
+  type WatchAdvice,
+} from "./watch-profile";
+import { watchProfiles, type WatchProfile } from "@cinegather/contracts";
+import {
   createMicrophoneDenoiser,
   microphoneConstraints,
   type MicrophoneNoiseStatus,
@@ -56,6 +62,9 @@ export interface ParticipantSummary {
   quality: string;
 }
 export interface MediaSummary {
+  watchProfile?: WatchProfile;
+  watchBuffering?: boolean;
+  watchAdvice?: WatchAdvice;
   revision: number;
   state: string;
   participants: ParticipantSummary[];
@@ -67,6 +76,16 @@ export interface MediaSummary {
   microphoneNoise?: MicrophoneNoiseStatus;
 }
 export class MediaSession {
+  private watchPolicy = new WatchPlaybackPolicy();
+  private watchHealth = new WatchHealth();
+  private watchAdvice?: WatchAdvice;
+  setWatchProfile(profile: WatchProfile) {
+    if (this.watchPolicy.profile === profile) return;
+    this.watchPolicy.profile = profile;
+    this.watchAdvice = undefined;
+    this.diagnoseEvent("watch-profile-" + profile);
+    this.emit();
+  }
   private room?: Room;
   private revision = 0;
   private video?: HTMLVideoElement;
@@ -309,7 +328,19 @@ export class MediaSession {
       next,
       filmAudio === this.movieAudio?.track ? this.movieAudio?.track : undefined,
     );
+    const watchBuffering = this.watchPolicy.apply(
+      next as RemoteTrack | undefined,
+      this.movieAudio?.track,
+    );
     this.changed({
+      watchProfile: this.watchPolicy.profile,
+      watchBuffering,
+      watchAdvice:
+        viewing &&
+        sharer !== room.localParticipant &&
+        this.subscriptions.videoVisible
+          ? this.watchAdvice
+          : undefined,
       revision: this.revision,
       state: room.state,
       participants: participants
@@ -923,11 +954,15 @@ export class MediaSession {
     this.mixer.member(userId, volume);
   }
   watch(enabled: boolean) {
+    this.watchHealth.reset();
+    this.watchAdvice = undefined;
     this.subscriptions.watch(enabled);
     this.emit();
   }
   setVideoVisible(visible: boolean) {
     if (this.subscriptions.videoVisible === visible) return;
+    this.watchHealth.reset();
+    this.watchAdvice = undefined;
     this.subscriptions.setVideoVisible(visible);
     this.diagnoseEvent(visible ? "view-video-visible" : "view-video-hidden");
     this.emit();
@@ -982,6 +1017,9 @@ export class MediaSession {
   async diagnostics() {
     const detail = await this.detailedDiagnostics();
     return {
+      watchProfile: detail.watchProfile,
+      watchTargetMs: detail.watchTargetMs,
+      watchBuffering: detail.watchBuffering,
       state: detail.state,
       microphoneNoise: detail.microphoneNoise,
       watching: detail.watching,
@@ -1101,7 +1139,37 @@ export class MediaSession {
       });
     }
     for (const value of this.playbackProbe.takeIssues()) issue(value);
+    const screen = reports.find(
+      (report) =>
+        report && !report.local && report.source === Track.Source.ScreenShare,
+    );
+    const stat = screen?.stats.find(
+      (stat) => stat.type === "inbound-rtp" && stat.kind === "video",
+    );
+    const watchAdvice = this.watchHealth.sample({
+      track: screen?.track,
+      at: performance.now(),
+      watching: this.subscriptions.watching,
+      visible:
+        this.subscriptions.videoVisible &&
+        !playback?.hidden &&
+        room?.state === ConnectionState.Connected,
+      profile: this.watchPolicy.profile,
+      jitter: stat?.jitter,
+      frameAgeMs: playback?.frameAgeMs,
+      maxFrameGapMs: playback?.maxFrameGapMs,
+    });
+    if (watchAdvice !== this.watchAdvice) {
+      this.watchAdvice = watchAdvice;
+      this.emit();
+    }
     return {
+      watchProfile: this.watchPolicy.profile,
+      watchTargetMs: watchProfiles[this.watchPolicy.profile].targetMs,
+      watchBuffering: this.watchPolicy.apply(
+        this.videoTrack as RemoteTrack | undefined,
+        this.movieAudio?.track,
+      ),
       issues: issues.length ? issues : undefined,
       encoderCapabilities: videoCapabilities(),
       state: room?.state ?? "disconnected",

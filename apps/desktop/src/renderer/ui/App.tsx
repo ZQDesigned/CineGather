@@ -1,3 +1,5 @@
+import { NotificationCenter } from "./NotificationCenter";
+
 import { version } from "../../../package.json";
 import { Button, Menu, Avatar, Badge, Breadcrumb, Tooltip, Space } from "antd";
 import { useEffect, useState } from "react";
@@ -443,6 +445,7 @@ export function App() {
               <span />
               {roomStates[app.roomState]}
             </span>
+            <NotificationCenter />
             <span className="version">v{version}</span>
             <WindowControls />
           </div>

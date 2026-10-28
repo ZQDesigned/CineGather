@@ -1,0 +1,32 @@
+name: windows-notifications
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/windows-notifications.yml
+      - apps/desktop/src/main/notifications.ts
+      - apps/desktop/src/preload/notification-card.ts
+      - tools/notification-smoke.ts
+jobs:
+  notifications:
+    runs-on: windows-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - run: bun install --frozen-lockfile
+      - run: bun run setup
+      - run: bun tools/icons.ts
+      - run: bun run --filter @cinegather/desktop build
+      - run: bun tools/notification-smoke.ts
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: windows-notification-evidence
+          include-hidden-files: true
+          path: .local/notification-verification/*.json

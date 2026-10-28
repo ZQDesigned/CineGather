@@ -1,3 +1,5 @@
+import { WatchProfileControl, WatchAdvice } from "./WatchProfile";
+
 import { PictureInPicture2 } from "lucide-react";
 import { useViewingWindow } from "./ViewingWindow";
 import { ShareQueue } from "./ShareQueue";
@@ -340,7 +342,11 @@ export function Room({ visible = true }: { visible?: boolean }) {
               <ScreenShare size={15} />
               {app.media.sharer ? "实时共享" : "等待共享"}
               <span className="quality-label">
-                {qualityLabel(app.settings.quality)}
+                {app.media.sharer && !app.media.sharer.local ? (
+                  <WatchProfileControl />
+                ) : (
+                  qualityLabel(app.settings.quality)
+                )}
               </span>
             </span>
             <span>
@@ -348,6 +354,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
               {app.media.participants.length} / {app.room!.maxMembers} 位朋友
             </span>
           </div>
+          <WatchAdvice />
           <div className="mixer-card">
             <Volume
               label="语音音量"

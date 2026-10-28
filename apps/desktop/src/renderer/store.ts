@@ -32,6 +32,7 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  notifications: import("@cinegather/contracts").NotificationRecord[];
   chat: ChatSnapshot;
   chatTab: "members" | "chat";
   chatRequest: number;
@@ -77,6 +78,7 @@ interface State {
   joinValue: string;
 }
 export const useApp = create<State>(() => ({
+  notifications: [],
   chat: { items: [], unread: 0, loading: false, failed: false },
   chatTab: "members",
   chatRequest: 0,

@@ -8,6 +8,10 @@ import { ModalShell } from "./Modal";
 import { useDialogOpen } from "./Modal";
 import type { RoomInvitation } from "@cinegather/contracts";
 import { friendPresenceLabel } from "../friends";
+import {
+  publishClientNotification,
+  clientNotificationEnabled,
+} from "../client-notifications";
 
 export function FriendRoomPicker({ roomId }: { roomId: string }) {
   const friends = useApp((state) => state.friends).filter(
@@ -213,6 +217,16 @@ export function RoomInvitationNotifications() {
       // window. Keep the inbox for recovery, without a second acceptance prompt.
       if (invitation.requestApproved) continue;
       seen.current.add(invitation.id);
+      publishClientNotification({
+        eventId: "invitation:" + invitation.id,
+        category: "invitation",
+        title: `${invitation.senderName} 邀请你加入房间`,
+        body: invitation.roomName,
+        target: "room-invitations",
+        entityId: invitation.id,
+        expiresAt: Date.parse(invitation.expiresAt),
+      });
+      if (!clientNotificationEnabled("invitation")) continue;
       notification.info({
         key: `room-invitation:${invitation.id}`,
         title: invitation.requestApproved

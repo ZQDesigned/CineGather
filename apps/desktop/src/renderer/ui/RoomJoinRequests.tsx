@@ -1,3 +1,8 @@
+import {
+  publishClientNotification,
+  clientNotificationEnabled,
+} from "../client-notifications";
+
 import { App, Badge, Button, Empty, List, Space } from "antd";
 import { UserPlus } from "lucide-react";
 import { useEffect, useRef } from "react";
@@ -131,6 +136,17 @@ export function RoomRequestNotifications() {
     for (const request of relevant) {
       if (seen.current.has(request.id)) continue;
       seen.current.add(request.id);
+      publishClientNotification({
+        eventId: `room-request:${request.id}:${request.status}`,
+        category: "room-request",
+        title: request.incoming
+          ? `${request.displayName} 申请加入你所在的房间`
+          : `${request.displayName} 拒绝了你的入房申请`,
+        target: "room-requests",
+        entityId: request.id,
+        expiresAt: Date.parse(request.expiresAt),
+      });
+      if (!clientNotificationEnabled("room-request")) continue;
       if (request.incoming)
         notification.info({
           key: `room-request:${request.id}`,

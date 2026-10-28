@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { nativeEncoderIdSchema } from "@cinegather/contracts";
+import {
+  nativeEncoderIdSchema,
+  notificationPreferencesSchema,
+  defaultNotificationPreferences,
+  watchProfileSchema,
+} from "@cinegather/contracts";
 import type {
   DesktopSettings,
   MemberOverlayPreferences,
@@ -10,6 +15,10 @@ export const defaultOverlayPreferences: MemberOverlayPreferences = {
   position: "right-top",
 };
 export const settingsSchema = z.strictObject({
+  watchProfile: watchProfileSchema.default("balanced"),
+  notifications: notificationPreferencesSchema.default(
+    defaultNotificationPreferences,
+  ),
   roomSounds: z.boolean().default(true),
   windowsEncoder: nativeEncoderIdSchema.default("auto"),
   autoDownloadUpdates: z.boolean().default(true),
@@ -39,6 +48,8 @@ export const settingsSchema = z.strictObject({
   outputDevice: z.string().max(256),
 });
 export const defaultSettings = {
+  watchProfile: "balanced" as const,
+  notifications: defaultNotificationPreferences,
   roomSounds: true,
   windowsEncoder: "auto",
   autoDownloadUpdates: true,

@@ -51,18 +51,18 @@ export class RoomPresenceCues {
   }
 }
 
-export class RoomCuePlayer {
+export class RoomCuePlayer<T extends string = RoomCue> {
   private audio?: HTMLAudioElement;
   private revision = 0;
   constructor(
-    private readonly sources: Record<RoomCue, string>,
+    private readonly sources: Record<T, string>,
     private readonly preferences: () => {
       roomSounds?: boolean;
       outputDevice: string;
     },
     private readonly createAudio = () => new Audio(),
   ) {}
-  play(cue: RoomCue) {
+  play(cue: T, volume = 1) {
     const revision = ++this.revision;
     this.audio?.pause();
     const preferences = this.preferences();
@@ -70,7 +70,7 @@ export class RoomCuePlayer {
     const audio = (this.audio ??= this.createAudio());
     audio.src = this.sources[cue];
     // Loudness and soft attack are baked into the original sound assets.
-    audio.volume = 1;
+    audio.volume = Math.max(0, Math.min(1, volume));
     void (async () => {
       if (typeof audio.setSinkId === "function") {
         try {

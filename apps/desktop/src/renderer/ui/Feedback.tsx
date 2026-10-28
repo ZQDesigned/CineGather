@@ -2,6 +2,10 @@ import { useEffect } from "react";
 import { App, Button } from "antd";
 import { showRoomChat } from "../controller";
 import { useApp, update } from "../store";
+import {
+  publishClientNotification,
+  clientNotificationEnabled,
+} from "../client-notifications";
 
 export function Feedback() {
   const chatNotification = useApp((s) => s.chatNotification);
@@ -17,6 +21,20 @@ export function Feedback() {
   useEffect(() => {
     if (!chatNotification) return;
     const { roomId, message: item } = chatNotification;
+    publishClientNotification({
+      eventId: "chat:" + item.id,
+      groupId: "chat:" + roomId,
+      category: "chat",
+      title: `${item.displayName} 发来消息`,
+      body: item.body.slice(0, 300),
+      target: "chat",
+      roomId,
+    });
+    if (!clientNotificationEnabled("chat")) {
+      if (useApp.getState().chatNotification === chatNotification)
+        update({ chatNotification: undefined });
+      return;
+    }
     const open = () => {
       showRoomChat(roomId);
       notification.destroy("room-chat");
@@ -69,6 +87,13 @@ export function Feedback() {
   }, [error, notification]);
   useEffect(() => {
     if (!warning) return;
+    publishClientNotification({
+      eventId: `warning:${Date.now()}:${warning.slice(0, 70)}`,
+      category: "system",
+      title: warningTitle ?? "已离开房间",
+      body: warning.slice(0, 300),
+      target: "diagnostics",
+    });
     notification.warning({
       key: "operation-warning",
       title: warningTitle ?? "已离开房间",

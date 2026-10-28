@@ -1,3 +1,5 @@
+import { WatchProfileControl } from "./WatchProfile";
+
 import { createPortal } from "react-dom";
 import {
   useEffect,
@@ -251,6 +253,7 @@ export function useViewingWindow(enabled: boolean) {
           style={{ height: 38, padding: "0 16px", flexShrink: 0 }}
         >
           <Volume2 size={15} />
+          <WatchProfileControl />
           <Slider
             ariaLabelForHandle="小窗共享音量"
             value={Math.round(volume * 100)}

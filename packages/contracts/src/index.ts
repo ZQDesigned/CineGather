@@ -322,6 +322,8 @@ export interface MemberOverlayBridge {
   onChange(callback: (view: MemberOverlayView) => void): () => void;
 }
 export interface DesktopSettings {
+  watchProfile?: import("./watch-profile").WatchProfile;
+  notifications?: import("./notifications").NotificationPreferences;
   roomSounds?: boolean;
   windowsEncoder?: string;
   autoDownloadUpdates?: boolean;
@@ -340,6 +342,12 @@ export interface MainWindowState {
 }
 export type MainWindowAction = "minimize" | "toggle-maximize" | "close";
 export interface DesktopBridge {
+  notifications?: {
+    show(input: import("./notifications").DesktopNotification): Promise<void>;
+    clear(): Promise<void>;
+    unread(count: number): Promise<void>;
+    onActivate(callback: (id: string, scope: string) => void): () => void;
+  };
   watchVisibility?: {
     observe(watching: boolean): Promise<boolean>;
     onChange(callback: (visible: boolean) => void): () => void;
@@ -538,3 +546,5 @@ export const shareRequestsSchema = z.object({
   items: z.array(shareRequestSchema),
 });
 export type ShareRequest = z.infer<typeof shareRequestSchema>;
+export * from "./notifications";
+export * from "./watch-profile";

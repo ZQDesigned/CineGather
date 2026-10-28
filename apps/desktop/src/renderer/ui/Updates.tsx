@@ -19,6 +19,7 @@ import {
   saveSettings,
 } from "../controller";
 import { ModalShell } from "./Modal";
+import { publishClientNotification } from "../client-notifications";
 
 const useUpdates = create<{ status?: UpdateStatus }>(() => ({}));
 export function UpdateCenter() {
@@ -70,6 +71,14 @@ export function UpdateCenter() {
     const key = `${status.latestVersion}:${status.status}`;
     if (announced.current.has(key)) return;
     announced.current.add(key);
+    publishClientNotification({
+      eventId: "update:" + key,
+      groupId: "client-update",
+      category: "system",
+      title: status.status === "downloaded" ? "新版已下载" : "发现新版映聚",
+      body: `v${status.latestVersion}`,
+      target: "updates",
+    });
     notification.info({
       key: "client-update",
       title: status.status === "downloaded" ? "新版已下载" : "发现新版映聚",

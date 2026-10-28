@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { nativeEncoderIdSchema } from "./native-encoders";
+import { watchProfileSchema } from "./watch-profile";
 import {
   senderDiagnosticSchema,
   encoderCapabilitiesSchema,
@@ -241,6 +242,9 @@ const microphoneNoiseSchema = z.object({
   engine: z.enum(["deepfilternet3", "rnnoise", "platform"]).optional(),
 });
 export const mediaDiagnosticSchema = z.object({
+  watchProfile: watchProfileSchema.optional(),
+  watchTargetMs: number.optional(),
+  watchBuffering: z.boolean().optional(),
   encoderCapabilities: encoderCapabilitiesSchema.optional(),
   issues: diagnosticIssues,
   microphoneNoise: microphoneNoiseSchema.optional(),
@@ -464,6 +468,7 @@ export const diagnosticRecordSchema = z.object({
       connection: text,
       share: text,
       quality: z.enum(["saver", "cinema", "game"]),
+      watchProfile: watchProfileSchema.optional(),
       noiseReduction: z.enum(["off", "basic", "enhanced"]).optional(),
       pushToTalk: z.boolean().optional(),
       watching: z.boolean(),

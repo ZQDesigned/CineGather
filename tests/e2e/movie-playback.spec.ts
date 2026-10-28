@@ -220,6 +220,36 @@ test("film audio/video share one presentation element and removing audio keeps t
       await viewer
         .getByRole("button", { name: "加入观看", exact: true })
         .click();
+      await viewer.getByRole("combobox", { name: "观看档位" }).click();
+      await viewer.getByRole("option", { name: "流畅", exact: true }).click();
+      await expect
+        .poll(() =>
+          viewer.evaluate(() => {
+            const film = document.querySelector("video")
+              ?.srcObject as MediaStream | null;
+            const ids = new Set(film?.getTracks().map((track) => track.id));
+            const peers = (
+              window as unknown as {
+                subscriptionProbe: { connections: RTCPeerConnection[] };
+              }
+            ).subscriptionProbe.connections;
+            const receivers = peers
+              .flatMap((peer) =>
+                peer.connectionState === "closed" ? [] : peer.getReceivers(),
+              )
+              .filter((receiver) => ids.has(receiver.track.id));
+            return receivers
+              .map((receiver) => ({
+                kind: receiver.track.kind,
+                target: receiver.jitterBufferTarget,
+              }))
+              .sort((a, b) => a.kind.localeCompare(b.kind));
+          }),
+        )
+        .toEqual([
+          { kind: "audio", target: 350 },
+          { kind: "video", target: 350 },
+        ]);
       await expect(
         page.getByRole("button", { name: "全屏画面", exact: true }),
       ).toHaveCount(0);
@@ -288,16 +318,14 @@ test("film audio/video share one presentation element and removing audio keeps t
         });
         await expect
           .poll(() =>
-            viewer
-              .locator("video")
-              .evaluate((v: HTMLVideoElement) => ({
-                video:
-                  (v.srcObject as MediaStream | null)?.getVideoTracks()
-                    .length ?? 0,
-                audio:
-                  (v.srcObject as MediaStream | null)?.getAudioTracks()
-                    .length ?? 0,
-              })),
+            viewer.locator("video").evaluate((v: HTMLVideoElement) => ({
+              video:
+                (v.srcObject as MediaStream | null)?.getVideoTracks().length ??
+                0,
+              audio:
+                (v.srcObject as MediaStream | null)?.getAudioTracks().length ??
+                0,
+            })),
           )
           .toEqual({ video: 0, audio: 1 });
         await expect

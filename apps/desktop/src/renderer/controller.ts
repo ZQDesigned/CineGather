@@ -22,6 +22,11 @@ import type {
 } from "@cinegather/contracts";
 import { state, update, defaults, useApp } from "./store";
 import { bindWatchVisibility } from "./watch-visibility";
+import {
+  bindClientNotifications,
+  publishClientNotification,
+  notificationInbox,
+} from "./client-notifications";
 import { serverOrigin } from "./server-address";
 import {
   capabilities,
@@ -67,6 +72,14 @@ export function requireClientUpdate(
   )
     return;
   update({ requiredUpdate: { minimumVersion, reason } });
+  publishClientNotification({
+    eventId: "required-update:" + minimumVersion,
+    groupId: "client-update",
+    category: "system",
+    title: "需要更新映聚",
+    body: reason.slice(0, 300),
+    target: "updates",
+  });
   if (notifyNative)
     void window.desktop?.updates
       ?.requireUpdate?.(minimumVersion, reason)
@@ -111,6 +124,19 @@ const automaticRoomEntry = new ApprovedRoomEntry({
     await run(async () => {
       update({ notice: `${invitation.senderName} 已同意你的入房申请` });
       await acceptRoomInvitation(invitation);
+      if (
+        state().room?.id === invitation.roomId &&
+        state().roomState === "connected"
+      )
+        publishClientNotification({
+          eventId:
+            "request-approved:" + (invitation.requestId ?? invitation.id),
+          category: "invitation",
+          title: "入房申请已同意",
+          body: `已加入“${invitation.roomName}”`,
+          target: "room",
+          roomId: invitation.roomId,
+        });
     });
   },
   error: report,
@@ -118,8 +144,44 @@ const automaticRoomEntry = new ApprovedRoomEntry({
 const friendRequests = new FriendRequests(
   () => sessionToken,
   async () => unwrap(await api.GET("/api/v1/friends")),
-  (friends, roomInvitations, roomJoinRequests) => {
+  (friends, roomInvitations, roomJoinRequests, reset) => {
     update({ friends, roomInvitations, roomJoinRequests });
+    if (reset) return;
+    for (const friend of friends.filter(
+      (friend) => friend.incoming && friend.status === "pending",
+    ))
+      publishClientNotification({
+        eventId: "friend:" + friend.userId,
+        category: "friends",
+        title: `${friend.displayName} 申请添加好友`,
+        target: "friends",
+        entityId: friend.userId,
+      });
+    for (const item of notificationInbox.snapshot()) {
+      if (
+        item.category === "friends" &&
+        !friends.some(
+          (friend) =>
+            friend.userId === item.entityId &&
+            friend.incoming &&
+            friend.status === "pending",
+        )
+      )
+        notificationInbox.resolve(item.id);
+      if (
+        item.target === "room-invitations" &&
+        !roomInvitations.some((invitation) => invitation.id === item.entityId)
+      )
+        notificationInbox.resolve(item.id);
+      if (
+        item.category === "room-request" &&
+        !roomJoinRequests.some(
+          (request) =>
+            request.id === item.entityId && request.status === "pending",
+        )
+      )
+        notificationInbox.resolve(item.id);
+    }
     void automaticRoomEntry.sync(roomInvitations);
   },
 );
@@ -785,6 +847,44 @@ function receiveInvitation(value: string) {
   });
 }
 export async function initialize() {
+  const stopNotifications = bindClientNotifications(baseUrl, (item) => {
+    if (state().requiredUpdate) {
+      update({ modal: "updates" });
+      return;
+    }
+    if (item.target === "friends") {
+      location.hash = "/friends";
+      update({ modal: null });
+    }
+    if (item.target === "chat" && item.roomId === state().room?.id)
+      showRoomChat(item.roomId!);
+    if (
+      item.target === "room-invitations" &&
+      state().roomInvitations.some(
+        (invitation) => invitation.id === item.entityId,
+      )
+    )
+      void openRoomInvitationInbox();
+    if (
+      item.target === "room-requests" &&
+      state().roomJoinRequests.some(
+        (request) =>
+          request.id === item.entityId && request.status === "pending",
+      )
+    )
+      void openRoomRequestInbox();
+    if (
+      (item.target === "share" || item.target === "room") &&
+      item.roomId === state().room?.id
+    )
+      update({
+        chatRequest: state().chatRequest + 1,
+        chatTab: "members",
+        modal: null,
+      });
+    if (item.target === "diagnostics" || item.target === "updates")
+      update({ modal: item.target });
+  });
   const stopDiagnostics = diagnostics.start();
   const stopWatchVisibility = bindWatchVisibility({
     bridge: window.desktop?.watchVisibility,
@@ -810,6 +910,7 @@ export async function initialize() {
         );
     const settings = platformSettings(loaded, capabilities().desktop);
     update({ settings });
+    media.setWatchProfile(settings.watchProfile ?? "balanced");
     if (!window.desktop && loaded.pushToTalk)
       localStorage.setItem("cinegather.settings", JSON.stringify(settings));
   } catch {
@@ -947,6 +1048,7 @@ export async function initialize() {
     clearInterval(policyTimer);
     stopDiagnostics();
     stopWatchVisibility();
+    stopNotifications();
     stopPolicyEvents();
     window.removeEventListener("online", onlinePolicy);
     clearInterval(friendsTimer);
@@ -1301,6 +1403,7 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
     };
   }
   settings = await persistSettings(() => settings);
+  media.setWatchProfile(settings.watchProfile ?? "balanced");
   await media.devices(settings.inputDevice, settings.outputDevice);
   await media.noiseReduction(settings.noiseReduction);
   update({
@@ -1312,6 +1415,15 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
         : "设置已保存",
     ...(close ? { modal: null } : {}),
   });
+}
+export async function setWatchProfile(
+  profile: import("@cinegather/contracts").WatchProfile,
+) {
+  const next = await persistSettings((current) => ({
+    ...current,
+    watchProfile: profile,
+  }));
+  media.setWatchProfile(next.watchProfile ?? "balanced");
 }
 export async function createInvite() {
   const room = state().room;

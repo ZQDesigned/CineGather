@@ -5,6 +5,21 @@ import type {
   MainWindowState,
 } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
+  notifications: {
+    show: (input) => ipcRenderer.invoke("desktop:notification-show", input),
+    clear: () => ipcRenderer.invoke("desktop:notification-clear"),
+    unread: (count) => ipcRenderer.invoke("desktop:notification-unread", count),
+    onActivate: (callback) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        id: string,
+        scope: string,
+      ) => callback(id, scope);
+      ipcRenderer.on("desktop:notification-activate", listener);
+      return () =>
+        ipcRenderer.removeListener("desktop:notification-activate", listener);
+    },
+  },
   platform: process.platform,
   watchVisibility: {
     observe: (watching) =>

@@ -235,6 +235,7 @@ export class DiagnosticRecorder {
           connection: context.roomState,
           share: context.shareState,
           quality: context.settings.quality,
+          watchProfile: context.settings.watchProfile,
           noiseReduction: context.settings.noiseReduction,
           pushToTalk: context.settings.pushToTalk,
           watching: context.media.watching,
@@ -359,6 +360,7 @@ export class DiagnosticRecorder {
         context.media.watching,
         context.media.videoPaused,
         context.settings.quality,
+        context.settings.watchProfile,
       ]);
       if (stamp !== this.previousContext) {
         this.previousContext = stamp;

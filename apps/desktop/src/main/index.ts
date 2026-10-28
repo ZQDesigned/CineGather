@@ -47,6 +47,8 @@ import {
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
 import { WindowVisibilityMonitor } from "./watch-visibility";
 import { nativeWindowVisibility } from "./native-window-visibility";
+import { DesktopNotifications } from "./notifications";
+import { desktopNotificationSchema } from "@cinegather/contracts";
 configureWindowsAppIdentity(process.platform, app);
 configureHardwareEncoding(process.platform, app.commandLine);
 // Native preview is deliberately bound to 127.0.0.1. Chromium excludes the
@@ -67,6 +69,7 @@ protocol.registerSchemesAsPrivileged([
 ]);
 let win: BrowserWindow | undefined;
 let watchVisibility: WindowVisibilityMonitor | undefined;
+let notifications: DesktopNotifications | undefined;
 let memberOverlay: MemberOverlay | undefined;
 let diagnostics: ProductionDiagnostics | undefined;
 let tray: Tray | undefined;
@@ -207,6 +210,10 @@ async function createWindow() {
     },
   });
   configureMainWindowMenu(process.platform, Menu, win);
+  win.on("focus", () => {
+    win?.flashFrame(false);
+    notifications?.hideForForeground();
+  });
   watchVisibility?.dispose();
   watchVisibility = new WindowVisibilityMonitor({
     windows: () =>
@@ -312,6 +319,7 @@ async function createWindow() {
     "did-start-navigation",
     (_event, _url, inPlace, mainFrame) => {
       if (mainFrame && !inPlace) {
+        notifications?.clear();
         watchVisibility?.watch(false);
         viewingWindow?.close();
         windowsAudio?.stop();
@@ -322,6 +330,8 @@ async function createWindow() {
     },
   );
   win.on("closed", () => {
+    notifications?.clear();
+    notifications?.unread(0);
     watchVisibility?.watch(false);
     viewingWindow?.close();
     windowsAudio?.stop();
@@ -338,6 +348,7 @@ async function createWindow() {
     }
   });
   win.webContents.on("render-process-gone", () => {
+    notifications?.clear();
     watchVisibility?.watch(false);
     viewingWindow?.close();
     if (updates?.controller.snapshot().status !== "installing")
@@ -386,6 +397,13 @@ function registerIPC() {
     handle("desktop:window-state", () => mainWindowState(win!));
     handle("desktop:window-action", (input) => controlMainWindow(win!, input));
   }
+  handle("desktop:notification-show", (input) =>
+    notifications?.show(desktopNotificationSchema.parse(input)),
+  );
+  handle("desktop:notification-clear", () => notifications?.clear());
+  handle("desktop:notification-unread", (input) =>
+    notifications?.unread(z.number().int().min(0).max(100).parse(input)),
+  );
   handle("desktop:overlay-state", (input) =>
     memberOverlay?.publish(overlaySnapshotSchema.nullable().parse(input)),
   );
@@ -642,19 +660,30 @@ function registerIPC() {
       throw new Error("请停止共享后再切换编码器");
 
     try {
-      shortcuts(next);
+      if (
+        hotkeyFailure ||
+        next.pushToTalk !== settings.pushToTalk ||
+        next.pttShortcut !== settings.pttShortcut ||
+        next.muteShortcut !== settings.muteShortcut
+      )
+        shortcuts(next);
     } catch (error) {
       shortcuts(settings);
       throw error;
     }
     await writeFile(settingsPath(), JSON.stringify(next), { mode: 0o600 });
+    const notificationSettingsChanged =
+      JSON.stringify(settings.notifications) !==
+      JSON.stringify(next.notifications);
     settings = next;
+    if (notificationSettingsChanged) notifications?.clear();
     updates?.configure(next.autoDownloadUpdates ?? true);
     memberOverlay?.configure(next.memberOverlay);
     updateTray();
   });
   handle("desktop:sharing", (input) => {
     sharing = z.boolean().parse(input);
+    if (sharing) notifications?.clear();
     if (!sharing) windowsAudio?.stop();
     if (sharing) updates?.controller.setInRoom(true);
     updateTray();
@@ -752,6 +781,7 @@ else {
     }
   });
   app.on("before-quit", (event) => {
+    notifications?.destroy();
     watchVisibility?.dispose();
     memberOverlay?.destroy();
     windowsAudio?.stop();
@@ -909,6 +939,16 @@ else {
       diagnostics = new ProductionDiagnostics(() => nativeCapture);
       diagnostics.start();
       memberOverlay = new MemberOverlay(() => win, devURL);
+      notifications = new DesktopNotifications({
+        main: () => win,
+        settings: () => settings,
+        sharing: () => sharing,
+        devURL,
+        activate: (id, scope) => {
+          showWindow();
+          win?.webContents.send("desktop:notification-activate", id, scope);
+        },
+      });
       memberOverlay.configure(settings.memberOverlay);
       registerIPC();
       capturePermissions();
