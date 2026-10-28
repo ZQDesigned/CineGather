@@ -62,8 +62,13 @@ test("notification preferences, merged history, sharing privacy and account isol
   await expect(inbox).toContainText("第二条提醒");
   await expect(inbox.locator("article")).toHaveCount(1);
   await expect(inbox).not.toContainText("重复内容不应替换");
+  await expect(
+    inbox.getByRole("button", { name: "全部已读", exact: true }),
+  ).toBeVisible();
+  await page.waitForTimeout(350);
   await page.screenshot({
     path: ".local/notifications-watch/notification-center.png",
+    animations: "disabled",
   });
   await inbox.getByRole("button", { name: "全部已读", exact: true }).click();
   await expect(
@@ -75,6 +80,7 @@ test("notification preferences, merged history, sharing privacy and account isol
   await page.getByRole("switch", { name: "免打扰", exact: true }).click();
   await page.screenshot({
     path: ".local/notifications-watch/notification-settings.png",
+    animations: "disabled",
   });
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await publish("quiet", "免打扰仍保留历史", "quiet-group");
@@ -93,6 +99,7 @@ test("notification preferences, merged history, sharing privacy and account isol
     .getByRole("button", { name: "通知，1 条未读", exact: true })
     .click();
   await expect(inbox).toContainText("免打扰仍保留历史");
+  await expect(inbox).not.toContainText("Failed to fetch");
   await page
     .getByRole("button", { name: "通知，1 条未读", exact: true })
     .click();
@@ -128,4 +135,45 @@ test("notification preferences, merged history, sharing privacy and account isol
   await registerTestAccount(page, "通知隔离验证");
   await page.getByRole("button", { name: "通知", exact: true }).click();
   await expect(inbox).toContainText("暂无通知");
+  const beforeErrors = await page.evaluate(
+    () =>
+      (window as unknown as { notificationTestDelivery: unknown[] })
+        .notificationTestDelivery.length,
+  );
+  const reportFailure = () =>
+    page.evaluate(async () => {
+      const { update } = await import("/store.ts" as string);
+      update({ error: "共享采集暂时不可用" });
+    });
+  await reportFailure();
+  await expect(inbox).toContainText("共享采集暂时不可用");
+  await expect
+    .poll(() =>
+      page.evaluate(
+        () =>
+          (window as unknown as { notificationTestDelivery: unknown[] })
+            .notificationTestDelivery.length,
+      ),
+    )
+    .toBe(beforeErrors + 1);
+  await page.waitForTimeout(50);
+  await reportFailure();
+  await expect
+    .poll(() =>
+      page.evaluate(async () => {
+        const { useApp } = await import("/store.ts" as string);
+        return useApp.getState().error;
+      }),
+    )
+    .toBeUndefined();
+  expect(
+    await page.evaluate(async () => {
+      const { useApp } = await import("/store.ts" as string);
+      return useApp
+        .getState()
+        .notifications.find(
+          (item: { id: string }) => item.id === "operation-error",
+        )?.count;
+    }),
+  ).toBe(1);
 });

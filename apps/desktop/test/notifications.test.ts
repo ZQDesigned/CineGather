@@ -4,6 +4,8 @@ import {
   notificationDelivery,
 } from "../src/shared/notifications";
 import { defaultNotificationPreferences } from "@cinegather/contracts";
+import { friendRequestNotification } from "../src/renderer/friends";
+import { shouldFallbackNotification } from "../src/shared/notification-permission";
 
 function fixture() {
   let time = 1_800_000_000_000;
@@ -131,4 +133,57 @@ test("delivery follows category and DND settings, shares hide bodies, and sound 
   expect(
     notificationDelivery({ ...prefs, chat: false }, chat("one"), options),
   ).toMatchObject({ desktop: false, sound: false });
+});
+
+test("a friend may reapply after a handled request without every refresh replaying that request", () => {
+  const { inbox } = fixture();
+  const friend = {
+    userId: "friend-a",
+    displayName: "朋友",
+    incoming: true,
+    status: "pending" as const,
+  };
+  inbox.publish(friendRequestNotification(friend)!);
+  const initial = inbox.snapshot()[0]!;
+  expect(inbox.publish(friendRequestNotification(friend, initial)!)).toBe(
+    false,
+  );
+  inbox.resolve(initial.id);
+  const next = friendRequestNotification(
+    friend,
+    inbox.snapshot()[0],
+    () => "new-request",
+  )!;
+  expect(inbox.publish(next)).toBe(true);
+  expect(inbox.snapshot()).toHaveLength(1);
+  expect(inbox.snapshot()[0]).toMatchObject({
+    read: false,
+    active: true,
+    count: 1,
+  });
+  expect(
+    friendRequestNotification({ ...friend, incoming: false }),
+  ).toBeUndefined();
+});
+
+test("native permission refusals stay refused while unsigned Mac compatibility failures can use an app card", () => {
+  expect(
+    shouldFallbackNotification("win32", true, "Access denied 0x80070005"),
+  ).toBe(false);
+  expect(shouldFallbackNotification("win32", true, "通知权限已禁用")).toBe(
+    false,
+  );
+  expect(
+    shouldFallbackNotification("darwin", true, "UNErrorDomain错误1。"),
+  ).toBe(false);
+  expect(
+    shouldFallbackNotification("darwin", false, "UNErrorDomain错误1。"),
+  ).toBe(true);
+  expect(
+    shouldFallbackNotification(
+      "win32",
+      true,
+      "notification transport unavailable",
+    ),
+  ).toBe(true);
 });

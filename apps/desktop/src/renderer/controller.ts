@@ -35,7 +35,7 @@ import {
   platformSettings,
 } from "./platform";
 import { settingsSchema } from "../shared/settings";
-import { FriendRequests } from "./friends";
+import { FriendRequests, friendRequestNotification } from "./friends";
 import { ApprovedRoomEntry } from "./approved-room-entry";
 import { DiagnosticRecorder } from "./diagnostic-recorder";
 import { ProcessAudio } from "./process-audio";
@@ -150,13 +150,14 @@ const friendRequests = new FriendRequests(
     for (const friend of friends.filter(
       (friend) => friend.incoming && friend.status === "pending",
     ))
-      publishClientNotification({
-        eventId: "friend:" + friend.userId,
-        category: "friends",
-        title: `${friend.displayName} 申请添加好友`,
-        target: "friends",
-        entityId: friend.userId,
-      });
+      publishClientNotification(
+        friendRequestNotification(
+          friend,
+          notificationInbox
+            .snapshot()
+            .find((item) => item.id === "friend:" + friend.userId),
+        )!,
+      );
     for (const item of notificationInbox.snapshot()) {
       if (
         item.category === "friends" &&

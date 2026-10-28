@@ -11,7 +11,12 @@ export class WatchPlaybackPolicy {
   profile: WatchProfile = "balanced";
   private applied = new WeakMap<
     BufferReceiver,
-    { target: number; supported: boolean; field?: keyof BufferReceiver }
+    {
+      target: number;
+      supported: boolean;
+      field?: keyof BufferReceiver;
+      owner: BufferedTrack;
+    }
   >();
   apply(...tracks: (BufferedTrack | undefined)[]) {
     let count = 0,
@@ -32,8 +37,12 @@ export class WatchPlaybackPolicy {
       } catch {
         /* Some engines expose a receiver property before it is usable. */
       }
-      if (result?.target !== target || (result.supported && !retained)) {
-        result = { target, supported: false };
+      if (
+        result?.target !== target ||
+        result.owner !== track ||
+        (result.supported && !retained)
+      ) {
+        result = { target, supported: false, owner: track };
         for (const field of [
           "jitterBufferTarget",
           "playoutDelayHint",

@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { App, Button } from "antd";
 import { showRoomChat } from "../controller";
 import { useApp, update } from "../store";
@@ -8,6 +8,10 @@ import {
 } from "../client-notifications";
 
 export function Feedback() {
+  const lastErrorReminder = useRef<
+    { userId?: string; text: string; at: number } | undefined
+  >(undefined);
+  const userId = useApp((state) => state.user?.id);
   const chatNotification = useApp((s) => s.chatNotification);
   const chatUnread = useApp((s) => s.chat.unread);
   const error = useApp((state) => state.error);
@@ -75,6 +79,22 @@ export function Feedback() {
   }, [notice, message]);
   useEffect(() => {
     if (!error) return;
+    const now = Date.now();
+    if (
+      lastErrorReminder.current?.userId !== userId ||
+      lastErrorReminder.current?.text !== error ||
+      now - lastErrorReminder.current.at >= 60_000
+    ) {
+      lastErrorReminder.current = { userId, text: error, at: now };
+      publishClientNotification({
+        eventId: `error:${now}`,
+        groupId: "operation-error",
+        category: "system",
+        title: "操作未完成",
+        body: error.slice(0, 300),
+        target: "diagnostics",
+      });
+    }
     notification.error({
       key: "operation-error",
       title: "操作未完成",

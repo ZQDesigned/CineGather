@@ -2,6 +2,8 @@ import type {
   FriendRoomPresence,
   RoomInvitation,
   RoomJoinRequest,
+  ClientNotification,
+  NotificationRecord,
 } from "@cinegather/contracts";
 
 export interface Friend {
@@ -22,6 +24,28 @@ export const friendPresenceLabel = (friend: Friend) => {
 
 export const hasIncomingRequests = (friends: Friend[]) =>
   friends.some((friend) => friend.incoming && friend.status === "pending");
+
+export function friendRequestNotification(
+  friend: Friend,
+  previous?: NotificationRecord,
+  epoch: () => string = () => crypto.randomUUID(),
+): ClientNotification | undefined {
+  if (!friend.incoming || friend.status !== "pending") return;
+  const id = "friend:" + friend.userId;
+  const current = previous?.id === id ? previous : undefined;
+  return {
+    eventId: current
+      ? current.active
+        ? current.eventId
+        : `${id}:${epoch()}`
+      : id,
+    groupId: id,
+    category: "friends",
+    title: `${friend.displayName} 申请添加好友`,
+    target: "friends",
+    entityId: friend.userId,
+  };
+}
 
 export class FriendRequests {
   private revision = 0;

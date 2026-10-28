@@ -1152,7 +1152,6 @@ export class MediaSession {
       watching: this.subscriptions.watching,
       visible:
         this.subscriptions.videoVisible &&
-        !playback?.hidden &&
         room?.state === ConnectionState.Connected,
       profile: this.watchPolicy.profile,
       jitter: stat?.jitter,

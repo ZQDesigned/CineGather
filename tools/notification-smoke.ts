@@ -2,6 +2,7 @@ import { _electron, expect } from "@playwright/test";
 import { mkdtemp, writeFile, mkdir, rm } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { tmpdir } from "node:os";
+import { spawnSync } from "node:child_process";
 import { defaultSettings } from "../apps/desktop/src/shared/settings";
 const profile = await mkdtemp(join(tmpdir(), "cg-notification-"));
 await writeFile(
@@ -178,7 +179,23 @@ try {
       (globalThis as unknown as { notificationSmoke: { events: unknown[] } })
         .notificationSmoke.events,
   );
+  if (process.platform === "darwin" && process.argv[2]) {
+    const signed =
+      spawnSync("/usr/bin/codesign", [
+        "--verify",
+        "--strict",
+        resolve(process.argv[2], "../../.."),
+      ]).status === 0;
+    if (!signed)
+      await expect(
+        card.getByText("系统通知能力验证", { exact: true }),
+      ).toBeVisible();
+  }
+  await app.evaluate(({ app }) => app.removeAllListeners("window-all-closed"));
+  await main.evaluate((window) => window.destroy());
+  await expect.poll(() => card.isClosed(), { timeout: 3000 }).toBe(true);
   const result = {
+    ownedCardClosesWithMain: true,
     platform: process.platform,
     backgroundFallbackVisible: true,
     doesNotStealFocus: true,

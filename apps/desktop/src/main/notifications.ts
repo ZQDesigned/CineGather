@@ -15,8 +15,21 @@ import {
   type DesktopSettings,
 } from "@cinegather/contracts";
 import { trustedURL } from "./security";
+import { execFile } from "node:child_process";
+import { shouldFallbackNotification } from "../shared/notification-permission";
 
 export class DesktopNotifications {
+  private signature =
+    process.platform === "darwin"
+      ? new Promise<boolean>((done) =>
+          execFile(
+            "/usr/bin/codesign",
+            ["--verify", "--strict", resolve(process.execPath, "../../..")],
+            { timeout: 2000 },
+            (error) => done(!error),
+          ),
+        )
+      : Promise.resolve(true);
   private notices = new Map<string, Notification>();
   private card?: BrowserWindow;
   private current?: DesktopNotification;
@@ -74,14 +87,15 @@ export class DesktopNotifications {
         : input;
     main.flashFrame(true);
     const generation = this.generation;
-    const fallback = (error = "") => {
+    const fallback = async (error = "") => {
+      const signed = await this.signature;
       if (
         generation !== this.generation ||
         this.disposed ||
-        /denied|permission|not allowed|disabled/i.test(error)
+        !shouldFallbackNotification(process.platform, signed, error)
       )
         return;
-      void this.showCard(item).catch(() => {});
+      await this.showCard(item).catch(() => {});
     };
     if (!Notification.isSupported()) return fallback();
     try {
@@ -128,10 +142,14 @@ export class DesktopNotifications {
     const main = this.deps.main();
     if (main && !main.isDestroyed()) main.flashFrame(false);
   }
+  closeSurface() {
+    this.clear();
+    if (this.card && !this.card.isDestroyed()) this.card.destroy();
+  }
   private hideCard() {
     clearTimeout(this.timer);
     this.current = undefined;
-    this.card?.hide();
+    if (this.card && !this.card.isDestroyed()) this.card.hide();
   }
   private async showCard(item: DesktopNotification) {
     const generation = this.generation;
@@ -228,10 +246,9 @@ export class DesktopNotifications {
   }
   destroy() {
     if (this.disposed) return;
-    this.clear();
+    this.closeSurface();
     this.disposed = true;
     app.setBadgeCount(0);
-    this.card?.destroy();
     for (const name of ["state", "close", "activate"])
       ipcMain.removeHandler("notification-card:" + name);
   }

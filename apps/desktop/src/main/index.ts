@@ -330,7 +330,7 @@ async function createWindow() {
     },
   );
   win.on("closed", () => {
-    notifications?.clear();
+    notifications?.closeSurface();
     notifications?.unread(0);
     watchVisibility?.watch(false);
     viewingWindow?.close();

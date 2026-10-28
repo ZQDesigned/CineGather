@@ -55,6 +55,25 @@ test("unsupported target setters do not pretend to take effect or break audio pl
   ).toBe(false);
 });
 
+test("a failed receiver hint is retried for a newly subscribed track reusing the receiver", () => {
+  const policy = new WatchPlaybackPolicy();
+  let unavailable = true,
+    value: number | null = null;
+  const receiver = {
+    get jitterBufferTarget() {
+      return value;
+    },
+    set jitterBufferTarget(v: number | null) {
+      if (unavailable) throw Error("not ready");
+      value = v;
+    },
+  };
+  expect(policy.apply({ isLocal: false, receiver })).toBe(false);
+  unavailable = false;
+  expect(policy.apply({ isLocal: false, receiver })).toBe(true);
+  expect(Number(receiver.jitterBufferTarget)).toBe(150);
+});
+
 test("stall suggestions need sustained network jitter and never count deliberate background suspension or static video alone", () => {
   const health = new WatchHealth();
   const sample = (at: number, visible = true, jitter = 0.08) =>

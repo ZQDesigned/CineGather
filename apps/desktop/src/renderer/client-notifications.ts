@@ -15,6 +15,7 @@ let origin = "",
   activeScope: string | undefined;
 let activate: (item: NotificationRecord) => void = () => {};
 let lastSound = -Infinity;
+let leaving = false;
 let bindingCount = 0;
 let removeActivation: (() => void) | undefined;
 const desktopTimes = new Map<string, number>();
@@ -67,6 +68,7 @@ export function openClientNotification(
   if (item.active) activate(item);
 }
 export function publishClientNotification(event: ClientNotification) {
+  if (leaving) return;
   const identity = scope();
   if (!identity || !notificationInbox.publish(event)) return;
   const prefs =
@@ -108,7 +110,7 @@ export function publishClientNotification(event: ClientNotification) {
         body: input.body,
         tag: id,
         silent: true,
-        icon: "/favicon.svg",
+        icon: document.querySelector<HTMLLinkElement>('link[rel="icon"]')?.href,
       });
       webNotices.set(id, notification);
       while (webNotices.size > 20) {
@@ -159,6 +161,16 @@ export function bindClientNotifications(
   server: string,
   onActivate: (item: NotificationRecord) => void,
 ) {
+  const unloading = () => {
+    leaving = true;
+    sound.stop();
+  };
+  const restored = () => {
+    leaving = false;
+  };
+  window.addEventListener("beforeunload", unloading);
+  window.addEventListener("pagehide", unloading);
+  window.addEventListener("pageshow", restored);
   ++bindingCount;
   origin = server;
   activate = onActivate;
@@ -198,6 +210,9 @@ export function bindClientNotifications(
   return () => {
     if (stopped) return;
     stopped = true;
+    window.removeEventListener("beforeunload", unloading);
+    window.removeEventListener("pagehide", unloading);
+    window.removeEventListener("pageshow", restored);
     remove();
     if (--bindingCount === 0) {
       removeActivation?.();
