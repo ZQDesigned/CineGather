@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-require-imports -- The installed Electron debugging context needs synchronous CommonJS loads. */
 import { _electron, expect, type ElectronApplication } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
@@ -83,11 +84,13 @@ try {
     const log = join(directory, `in-app-upgrade-${round}-launch.json`);
     const closed = application.waitForEvent("close", { timeout: 90_000 });
     await application.evaluate(
-      async (_electron, options) => {
-        const { createRequire } = await import("node:module");
+      (_electron, options) => {
+        const { createRequire } =
+          require("node:module") as typeof import("node:module");
         const load = createRequire(options.module);
         const { NsisUpdater } = load(options.module);
-        const { writeFileSync } = await import("node:fs");
+        const { writeFileSync } =
+          require("node:fs") as typeof import("node:fs");
         const updater = new NsisUpdater();
         // Replace only the already-verified download cache in this fixture. The
         // actual quitAndInstall/doInstall/spawn and NSIS uninstall paths run intact.
