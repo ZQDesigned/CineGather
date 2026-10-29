@@ -9,11 +9,17 @@ import type {
 export interface Friend {
   userId: string;
   displayName: string;
+  remark?: string;
+  pinned?: boolean;
   status: "pending" | "accepted";
   incoming: boolean;
   online?: boolean;
   room?: FriendRoomPresence | null;
 }
+
+export const friendDisplayName = (
+  friend: Pick<Friend, "displayName" | "remark">,
+) => friend.remark?.trim() || friend.displayName;
 
 export const friendPresenceLabel = (friend: Friend) => {
   if (!friend.online || friend.status !== "accepted") return "离线";

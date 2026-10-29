@@ -252,6 +252,10 @@ export const friendships = pgTable(
       .notNull()
       .references(() => users.id),
     status: text("status").notNull().default("pending"),
+    requesterRemark: text("requester_remark").notNull().default(""),
+    recipientRemark: text("recipient_remark").notNull().default(""),
+    requesterPinnedAt: time("requester_pinned_at"),
+    recipientPinnedAt: time("recipient_pinned_at"),
     createdAt: time("created_at").notNull().defaultNow(),
   },
   (t) => [
@@ -264,6 +268,10 @@ export const friendships = pgTable(
     check(
       "friendships_status_check",
       sql`${t.status} IN ('pending', 'accepted')`,
+    ),
+    check(
+      "friendships_remark_length",
+      sql`char_length(${t.requesterRemark}) <= 50 AND char_length(${t.recipientRemark}) <= 50`,
     ),
   ],
 );

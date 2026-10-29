@@ -188,6 +188,19 @@ const friendRequests = new FriendRequests(
   },
 );
 export const refreshFriends = () => friendRequests.refresh();
+export async function updateFriendPreferences(
+  userId: string,
+  body: { remark?: string; pinned?: boolean },
+) {
+  const owner = state().user?.id;
+  unwrap(
+    await api.PATCH("/api/v1/friends/{userId}/preferences", {
+      params: { path: { userId } },
+      body,
+    }),
+  );
+  if (state().user?.id === owner) await refreshFriends();
+}
 let presenceRevision = 0;
 let presenceSyncing = false;
 async function syncPresence(acceptingSession = false) {

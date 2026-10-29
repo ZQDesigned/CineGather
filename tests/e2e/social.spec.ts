@@ -91,8 +91,9 @@ test("friends and owner moderation work across independent real room clients", a
       timeout: 10000,
     });
     await page
-      .getByRole("button", { name: "移除社交成员", exact: true })
+      .getByRole("button", { name: "社交成员的好友操作", exact: true })
       .click();
+    await page.getByRole("menuitem", { name: "移除好友", exact: true }).click();
     await expect(page.locator(".friend")).toHaveCount(0);
     await page
       .getByRole("button", { name: "返回当前房间", exact: true })

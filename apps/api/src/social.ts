@@ -101,6 +101,7 @@ export async function removeFriend(user: User, targetId: string) {
   return { ok: true as const };
 }
 export async function listFriends(user: User) {
+  const pinnedAt = sql<Date | null>`CASE WHEN ${friendships.requesterId} = ${user.id} THEN ${friendships.requesterPinnedAt} ELSE ${friendships.recipientPinnedAt} END`;
   const online = sql<boolean>`(${friendships.status} = 'accepted' AND ${users.presenceVisibility} = 'online' AND ${users.disabledAt} IS NULL AND EXISTS (
     SELECT 1 FROM ${credentials} WHERE ${credentials.userId} = ${users.id}
     AND ${credentials.kind} = 'account' AND ${credentials.revokedAt} IS NULL
@@ -113,6 +114,8 @@ export async function listFriends(user: User) {
       status: friendships.status,
       userId: users.id,
       displayName: users.displayName,
+      remark: sql<string>`CASE WHEN ${friendships.requesterId} = ${user.id} THEN ${friendships.requesterRemark} ELSE ${friendships.recipientRemark} END`,
+      pinned: sql<boolean>`${pinnedAt} IS NOT NULL`,
       online,
       // Admission leases exclude departed users and synthetic media publishers.
       room: sql<{
@@ -142,6 +145,7 @@ export async function listFriends(user: User) {
         eq(friendships.recipientId, user.id),
       ),
     )
+    .orderBy(sql`${pinnedAt} DESC NULLS LAST`, friendships.createdAt, users.id)
     .limit(100);
   return {
     roomInvitations: await listRoomInvitations(user),
@@ -149,10 +153,56 @@ export async function listFriends(user: User) {
     items: rows.map((r) => ({
       userId: r.userId,
       displayName: r.displayName,
+      remark: r.remark,
+      pinned: r.pinned,
       status: r.status as "pending" | "accepted",
       incoming: r.recipientId === user.id,
       online: r.online,
       room: r.room,
     })),
   };
+}
+
+export async function updateFriendPreferences(
+  user: User,
+  targetId: string,
+  input: { remark?: string; pinned?: boolean },
+) {
+  targetId = uuid(targetId);
+  await db.transaction(async (tx) => {
+    const pair = or(
+      and(
+        eq(friendships.requesterId, user.id),
+        eq(friendships.recipientId, targetId),
+      ),
+      and(
+        eq(friendships.requesterId, targetId),
+        eq(friendships.recipientId, user.id),
+      ),
+    );
+    const [current] = await tx
+      .select()
+      .from(friendships)
+      .where(pair)
+      .for("update");
+    if (!current || current.status !== "accepted")
+      fail(403, "FRIEND_REQUIRED", "只能修改已添加好友的备注和置顶");
+    const requester = current.requesterId === user.id;
+    const changes: Partial<typeof friendships.$inferInsert> = {};
+    if (input.remark !== undefined)
+      changes[requester ? "requesterRemark" : "recipientRemark"] = input.remark;
+    if (input.pinned !== undefined)
+      changes[requester ? "requesterPinnedAt" : "recipientPinnedAt"] =
+        input.pinned
+          ? ((requester
+              ? current.requesterPinnedAt
+              : current.recipientPinnedAt) ?? new Date())
+          : null;
+    await tx.update(friendships).set(changes).where(pair);
+    await audit(tx, user.id, "friend.preferences_updated", targetId, {
+      remarkChanged: input.remark !== undefined,
+      pinChanged: input.pinned !== undefined,
+    });
+  });
+  return { ok: true as const };
 }

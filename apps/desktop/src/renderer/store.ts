@@ -22,6 +22,7 @@ export type Modal =
   | "download"
   | "invite"
   | "add-friend"
+  | "friend-remark"
   | "room-invitations"
   | "room-requests"
   | "source"
@@ -45,6 +46,7 @@ interface State {
   requiredUpdate?: { minimumVersion: string; reason: string };
   user?: User;
   friends: Friend[];
+  friendRemarkId?: string;
   roomInvitations: RoomInvitation[];
   roomJoinRequests: RoomJoinRequest[];
   presenceVisibility?: "online" | "invisible";

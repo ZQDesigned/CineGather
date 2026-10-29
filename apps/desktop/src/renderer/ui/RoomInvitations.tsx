@@ -7,7 +7,7 @@ import { useApp, update } from "../store";
 import { ModalShell } from "./Modal";
 import { useDialogOpen } from "./Modal";
 import type { RoomInvitation } from "@cinegather/contracts";
-import { friendPresenceLabel } from "../friends";
+import { friendDisplayName, friendPresenceLabel } from "../friends";
 import {
   publishClientNotification,
   clientNotificationEnabled,
@@ -69,8 +69,8 @@ export function FriendRoomPicker({ roomId }: { roomId: string }) {
                 type="primary"
                 aria-label={
                   invited
-                    ? `已邀请${friend.displayName}`
-                    : `邀请${friend.displayName}加入房间`
+                    ? `已邀请${friendDisplayName(friend)}`
+                    : `邀请${friendDisplayName(friend)}加入房间`
                 }
                 disabled={
                   invited ||
@@ -90,8 +90,13 @@ export function FriendRoomPicker({ roomId }: { roomId: string }) {
               avatar={
                 <Avatar className="amber">{friend.displayName[0]}</Avatar>
               }
-              title={friend.displayName}
-              description={friendPresenceLabel(friend)}
+              title={friendDisplayName(friend)}
+              description={
+                <Space size={12} wrap>
+                  {friendPresenceLabel(friend)}
+                  {friend.remark && <span>{friend.displayName}</span>}
+                </Space>
+              }
             />
           </List.Item>
         );

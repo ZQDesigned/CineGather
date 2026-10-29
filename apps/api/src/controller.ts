@@ -8,6 +8,7 @@ import {
   Get,
   Headers,
   Param,
+  Patch,
   Post,
   Query,
   Req,
@@ -572,6 +573,21 @@ export class ApiController {
   @Endpoint("removeFriend", c.okSchema, undefined, ["userId"])
   remove(@Req() req: AuthRequest, @Param("userId") userId: string) {
     return s.removeFriend(req.user, userId);
+  }
+  @Patch("friends/:userId/preferences")
+  @Endpoint("updateFriendPreferences", c.okSchema, c.friendPreferencesInput, [
+    "userId",
+  ])
+  preferences(
+    @Req() req: AuthRequest,
+    @Param("userId") userId: string,
+    @Body() body: unknown,
+  ) {
+    return s.updateFriendPreferences(
+      req.user,
+      userId,
+      parse(c.friendPreferencesInput, body),
+    );
   }
   @Get("diagnostics")
   @Endpoint("diagnostics", c.diagnosticServerSchema)

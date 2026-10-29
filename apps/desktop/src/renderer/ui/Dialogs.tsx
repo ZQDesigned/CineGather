@@ -18,6 +18,7 @@ import { UpdateDialog } from "./Updates";
 import { RoomSettings } from "./RoomSettings";
 import { Diagnostics } from "./Diagnostics";
 import { FriendSearch } from "./FriendSearch";
+import { FriendRemark } from "./FriendRemark";
 import { FriendRoomPicker, RoomInvitationInbox } from "./RoomInvitations";
 import { RoomRequestInbox } from "./RoomJoinRequests";
 import { useEffect, useState } from "react";
@@ -55,6 +56,7 @@ export function Dialogs() {
   );
 }
 function DialogContent({ modal }: { modal: Modal }) {
+  if (modal === "friend-remark") return <FriendRemark />;
   if (modal === "add-friend")
     return (
       <ModalShell title="添加好友">

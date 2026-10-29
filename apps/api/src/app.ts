@@ -84,7 +84,7 @@ export async function createApp({
   app.set("cinegather.updateEvents", events);
   app.enableCors({
     origin: [...config.corsOrigins, "app://cinegather"],
-    methods: ["GET", "POST", "DELETE"],
+    methods: ["GET", "POST", "PATCH", "DELETE"],
     allowedHeaders: [
       "Authorization",
       "Content-Type",

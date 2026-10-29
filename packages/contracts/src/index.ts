@@ -84,6 +84,12 @@ export const messageInput = z.strictObject({
   body: z.string().trim().min(1).max(2000),
 });
 export const friendInput = z.strictObject({ userId: z.uuid().toLowerCase() });
+export const friendPreferencesInput = z
+  .strictObject({
+    remark: z.string().trim().max(50).optional(),
+    pinned: z.boolean().optional(),
+  })
+  .refine((value) => Object.keys(value).length > 0, "请选择需要修改的好友设置");
 export const friendSearchSchema = z.object({
   user: z
     .object({ userId: z.uuid(), username: z.string(), displayName: z.string() })
@@ -204,6 +210,8 @@ export const friendsSchema = z.object({
       userId: z.uuid(),
       displayName: z.string(),
       status: z.enum(["pending", "accepted"]),
+      remark: z.string().max(50).optional(),
+      pinned: z.boolean().optional(),
       incoming: z.boolean(),
       online: z.boolean().default(false),
       room: friendRoomPresenceSchema.nullable().default(null),
