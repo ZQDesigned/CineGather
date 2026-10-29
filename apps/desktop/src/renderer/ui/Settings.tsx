@@ -17,6 +17,7 @@ import { useApp, update } from "../store";
 import * as actions from "../controller";
 import {
   qualityPresets,
+  defaultNotificationPreferences,
   qualityLabel,
   watchProfiles,
   type DesktopSettings,
@@ -141,8 +142,13 @@ export function Settings() {
     setSettings((previous) => ({
       ...previous,
       autoDownloadUpdates: current.autoDownloadUpdates,
+      notifications: {
+        ...defaultNotificationPreferences,
+        ...previous.notifications,
+        doNotDisturb: current.notifications?.doNotDisturb ?? false,
+      },
     }));
-  }, [current.autoDownloadUpdates]);
+  }, [current.autoDownloadUpdates, current.notifications?.doNotDisturb]);
   const devices = useApp((s) => s.audioDevices);
   const [tab, setTab] = useState("audio");
   const [server, setServer] = useState(actions.baseUrl);

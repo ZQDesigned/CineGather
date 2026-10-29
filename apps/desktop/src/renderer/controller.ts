@@ -35,6 +35,7 @@ import {
   platformSettings,
 } from "./platform";
 import { restoreSettings } from "../shared/settings";
+import { defaultNotificationPreferences } from "@cinegather/contracts";
 import { FriendRequests, friendRequestNotification } from "./friends";
 import { ApprovedRoomEntry } from "./approved-room-entry";
 import { DiagnosticRecorder } from "./diagnostic-recorder";
@@ -319,8 +320,9 @@ function persistSettings(
   const work = settingsWrites
     .catch(() => {})
     .then(async () => {
-      const settings = transform(state().settings);
-      if (window.desktop) await window.desktop.saveSettings(settings);
+      let settings = transform(state().settings);
+      if (window.desktop)
+        settings = (await window.desktop.saveSettings(settings)) ?? settings;
       else
         localStorage.setItem("cinegather.settings", JSON.stringify(settings));
       update({ settings });
@@ -331,6 +333,33 @@ function persistSettings(
     () => {},
   );
   return work;
+}
+function applyDoNotDisturb(enabled: boolean) {
+  const current = state().settings;
+  update({
+    settings: {
+      ...current,
+      notifications: {
+        ...defaultNotificationPreferences,
+        ...current.notifications,
+        doNotDisturb: enabled,
+      },
+    },
+  });
+}
+export async function setDoNotDisturb(enabled: boolean) {
+  const bridge = window.desktop?.notifications;
+  if (bridge?.setDoNotDisturb)
+    applyDoNotDisturb(await bridge.setDoNotDisturb(enabled));
+  else
+    await persistSettings((current) => ({
+      ...current,
+      notifications: {
+        ...defaultNotificationPreferences,
+        ...current.notifications,
+        doNotDisturb: enabled,
+      },
+    }));
 }
 let deviceWork: Promise<MediaDeviceInfo[]> | undefined;
 let rescanDevices = false,
@@ -912,6 +941,8 @@ export async function initialize() {
     error: report,
   });
   await window.desktop?.updates?.setInRoom(Boolean(state().room)).catch(report);
+  const stopDoNotDisturb =
+    window.desktop?.notifications?.onDoNotDisturb?.(applyDoNotDisturb);
   try {
     const restored = window.desktop
       ? { settings: await window.desktop.loadSettings(), migrated: false }
@@ -955,6 +986,10 @@ export async function initialize() {
   webInvitation = undefined;
   if (initial) receiveInvitation(initial);
   const unsubscribe = window.desktop?.onAction((action, value) => {
+    if (action === "notification-settings-error") {
+      update({ error: value || "无法保存通知设置，请重试" });
+      return;
+    }
     if (action === "stop-accompaniment") {
       void accompaniment.stop().catch(report);
       return;
@@ -1066,6 +1101,7 @@ export async function initialize() {
     stopDiagnostics();
     stopWatchVisibility();
     stopNotifications();
+    stopDoNotDisturb?.();
     stopPolicyEvents();
     window.removeEventListener("online", onlinePolicy);
     clearInterval(friendsTimer);
@@ -1419,7 +1455,14 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
       outputDevice: checked.outputDevice,
     };
   }
-  settings = await persistSettings(() => settings);
+  settings = await persistSettings((current) => ({
+    ...settings,
+    notifications: {
+      ...defaultNotificationPreferences,
+      ...settings.notifications,
+      doNotDisturb: current.notifications?.doNotDisturb ?? false,
+    },
+  }));
   media.setWatchProfile(settings.watchProfile ?? "balanced");
   await media.devices(settings.inputDevice, settings.outputDevice);
   await media.noiseReduction(settings.noiseReduction);

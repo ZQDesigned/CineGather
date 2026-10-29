@@ -26,7 +26,7 @@ export function NotificationSettings({
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "1fr 1fr",
+          gridTemplateColumns: "repeat(3, minmax(0, 1fr))",
           gap: "0 24px",
         }}
       >
@@ -35,13 +35,6 @@ export function NotificationSettings({
             aria-label="启用通知"
             checked={value.enabled}
             onChange={(v) => change("enabled", v)}
-          />
-        </Form.Item>
-        <Form.Item label="免打扰">
-          <Switch
-            aria-label="免打扰"
-            checked={value.doNotDisturb}
-            onChange={(v) => change("doNotDisturb", v)}
           />
         </Form.Item>
         <Form.Item label="后台桌面通知">

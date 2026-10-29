@@ -1,4 +1,5 @@
 import { NotificationCenter } from "./NotificationCenter";
+import { DoNotDisturb } from "./DoNotDisturb";
 
 import { version } from "../../../package.json";
 import { Button, Menu, Avatar, Badge, Breadcrumb, Tooltip, Space } from "antd";
@@ -445,6 +446,7 @@ export function App() {
               <span />
               {roomStates[app.roomState]}
             </span>
+            <DoNotDisturb />
             <NotificationCenter />
             <span className="version">v{version}</span>
             <WindowControls />

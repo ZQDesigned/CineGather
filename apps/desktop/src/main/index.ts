@@ -24,6 +24,7 @@ import { release } from "node:os";
 import { z } from "zod";
 import { allowedExternal, trustedURL, permissionAllowed } from "./security";
 import { defaultSettings, settingsSchema, restoreSettings } from "./settings";
+import { defaultNotificationPreferences } from "@cinegather/contracts";
 import { MemberOverlay } from "./member-overlay";
 import { ProductionDiagnostics } from "./diagnostics";
 import { overlaySnapshotSchema } from "../shared/member-overlay";
@@ -89,6 +90,50 @@ let pendingInvite: string | undefined = process.argv.find(
 const sendAction = (action: string, value?: string) =>
   win?.webContents.send("desktop:action", action, value);
 const settingsPath = () => join(app.getPath("userData"), "settings.json");
+let settingsWrites = Promise.resolve();
+function queueSettingsChange(work: () => Promise<DesktopSettings>) {
+  const next = settingsWrites.catch(() => {}).then(work);
+  settingsWrites = next.then(
+    () => {},
+    () => {},
+  );
+  return next;
+}
+async function commitSettings(next: DesktopSettings) {
+  await writeFile(settingsPath(), JSON.stringify(next), { mode: 0o600 });
+  const previous = settings;
+  const notificationSettingsChanged =
+    JSON.stringify(settings.notifications) !==
+    JSON.stringify(next.notifications);
+  settings = next;
+  if (notificationSettingsChanged) notifications?.clear();
+  if (previous.autoDownloadUpdates !== next.autoDownloadUpdates)
+    updates?.configure(next.autoDownloadUpdates ?? true);
+  if (
+    JSON.stringify(previous.memberOverlay) !==
+    JSON.stringify(next.memberOverlay)
+  )
+    memberOverlay?.configure(next.memberOverlay);
+  if (previous.notifications?.doNotDisturb !== next.notifications?.doNotDisturb)
+    win?.webContents.send(
+      "desktop:do-not-disturb-changed",
+      Boolean(next.notifications?.doNotDisturb),
+    );
+  updateTray();
+  return next;
+}
+function setDoNotDisturb(enabled?: boolean) {
+  return queueSettingsChange(() =>
+    commitSettings({
+      ...settings,
+      notifications: {
+        ...defaultNotificationPreferences,
+        ...settings.notifications,
+        doNotDisturb: enabled ?? !settings.notifications?.doNotDisturb,
+      },
+    }),
+  ).then((next) => Boolean(next.notifications?.doNotDisturb));
+}
 let globalHold: HoldToTalk | undefined;
 let hotkeyFailure: string | undefined;
 let screenLocked = false;
@@ -149,26 +194,46 @@ function showWindow() {
 }
 function updateTray() {
   tray?.setToolTip(sharing ? "映聚：正在共享屏幕" : "映聚 CineGather");
-  tray?.setContextMenu(
-    Menu.buildFromTemplate([
-      {
-        label: sharing ? "正在共享，打开映聚" : "打开映聚",
-        click: showWindow,
+  const template: Electron.MenuItemConstructorOptions[] = [
+    {
+      label: sharing ? "正在共享，打开映聚" : "打开映聚",
+      click: showWindow,
+    },
+    { label: "麦克风静音 / 开启", click: () => sendAction("toggle-mute") },
+    {
+      id: "do-not-disturb",
+      label: "免打扰",
+      type: "checkbox",
+      checked: Boolean(settings.notifications?.doNotDisturb),
+      click: () => {
+        void setDoNotDisturb().catch(() => {
+          updateTray();
+          sendAction(
+            "notification-settings-error",
+            "无法保存免打扰设置，请重试",
+          );
+        });
       },
-      { label: "麦克风静音 / 开启", click: () => sendAction("toggle-mute") },
-      ...(sharing
-        ? [{ label: "停止共享", click: () => sendAction("stop-share") }]
-        : []),
-      { type: "separator" as const },
-      {
-        label: "退出映聚",
-        click: () => {
-          quitting = true;
-          app.quit();
-        },
+    },
+    ...(sharing
+      ? [{ label: "停止共享", click: () => sendAction("stop-share") }]
+      : []),
+    { type: "separator" as const },
+    {
+      label: "退出映聚",
+      click: () => {
+        quitting = true;
+        app.quit();
       },
-    ]),
-  );
+    },
+  ];
+  tray?.setContextMenu(Menu.buildFromTemplate(template));
+  if (process.platform === "darwin" && app.isReady())
+    app.dock?.setMenu(
+      Menu.buildFromTemplate(
+        template.filter((item) => item.id === "do-not-disturb"),
+      ),
+    );
 }
 function foreground() {
   return Boolean(
@@ -614,6 +679,9 @@ function registerIPC() {
     await shell.openExternal(url);
   });
   handle("desktop:settings-load", () => settings);
+  handle("desktop:do-not-disturb", (input) =>
+    setDoNotDisturb(z.boolean().parse(input)),
+  );
   handle("desktop:hotkey-status", () => ({ error: hotkeyFailure }));
   handle("desktop:shortcut-record", () => {
     if (!win?.isFocused() || screenLocked || suspended || quitting)
@@ -650,37 +718,35 @@ function registerIPC() {
     });
   });
   handle("desktop:shortcut-cancel", () => finishRecording());
-  handle("desktop:settings-save", async (input) => {
-    finishRecording();
-    const next = settingsSchema.parse(input);
-    if (
-      nativeCapture?.isSharing &&
-      next.windowsEncoder !== settings.windowsEncoder
-    )
-      throw new Error("请停止共享后再切换编码器");
-
-    try {
+  handle("desktop:settings-save", (input) =>
+    queueSettingsChange(async () => {
+      finishRecording();
+      const next = settingsSchema.parse(input);
+      // Quick controls own this preference; an older settings draft must not undo it.
+      next.notifications.doNotDisturb = Boolean(
+        settings.notifications?.doNotDisturb,
+      );
       if (
-        hotkeyFailure ||
-        next.pushToTalk !== settings.pushToTalk ||
-        next.pttShortcut !== settings.pttShortcut ||
-        next.muteShortcut !== settings.muteShortcut
+        nativeCapture?.isSharing &&
+        next.windowsEncoder !== settings.windowsEncoder
       )
-        shortcuts(next);
-    } catch (error) {
-      shortcuts(settings);
-      throw error;
-    }
-    await writeFile(settingsPath(), JSON.stringify(next), { mode: 0o600 });
-    const notificationSettingsChanged =
-      JSON.stringify(settings.notifications) !==
-      JSON.stringify(next.notifications);
-    settings = next;
-    if (notificationSettingsChanged) notifications?.clear();
-    updates?.configure(next.autoDownloadUpdates ?? true);
-    memberOverlay?.configure(next.memberOverlay);
-    updateTray();
-  });
+        throw new Error("请停止共享后再切换编码器");
+
+      try {
+        if (
+          hotkeyFailure ||
+          next.pushToTalk !== settings.pushToTalk ||
+          next.pttShortcut !== settings.pttShortcut ||
+          next.muteShortcut !== settings.muteShortcut
+        )
+          shortcuts(next);
+      } catch (error) {
+        shortcuts(settings);
+        throw error;
+      }
+      return commitSettings(next);
+    }),
+  );
   handle("desktop:sharing", (input) => {
     sharing = z.boolean().parse(input);
     if (sharing) notifications?.clear();

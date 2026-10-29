@@ -122,13 +122,9 @@ try {
     }
   });
   expect(invalid).toBe(true);
-  await page.evaluate(async () => {
-    const s = await window.desktop!.loadSettings();
-    await window.desktop!.saveSettings({
-      ...s,
-      notifications: { ...s.notifications!, doNotDisturb: true },
-    });
-  });
+  await page.evaluate(() =>
+    window.desktop!.notifications!.setDoNotDisturb!(true),
+  );
   await main.evaluate((w) => w.hide());
   await page.evaluate(() =>
     window.desktop!.notifications!.show({
@@ -138,13 +134,9 @@ try {
     }),
   );
   expect(await owned.evaluate((w) => w.isVisible())).toBe(false);
-  await page.evaluate(async () => {
-    const s = await window.desktop!.loadSettings();
-    await window.desktop!.saveSettings({
-      ...s,
-      notifications: { ...s.notifications!, doNotDisturb: false },
-    });
-  });
+  await page.evaluate(() =>
+    window.desktop!.notifications!.setDoNotDisturb!(false),
+  );
   await app.evaluate(({ Notification }) => {
     const smoke = (
       globalThis as unknown as {

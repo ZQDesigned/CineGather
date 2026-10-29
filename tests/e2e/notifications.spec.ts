@@ -112,9 +112,12 @@ test("notification preferences, merged history, sharing privacy and account isol
     page.getByRole("dialog", { name: "连接诊断", exact: true }),
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await page.getByRole("button", { name: "开启免打扰", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "通知", exact: true }).click();
-  await page.getByRole("switch", { name: "免打扰", exact: true }).click();
+  await expect(
+    page.getByRole("switch", { name: "免打扰", exact: true }),
+  ).toHaveCount(0);
   await page.screenshot({
     path: ".local/notifications-watch/notification-settings.png",
     animations: "disabled",
@@ -140,12 +143,12 @@ test("notification preferences, merged history, sharing privacy and account isol
   await page
     .getByRole("button", { name: "通知，1 条未读", exact: true })
     .click();
+  await expect(
+    page.getByRole("button", { name: "关闭免打扰", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.getByRole("button", { name: "关闭免打扰", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "通知", exact: true }).click();
-  await expect(
-    page.getByRole("switch", { name: "免打扰", exact: true }),
-  ).toHaveAttribute("aria-checked", "true");
-  await page.getByRole("switch", { name: "免打扰", exact: true }).click();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await page.evaluate(async () => {
     const { update } = await import("/store.ts" as string);
@@ -267,4 +270,37 @@ test("an upgrade resets notification volume once and later saved levels survive 
     sound: false,
     doNotDisturb: true,
   });
+});
+
+test("do not disturb is a persistent topbar shortcut and an open settings draft cannot undo it", async ({
+  page,
+}) => {
+  await page.goto("/");
+  const enable = page.getByRole("button", { name: "开启免打扰", exact: true });
+  await expect(enable).toHaveAttribute("aria-pressed", "false");
+  await enable.click();
+  await expect(
+    page.getByRole("button", { name: "关闭免打扰", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  const disable = page.getByRole("button", { name: "关闭免打扰", exact: true });
+  await expect(disable).toHaveAttribute("aria-pressed", "true");
+  await disable.click();
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("tab", { name: "通知", exact: true }).click();
+  await expect(
+    page.getByRole("switch", { name: "免打扰", exact: true }),
+  ).toHaveCount(0);
+  await page.evaluate(async () => {
+    const { setDoNotDisturb } = await import("/controller.ts" as string);
+    await setDoNotDisturb(true);
+  });
+  await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await expect(
+    page.getByRole("button", { name: "关闭免打扰", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
+  await page.reload();
+  await expect(
+    page.getByRole("button", { name: "关闭免打扰", exact: true }),
+  ).toHaveAttribute("aria-pressed", "true");
 });

@@ -348,6 +348,8 @@ export interface DesktopBridge {
     clear(): Promise<void>;
     unread(count: number): Promise<void>;
     onActivate(callback: (id: string, scope: string) => void): () => void;
+    setDoNotDisturb?(enabled: boolean): Promise<boolean>;
+    onDoNotDisturb?(callback: (enabled: boolean) => void): () => void;
   };
   watchVisibility?: {
     observe(watching: boolean): Promise<boolean>;
@@ -402,12 +404,13 @@ export interface DesktopBridge {
   hotkeyStatus?(): Promise<{ error?: string }>;
   recordShortcut?(): Promise<string | undefined>;
   cancelShortcutRecording?(): Promise<void>;
-  saveSettings(settings: DesktopSettings): Promise<void>;
+  saveSettings(settings: DesktopSettings): Promise<DesktopSettings | void>;
   exportDiagnostics(data: Record<string, unknown>): Promise<boolean>;
   onAction(
     callback: (
       action:
         | "toggle-mute"
+        | "notification-settings-error"
         | "ptt-press"
         | "ptt-release"
         | "stop-accompaniment"

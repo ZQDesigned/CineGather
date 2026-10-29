@@ -7,6 +7,10 @@ on:
       - apps/desktop/src/main/notifications.ts
       - apps/desktop/src/preload/notification-card.ts
       - tools/notification-smoke.ts
+      - tools/do-not-disturb-smoke.ts
+      - apps/desktop/src/main/index.ts
+      - apps/desktop/src/preload/index.ts
+      - apps/desktop/src/renderer/ui/DoNotDisturb.tsx
 jobs:
   notifications:
     runs-on: windows-latest
@@ -25,9 +29,13 @@ jobs:
       - run: bun test apps/desktop/test/notifications.test.ts packages/media-core/test/watch-profile.test.ts
       - run: bun run --filter @cinegather/desktop build
       - run: bun tools/notification-smoke.ts
+      - run: bun tools/do-not-disturb-smoke.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-notification-evidence
           include-hidden-files: true
-          path: .local/notification-verification/*.json
+          path: |
+            .local/notification-verification/*.json
+            .local/do-not-disturb-verification/*.json
+            .local/do-not-disturb-verification/*.png

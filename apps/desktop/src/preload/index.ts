@@ -6,6 +6,15 @@ import type {
 } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
   notifications: {
+    setDoNotDisturb: (enabled) =>
+      ipcRenderer.invoke("desktop:do-not-disturb", enabled),
+    onDoNotDisturb: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, enabled: boolean) =>
+        callback(enabled);
+      ipcRenderer.on("desktop:do-not-disturb-changed", listener);
+      return () =>
+        ipcRenderer.removeListener("desktop:do-not-disturb-changed", listener);
+    },
     show: (input) => ipcRenderer.invoke("desktop:notification-show", input),
     clear: () => ipcRenderer.invoke("desktop:notification-clear"),
     unread: (count) => ipcRenderer.invoke("desktop:notification-unread", count),

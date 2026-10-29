@@ -183,6 +183,8 @@ export function bindClientNotifications(
     ) {
       sound.stop();
       void window.desktop?.notifications?.clear().catch(() => {});
+      for (const notice of webNotices.values()) notice.close();
+      webNotices.clear();
     }
     if (next.chat.unread === 0 && before.chat.unread && next.room)
       notificationInbox.read("chat:" + next.room.id);
