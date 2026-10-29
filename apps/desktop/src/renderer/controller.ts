@@ -16,6 +16,7 @@ import { DisconnectReason } from "livekit-client";
 import type {
   CaptureSelection,
   DesktopSettings,
+  MicrophoneEffect,
   RoomInfo,
   User,
   RoomInvitation,
@@ -1524,6 +1525,13 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
         : "设置已保存",
     ...(close ? { modal: null } : {}),
   });
+}
+export async function setMicrophoneEffect(effect: MicrophoneEffect) {
+  const next = await persistSettings((current) => ({
+    ...current,
+    microphoneEffect: effect,
+  }));
+  await media.configureMicrophone(next.noiseReduction, effect);
 }
 export async function setWatchProfile(
   profile: import("@cinegather/contracts").WatchProfile,

@@ -111,23 +111,26 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
       page.getByRole("button", { name: "退出登录", exact: true }),
     ).toBeVisible();
   };
-  const setEffect = async (value: "none" | "ktv") => {
-    await sender!
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
-    await sender!
-      .getByRole("combobox", { name: "麦克风音效", exact: true })
-      .click();
-    await sender!
-      .getByRole("option", {
-        name: value === "ktv" ? "KTV 混响" : "原声",
-        exact: true,
-      })
-      .click();
-    await sender!
-      .getByRole("button", { name: "保存设置", exact: true })
-      .click();
-    await expect(sender!.getByRole("dialog")).toHaveCount(0);
+  const setEffect = async (value: "none" | "ktv", target = sender!) => {
+    const control = target.getByRole("button", {
+      name: "麦克风音效",
+      exact: true,
+    });
+    await control.click();
+    const option = target.getByRole("menuitemradio", {
+      name: value === "ktv" ? "KTV 混响" : "原声",
+      exact: true,
+    });
+    await expect(option).toBeVisible();
+    await option.click();
+    await expect(control).toBeEnabled();
+    await expect(control).toHaveAttribute(
+      "aria-pressed",
+      String(value === "ktv"),
+    );
+    await expect(target.getByRole("menu", { name: "麦克风音效" })).toHaveCount(
+      0,
+    );
   };
   const sample = async () =>
     listener.evaluate(async () => {
@@ -296,6 +299,19 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     await expect(
       listener.locator('audio[data-cinegather-purpose="voice"]'),
     ).toHaveCount(1);
+    await setEffect("ktv", listener);
+    await expect(
+      listener.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeEnabled();
+    expect(
+      await listener.evaluate(
+        () =>
+          JSON.parse(localStorage.getItem("cinegather.settings")!)
+            .microphoneEffect,
+      ),
+    ).toBe("ktv");
+    await setEffect("none", listener);
+
     await sender.evaluate(async () => {
       const { media } = await import("/controller.ts" as string);
       const c = new AudioContext(),
@@ -357,10 +373,30 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     await sender
       .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
+    await expect(
+      sender.getByRole("combobox", { name: "麦克风音效", exact: true }),
+    ).toHaveCount(0);
+    await sender.keyboard.press("Escape");
+    const control = sender.getByRole("button", {
+      name: "麦克风音效",
+      exact: true,
+    });
+    const effectBox = (await control.boundingBox())!,
+      micBox = (await sender
+        .getByRole("button", { name: "开启麦克风", exact: true })
+        .boundingBox())!;
+    expect(Math.abs(effectBox.height - micBox.height)).toBeLessThanOrEqual(1);
+    expect(effectBox.x).toBeGreaterThan(micBox.x);
+    await expect(control).toHaveCSS("color", "rgb(196, 173, 255)");
+    await control.click();
+    await expect(
+      sender.getByRole("menu", { name: "麦克风音效", exact: true }),
+    ).toBeVisible();
     await sender.screenshot({
-      path: testInfo.outputPath("ktv-setting.png"),
+      path: testInfo.outputPath("ktv-room-control.png"),
       animations: "disabled",
     });
+    await sender.keyboard.press("Escape");
     const evidence = {
       dry,
       ktv,
@@ -379,17 +415,38 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
       await a.roomSession.leave();
     });
     await sender.reload();
+    // The effect choice is remembered when this desktop re-enters a room.
     await sender
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
+      .getByRole("button", { name: "创建私人房间", exact: true })
       .click();
-    await expect(
-      sender.locator(".ant-select").filter({
-        has: sender.getByRole("combobox", {
-          name: "麦克风音效",
-          exact: true,
-        }),
+    await sender.getByLabel("房间名称").fill("独唱音效记忆验证");
+    await sender
+      .getByRole("button", { name: "创建并进入", exact: true })
+      .click();
+    const remembered = sender.getByRole("button", {
+      name: "麦克风音效",
+      exact: true,
+    });
+    await expect(remembered).toHaveAttribute("aria-pressed", "true");
+    await expect(remembered).toContainText("KTV 混响");
+    rooms.push(
+      await sender.evaluate(async () => {
+        const { state } = await import("/store.ts" as string);
+        return state().room.id;
       }),
-    ).toContainText("KTV 混响");
+    );
+    await sender.setViewportSize({ width: 1100, height: 760 });
+    await remembered.click();
+    const menuBox = (await sender
+      .getByRole("menu", { name: "麦克风音效", exact: true })
+      .boundingBox())!;
+    expect(menuBox.x).toBeGreaterThanOrEqual(0);
+    expect(menuBox.y).toBeGreaterThanOrEqual(0);
+    expect(menuBox.x + menuBox.width).toBeLessThanOrEqual(1100);
+    await sender.screenshot({
+      path: testInfo.outputPath("ktv-room-control-narrow.png"),
+      animations: "disabled",
+    });
   } catch (error) {
     console.error("KTV scenario failed", String(error));
     throw error;

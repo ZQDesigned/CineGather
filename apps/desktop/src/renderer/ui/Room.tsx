@@ -32,6 +32,7 @@ import { qualityLabel } from "@cinegather/contracts";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { AccompanimentControl } from "./Accompaniment";
+import { MicrophoneEffectControl } from "./MicrophoneEffect";
 import { Chat } from "./Chat";
 import { Member } from "./Member";
 import { capabilities } from "../platform";
@@ -408,6 +409,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
                 <Settings size={15} />
               </Button>
             </div>
+            <MicrophoneEffectControl disabled={!connected} />
             <div className="control-divider" />
             {(!otherSharing || canPreempt || sharing) && (
               <Button

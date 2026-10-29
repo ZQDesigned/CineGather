@@ -990,7 +990,8 @@ export const AppSurface = styled.div`
   .control-button.muted-control {
     color: #bd8d90;
   }
-  .control-button.sharing-control {
+  .control-button.sharing-control,
+  .control-button.effect-control-active {
     color: #c4adff;
   }
   .control-divider {

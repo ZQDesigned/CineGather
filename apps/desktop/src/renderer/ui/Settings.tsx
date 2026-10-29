@@ -523,18 +523,6 @@ export function Settings() {
                     ]}
                   />
                 </Form.Item>
-                <Form.Item label="麦克风音效">
-                  <Select
-                    aria-label="麦克风音效"
-                    disabled={!platform.microphone || testing || requesting}
-                    value={settings.microphoneEffect ?? "none"}
-                    onChange={(value) => change("microphoneEffect", value)}
-                    options={[
-                      { value: "none", label: "原声" },
-                      { value: "ktv", label: "KTV 混响" },
-                    ]}
-                  />
-                </Form.Item>
                 <div className="device-test">
                   <Button
                     disabled={!platform.microphone}
