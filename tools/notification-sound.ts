@@ -22,7 +22,7 @@ for (let i = 0; i < length; i++) {
       Math.exp(-10 * t) *
       Math.min(1, (0.42 - t) / 0.08);
   const signal =
-    0.11 *
+    0.22 *
     envelope *
     (Math.sin(2 * Math.PI * 587.33 * t) +
       0.3 * Math.sin(2 * Math.PI * 880 * t));
