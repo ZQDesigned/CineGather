@@ -322,6 +322,7 @@ export interface MemberOverlayBridge {
   onChange(callback: (view: MemberOverlayView) => void): () => void;
 }
 export interface DesktopSettings {
+  notificationVolumeRevision?: number;
   watchProfile?: import("./watch-profile").WatchProfile;
   notifications?: import("./notifications").NotificationPreferences;
   roomSounds?: boolean;

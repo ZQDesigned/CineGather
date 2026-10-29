@@ -23,7 +23,7 @@ import { pathToFileURL } from "node:url";
 import { release } from "node:os";
 import { z } from "zod";
 import { allowedExternal, trustedURL, permissionAllowed } from "./security";
-import { defaultSettings, settingsSchema } from "./settings";
+import { defaultSettings, settingsSchema, restoreSettings } from "./settings";
 import { MemberOverlay } from "./member-overlay";
 import { ProductionDiagnostics } from "./diagnostics";
 import { overlaySnapshotSchema } from "../shared/member-overlay";
@@ -829,9 +829,19 @@ else {
         });
       await mkdir(app.getPath("userData"), { recursive: true });
       try {
-        settings = settingsSchema.parse(
+        const restored = restoreSettings(
           JSON.parse(await readFile(settingsPath(), "utf8")),
         );
+        settings = restored.settings;
+        if (restored.migrated) {
+          try {
+            await writeFile(settingsPath(), JSON.stringify(settings), {
+              mode: 0o600,
+            });
+          } catch {
+            // Keep the user's other preferences and retry persistence next launch.
+          }
+        }
       } catch {
         settings = defaultSettings;
       }

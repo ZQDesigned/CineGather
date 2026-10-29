@@ -214,3 +214,57 @@ test("notification preferences, merged history, sharing privacy and account isol
     }),
   ).toBe(1);
 });
+
+test("an upgrade resets notification volume once and later saved levels survive reloading", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    if (localStorage.getItem("notification-volume-fixture")) return;
+    localStorage.setItem("notification-volume-fixture", "seeded");
+    localStorage.setItem(
+      "cinegather.settings",
+      JSON.stringify({
+        minimizeToTray: true,
+        pushToTalk: false,
+        pttShortcut: "CommandOrControl+Shift+Space",
+        muteShortcut: "CommandOrControl+Shift+M",
+        quality: "cinema",
+        inputDevice: "",
+        outputDevice: "",
+        notifications: { volume: 12, sound: false, doNotDisturb: true },
+      }),
+    );
+  });
+  await page.goto("/");
+  const saved = () =>
+    page.evaluate(() =>
+      JSON.parse(localStorage.getItem("cinegather.settings")!),
+    );
+  await expect.poll(async () => (await saved()).notifications.volume).toBe(100);
+  expect((await saved()).notifications).toMatchObject({
+    sound: false,
+    doNotDisturb: true,
+  });
+  const open = async () => {
+    await page
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
+      .click();
+    await page.getByRole("tab", { name: "通知", exact: true }).click();
+  };
+  await open();
+  const slider = page.getByRole("slider");
+  await expect(slider).toHaveAttribute("aria-valuenow", "100");
+  await slider.focus();
+  await slider.press("ArrowLeft");
+  await expect(slider).toHaveAttribute("aria-valuenow", "99");
+  await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await expect.poll(async () => (await saved()).notifications.volume).toBe(99);
+  await page.reload();
+  await open();
+  await expect(page.getByRole("slider")).toHaveAttribute("aria-valuenow", "99");
+  expect((await saved()).notifications).toMatchObject({
+    volume: 99,
+    sound: false,
+    doNotDisturb: true,
+  });
+});

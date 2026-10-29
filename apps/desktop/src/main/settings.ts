@@ -1,1 +1,5 @@
-export { settingsSchema, defaultSettings } from "../shared/settings";
+export {
+  settingsSchema,
+  defaultSettings,
+  restoreSettings,
+} from "../shared/settings";

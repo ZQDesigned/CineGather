@@ -4,7 +4,7 @@ export const notificationPreferencesSchema = z.strictObject({
   enabled: z.boolean().default(true),
   desktop: z.boolean().default(true),
   sound: z.boolean().default(true),
-  volume: z.number().min(0).max(100).default(30),
+  volume: z.number().min(0).max(100).default(100),
   preview: z.boolean().default(true),
   doNotDisturb: z.boolean().default(false),
   chat: z.boolean().default(true),

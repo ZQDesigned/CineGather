@@ -34,7 +34,7 @@ import {
   readWebInvitation,
   platformSettings,
 } from "./platform";
-import { settingsSchema } from "../shared/settings";
+import { restoreSettings } from "../shared/settings";
 import { FriendRequests, friendRequestNotification } from "./friends";
 import { ApprovedRoomEntry } from "./approved-room-entry";
 import { DiagnosticRecorder } from "./diagnostic-recorder";
@@ -913,17 +913,23 @@ export async function initialize() {
   });
   await window.desktop?.updates?.setInRoom(Boolean(state().room)).catch(report);
   try {
-    const loaded = window.desktop
-      ? await window.desktop.loadSettings()
-      : settingsSchema.parse(
+    const restored = window.desktop
+      ? { settings: await window.desktop.loadSettings(), migrated: false }
+      : restoreSettings(
           JSON.parse(localStorage.getItem("cinegather.settings") ?? "null") ??
             defaults,
         );
+    const loaded = restored.settings;
     const settings = platformSettings(loaded, capabilities().desktop);
     update({ settings });
     media.setWatchProfile(settings.watchProfile ?? "balanced");
-    if (!window.desktop && loaded.pushToTalk)
-      localStorage.setItem("cinegather.settings", JSON.stringify(settings));
+    if (!window.desktop && (restored.migrated || loaded.pushToTalk)) {
+      try {
+        localStorage.setItem("cinegather.settings", JSON.stringify(settings));
+      } catch {
+        // Keep preferences in memory if browser storage is temporarily unavailable.
+      }
+    }
   } catch {
     update({ settings: defaults });
   }
