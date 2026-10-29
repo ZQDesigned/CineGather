@@ -1,5 +1,6 @@
 import { WatchProfileControl, WatchAdvice } from "./WatchProfile";
 
+import { Music2 as MusicIcon } from "lucide-react";
 import { PictureInPicture2 } from "lucide-react";
 import { useViewingWindow } from "./ViewingWindow";
 import { ShareQueue } from "./ShareQueue";
@@ -48,8 +49,13 @@ export function Room({ visible = true }: { visible?: boolean }) {
   const policy = app.room?.memberPermissions?.find(
     (p) => p.userId === app.user?.id,
   );
+  const karaokeListener = Boolean(
+    app.karaoke?.enabled && !app.karaoke?.singing,
+  );
   const micBlocked =
-    policy?.microphoneAllowed === false || local?.microphoneAllowed === false;
+    karaokeListener ||
+    policy?.microphoneAllowed === false ||
+    local?.microphoneAllowed === false;
   const shareBlocked = policy?.sharingAllowed === false;
   const sharing = [
     "acquiringLease",
@@ -124,6 +130,15 @@ export function Room({ visible = true }: { visible?: boolean }) {
           </Tag>
         </div>
         <div className="heading-actions">
+          {app.karaoke &&
+            (app.karaoke.enabled || app.room!.role === "owner") && (
+              <Button onClick={() => update({ modal: "karaoke" })}>
+                <MusicIcon size={16} />
+                {app.karaoke.enabled
+                  ? `合唱中（${app.karaoke.singers.length}/4）`
+                  : "合唱验证"}
+              </Button>
+            )}
           {app.room!.role === "owner" && (
             <Button onClick={() => update({ modal: "room-settings" })}>
               <Settings size={16} />
@@ -383,19 +398,29 @@ export function Room({ visible = true }: { visible?: boolean }) {
                 aria-pressed={Boolean(local?.microphone)}
                 className={`control-button ${!local?.microphone ? "muted-control" : ""}`}
                 disabled={!connected || micBlocked}
-                title={micBlocked ? "房主已禁止你在此房间开麦" : undefined}
+                title={
+                  micBlocked
+                    ? karaokeListener
+                      ? "加入合唱后可以开启麦克风"
+                      : "房主已禁止你在此房间开麦"
+                    : undefined
+                }
                 onClick={() => void actions.toggleMicrophone()}
                 aria-label={local?.microphone ? "关闭麦克风" : "开启麦克风"}
               >
                 {local?.microphone ? <Mic size={21} /> : <MicOff size={21} />}
                 <span>
-                  {micBlocked
-                    ? "已被禁止开麦"
-                    : capabilities().pushToTalk && app.settings.pushToTalk
-                      ? "按住空格说话"
-                      : local?.microphone
-                        ? "麦克风已开启"
-                        : "麦克风已关闭"}
+                  {karaokeListener
+                    ? "听众模式"
+                    : micBlocked
+                      ? "已被禁止开麦"
+                      : !app.karaoke?.enabled &&
+                          capabilities().pushToTalk &&
+                          app.settings.pushToTalk
+                        ? "按住空格说话"
+                        : local?.microphone
+                          ? "麦克风已开启"
+                          : "麦克风已关闭"}
                 </span>
               </Button>
               <Button

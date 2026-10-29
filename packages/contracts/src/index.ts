@@ -562,3 +562,13 @@ export const shareRequestsSchema = z.object({
 export type ShareRequest = z.infer<typeof shareRequestSchema>;
 export * from "./notifications";
 export * from "./watch-profile";
+
+export const karaokeStateSchema = z.object({
+  enabled: z.boolean(),
+  revision: z.number().int().nonnegative(),
+  singers: z.array(z.uuid()).max(4),
+  singing: z.boolean(),
+  serverTimeMs: z.number(),
+});
+export const karaokeModeInput = z.strictObject({ enabled: z.boolean() });
+export type KaraokeState = z.infer<typeof karaokeStateSchema>;

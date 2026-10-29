@@ -839,15 +839,158 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
   error: report,
 });
 const pttHolds = new Set<"window" | "global">();
+let karaokeRequest = 0;
+let karaokeMutation = 0;
+let karaokeAvailable: boolean | undefined;
+let karaokeWork = Promise.resolve();
+async function readKaraoke(roomId: string) {
+  if (karaokeAvailable === false) return undefined;
+  const result = await api.GET("/api/v1/rooms/{roomId}/karaoke", {
+    params: { path: { roomId } },
+  });
+  if (
+    result.response.status === 404 &&
+    result.error?.code !== "ROOM_NOT_FOUND"
+  ) {
+    karaokeAvailable = false;
+    return undefined;
+  }
+  karaokeAvailable = true;
+  return unwrap(result);
+}
+function applyKaraoke(
+  value: import("@cinegather/contracts").KaraokeState | undefined,
+) {
+  update({ karaoke: value });
+  const wanted = value;
+  karaokeWork = karaokeWork
+    .catch(() => {})
+    .then(async () => {
+      if (state().karaoke !== wanted) return;
+      await media.karaokeMode(
+        wanted?.enabled ?? false,
+        Boolean(wanted?.singing && capabilities().desktop),
+      );
+    });
+  return karaokeWork;
+}
+export async function refreshKaraoke() {
+  const room = state().room,
+    identity = sessionToken,
+    revision = ++karaokeRequest,
+    mutation = karaokeMutation;
+  if (!room) return;
+  const value = await readKaraoke(room.id);
+  if (
+    identity === sessionToken &&
+    state().room?.id === room.id &&
+    revision === karaokeRequest &&
+    mutation === karaokeMutation &&
+    (!value || value.revision >= (state().karaoke?.revision ?? 0))
+  )
+    await applyKaraoke(value);
+}
+export async function karaokeMode(enabled: boolean) {
+  const room = state().room,
+    identity = sessionToken,
+    scope = state().roomRevision;
+  if (!room) return;
+  ++karaokeRequest;
+  ++karaokeMutation;
+  const result = unwrap(
+    await api.POST("/api/v1/rooms/{roomId}/karaoke", {
+      params: { path: { roomId: room.id } },
+      body: { enabled },
+    }),
+  );
+  if (
+    identity === sessionToken &&
+    scope === state().roomRevision &&
+    state().room?.id === room.id &&
+    result.revision >= (state().karaoke?.revision ?? 0)
+  )
+    await applyKaraoke(result);
+}
+export async function joinKaraoke() {
+  const room = state().room,
+    identity = sessionToken,
+    scope = state().roomRevision;
+  if (!room) return;
+  if (!window.desktop || !["win32", "darwin"].includes(window.desktop.platform))
+    throw new Error("合唱暂需使用 Windows 或 macOS 客户端");
+  ++karaokeRequest;
+  ++karaokeMutation;
+  const result = unwrap(
+    await api.POST("/api/v1/rooms/{roomId}/karaoke/singers", {
+      params: { path: { roomId: room.id } },
+    }),
+  );
+  if (
+    identity !== sessionToken ||
+    scope !== state().roomRevision ||
+    state().room?.id !== room.id ||
+    result.revision < (state().karaoke?.revision ?? 0)
+  )
+    return;
+  await applyKaraoke(result);
+  // Seat admission is the explicit microphone opt-in; room polling never unmutes.
+  for (let n = 0; n < 20; n++) {
+    if (!state().karaoke?.singing || state().room?.id !== room.id) return;
+    if (
+      state().media.participants.find((p) => p.local)?.microphoneAllowed !==
+      false
+    ) {
+      await media.microphone(true, state().settings.inputDevice);
+      return;
+    }
+    await new Promise((resolve) => setTimeout(resolve, 50));
+  }
+  throw new Error("合唱权限正在同步，请稍后手动开启麦克风");
+}
+export async function leaveKaraoke(userId = state().user?.id) {
+  const room = state().room,
+    identity = sessionToken,
+    scope = state().roomRevision;
+  if (!room || !userId) return;
+  ++karaokeRequest;
+  ++karaokeMutation;
+  if (userId === state().user?.id) await media.microphone(false);
+  const result = unwrap(
+    await api.DELETE("/api/v1/rooms/{roomId}/karaoke/singers/{userId}", {
+      params: { path: { roomId: room.id, userId } },
+    }),
+  );
+  if (
+    identity === sessionToken &&
+    scope === state().roomRevision &&
+    state().room?.id === room.id &&
+    result.revision >= (state().karaoke?.revision ?? 0)
+  )
+    await applyKaraoke(result);
+}
 export const roomSession = new RoomCoordinator({
   join: async (roomId, inviteToken, password) => {
     await window.desktop?.updates?.setInRoom(true);
-    return unwrap(
+    const result = unwrap(
       await api.POST("/api/v1/rooms/{roomId}/join", {
         params: { path: { roomId } },
         body: { inviteToken, password },
       }),
     );
+    ++karaokeRequest;
+    try {
+      update({ karaoke: await readKaraoke(result.room.id) });
+    } catch (error) {
+      // Admission has already committed. Failed preview discovery must not strand it.
+      await api
+        .POST("/api/v1/rooms/{roomId}/leave", {
+          params: { path: { roomId: result.room.id } },
+        })
+        .then(unwrap)
+        .catch(report);
+      throw error;
+    }
+    return result;
   },
   leave: async (roomId) => {
     unwrap(
@@ -859,11 +1002,17 @@ export const roomSession = new RoomCoordinator({
   connect: async (url, token) => {
     await refreshFriends();
     await refreshAudioDevices().catch(report);
+    await media.karaokeMode(
+      state().karaoke?.enabled ?? false,
+      Boolean(state().karaoke?.singing && capabilities().desktop),
+    );
     await media.connect(url, token);
     try {
       await media.noiseReduction(state().settings.noiseReduction);
       await media.microphone(
-        !(capabilities().pushToTalk && state().settings.pushToTalk),
+        state().karaoke?.enabled
+          ? Boolean(state().karaoke?.singing && capabilities().desktop)
+          : !(capabilities().pushToTalk && state().settings.pushToTalk),
         state().settings.inputDevice,
       );
       await media.devices(
@@ -876,8 +1025,13 @@ export const roomSession = new RoomCoordinator({
   },
   disconnect: () => {
     pttHolds.clear();
+    ++karaokeRequest;
+    ++karaokeMutation;
+    update({ karaoke: undefined });
     return Promise.all([accompaniment.stop(), media.disconnect()]).then(
-      () => {},
+      async () => {
+        await media.karaokeMode(false, false);
+      },
     );
   },
   stopShare,
@@ -1179,6 +1333,7 @@ async function syncRooms() {
     if (state().room !== room || state().roomRevision !== roomRevision) return;
     const promoted = current.role === "owner" && state().room?.role !== "owner";
     update({ room: current, ...(promoted ? { notice: "你已成为房主" } : {}) });
+    await refreshKaraoke();
   } catch (error) {
     if (identity !== sessionToken || changingCredentials) return;
     if (error instanceof ApiError && error.status === 401) report(error);
@@ -1386,7 +1541,7 @@ export async function ptt(
   enabled: boolean,
   source: "window" | "global" = "window",
 ) {
-  if (!capabilities().pushToTalk) return;
+  if (!capabilities().pushToTalk || state().karaoke?.enabled) return;
   if (
     enabled &&
     state().settings.pushToTalk &&

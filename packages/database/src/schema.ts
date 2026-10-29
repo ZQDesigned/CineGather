@@ -383,3 +383,26 @@ export const shareRequests = pgTable(
     ),
   ],
 );
+
+export const karaokeStages = pgTable("karaoke_stages", {
+  roomId: uuid("room_id")
+    .primaryKey()
+    .references(() => rooms.id, { onDelete: "cascade" }),
+  enabled: boolean("enabled").notNull().default(false),
+  revision: integer("revision").notNull().default(0),
+});
+export const karaokeSeats = pgTable(
+  "karaoke_seats",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    credentialId: uuid("credential_id")
+      .notNull()
+      .references(() => credentials.id, { onDelete: "cascade" }),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] })],
+);

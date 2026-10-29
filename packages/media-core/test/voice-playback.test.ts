@@ -154,3 +154,53 @@ test("unsupported audio enhancement keeps bounded basic playback and warns once 
   expect(playback.blocked).toBe(false);
   playback.clear();
 });
+
+test("direct music output waits for device selection and recycled voice elements unmute", async () => {
+  const f = fixture();
+  let outputConnections = 0,
+    ready!: () => void;
+  const output = {} as AudioDestinationNode;
+  const context = {
+    ...f.context,
+    destination: output,
+    setSinkId: () =>
+      new Promise<void>((resolve) => {
+        ready = resolve;
+      }),
+    createGain: () => ({
+      ...f.context.createGain(),
+      connect: (target: unknown) => {
+        if (target === output) outputConnections++;
+      },
+    }),
+  };
+  const element = {
+    srcObject: f.input,
+    volume: 1,
+    muted: false,
+  } as HTMLMediaElement;
+  const music = new VoicePlayback(
+    () => {},
+    () => {},
+    () => context as unknown as AudioContext,
+    player,
+    true,
+  );
+  music.attach("a", f.input, element, { setVolume() {} });
+  expect(element.muted).toBe(true);
+  expect(outputConnections).toBe(0);
+  await Promise.resolve();
+  ready();
+  await new Promise((resolve) => setTimeout(resolve, 0));
+  expect(outputConnections).toBe(1);
+  music.clear();
+  const voice = new VoicePlayback(
+    () => {},
+    () => {},
+    () => f.context as unknown as AudioContext,
+    player,
+  );
+  voice.attach("b", f.input, element, { setVolume() {} });
+  expect(element.muted).toBe(false);
+  voice.clear();
+});

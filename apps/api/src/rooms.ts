@@ -3,6 +3,7 @@ import { refreshSessionAdmission } from "./auth";
 import { memberIdentity, memberSession } from "@cinegather/contracts";
 import {
   nativePublications,
+  karaokeSeats,
   roomMemberPermissions,
   rooms,
   members,
@@ -442,6 +443,18 @@ export async function leaveRoom(user: User, roomId: string) {
     if (!room || room.status === "closed") return;
     await requireMember(tx, roomId, user.id, false, true);
     const credentialId = sessionCredential(user);
+    if (config.karaokePreview)
+      await tx
+        .delete(karaokeSeats)
+        .where(
+          and(
+            eq(karaokeSeats.roomId, roomId),
+            eq(karaokeSeats.userId, user.id),
+            credentialId
+              ? eq(karaokeSeats.credentialId, credentialId)
+              : undefined,
+          ),
+        );
     const [lease] = await tx
       .select()
       .from(leases)
@@ -1084,6 +1097,15 @@ export async function updateMemberPermissions(
         target: [roomMemberPermissions.roomId, roomMemberPermissions.userId],
         set: next,
       });
+    if (!next.microphoneAllowed && config.karaokePreview)
+      await tx
+        .delete(karaokeSeats)
+        .where(
+          and(
+            eq(karaokeSeats.roomId, roomId),
+            eq(karaokeSeats.userId, targetId),
+          ),
+        );
     if (!next.sharingAllowed) {
       const [lease] = await tx
         .select()
@@ -1146,6 +1168,15 @@ export async function moderate(
     if (!target) fail(404, "USER_NOT_FOUND", "成员不存在");
     await revokeNative(tx, roomId, targetId);
     await media.remove(roomId, targetId);
+    if (config.karaokePreview)
+      await tx
+        .delete(karaokeSeats)
+        .where(
+          and(
+            eq(karaokeSeats.roomId, roomId),
+            eq(karaokeSeats.userId, targetId),
+          ),
+        );
     await tx
       .delete(roomSessions)
       .where(

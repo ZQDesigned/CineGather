@@ -1,3 +1,4 @@
+import { Karaoke } from "./Karaoke";
 import {
   Select,
   Checkbox,
@@ -78,6 +79,7 @@ function DialogContent({ modal }: { modal: Modal }) {
         <p>当前账号暂未开通屏幕共享能力。</p>
       </ModalShell>
     );
+  if (modal === "karaoke") return <Karaoke />;
   if (modal === "room-settings") return <RoomSettings />;
   if (modal === "create") return <CreateRoom />;
   if (modal === "join") return <JoinRoom />;

@@ -241,7 +241,46 @@ const microphoneNoiseSchema = z.object({
   fallback: z.boolean().optional(),
   engine: z.enum(["deepfilternet3", "rnnoise", "platform"]).optional(),
 });
+const karaokeDiagnosticSchema = z.object({
+  capture: z
+    .object({
+      echoCancellation: z.boolean().optional(),
+      noiseSuppression: z.boolean().optional(),
+      autoGainControl: z.boolean().optional(),
+      sampleRate: number.optional(),
+      channelCount: number.optional(),
+    })
+    .optional(),
+  enabled: z.boolean(),
+  singing: z.boolean(),
+  headphones: z.boolean(),
+  gain: number,
+  reverb: number,
+  monitor: number,
+  delayMs: number,
+  processingContextBaseMs: number.optional(),
+  monitorOutputLatencyMs: number.optional(),
+  processorContextState: text.optional(),
+  playbackContextState: text.optional(),
+  outputLatencyMs: number.optional(),
+  playbackBaseMs: number.optional(),
+  processorActive: z.boolean().optional(),
+  monitorActive: z.boolean().optional(),
+  receiverControlSupported: z.boolean().optional(),
+  receiverTargetMs: number,
+  measurements: z
+    .array(
+      z.object({
+        track: text,
+        transportRttMs: number.optional(),
+        queueMs: number.optional(),
+        concealedPercent: number.optional(),
+      }),
+    )
+    .max(16),
+});
 export const mediaDiagnosticSchema = z.object({
+  karaoke: karaokeDiagnosticSchema.optional(),
   watchProfile: watchProfileSchema.optional(),
   watchTargetMs: number.optional(),
   watchBuffering: z.boolean().optional(),
@@ -610,6 +649,7 @@ export function repairDiagnosticRecord(input: unknown): DiagnosticRecord {
   return safeDiagnosticRecord(candidate);
 }
 export const diagnosticSnapshotSchema = z.object({
+  karaoke: karaokeDiagnosticSchema.optional(),
   encoderCapabilities: encoderCapabilitiesSchema.optional(),
   issues: diagnosticIssues,
   microphoneNoise: microphoneNoiseSchema.optional(),

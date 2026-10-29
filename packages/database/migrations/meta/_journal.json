@@ -127,6 +127,13 @@
       "when": 1793277732924,
       "tag": "0017_friend_volume",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1793279709664,
+      "tag": "0018_karaoke_preview",
+      "breakpoints": true
     }
   ]
 }

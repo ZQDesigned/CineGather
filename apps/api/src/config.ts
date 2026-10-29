@@ -13,6 +13,7 @@ function required(name: string, min = 1) {
   return value;
 }
 export const config = {
+  karaokePreview: process.env.ENABLE_KARAOKE_PREVIEW === "1",
   clientPolicy: readClientPolicy(process.env),
   updateDirectory:
     process.env.CLIENT_UPDATE_DIRECTORY ?? "/var/lib/cinegather/updates/stable",

@@ -6,14 +6,61 @@ export class VoicePlayback {
   private context?: AudioContext;
   private routes = new Map<
     string,
-    { release(): void; player: HTMLMediaElement }
+    { release(): void; player: HTMLMediaElement; connectOutput?: () => void }
   >();
   private warned = false;
+  private outputDevice = "";
+  get latency() {
+    const c = this.context;
+    return {
+      playbackContextState: c?.state,
+      playbackBaseMs:
+        c && Number.isFinite(c.baseLatency) ? c.baseLatency * 1000 : undefined,
+      outputLatencyMs:
+        c && Number.isFinite(c.outputLatency)
+          ? c.outputLatency * 1000
+          : undefined,
+    };
+  }
+  private outputSetup?: {
+    context: AudioContext;
+    id: string;
+    ready: Promise<void>;
+  };
+  async device(id: string) {
+    this.outputDevice = id;
+    const context = this.context;
+    if (!context || !this.direct) return;
+    if (id && !("setSinkId" in context))
+      throw new Error("当前设备不支持指定音乐输出，请使用系统默认输出");
+    if (this.outputSetup?.context !== context || this.outputSetup.id !== id) {
+      const ready = Promise.resolve().then(async () => {
+        if ("setSinkId" in context)
+          await (
+            context as AudioContext & { setSinkId(id: string): Promise<void> }
+          ).setSinkId(id);
+      });
+      this.outputSetup = { context, id, ready };
+      void ready.catch(() => {
+        if (this.outputSetup?.ready === ready) this.outputSetup = undefined;
+      });
+    }
+    const setup = this.outputSetup;
+    await setup.ready;
+    if (
+      this.context === context &&
+      this.outputDevice === id &&
+      this.outputSetup === setup
+    )
+      for (const route of this.routes.values()) route.connectOutput?.();
+  }
+
   constructor(
     private readonly changed: () => void,
     private readonly error: (error: Error) => void,
     private readonly createContext = () => new AudioContext(),
     private readonly createInputPlayer = () => document.createElement("audio"),
+    private readonly direct = false,
   ) {}
   get blocked() {
     return (
@@ -56,13 +103,30 @@ export class VoicePlayback {
       element.srcObject = destination.stream;
       // All attenuation/amplification lives in the graph, with no parallel raw output.
       element.volume = 1;
+      element.muted = this.direct;
+      if (this.direct) {
+        if (this.outputDevice && !("setSinkId" in context))
+          throw new Error("Direct audio output selection unavailable");
+        element.muted = true;
+      }
       const routeSource = source,
         routeGain = gain,
         routeOutput = destination;
       const player = inputPlayer;
+      let active = true,
+        connected = false;
       this.routes.set(id, {
+        connectOutput: this.direct
+          ? () => {
+              if (active && !connected) {
+                routeGain.connect(context.destination);
+                connected = true;
+              }
+            }
+          : undefined,
         player,
         release: () => {
+          active = false;
           player.pause();
           player.srcObject = null;
           player.remove();
@@ -71,6 +135,7 @@ export class VoicePlayback {
           routeOutput.stream.getTracks().forEach((t) => t.stop());
         },
       });
+      if (this.direct) void this.device(this.outputDevice).catch(this.error);
       void this.resume().catch(() => this.changed());
       this.changed();
       return {
@@ -91,6 +156,7 @@ export class VoicePlayback {
       gain?.disconnect();
       destination?.stream.getTracks().forEach((t) => t.stop());
       element.srcObject = input;
+      element.muted = false;
       return {
         setVolume: (value) => {
           const level = Number.isFinite(value)
