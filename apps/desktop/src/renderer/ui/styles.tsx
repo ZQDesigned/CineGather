@@ -1000,10 +1000,12 @@ export const AppSurface = styled.div`
     background: var(--line);
     margin: 0 2px;
   }
-  .control-settings {
-    padding: 4px;
-    align-self: flex-start;
-    margin-top: 3px;
+  .audio-quick-trigger.ant-btn {
+    width: 24px;
+    min-width: 24px;
+    height: 42px;
+    padding: 0;
+    border-radius: 6px;
   }
   .control-spacer {
     flex: 1;

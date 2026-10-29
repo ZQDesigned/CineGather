@@ -33,6 +33,7 @@ import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { AccompanimentControl } from "./Accompaniment";
 import { MicrophoneEffectControl } from "./MicrophoneEffect";
+import { AudioQuickControl } from "./AudioQuickControl";
 import { Chat } from "./Chat";
 import { Member } from "./Member";
 import { capabilities } from "../platform";
@@ -399,15 +400,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
                         : "麦克风已关闭"}
                 </span>
               </Button>
-              <Button
-                type="text"
-                className="control-settings"
-                title="音频设备设置"
-                aria-label="音频设备设置"
-                onClick={() => update({ modal: "settings" })}
-              >
-                <Settings size={15} />
-              </Button>
+              <AudioQuickControl disabled={!connected} />
             </div>
             <MicrophoneEffectControl disabled={!connected} />
             <div className="control-divider" />

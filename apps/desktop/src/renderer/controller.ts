@@ -1526,6 +1526,51 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
     ...(close ? { modal: null } : {}),
   });
 }
+type RoomAudioKey = "inputDevice" | "outputDevice" | "noiseReduction";
+let roomAudioWork = Promise.resolve();
+export function setRoomAudioSetting<K extends RoomAudioKey>(
+  key: K,
+  value: DesktopSettings[K],
+) {
+  const work = roomAudioWork
+    .catch(() => {})
+    .then(async () => {
+      const before = state().settings;
+      const apply = (settings: DesktopSettings) =>
+        key === "noiseReduction"
+          ? media.configureMicrophone(
+              settings.noiseReduction,
+              state().settings.microphoneEffect ?? "none",
+            )
+          : media.devices(
+              key === "inputDevice" ? settings.inputDevice : undefined,
+              key === "outputDevice" ? settings.outputDevice : undefined,
+            );
+      const next = await persistSettings((current) => ({
+        ...current,
+        [key]: value,
+      }));
+      try {
+        await apply(next);
+      } catch (error) {
+        // A vanished device follows normal recovery. Other failures restore the
+        // previous choice, without overwriting a newer settings change.
+        await refreshAudioDevices().catch(() => {});
+        if (state().settings[key] === value) {
+          const restored = await persistSettings((current) =>
+            current[key] === value
+              ? { ...current, [key]: before[key] }
+              : current,
+          );
+          await apply(restored).catch(() => {});
+          await refreshAudioDevices().catch(() => {});
+        }
+        throw error;
+      }
+    });
+  roomAudioWork = work;
+  return work;
+}
 export async function setMicrophoneEffect(effect: MicrophoneEffect) {
   const next = await persistSettings((current) => ({
     ...current,

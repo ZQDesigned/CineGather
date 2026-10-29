@@ -691,7 +691,7 @@ test("switching a selected microphone back to system default updates the active 
     );
   try {
     await page
-      .getByRole("button", { name: "音频设备设置", exact: true })
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
     const select = page.getByRole("combobox", { name: "麦克风", exact: true });
     await select.click();
@@ -705,7 +705,7 @@ test("switching a selected microphone back to system default updates the active 
     await expect.poll(calls).toBeGreaterThan(before);
     const selectedCalls = await calls();
     await page
-      .getByRole("button", { name: "音频设备设置", exact: true })
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
     await page.getByRole("combobox", { name: "麦克风", exact: true }).click();
     await page
@@ -732,7 +732,7 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
   ).toBeEnabled();
   try {
     await page
-      .getByRole("button", { name: "音频设备设置", exact: true })
+      .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await page.getByRole("checkbox", { name: /^按键说话/ }).check();
@@ -918,7 +918,7 @@ test("push-to-talk released during an SFU outage stays muted after reconnection"
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("重连静音意图测试");
   await page.getByRole("button", { name: "创建并进入" }).click();
-  await page.getByRole("button", { name: "音频设备设置", exact: true }).click();
+  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await page.getByRole("checkbox", { name: /^按键说话/ }).check();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();

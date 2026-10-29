@@ -101,7 +101,7 @@ test("changing noise reduction hot-applies to the room without unmuting a muted 
       ["enhanced", "增强降噪"],
     ]) {
       await page
-        .getByRole("button", { name: "音频设备设置", exact: true })
+        .getByRole("menuitem", { name: "设置与设备", exact: true })
         .click();
       await page
         .getByRole("combobox", { name: "麦克风降噪", exact: true })
