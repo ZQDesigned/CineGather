@@ -33,10 +33,9 @@ import { AccountForm } from "./AccountForm";
 import { UpdatePanel } from "./Updates";
 import { NotificationSettings } from "./NotificationSettings";
 import {
-  createMicrophoneDenoiser,
+  createMicrophoneProcessor,
   microphoneConstraints,
 } from "@cinegather/media-core";
-import type { MicrophoneDenoiser } from "@cinegather/media-core";
 export function Settings() {
   const platform = capabilities();
   const user = useApp((s) => s.user);
@@ -162,7 +161,10 @@ export function Settings() {
         stream: MediaStream;
         context: AudioContext;
         frame: number;
-        processor?: MicrophoneDenoiser;
+        processor?: import("livekit-client").TrackProcessor<
+          import("livekit-client").Track.Kind.Audio,
+          import("livekit-client").AudioProcessorOptions
+        >;
       }
     | undefined
   >(undefined);
@@ -251,7 +253,12 @@ export function Settings() {
     const revision = ++testRevision.current;
     let stream: MediaStream | undefined;
     let context: AudioContext | undefined;
-    let processor: MicrophoneDenoiser | undefined;
+    let processor:
+      | import("livekit-client").TrackProcessor<
+          import("livekit-client").Track.Kind.Audio,
+          import("livekit-client").AudioProcessorOptions
+        >
+      | undefined;
     try {
       stream = await navigator.mediaDevices.getUserMedia({
         audio: {
@@ -294,11 +301,18 @@ export function Settings() {
         { once: true },
       );
       let metered = stream;
-      if (settings.noiseReduction === "enhanced") {
-        processor = await createMicrophoneDenoiser((status) => {
-          if (status.reason && revision === testRevision.current)
-            update({ notice: "高质量降噪暂不可用，已切换兼容降噪" });
-        });
+      if (
+        settings.noiseReduction === "enhanced" ||
+        settings.microphoneEffect === "ktv"
+      ) {
+        processor = await createMicrophoneProcessor(
+          settings.noiseReduction,
+          settings.microphoneEffect ?? "none",
+          (status) => {
+            if (status.reason && revision === testRevision.current)
+              update({ notice: "高质量降噪暂不可用，已切换兼容降噪" });
+          },
+        );
         if (revision !== testRevision.current) {
           stream.getTracks().forEach((track) => track.stop());
           await processor?.destroy();
@@ -506,6 +520,18 @@ export function Settings() {
                       { value: "enhanced", label: "增强降噪" },
                       { value: "basic", label: "基础降噪" },
                       { value: "off", label: "关闭降噪" },
+                    ]}
+                  />
+                </Form.Item>
+                <Form.Item label="麦克风音效">
+                  <Select
+                    aria-label="麦克风音效"
+                    disabled={!platform.microphone || testing || requesting}
+                    value={settings.microphoneEffect ?? "none"}
+                    onChange={(value) => change("microphoneEffect", value)}
+                    options={[
+                      { value: "none", label: "原声" },
+                      { value: "ktv", label: "KTV 混响" },
                     ]}
                   />
                 </Form.Item>

@@ -15,7 +15,6 @@ import type { ChatSnapshot } from "@cinegather/client-core";
 import type { ChatMessage } from "@cinegather/contracts";
 import type { Friend } from "./friends";
 export type Modal =
-  | "karaoke"
   | "room-settings"
   | "create"
   | "join"
@@ -34,7 +33,6 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
-  karaoke?: import("@cinegather/contracts").KaraokeState;
   notifications: import("@cinegather/contracts").NotificationRecord[];
   chat: ChatSnapshot;
   chatTab: "members" | "chat";

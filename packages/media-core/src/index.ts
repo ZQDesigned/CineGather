@@ -5,3 +5,9 @@ export type { MicrophoneDenoiser } from "./noise-processor";
 export { diagnosticHash, boundedStats, projectRTCStats } from "./diagnostics";
 
 export { Accompaniment } from "./accompaniment";
+
+export {
+  createMicrophoneProcessor,
+  type MicrophoneEffectStatus,
+} from "./microphone-processor";
+export { KtvReverb } from "./ktv-reverb";

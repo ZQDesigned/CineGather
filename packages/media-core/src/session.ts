@@ -1,12 +1,8 @@
-import { SingingProcessor } from "./singing-processor";
+import { KtvReverb } from "./ktv-reverb";
 import {
-  KaraokeAudioMetrics,
-  karaokePlayoutTarget,
-  requestKaraokeBuffer,
-  singingConstraints,
-  singingOptions,
-  type SingingOptions,
-} from "./karaoke";
+  createMicrophoneProcessor,
+  type MicrophoneEffectStatus,
+} from "./microphone-processor";
 import {
   Room,
   LocalAudioTrack,
@@ -31,6 +27,7 @@ import {
   qualityPresets,
   type Quality,
   type NoiseReduction,
+  type MicrophoneEffect,
   type RoomControl,
 } from "@cinegather/contracts";
 import { decodeRoomChat } from "./chat-events";
@@ -55,11 +52,7 @@ import {
   type WatchAdvice,
 } from "./watch-profile";
 import { watchProfiles, type WatchProfile } from "@cinegather/contracts";
-import {
-  createMicrophoneDenoiser,
-  microphoneConstraints,
-  type MicrophoneNoiseStatus,
-} from "./noise";
+import { microphoneConstraints, type MicrophoneNoiseStatus } from "./noise";
 export interface ParticipantSummary {
   id: string;
   name: string;
@@ -83,6 +76,7 @@ export interface MediaSummary {
   videoPaused?: boolean;
   systemAudio: boolean;
   microphoneNoise?: MicrophoneNoiseStatus;
+  microphoneEffect?: MicrophoneEffectStatus;
 }
 export class MediaSession {
   private watchPolicy = new WatchPlaybackPolicy();
@@ -103,159 +97,6 @@ export class MediaSession {
   private audioElements = new Map<string, HTMLMediaElement[]>();
   private mixer = new AudioMixer();
   private voices: VoicePlayback;
-  private musicVoices: VoicePlayback;
-  private karaokeEnabled = false;
-  private karaokeSinging = false;
-  private publishedSinging = false;
-  private singingProcessor?: SingingProcessor;
-  private singingConfig = singingOptions();
-  private singingHeadphones = false;
-  private karaokeMetrics = new KaraokeAudioMetrics();
-  private outputDevice = "";
-  async karaokeMode(enabled: boolean, singing: boolean) {
-    if (
-      enabled === this.karaokeEnabled &&
-      (enabled && singing) === this.karaokeSinging
-    )
-      return;
-    const changed = enabled !== this.karaokeEnabled;
-    ++this.singingSettingsRevision;
-    this.karaokeEnabled = enabled;
-    this.karaokeSinging = enabled && singing;
-    if (enabled && !singing) await this.microphone(false);
-    else if (this.room)
-      await this.microphone(this.microphoneWanted, this.microphoneDevice);
-    if (changed && this.room)
-      for (const p of this.room.remoteParticipants.values())
-        for (const pub of p.audioTrackPublications.values())
-          if (pub.track) {
-            this.detach(pub.track, pub.trackSid);
-            this.attach(pub.track, pub, p);
-          }
-    if (this.room)
-      for (const p of this.room.remoteParticipants.values())
-        for (const pub of p.audioTrackPublications.values())
-          requestKaraokeBuffer(
-            pub.track?.receiver,
-            enabled ? karaokePlayoutTarget(this.karaokeSinging) : undefined,
-          );
-    if (!enabled) {
-      this.singingConfig = singingOptions();
-      this.singingHeadphones = false;
-    }
-    this.emit();
-  }
-  private singingSettingsRevision = 0;
-  async configureSinging(
-    value: Partial<SingingOptions>,
-    headphones = this.singingHeadphones,
-  ) {
-    if (!this.karaokeEnabled || !this.karaokeSinging)
-      throw new Error("请先加入合唱");
-    const revision = ++this.singingSettingsRevision,
-      generation = this.revision;
-    const options = singingOptions({ ...this.singingConfig, ...value });
-    if (options.monitor === 0 || !headphones)
-      this.singingProcessor?.configure({ monitor: 0 });
-    if (options.monitor > 0 && !headphones)
-      throw new Error("开启耳返前，请先确认使用有线耳机");
-    if (options.monitor > 0)
-      await this.singingProcessor?.device(this.outputDevice, true);
-    if (
-      revision !== this.singingSettingsRevision ||
-      generation !== this.revision ||
-      !this.karaokeSinging
-    )
-      return;
-    const track =
-      this.room &&
-      voicePublication(this.room.localParticipant.trackPublications)?.track;
-    if (
-      headphones !== this.singingHeadphones &&
-      track instanceof LocalAudioTrack
-    ) {
-      const previous = this.singingHeadphones;
-      this.singingHeadphones = headphones;
-      try {
-        // Chromium may acknowledge AEC constraints without changing the live
-        // capture pipeline. Reacquire it; the SDK preserves the track mute state.
-        await track.restartTrack({
-          ...singingConstraints(headphones),
-          deviceId: this.microphoneDevice || "default",
-        });
-      } catch (error) {
-        if (revision === this.singingSettingsRevision)
-          this.singingHeadphones = previous;
-        this.singingProcessor?.configure({ monitor: 0 });
-        if (generation === this.revision) await this.microphone(false);
-        throw error;
-      }
-      const publication =
-        this.room &&
-        voicePublication(this.room.localParticipant.trackPublications);
-      if (publication?.track === track)
-        this.voiceActivity.bind(
-          publication.trackSid,
-          new MediaStream([track.mediaStreamTrack]),
-        );
-    }
-    if (
-      revision !== this.singingSettingsRevision ||
-      generation !== this.revision ||
-      !this.karaokeSinging
-    )
-      return;
-    this.singingConfig = options;
-    this.singingHeadphones = headphones;
-    this.singingProcessor?.configure({
-      ...options,
-      monitor: this.microphoneWanted ? options.monitor : 0,
-    });
-  }
-  get singingStatus() {
-    const track =
-      this.room &&
-      voicePublication(this.room.localParticipant.trackPublications)?.track;
-    const capture =
-      track instanceof LocalAudioTrack
-        ? track.getSourceTrackSettings()
-        : undefined;
-    return {
-      capture: capture
-        ? {
-            echoCancellation: capture.echoCancellation,
-            noiseSuppression: capture.noiseSuppression,
-            autoGainControl: capture.autoGainControl,
-            sampleRate: capture.sampleRate,
-            channelCount: capture.channelCount,
-          }
-        : undefined,
-      enabled: this.karaokeEnabled,
-      singing: this.karaokeSinging,
-      headphones: this.singingHeadphones,
-      ...this.singingProcessor?.metrics,
-      ...this.singingConfig,
-      monitorActive: Boolean(
-        this.microphoneWanted &&
-          this.singingProcessor?.metrics.processorActive &&
-          this.singingProcessor?.metrics.monitor,
-      ),
-      ...this.musicVoices.latency,
-      receiverControlSupported: Boolean(
-        this.room &&
-          [...this.room.remoteParticipants.values()].some((p) =>
-            [...p.audioTrackPublications.values()].some(
-              (pub) =>
-                pub.track?.receiver &&
-                ("jitterBufferTarget" in pub.track.receiver ||
-                  "playoutDelayHint" in pub.track.receiver),
-            ),
-          ),
-      ),
-      receiverTargetMs: karaokePlayoutTarget(this.karaokeSinging) * 1000,
-    };
-  }
-
   private voiceActivity = new VoiceActivity();
   private speakerPoll?: ReturnType<typeof setInterval>;
   private movie = new MoviePlayback();
@@ -266,6 +107,10 @@ export class MediaSession {
   private microphoneDevice?: string;
   private microphoneWanted = false;
   private noiseMode: NoiseReduction = "enhanced";
+  private effectMode: MicrophoneEffect = "none";
+  private effectStatus?: MicrophoneEffectStatus;
+  private processorRevision = 0;
+  private processorWork = Promise.resolve();
   private noiseStatus?: MicrophoneNoiseStatus;
   private poll?: ReturnType<typeof setInterval>;
   private browserCapture = new BrowserCapture();
@@ -306,13 +151,6 @@ export class MediaSession {
     private readonly chatted?: (roomId: string, message: ChatMessage) => void,
   ) {
     this.voices = new VoicePlayback(() => this.emit(), this.error);
-    this.musicVoices = new VoicePlayback(
-      () => this.emit(),
-      this.error,
-      () => new AudioContext({ latencyHint: "interactive", sampleRate: 48000 }),
-      () => document.createElement("audio"),
-      true,
-    );
   }
   async connect(url: string, token: string) {
     await this.disconnect();
@@ -569,10 +407,8 @@ export class MediaSession {
           }
         : undefined,
       microphoneNoise: this.noiseStatus,
-      audioBlocked:
-        !room.canPlaybackAudio ||
-        this.voices.blocked ||
-        this.musicVoices.blocked,
+      microphoneEffect: this.effectStatus,
+      audioBlocked: !room.canPlaybackAudio || this.voices.blocked,
       watching: this.subscriptions.watching,
       videoPaused:
         this.subscriptions.watching && !this.subscriptions.videoVisible,
@@ -626,11 +462,6 @@ export class MediaSession {
       return;
     }
     if (track instanceof RemoteAudioTrack) {
-      if (this.karaokeEnabled)
-        requestKaraokeBuffer(
-          track.receiver,
-          karaokePlayoutTarget(this.karaokeSinging),
-        );
       if (!isAccompaniment(pub))
         this.voiceActivity.bind(
           pub.trackSid,
@@ -648,7 +479,7 @@ export class MediaSession {
         pub.trackSid,
         participantOwner(participant.identity) ?? participant.identity,
         isAccompaniment(pub) ? "accompaniment" : "voice",
-        (this.karaokeEnabled ? this.musicVoices : this.voices).attach(
+        this.voices.attach(
           pub.trackSid,
           el.srcObject as MediaStream,
           el,
@@ -662,7 +493,6 @@ export class MediaSession {
   private detach(track: Track, sid: string) {
     this.voiceActivity.remove(sid);
     this.voices.remove(sid);
-    this.musicVoices.remove(sid);
     if (this.movieAudio?.sid === sid) {
       this.movieAudio = undefined;
       this.movie.tracks(this.videoTrack);
@@ -689,7 +519,6 @@ export class MediaSession {
   private clearElements() {
     this.subscriptions.reset();
     this.voices.clear();
-    this.musicVoices.clear();
     this.voiceActivity.clear();
     clearInterval(this.speakerPoll);
     this.speakerPoll = undefined;
@@ -719,8 +548,6 @@ export class MediaSession {
   }
   async microphone(enabled: boolean, deviceId?: string) {
     const room = this.room;
-    if (enabled && this.karaokeEnabled && !this.karaokeSinging)
-      throw new Error("请先加入合唱席位");
     if (enabled && (!room || room.state !== ConnectionState.Connected))
       throw new Error("请先连接房间");
     const permission = room?.localParticipant.permissions;
@@ -731,7 +558,15 @@ export class MediaSession {
           !permission.canPublishSources.includes(2)))
     )
       throw new Error("房主已禁止你在此房间开麦");
-    if (!enabled) this.singingProcessor?.configure({ monitor: 0 });
+    if (!enabled) {
+      const p =
+        room &&
+        voicePublication(room.localParticipant.trackPublications)?.track;
+      if (p instanceof LocalAudioTrack) {
+        const processor = p.getProcessor();
+        if (processor instanceof KtvReverb) processor.setMuted(true);
+      }
+    }
     ++this.microphoneRevision;
     this.microphoneWanted = enabled;
     this.microphoneDevice = deviceId;
@@ -756,23 +591,12 @@ export class MediaSession {
       let publication = voicePublication(
         room.localParticipant.trackPublications,
       );
-      if (
-        wanted &&
-        publication?.track &&
-        this.publishedSinging !== this.karaokeSinging
-      ) {
-        await room.localParticipant.unpublishTrack(publication.track, true);
-        this.singingProcessor = undefined;
-        publication = undefined;
-      }
       if (wanted && !publication) {
         // The SDK's source lookup may find the independent accompaniment first.
         // Own the real microphone explicitly so mute/PTT/device changes stay scoped.
         const track = await createLocalAudioTrack({
           deviceId: this.microphoneDevice || undefined,
-          ...(this.karaokeSinging
-            ? singingConstraints(this.singingHeadphones)
-            : microphoneConstraints(this.noiseMode)),
+          ...microphoneConstraints(this.noiseMode),
         });
         if (this.room !== room || !this.microphoneWanted) {
           track.stop();
@@ -788,34 +612,8 @@ export class MediaSession {
           )
             this.inputLost?.();
         });
-        let bootstrap: AudioContext | undefined;
         try {
-          if (this.karaokeSinging) {
-            bootstrap = new AudioContext({
-              sampleRate: 48000,
-              latencyHint: "interactive",
-            });
-            await track.setAudioContext(bootstrap);
-            const processor = new SingingProcessor();
-            processor.configure(this.singingConfig);
-            await processor.device(this.outputDevice);
-            await track.setProcessor(processor);
-            this.singingProcessor = processor;
-            processor.configure({
-              ...this.singingConfig,
-              monitor: this.microphoneWanted ? this.singingConfig.monitor : 0,
-            });
-            if (this.room !== room || !this.microphoneWanted) {
-              track.stop();
-              this.singingProcessor = undefined;
-              if (this.room !== room) return;
-              continue;
-            }
-          }
           publication = await room.localParticipant.publishTrack(track, {
-            ...(this.karaokeSinging
-              ? { dtx: false, red: true, audioPreset: { maxBitrate: 128000 } }
-              : {}),
             name: "cinegather-microphone",
             source: Track.Source.Microphone,
             stopMicTrackOnMute: false,
@@ -823,27 +621,18 @@ export class MediaSession {
         } catch (error) {
           track.stop();
           throw error;
-        } finally {
-          if (bootstrap && bootstrap.state !== "closed")
-            await bootstrap.close();
         }
-        this.publishedSinging = this.karaokeSinging;
-        if (this.karaokeSinging && this.room === room && publication?.track)
-          this.voiceActivity.bind(
-            publication.trackSid,
-            new MediaStream([publication.track.mediaStreamTrack]),
-          );
         if (this.room !== room) {
           await room.localParticipant.unpublishTrack(track, true);
           return;
         }
       }
       if (publication?.track instanceof LocalAudioTrack) {
-        if (this.microphoneWanted) {
-          if (this.karaokeSinging)
-            this.singingProcessor?.configure(this.singingConfig);
-          await publication.track.unmute();
-        } else await publication.track.mute();
+        if (this.microphoneWanted) await publication.track.unmute();
+        else await publication.track.mute();
+        const currentProcessor = publication.track.getProcessor();
+        if (currentProcessor instanceof KtvReverb)
+          currentProcessor.setMuted(!this.microphoneWanted);
         if (
           this.microphoneWanted &&
           (this.noiseMode !== "enhanced" || !publication.track.getProcessor())
@@ -856,58 +645,115 @@ export class MediaSession {
       }
     }
   }
-  private async createDenoiser(room: Room) {
-    return createMicrophoneDenoiser((status) => {
-      if (this.room !== room || this.noiseMode !== "enhanced") return;
-      this.noiseStatus = status;
-      this.emit();
-    });
+  noiseReduction(mode: NoiseReduction) {
+    return this.configureMicrophone(mode, this.effectMode);
   }
-  async noiseReduction(mode: NoiseReduction) {
+  async configureMicrophone(
+    mode: NoiseReduction,
+    effect: MicrophoneEffect = "none",
+  ) {
     this.noiseMode = mode;
-    this.noiseStatus = undefined;
-    if (this.karaokeSinging) return;
-    const room = this.room;
-    const track =
-      room && voicePublication(room.localParticipant.trackPublications)?.track;
-    if (!room || !(track instanceof LocalAudioTrack)) return;
-    // These SDK operations retain the existing track's mute/PTT intent.
-    await track.applyConstraints(microphoneConstraints(mode));
-    if (mode === "enhanced") {
-      const processor = await this.createDenoiser(room);
-      if (this.room !== room || this.noiseMode !== mode) return;
-      if (processor) {
-        try {
-          await track.setProcessor(processor);
-        } catch (error) {
-          await processor.destroy();
-          if (this.room !== room) return;
-          await track.stopProcessor();
-          await track.applyConstraints(microphoneConstraints("basic"));
-          this.noiseStatus = {
-            requested: "enhanced",
-            active: "basic",
-            reason:
-              error instanceof Error
-                ? error.message
-                : "Noise processor could not be attached",
-          };
+    this.effectMode = effect;
+    const revision = ++this.processorRevision,
+      room = this.room;
+    if (!room) return;
+    const run = this.processorWork
+      .catch(() => {})
+      .then(async () => {
+        if (revision !== this.processorRevision || this.room !== room) return;
+        const track = voicePublication(
+          room.localParticipant.trackPublications,
+        )?.track;
+        if (!(track instanceof LocalAudioTrack)) return;
+        const current = () =>
+          revision === this.processorRevision &&
+          this.room === room &&
+          voicePublication(room.localParticipant.trackPublications)?.track ===
+            track;
+        this.noiseStatus = undefined;
+        const status = (value: MicrophoneNoiseStatus) => {
+          if (current()) {
+            this.noiseStatus = value;
+            this.emit();
+          }
+        };
+        await track.applyConstraints(microphoneConstraints(mode));
+        if (!current()) return;
+        let processor = await createMicrophoneProcessor(
+          mode,
+          effect,
+          status,
+          () => !this.microphoneWanted,
+        );
+        if (!current()) {
+          await processor?.destroy();
+          return;
         }
-      } else {
-        await track.stopProcessor();
-        await track.applyConstraints(microphoneConstraints("basic"));
-      }
-    } else {
-      await track.stopProcessor();
-      this.noiseStatus = { requested: mode, active: mode };
-    }
-    const voice = voicePublication(room.localParticipant.trackPublications);
-    if (voice?.track)
-      this.voiceActivity.bind(
-        voice.trackSid,
-        new MediaStream([voice.track.mediaStreamTrack]),
-      );
-    this.emit();
+        let active: MicrophoneEffect = "none";
+        try {
+          if (processor) {
+            await track.setProcessor(processor);
+            active = effect;
+          } else {
+            await track.stopProcessor();
+            if (mode === "enhanced") {
+              await track.applyConstraints(microphoneConstraints("basic"));
+              status({
+                requested: mode,
+                active: "basic",
+                reason: "enhancement-unavailable",
+                engine: "platform",
+              });
+            }
+          }
+        } catch {
+          await processor?.destroy().catch(() => {});
+          if (!current()) return;
+          await track.stopProcessor();
+          if (mode === "enhanced") {
+            processor = await createMicrophoneProcessor(mode, "none", status);
+            if (!current()) {
+              await processor?.destroy();
+              return;
+            }
+            try {
+              if (processor) await track.setProcessor(processor);
+              else throw new Error("Enhancement unavailable");
+            } catch {
+              await processor?.destroy().catch(() => {});
+              if (!current()) return;
+              await track.stopProcessor();
+              await track.applyConstraints(microphoneConstraints("basic"));
+              status({
+                requested: mode,
+                active: "basic",
+                reason: "processor-unavailable",
+                engine: "platform",
+              });
+            }
+          }
+        }
+        if (!current()) return;
+        if (mode !== "enhanced")
+          this.noiseStatus = { requested: mode, active: mode };
+        const attached = track.getProcessor();
+        if (attached instanceof KtvReverb)
+          attached.setMuted(!this.microphoneWanted);
+        this.effectStatus = {
+          requested: effect,
+          active,
+          ...(effect !== active
+            ? { reason: "reverb-unavailable" as const }
+            : {}),
+        };
+        this.voiceActivity.bind(
+          voicePublication(room.localParticipant.trackPublications)!.trackSid,
+          new MediaStream([track.mediaStreamTrack]),
+        );
+        this.emit();
+      });
+    this.processorWork = run;
+    return run;
   }
   async share(quality: Quality, systemAudio: boolean) {
     const room = this.room;
@@ -1214,11 +1060,6 @@ export class MediaSession {
     );
   }
   async devices(input?: string, output?: string) {
-    if (output !== undefined) {
-      this.outputDevice = output;
-      await this.musicVoices.device(this.outputDevice);
-      await this.singingProcessor?.device(this.outputDevice);
-    }
     if (input !== undefined) this.microphoneDevice = input;
     const room = this.room;
     if (!room) return;
@@ -1251,11 +1092,7 @@ export class MediaSession {
       await room.switchActiveDevice("audiooutput", output || "default");
   }
   async startAudio() {
-    await Promise.all([
-      this.room?.startAudio(),
-      this.voices.resume(),
-      this.musicVoices.resume(),
-    ]);
+    await Promise.all([this.room?.startAudio(), this.voices.resume()]);
     this.emit();
   }
   async diagnostics() {
@@ -1266,7 +1103,7 @@ export class MediaSession {
       watchBuffering: detail.watchBuffering,
       state: detail.state,
       microphoneNoise: detail.microphoneNoise,
-      karaoke: detail.karaoke,
+      microphoneEffect: detail.microphoneEffect,
       watching: detail.watching,
       videoPaused: detail.videoPaused,
       capturedAt: new Date().toISOString(),
@@ -1428,16 +1265,11 @@ export class MediaSession {
             engine: this.noiseStatus.engine,
           }
         : undefined,
-      karaoke: this.karaokeEnabled
+      microphoneEffect: this.effectStatus
         ? {
-            ...this.singingStatus,
-            measurements: reports
-              .filter((r) => r?.kind === "audio")
-              .map((r) => ({
-                track: r!.track,
-                ...this.karaokeMetrics.sample(r!.track, r!.stats),
-              }))
-              .slice(0, 16),
+            requested: this.effectStatus.requested,
+            active: this.effectStatus.active,
+            fallback: Boolean(this.effectStatus.reason),
           }
         : undefined,
       tracks: reports.filter(
@@ -1456,9 +1288,8 @@ export class MediaSession {
     this.microphoneWork = undefined;
     this.microphoneWanted = false;
     this.noiseStatus = undefined;
-    this.singingProcessor = undefined;
-    this.publishedSinging = false;
-    this.karaokeMetrics.clear();
+    this.effectStatus = undefined;
+    ++this.processorRevision;
     clearInterval(this.poll);
     this.poll = undefined;
     const room = this.room;

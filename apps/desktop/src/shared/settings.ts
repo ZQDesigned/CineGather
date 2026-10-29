@@ -39,6 +39,7 @@ export const settingsSchema = z.strictObject({
       opacity: z.number().int().min(0).max(100),
     })
     .default(defaultOverlayPreferences),
+  microphoneEffect: z.enum(["none", "ktv"]).default("none"),
   noiseReduction: z.enum(["enhanced", "basic", "off"]).default("enhanced"),
   minimizeToTray: z.boolean(),
   pushToTalk: z.boolean(),
@@ -56,6 +57,7 @@ export const defaultSettings = {
   windowsEncoder: "auto",
   autoDownloadUpdates: true,
   noiseReduction: "enhanced",
+  microphoneEffect: "none",
   memberOverlay: defaultOverlayPreferences,
   minimizeToTray: true,
   pushToTalk: false,

@@ -1,4 +1,3 @@
-import * as karaoke from "./karaoke";
 import * as queue from "./share-requests";
 import { listSessions, revokeDevices } from "./account-sessions";
 import { sessionDevice } from "./session-device";
@@ -186,47 +185,6 @@ export class ApiController {
   @Endpoint("getRoom", c.roomSchema, undefined, ["roomId"])
   room(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
     return r.getRoom(req.user, roomId);
-  }
-  @Get("rooms/:roomId/karaoke")
-  @Endpoint("getKaraoke", c.karaokeStateSchema, undefined, ["roomId"])
-  karaoke(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
-    return karaoke.getKaraoke(req.user, roomId);
-  }
-  @Post("rooms/:roomId/karaoke")
-  @Endpoint(
-    "setKaraoke",
-    c.karaokeStateSchema,
-    c.karaokeModeInput,
-    ["roomId"],
-    201,
-  )
-  setKaraoke(
-    @Req() req: AuthRequest,
-    @Param("roomId") roomId: string,
-    @Body() body: unknown,
-  ) {
-    return karaoke.setKaraoke(
-      req.user,
-      roomId,
-      parse(c.karaokeModeInput, body).enabled,
-    );
-  }
-  @Post("rooms/:roomId/karaoke/singers")
-  @Endpoint("joinKaraoke", c.karaokeStateSchema, undefined, ["roomId"], 201)
-  joinKaraoke(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
-    return karaoke.joinKaraoke(req.user, roomId);
-  }
-  @Delete("rooms/:roomId/karaoke/singers/:userId")
-  @Endpoint("leaveKaraoke", c.karaokeStateSchema, undefined, [
-    "roomId",
-    "userId",
-  ])
-  leaveKaraoke(
-    @Req() req: AuthRequest,
-    @Param("roomId") roomId: string,
-    @Param("userId") userId: string,
-  ) {
-    return karaoke.leaveKaraoke(req.user, roomId, userId);
   }
   @Post("rooms/:roomId/settings")
   @Endpoint(

@@ -1,4 +1,3 @@
-import { karaokeMicrophoneAllowed } from "./karaoke-state";
 import { sessionCredential } from "./session-context";
 import {
   DataPacket_Kind,
@@ -22,7 +21,6 @@ import {
   nativeIdentity,
   memberIdentity,
   participantOwner,
-  memberSession,
   type User,
 } from "@cinegather/contracts";
 import { randomUUID } from "node:crypto";
@@ -125,12 +123,6 @@ export class MediaGateway {
     }
   }
   async issue(roomId: string, user: User, microphoneAllowed = true) {
-    microphoneAllowed = await karaokeMicrophoneAllowed(
-      roomId,
-      user.id,
-      sessionCredential(user),
-      microphoneAllowed,
-    );
     const access = new AccessToken(config.livekitKey, config.livekitSecret, {
       identity: sessionCredential(user)
         ? memberIdentity(user.id, sessionCredential(user)!)
@@ -180,28 +172,21 @@ export class MediaGateway {
     microphoneAllowed: boolean,
     sharingAllowed: boolean,
   ) {
-    for (const identity of await this.targets(roomId, userId)) {
-      const allowed = await karaokeMicrophoneAllowed(
-        roomId,
-        participantOwner(identity) ?? identity,
-        memberSession(identity),
-        microphoneAllowed,
-      );
+    for (const identity of await this.targets(roomId, userId))
       await this.client.updateParticipant(roomId, identity, {
         permission: {
-          canPublish: allowed || sharingAllowed,
+          canPublish: microphoneAllowed || sharingAllowed,
           canSubscribe: true,
           canPublishData: false,
           canUpdateMetadata: false,
           canPublishSources: [
-            ...(allowed ? [TrackSource.MICROPHONE] : []),
+            ...(microphoneAllowed ? [TrackSource.MICROPHONE] : []),
             ...(sharingAllowed
               ? [TrackSource.SCREEN_SHARE, TrackSource.SCREEN_SHARE_AUDIO]
               : []),
           ],
         },
       });
-    }
   }
   async chat(roomId: string, message: ChatMessage) {
     await this.client.sendData(

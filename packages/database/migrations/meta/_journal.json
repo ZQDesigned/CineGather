@@ -134,6 +134,13 @@
       "when": 1793279709664,
       "tag": "0018_karaoke_preview",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1793285988938,
+      "tag": "0019_remove_karaoke_preview",
+      "breakpoints": true
     }
   ]
 }
