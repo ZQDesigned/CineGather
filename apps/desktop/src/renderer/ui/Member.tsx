@@ -87,11 +87,13 @@ export function Member({
   room,
   volume,
   onVolumeChange,
+  onVolumeCommit,
 }: {
   participant: ParticipantSummary;
   room: RoomInfo;
   volume: number;
   onVolumeChange(value: number): void;
+  onVolumeCommit?(value: number): void;
 }) {
   const { modal } = App.useApp();
   const sharerId = useApp((s) => s.media.sharer?.id);
@@ -337,6 +339,7 @@ export function Member({
       }}
       open={open}
       onOpenChange={(nextOpen) => {
+        if (!nextOpen) onVolumeCommit?.(volume);
         setFocusVolume(false);
         setOpen(nextOpen);
       }}
@@ -386,6 +389,7 @@ export function Member({
               value={volume}
               tooltip={{ formatter: (value) => `${value}%` }}
               onChange={onVolumeChange}
+              onChangeComplete={onVolumeCommit}
             />
           </div>
           {menu}

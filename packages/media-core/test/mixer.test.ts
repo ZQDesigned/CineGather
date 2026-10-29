@@ -69,3 +69,41 @@ test("members can be amplified to 200% without amplifying other people or film a
     expect(levels.a).toBe(0);
   }
 });
+
+test("restored friend levels reach current and replacement tracks and account resets clear defaults", () => {
+  const mix = new AudioMixer();
+  const levels = { voice: 0, muted: 0, music: 0, film: 0 };
+  mix.replaceMembers({ friend: 1.75, muted: 0 });
+  mix.attach("voice", "friend", "voice", {
+    setVolume: (v) => {
+      levels.voice = v;
+    },
+  });
+  mix.attach("muted", "muted", "voice", {
+    setVolume: (v) => {
+      levels.muted = v;
+    },
+  });
+  mix.attach("music", "friend", "accompaniment", {
+    setVolume: (v) => {
+      levels.music = v;
+    },
+  });
+  mix.attach("film", "friend", "screen", {
+    setVolume: (v) => {
+      levels.film = v;
+    },
+  });
+  expect(levels).toEqual({ voice: 1.75, muted: 0, music: 1, film: 1 });
+  mix.replaceMembers({ friend: 0.25, muted: 0 });
+  expect(levels).toEqual({ voice: 0.25, muted: 0, music: 0.25, film: 1 });
+  mix.replaceMembers({}, false);
+  expect(levels.voice).toBe(0.25);
+  mix.clear();
+  mix.attach("new-account", "friend", "voice", {
+    setVolume: (v) => {
+      levels.voice = v;
+    },
+  });
+  expect(levels.voice).toBe(1);
+});

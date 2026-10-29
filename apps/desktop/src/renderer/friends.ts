@@ -11,6 +11,7 @@ export interface Friend {
   displayName: string;
   remark?: string;
   pinned?: boolean;
+  volume?: number;
   status: "pending" | "accepted";
   incoming: boolean;
   online?: boolean;

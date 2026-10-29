@@ -37,6 +37,7 @@ import {
 import { restoreSettings } from "../shared/settings";
 import { defaultNotificationPreferences } from "@cinegather/contracts";
 import { FriendRequests, friendRequestNotification } from "./friends";
+import { FriendVolumes } from "./friend-volumes";
 import { ApprovedRoomEntry } from "./approved-room-entry";
 import { DiagnosticRecorder } from "./diagnostic-recorder";
 import { ProcessAudio } from "./process-audio";
@@ -142,10 +143,33 @@ const automaticRoomEntry = new ApprovedRoomEntry({
   },
   error: report,
 });
+const friendVolumes = new FriendVolumes(
+  async (userId, volume, identity) => {
+    if (identity === sessionToken)
+      await updateFriendPreferences(userId, { volume });
+  },
+  (memberVolumes, reset) => {
+    update({ memberVolumes });
+    // Scope changes clear defaults without raising audio that is disconnecting.
+    media.memberVolumes(
+      Object.fromEntries(
+        Object.entries(memberVolumes).map(([id, level]) => [id, level / 100]),
+      ),
+      !reset,
+    );
+  },
+);
+export function setMemberVolume(userId: string, volume: number) {
+  friendVolumes.change(userId, volume);
+}
+export function commitMemberVolume(userId: string, volume: number) {
+  return friendVolumes.commit(userId, volume);
+}
 const friendRequests = new FriendRequests(
   () => sessionToken,
   async () => unwrap(await api.GET("/api/v1/friends")),
   (friends, roomInvitations, roomJoinRequests, reset) => {
+    friendVolumes.sync(reset ? undefined : sessionToken, friends);
     update({ friends, roomInvitations, roomJoinRequests });
     if (reset) return;
     for (const friend of friends.filter(
@@ -190,7 +214,7 @@ const friendRequests = new FriendRequests(
 export const refreshFriends = () => friendRequests.refresh();
 export async function updateFriendPreferences(
   userId: string,
-  body: { remark?: string; pinned?: boolean },
+  body: { remark?: string; pinned?: boolean; volume?: number },
 ) {
   const owner = state().user?.id;
   unwrap(
@@ -833,6 +857,7 @@ export const roomSession = new RoomCoordinator({
     );
   },
   connect: async (url, token) => {
+    await refreshFriends();
     await refreshAudioDevices().catch(report);
     await media.connect(url, token);
     try {

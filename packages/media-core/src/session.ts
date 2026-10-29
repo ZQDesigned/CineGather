@@ -953,6 +953,9 @@ export class MediaSession {
   memberVolume(userId: string, volume: number) {
     this.mixer.member(userId, volume);
   }
+  memberVolumes(volumes: Record<string, number>, applyExisting = true) {
+    this.mixer.replaceMembers(volumes, applyExisting && Boolean(this.room));
+  }
   watch(enabled: boolean) {
     this.watchHealth.reset();
     this.watchAdvice = undefined;

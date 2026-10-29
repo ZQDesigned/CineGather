@@ -88,6 +88,7 @@ export const friendPreferencesInput = z
   .strictObject({
     remark: z.string().trim().max(50).optional(),
     pinned: z.boolean().optional(),
+    volume: z.number().int().min(0).max(200).optional(),
   })
   .refine((value) => Object.keys(value).length > 0, "请选择需要修改的好友设置");
 export const friendSearchSchema = z.object({
@@ -212,6 +213,7 @@ export const friendsSchema = z.object({
       status: z.enum(["pending", "accepted"]),
       remark: z.string().max(50).optional(),
       pinned: z.boolean().optional(),
+      volume: z.number().int().min(0).max(200).optional(),
       incoming: z.boolean(),
       online: z.boolean().default(false),
       room: friendRoomPresenceSchema.nullable().default(null),

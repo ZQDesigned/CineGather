@@ -7315,6 +7315,7 @@ export interface operations {
                             status: "pending" | "accepted";
                             remark?: string;
                             pinned?: boolean;
+                            volume?: number;
                             incoming: boolean;
                             /** @default false */
                             online: boolean;
@@ -7804,6 +7805,7 @@ export interface operations {
                 "application/json": {
                     remark?: string;
                     pinned?: boolean;
+                    volume?: number;
                 };
             };
         };

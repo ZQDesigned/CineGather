@@ -179,3 +179,38 @@ test("browser preflight permits the authenticated partial preference update", as
     "PATCH",
   );
 });
+
+test("saved friend volume is private, bounded, partial and resets after removing the friendship", async () => {
+  expect((await patch(0, 1, { volume: 175 })).status).toBe(200);
+  expect(await friend(0, 1)).toMatchObject({
+    volume: 175,
+    remark: "",
+    pinned: false,
+  });
+  expect(await friend(1, 0)).toMatchObject({ volume: 100 });
+  await Promise.all([
+    patch(0, 1, { remark: "音量备注" }),
+    patch(0, 1, { pinned: true }),
+  ]);
+  expect(await friend(0, 1)).toMatchObject({
+    volume: 175,
+    remark: "音量备注",
+    pinned: true,
+  });
+  for (const volume of [0, 100, 200]) {
+    expect((await patch(0, 1, { volume })).status).toBe(200);
+    expect((await friend(0, 1)).volume).toBe(volume);
+  }
+  for (const volume of [-1, 201, 1.5, "150", null])
+    expect((await patch(0, 1, { volume })).status).toBe(400);
+  expect((await patch(0, 3, { volume: 150 })).status).toBe(403);
+  expect((await patch(2, 1, { volume: 150 })).status).toBe(403);
+  await request(`/friends/${people[1]!.id}`, 0, undefined, "DELETE");
+  await request("/friends", 0, { userId: people[1]!.id });
+  await request(`/friends/${people[0]!.id}/accept`, 1, {});
+  expect(await friend(0, 1)).toMatchObject({
+    volume: 100,
+    remark: "",
+    pinned: false,
+  });
+});

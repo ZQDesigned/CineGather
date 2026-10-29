@@ -40,6 +40,12 @@ export class AudioMixer {
     this.members.set(userId, this.clamp(volume, 2));
     this.apply();
   }
+  replaceMembers(volumes: Record<string, number>, applyExisting = true) {
+    this.members = new Map(
+      Object.entries(volumes).map(([id, level]) => [id, this.clamp(level, 2)]),
+    );
+    if (applyExisting) this.apply();
+  }
   private clamp(value: number, maximum = 1) {
     return Number.isFinite(value) ? Math.min(maximum, Math.max(0, value)) : 0;
   }

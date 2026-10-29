@@ -516,15 +516,14 @@ export function Room({ visible = true }: { visible?: boolean }) {
                           participant={p}
                           room={app.room!}
                           volume={app.memberVolumes[p.id] ?? 100}
-                          onVolumeChange={(value) => {
-                            update({
-                              memberVolumes: {
-                                ...app.memberVolumes,
-                                [p.id]: value,
-                              },
-                            });
-                            actions.media.memberVolume(p.id, value / 100);
-                          }}
+                          onVolumeChange={(value) =>
+                            actions.setMemberVolume(p.id, value)
+                          }
+                          onVolumeCommit={(value) =>
+                            void actions
+                              .commitMemberVolume(p.id, value)
+                              .catch(actions.report)
+                          }
                         />
                       ))}
                     </div>

@@ -116,6 +116,7 @@ export async function listFriends(user: User) {
       displayName: users.displayName,
       remark: sql<string>`CASE WHEN ${friendships.requesterId} = ${user.id} THEN ${friendships.requesterRemark} ELSE ${friendships.recipientRemark} END`,
       pinned: sql<boolean>`${pinnedAt} IS NOT NULL`,
+      volume: sql<number>`CASE WHEN ${friendships.requesterId} = ${user.id} THEN ${friendships.requesterVolume} ELSE ${friendships.recipientVolume} END`,
       online,
       // Admission leases exclude departed users and synthetic media publishers.
       room: sql<{
@@ -155,6 +156,7 @@ export async function listFriends(user: User) {
       displayName: r.displayName,
       remark: r.remark,
       pinned: r.pinned,
+      volume: r.volume,
       status: r.status as "pending" | "accepted",
       incoming: r.recipientId === user.id,
       online: r.online,
@@ -166,7 +168,7 @@ export async function listFriends(user: User) {
 export async function updateFriendPreferences(
   user: User,
   targetId: string,
-  input: { remark?: string; pinned?: boolean },
+  input: { remark?: string; pinned?: boolean; volume?: number },
 ) {
   targetId = uuid(targetId);
   await db.transaction(async (tx) => {
@@ -186,11 +188,13 @@ export async function updateFriendPreferences(
       .where(pair)
       .for("update");
     if (!current || current.status !== "accepted")
-      fail(403, "FRIEND_REQUIRED", "只能修改已添加好友的备注和置顶");
+      fail(403, "FRIEND_REQUIRED", "只能修改已添加好友的个人设置");
     const requester = current.requesterId === user.id;
     const changes: Partial<typeof friendships.$inferInsert> = {};
     if (input.remark !== undefined)
       changes[requester ? "requesterRemark" : "recipientRemark"] = input.remark;
+    if (input.volume !== undefined)
+      changes[requester ? "requesterVolume" : "recipientVolume"] = input.volume;
     if (input.pinned !== undefined)
       changes[requester ? "requesterPinnedAt" : "recipientPinnedAt"] =
         input.pinned
@@ -202,6 +206,7 @@ export async function updateFriendPreferences(
     await audit(tx, user.id, "friend.preferences_updated", targetId, {
       remarkChanged: input.remark !== undefined,
       pinChanged: input.pinned !== undefined,
+      volumeChanged: input.volume !== undefined,
     });
   });
   return { ok: true as const };

@@ -256,6 +256,8 @@ export const friendships = pgTable(
     recipientRemark: text("recipient_remark").notNull().default(""),
     requesterPinnedAt: time("requester_pinned_at"),
     recipientPinnedAt: time("recipient_pinned_at"),
+    requesterVolume: integer("requester_volume").notNull().default(100),
+    recipientVolume: integer("recipient_volume").notNull().default(100),
     createdAt: time("created_at").notNull().defaultNow(),
   },
   (t) => [
@@ -272,6 +274,10 @@ export const friendships = pgTable(
     check(
       "friendships_remark_length",
       sql`char_length(${t.requesterRemark}) <= 50 AND char_length(${t.recipientRemark}) <= 50`,
+    ),
+    check(
+      "friendships_volume_range",
+      sql`${t.requesterVolume} BETWEEN 0 AND 200 AND ${t.recipientVolume} BETWEEN 0 AND 200`,
     ),
   ],
 );
