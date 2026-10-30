@@ -63,7 +63,7 @@ jobs:
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
           bun tools/windows-in-app-upgrade-smoke.ts "apps/desktop/release/CineGather-$version-win-x64-setup.exe"
-      - name: Verify failure evidence and independent export with the reused build
+      - name: Verify failure evidence and diagnostics export with the reused build
         shell: pwsh
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version

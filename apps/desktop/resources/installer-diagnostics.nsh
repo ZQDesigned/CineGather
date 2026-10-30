@@ -15,8 +15,6 @@ Var cgSavedError
 Var cgLogFailures
 Var cgFailedTarget
 Var cgFailedPath
-Var cgSupport
-Var cgSupportSavedError
 
 !macro cgRecord PREFIX STAGE DETAIL CODE WIN32
   StrCpy $cgStage "${STAGE}"
@@ -71,42 +69,11 @@ Function ${PREFIX}cgLog
   ${EndIf}
 FunctionEnd
 
-Function ${PREFIX}cgPrepareSupport
-  Push $0
-  Push $1
-  StrCpy $cgSupportSavedError 0
-  IfErrors 0 +2
-    StrCpy $cgSupportSavedError 1
-  StrCpy $0 "$OUTDIR"
-  StrCpy $cgSupport "$LOCALAPPDATA\CGInstallDiagnostics\support"
-  ClearErrors
-  CreateDirectory "$cgSupport\${VERSION}"
-  ${IfNot} ${Errors}
-    SetOutPath "$cgSupport\${VERSION}"
-    SetOverwrite try
-    File /oname=installer-diagnostics.ps1 "${BUILD_RESOURCES_DIR}\installer-diagnostics.ps1"
-    SetOverwrite on
-    CreateShortCut "$cgSupport\Collect-upgrade-diagnostics.lnk" "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" '-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File "$cgSupport\${VERSION}\installer-diagnostics.ps1" -InstallDirectory "$INSTDIR"'
-  ${Else}
-    IntOp $cgLogFailures $cgLogFailures + 1
-  ${EndIf}
-  SetOutPath "$0"
-  Pop $1
-  Pop $0
-  ${If} $cgSupportSavedError == 1
-    SetErrors
-  ${Else}
-    ClearErrors
-  ${EndIf}
-FunctionEnd
-
 Function ${PREFIX}cgFailureSnapshot
   Push $0
   Push $1
-  Call ${PREFIX}cgPrepareSupport
   ; Execute the embedded helper from NSIS's private extraction directory.
-  ; The persistent manual-support copy is user writable and is never trusted
-  ; as code for an elevated automatic installer invocation.
+  ; No additional user-facing support entry is installed.
   InitPluginsDir
   File /oname=$PLUGINSDIR\cg-installer-diagnostics.ps1 "${BUILD_RESOURCES_DIR}\installer-diagnostics.ps1"
   nsExec::ExecToStack /TIMEOUT=20000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\cg-installer-diagnostics.ps1" -Action Snapshot -InstallDirectory "$INSTDIR" -AttemptId "$cgUpdateId" -InstallerVersion "${VERSION}" -Phase "$cgStage" -ExitCode 2 -FailedPath "$cgFailedPath" -TargetPath "$cgFailedTarget"'
@@ -140,6 +107,7 @@ FunctionEnd
   Function .onInstFailed
     !insertmacro cgRecord "" "install-failed" "$INSTDIR" "2" ""
     Call cgFailureSnapshot
+    MessageBox MB_OK|MB_ICONEXCLAMATION "安装未能完成，请完全退出映聚后重试。$\r$\n如果问题持续发生，请联系开发者并提供诊断日志。$\r$\n日志位置：$LOCALAPPDATA\CGInstallDiagnostics\installer-logs"
   FunctionEnd
   Function cgUserAbort
     !insertmacro cgRecord "" "install-aborted" "$INSTDIR" "" ""
@@ -162,7 +130,6 @@ FunctionEnd
   Pop $0
   !insertmacro cgRecord "" "installer-init" "$INSTDIR" "" ""
   System::Call 'kernel32::SetEnvironmentVariableW(w "CG_UPDATE_ATTEMPT", w "$cgUpdateId")'
-  Call cgPrepareSupport
 !macroend
 
 !macro customUnInit
@@ -182,7 +149,7 @@ FunctionEnd
   !insertmacro cgRecord "" "${PHASE}" "$INSTDIR" "$R0" ""
   ${If} $R0 != 0
     Call cgFailureSnapshot
-    MessageBox MB_OK|MB_ICONEXCLAMATION "升级未完成：旧版本卸载失败，退出码 $R0。$\r$\n诊断记录：$LOCALAPPDATA\CGInstallDiagnostics\installer-logs$\r$\n导出工具：$LOCALAPPDATA\CGInstallDiagnostics\support\Collect-upgrade-diagnostics.lnk$\r$\n请先导出诊断，再重试安装。"
+    MessageBox MB_OK|MB_ICONEXCLAMATION "安装未能完成，请完全退出映聚后重试。$\r$\n如果问题持续发生，请联系开发者并提供诊断日志。$\r$\n日志位置：$LOCALAPPDATA\CGInstallDiagnostics\installer-logs"
     SetErrorLevel 2
     Quit
   ${EndIf}

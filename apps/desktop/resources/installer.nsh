@@ -27,7 +27,7 @@
   ${If} $0 != 0
     !insertmacro cgRecord "${CG_CONTEXT}" "process-cleanup-failed" "$0" "2" ""
     Call ${CG_CONTEXT}cgFailureSnapshot
-    MessageBox MB_OK|MB_ICONEXCLAMATION "Unable to close CineGather capture processes. Please exit CineGather and retry. Installer log: %LOCALAPPDATA%\CGInstallDiagnostics\installer-logs" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "安装未能完成，请完全退出映聚后重试。$\r$\n如果问题持续发生，请联系开发者并提供诊断日志。$\r$\n日志位置：$LOCALAPPDATA\CGInstallDiagnostics\installer-logs" /SD IDOK
     SetErrorLevel 2
     Quit
   ${EndIf}
@@ -38,7 +38,6 @@
 
 !macro customInstall
   !insertmacro cgRecord "" "payload-installed" "$INSTDIR" "0" ""
-  CreateShortCut "$SMPROGRAMS\CineGather 升级诊断.lnk" "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" '-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File "$LOCALAPPDATA\CGInstallDiagnostics\support\${VERSION}\installer-diagnostics.ps1" -InstallDirectory "$INSTDIR"'
   RMDir /r "$INSTDIR\resources\capture\obs\source"
   Push $0
   FileOpen $0 "$INSTDIR\resources\install-mode" w

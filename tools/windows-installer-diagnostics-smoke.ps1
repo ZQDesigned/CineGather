@@ -51,23 +51,19 @@ try{
  if(!@($snapshots | ForEach-Object {$_.issues} | Where-Object {$_.code -eq 'file-count-limit'}).Count){throw 'file-inventory-truncation-not-reported'}
  if($held.HasExited){throw 'unrelated-process-was-killed'}
  if((Get-FileHash $asar -Algorithm SHA256).Hash -ne $before){throw 'rollback-did-not-preserve-app'}
- $version=(Get-Content (Join-Path $PSScriptRoot '../apps/desktop/package.json') -Raw | ConvertFrom-Json).version
- $support=Join-Path $env:LOCALAPPDATA ('CGInstallDiagnostics\support\'+$version+'\installer-diagnostics.ps1')
- if(!(Test-Path $support)){throw 'independent-support-missing'}
+ # Exercise the same history reader and ZIP builder used by Connection Diagnostics.
+ $bridge=Join-Path $evidence 'export-logs.ts'
+ @'
+import { readInstallerDiagnostics, installerDiagnosticDirectory } from "../../apps/desktop/src/main/installer-diagnostics";
+import { diagnosticArchive } from "../../apps/desktop/src/shared/diagnostics";
+const history = await readInstallerDiagnostics(installerDiagnosticDirectory());
+if (!history.records.some((r) => r.phase === "atomic-rename-failed")) throw new Error("archive-failed-file-missing");
+await Bun.write(new URL("./diagnostics.zip", import.meta.url), await diagnosticArchive([], {}, {}, history));
+'@ | Set-Content $bridge -Encoding UTF8
+ & bun $bridge
+ if($LASTEXITCODE -ne 0 -or !(Test-Path (Join-Path $evidence 'diagnostics.zip'))){throw 'connection-diagnostics-export-failed'}
  $menu=Join-Path ([Environment]::GetFolderPath('Programs')) 'CineGather 升级诊断.lnk'
- if(!(Test-Path $menu)){throw 'diagnostic-menu-missing'}
- $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($menu)
- $shell=New-Object -ComObject Shell.Application
- $menuItem=$shell.Namespace((Split-Path $menu -Parent)).ParseName((Split-Path $menu -Leaf))
- @{arguments=$shortcut.Arguments;target=$shortcut.TargetPath;shellArguments=$menuItem.ExtendedProperty('System.Link.Arguments');file=$menu;bytes=(Get-Item -LiteralPath $menu).Length;expectedHelper=$support} | ConvertTo-Json | Set-Content (Join-Path $evidence 'diagnostic-menu.json')
- Copy-Item -LiteralPath $menu -Destination (Join-Path $evidence 'diagnostic-menu.lnk')
- if($shortcut.Arguments -notmatch '-File "([^"]+)"'){throw 'diagnostic-menu-helper-argument-missing'}
- $menuScript=[Environment]::ExpandEnvironmentVariables($matches[1])
- # Shell links may canonicalize a user's directory to its 8.3 alias.
- # Verify the actual helper and its outside-install location, not path spelling.
- if(!(Test-Path -LiteralPath $menuScript) -or $menuScript -notlike ('*\CGInstallDiagnostics\support\'+$version+'\installer-diagnostics.ps1') -or (Get-FileHash -LiteralPath $menuScript).Hash -ne (Get-FileHash -LiteralPath $support).Hash){throw 'diagnostic-menu-depends-on-install-directory'}
- & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $support -Action Export -InstallDirectory $root -OutputDirectory $evidence
- if($LASTEXITCODE -ne 0 -or !(Get-ChildItem $evidence -Filter 'CineGather-upgrade-diagnostics-*.zip')){throw 'standalone-export-failed'}
+ if(Test-Path -LiteralPath $menu){throw 'unexpected-additional-diagnostic-menu'}
  # The error message intentionally remains modal, including in silent mode.
  # Its recorded uninstaller exit=2 is already asserted above. Headless workers
  # cannot reliably click another process's dialog; end only this test-owned
@@ -79,7 +75,7 @@ try{
  RunInstaller @('/S','--updated')
  $afterRows=@(Get-ChildItem $logs -Filter 'nsis-*.tsv' | ForEach-Object {Get-Content $_.FullName -Encoding Unicode}) -join "`n"
  if($afterRows -notmatch 'install-success'){throw 'success-stage-missing'}
- @{registryOnlyUpgrade=$true;recordedUninstallerExit=2;fixtureDialogClosedByHarness=$true;firstFailedFile=$true;foreignOwnerRecorded=$true;foreignProcessPreserved=$true;rollbackBytesPreserved=$true;independentExport=$true;retryAfterLockReleaseSucceeded=$true} | ConvertTo-Json | Set-Content (Join-Path $evidence 'result.json')
+ @{registryOnlyUpgrade=$true;recordedUninstallerExit=2;fixtureDialogClosedByHarness=$true;firstFailedFile=$true;foreignOwnerRecorded=$true;foreignProcessPreserved=$true;rollbackBytesPreserved=$true;connectionDiagnosticsExport=$true;noAdditionalEntry=$true;retryAfterLockReleaseSucceeded=$true} | ConvertTo-Json | Set-Content (Join-Path $evidence 'result.json')
  Copy-Item $logs (Join-Path $evidence 'logs') -Recurse
 }finally{
  if($failure -and !$failure.HasExited){Stop-Process -Id $failure.Id -Force}

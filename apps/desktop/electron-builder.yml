@@ -57,8 +57,6 @@ win:
           "!**/*.lib",
           "!**/*.exp",
         ]
-    - from: resources/installer-diagnostics.ps1
-      to: support/installer-diagnostics.ps1
     - from: ../../.local/native-runtime/windows/CGProcessAudioHost.exe
       to: capture/CGProcessAudioHost.exe
     - from: ../../node_modules/@koromix/koffi-win32-x64
