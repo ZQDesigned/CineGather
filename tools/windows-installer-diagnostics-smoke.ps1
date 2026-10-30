@@ -57,7 +57,10 @@ try{
  $menu=Join-Path ([Environment]::GetFolderPath('Programs')) 'CineGather 升级诊断.lnk'
  if(!(Test-Path $menu)){throw 'diagnostic-menu-missing'}
  $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($menu)
- @{arguments=$shortcut.Arguments;expectedHelper=$support} | ConvertTo-Json | Set-Content (Join-Path $evidence 'diagnostic-menu.json')
+ $shell=New-Object -ComObject Shell.Application
+ $menuItem=$shell.Namespace((Split-Path $menu -Parent)).ParseName((Split-Path $menu -Leaf))
+ @{arguments=$shortcut.Arguments;target=$shortcut.TargetPath;shellArguments=$menuItem.ExtendedProperty('System.Link.Arguments');file=$menu;bytes=(Get-Item -LiteralPath $menu).Length;expectedHelper=$support} | ConvertTo-Json | Set-Content (Join-Path $evidence 'diagnostic-menu.json')
+ Copy-Item -LiteralPath $menu -Destination (Join-Path $evidence 'diagnostic-menu.lnk')
  if($shortcut.Arguments -notmatch '-File "([^"]+)"'){throw 'diagnostic-menu-helper-argument-missing'}
  $menuScript=[Environment]::ExpandEnvironmentVariables($matches[1])
  # Shell links may canonicalize a user's directory to its 8.3 alias.
