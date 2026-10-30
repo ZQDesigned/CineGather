@@ -76,6 +76,21 @@ for (const link of baselineShortcuts) expect(link.appId).toBe(windowsAppId);
 const before = shortcuts(true);
 expect(before.some((link) => link.kind === "desktop")).toBe(false);
 const results: unknown[] = [];
+// Exercise the shipped updater subclass as well as the legacy library path.
+const bridgeEntry = join(directory, "diagnostic-updater-entry.ts");
+const bridge = join(directory, "diagnostic-updater.cjs");
+await writeFile(
+  bridgeEntry,
+  'export { DiagnosticNsisUpdater } from "../../apps/desktop/src/main/installer-updater"; export { InstallerJournal } from "../../apps/desktop/src/main/installer-diagnostics";',
+);
+const built = await Bun.build({
+  entrypoints: [bridgeEntry],
+  target: "node",
+  format: "cjs",
+  external: ["electron", "electron-updater"],
+});
+if (!built.success) throw Error("Cannot build real diagnostic updater fixture");
+await writeFile(bridge, Buffer.from(await built.outputs[0]!.arrayBuffer()));
 let application: ElectronApplication | undefined;
 try {
   for (let round = 1; round <= 2; round++) {
@@ -96,7 +111,18 @@ try {
         const load = entry.require.bind(entry);
         const { NsisUpdater } = load(options.module);
         const { writeFileSync } = load("node:fs") as typeof import("node:fs");
-        const updater = new NsisUpdater();
+        const diagnostic =
+          options.round === 2 ? load(options.bridge) : undefined;
+        const journal = diagnostic
+          ? new diagnostic.InstallerJournal(
+              options.journalDirectory,
+              _electron.app.getVersion(),
+            )
+          : undefined;
+        const updater = diagnostic
+          ? new diagnostic.DiagnosticNsisUpdater(journal)
+          : new NsisUpdater();
+        if (journal) writeFileSync(options.log + ".attempt", journal.attempt);
         // Replace only the already-verified download cache in this fixture. The
         // actual quitAndInstall/doInstall/spawn and NSIS uninstall paths run intact.
         updater.downloadedUpdateHelper = {
@@ -104,7 +130,7 @@ try {
           packageFile: null,
           downloadedFileInfo: { isAdminRightsRequired: false },
         };
-        updater.installDirectory = options.install;
+        if (options.round === 1) updater.installDirectory = options.install;
         updater.autoInstallOnAppQuit = false;
         updater.on("error", (error: Error) =>
           writeFileSync(options.log + ".error", error.message),
@@ -118,6 +144,13 @@ try {
       },
       {
         module: resolve("node_modules/electron-updater/out/NsisUpdater.js"),
+        bridge,
+        round,
+        journalDirectory: join(
+          process.env.LOCALAPPDATA!,
+          "CineGather",
+          "installer-logs",
+        ),
         installer,
         install,
         log,
@@ -131,7 +164,7 @@ try {
         "--updated",
         "/S",
         "--force-run",
-        `/D=${install}`,
+        ...(round === 1 ? [`/D=${install}`] : []),
       ]),
     );
     await expect
@@ -169,6 +202,30 @@ try {
     expect(identityAfter).toMatchObject({ hresult: 0, identity: windowsAppId });
     await application.close();
     application = undefined;
+    if (round === 2) {
+      expect(launch.args.some((a: string) => a.startsWith("/D="))).toBe(false);
+      const attempt = (await readFile(log + ".attempt", "utf8")).trim();
+      const { readInstallerDiagnostics } = await import(
+        "../apps/desktop/src/main/installer-diagnostics"
+      );
+      const history = await readInstallerDiagnostics(
+        join(process.env.LOCALAPPDATA!, "CineGather", "installer-logs"),
+      );
+      expect(
+        history.records.some(
+          (r) =>
+            (r as { attempt?: string; phase: string }).attempt === attempt &&
+            (r as { phase: string }).phase === "installer-spawn-accepted",
+        ),
+      ).toBe(true);
+      expect(
+        history.records.some(
+          (r) =>
+            (r as { attempt?: string; phase: string }).attempt === attempt &&
+            (r as { phase: string }).phase === "install-success",
+        ),
+      ).toBe(true);
+    }
     const after = shortcuts();
     expect(after).toEqual(before);
     results.push({
@@ -179,6 +236,8 @@ try {
       deletedDesktopNotRecreated: true,
       actualQuitAndInstall: true,
       installerArguments: launch.args,
+      diagnosticUpdater: round === 2,
+      registryOnlyResolution: round === 2,
       actualTaskbarPinsOnRunner: before.filter(
         (link) => link.kind === "taskbar",
       ).length,

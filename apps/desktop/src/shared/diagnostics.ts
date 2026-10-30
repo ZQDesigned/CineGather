@@ -589,7 +589,7 @@ export async function diagnosticArchive(
     "README.txt": strToU8(
       guide +
         (installer
-          ? "\n升级诊断见 upgrade/history.ndjson 和 upgrade/status.json；包含安装路径（用户目录已遮盖）、相关进程名、阶段、退出码及文件占用。即时占用探测不能证明历史原因；legacy 卸载器可能无法提供最初失败文件。win32Code 是 NSIS Rename 失败后立即读取的线程错误码，应结合阶段解释；files[].code 是稍后进行的 DELETE 权限探测，不能当作原始操作错误码。\n"
+          ? "\n升级诊断见 upgrade/history.ndjson 和 upgrade/status.json；包含安装路径（用户目录已遮盖）、相关进程名、阶段、退出码及文件占用。即时占用探测不能证明历史原因；legacy 卸载器可能无法提供最初失败文件。cleanup-complete 仅表示应用清理回调已返回，进程是否实际退出需对照 process-cleanup 记录。win32Code 是 NSIS Rename 失败后立即读取的线程错误码，应结合阶段解释；files[].code 是稍后进行的 DELETE 权限探测，不能当作原始操作错误码。\n"
           : ""),
     ),
     ...(installer
