@@ -195,6 +195,9 @@ export class PlaybackProbe {
     }
     const metadata = this.metadata;
     const { lastFrame, maxGap, callbacks } = this;
+    // Frame callback timestamps belong to the video's Window, including PiP.
+    const now = () =>
+      video.ownerDocument?.defaultView?.performance.now() ?? performance.now();
     const raw = {
       get clientWidth() {
         return video.clientWidth;
@@ -238,9 +241,7 @@ export class PlaybackProbe {
         return metadata?.presentedFrames;
       },
       get frameAgeMs() {
-        return lastFrame === undefined
-          ? undefined
-          : performance.now() - lastFrame;
+        return lastFrame === undefined ? undefined : now() - lastFrame;
       },
       get maxFrameGapMs() {
         return maxGap;
@@ -254,7 +255,7 @@ export class PlaybackProbe {
       get presentationDelayMs() {
         return metadata?.presentationTime === undefined
           ? undefined
-          : performance.now() - metadata.presentationTime;
+          : now() - metadata.presentationTime;
       },
       get expectedDisplayDelayMs() {
         return metadata?.expectedDisplayTime === undefined
@@ -284,7 +285,6 @@ export class PlaybackProbe {
       this.issue,
     );
     this.maxGap = 0;
-    this.callbacks = 0;
     return sample;
   }
 }

@@ -388,6 +388,9 @@ export interface DesktopBridge {
   diagnostics?: {
     record(entry: import("./diagnostics").DiagnosticRecord): Promise<void>;
     status(): Promise<import("./diagnostics").DiagnosticHistoryStatus>;
+    nativeStatus?(): Promise<
+      import("./diagnostics").DiagnosticRecord["native"]
+    >;
   };
   memberOverlay?: {
     publish(snapshot: MemberOverlaySnapshot | null): Promise<void>;

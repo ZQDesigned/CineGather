@@ -776,6 +776,8 @@ function registerIPC() {
   });
   handle("desktop:diagnostic-record", (input) => diagnostics!.record(input));
   handle("desktop:diagnostic-status", () => diagnostics!.status());
+  // Cached, schema-projected status only. Debug UI must never start a host/probe.
+  handle("desktop:diagnostic-native", () => nativeCapture?.diagnostics());
   handle("desktop:diagnostics", (input) => diagnostics!.export(input, win!));
 }
 function capturePermissions() {

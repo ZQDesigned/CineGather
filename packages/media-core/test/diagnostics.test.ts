@@ -118,3 +118,38 @@ test("a failed playback quality API preserves other display metrics and reports 
   });
   expect(JSON.stringify(issues)).not.toContain("private");
 });
+
+test("playback timing uses the video owner window clock and fallback callbacks remain cumulative", async () => {
+  const { PlaybackProbe } = await import("../src/diagnostics");
+  const probe = new PlaybackProbe();
+  let callback!: (at: number, metadata: VideoFrameCallbackMetadata) => void;
+  let childTime = 200;
+  const video = {
+    srcObject: {},
+    ownerDocument: {
+      hidden: false,
+      defaultView: { performance: { now: () => childTime } },
+    },
+    addEventListener() {},
+    removeEventListener() {},
+    requestVideoFrameCallback(next: typeof callback) {
+      callback = next;
+      return 1;
+    },
+    cancelVideoFrameCallback() {},
+  };
+  probe.bind(video as unknown as HTMLVideoElement);
+  callback(180, { presentationTime: 185 } as VideoFrameCallbackMetadata);
+  expect(probe.sample()).toMatchObject({
+    frameAgeMs: 20,
+    presentationDelayMs: 15,
+    callbackCount: 1,
+  });
+  childTime = 250;
+  callback(240, { presentationTime: 242 } as VideoFrameCallbackMetadata);
+  expect(probe.sample()).toMatchObject({
+    frameAgeMs: 10,
+    presentationDelayMs: 8,
+    callbackCount: 2,
+  });
+});

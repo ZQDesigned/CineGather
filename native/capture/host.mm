@@ -172,6 +172,17 @@ static NSDictionary *status() {
     @"frameworks" : frameworks ?: @"",
     @"nativeAllocationCount" : @(bnum_allocs())
   } mutableCopy];
+  if (videoEncoder) {
+    snapshot[@"encoderBackend"] = @"videotoolbox";
+    snapshot[@"hardwareEncoder"] = @YES;
+  }
+  struct obs_video_info videoInfo = {};
+  if (engineReady && obs_get_video_info(&videoInfo)) {
+    snapshot[@"configuredWidth"] = @(videoInfo.output_width);
+    snapshot[@"configuredHeight"] = @(videoInfo.output_height);
+    if (videoInfo.fps_den)
+      snapshot[@"configuredFps"] = @((double)videoInfo.fps_num / videoInfo.fps_den);
+  }
   [snapshot addEntriesFromDictionary:previewStatus ?: @{}];
   return snapshot;
 }

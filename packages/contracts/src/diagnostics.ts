@@ -459,7 +459,9 @@ export const nativeDiagnosticSchema = z.object({
     .optional(),
   requestedEncoder: nativeEncoderIdSchema.optional(),
   selectedEncoder: nativeEncoderIdSchema.or(z.literal("")).optional(),
-  encoderBackend: z.enum(["nvenc", "amf", "x264", ""]).optional(),
+  encoderBackend: z
+    .enum(["nvenc", "amf", "x264", "videotoolbox", ""])
+    .optional(),
   hardwareEncoder: z.boolean().optional(),
   deviceAudioFallback: z.boolean().optional(),
   encoderFailure: z

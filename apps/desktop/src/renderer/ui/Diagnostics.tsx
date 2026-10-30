@@ -1,4 +1,12 @@
-import { Alert, Card, Descriptions, Space, Tag, Typography } from "antd";
+import {
+  Alert,
+  Card,
+  Descriptions,
+  Space,
+  Switch,
+  Tag,
+  Typography,
+} from "antd";
 import { Download, RefreshCw, Settings } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { unwrap } from "@cinegather/api-client";
@@ -275,6 +283,28 @@ export function Diagnostics() {
         title={title}
         description={description}
       />
+      <Card size="small">
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            gap: 16,
+          }}
+        >
+          <div>
+            <Typography.Text>Debug 模式</Typography.Text>
+            <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>
+              在共享画面右上角显示编码、帧率和网络数据。
+            </Typography.Paragraph>
+          </div>
+          <Switch
+            aria-label="Debug 模式"
+            checked={app.debugMode}
+            onChange={(debugMode) => update({ debugMode })}
+          />
+        </div>
+      </Card>
       <Card size="small">
         <Space direction="vertical" size={4}>
           <Typography.Text>自动保留最近两小时的运行记录</Typography.Text>

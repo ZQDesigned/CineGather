@@ -3,6 +3,7 @@ import { WatchProfileControl, WatchAdvice } from "./WatchProfile";
 import { PictureInPicture2 } from "lucide-react";
 import { useViewingWindow } from "./ViewingWindow";
 import { ShareQueue } from "./ShareQueue";
+import { ShareDebugOverlay } from "./ShareDebugOverlay";
 import { App, Slider, Alert, Tabs, Tooltip, Tag, Badge } from "antd";
 import { Button } from "./Controls";
 import { useEffect, useRef, type ReactNode } from "react";
@@ -186,6 +187,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
               <Video />
             )}
             {viewingWindow.presentation}
+            {!viewingWindow.active && <ShareDebugOverlay visible={visible} />}
             {viewingWindow.active && (
               <div className="stage-empty">
                 <PictureInPicture2 size={42} />

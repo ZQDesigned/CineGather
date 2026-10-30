@@ -1,4 +1,5 @@
 import { WatchProfileControl } from "./WatchProfile";
+import { ShareDebugOverlay } from "./ShareDebugOverlay";
 
 import { createPortal } from "react-dom";
 import {
@@ -234,19 +235,29 @@ export function useViewingWindow(enabled: boolean) {
             />
           </div>
         </Flex>
-        <video
-          autoPlay
-          playsInline
-          aria-label="小窗共享画面"
-          ref={bindVideo}
+        <div
           style={{
+            position: "relative",
             flex: 1,
             minHeight: 0,
             width: "100%",
-            objectFit: "contain",
-            background: "#050608",
+            overflow: "hidden",
           }}
-        />
+        >
+          <video
+            autoPlay
+            playsInline
+            aria-label="小窗共享画面"
+            ref={bindVideo}
+            style={{
+              height: "100%",
+              width: "100%",
+              objectFit: "contain",
+              background: "#050608",
+            }}
+          />
+          <ShareDebugOverlay />
+        </div>
         <Flex
           align="center"
           gap={12}

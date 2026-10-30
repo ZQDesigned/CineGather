@@ -182,6 +182,27 @@ type Context = {
   user?: unknown;
 };
 export class DiagnosticRecorder {
+  private sampleListeners = new Set<
+    (sample: {
+      at: number;
+      media?: MediaDiagnostic;
+      roomId?: string;
+      revision?: number;
+    }) => void
+  >();
+  subscribeSamples(
+    listener: (sample: {
+      at: number;
+      media?: MediaDiagnostic;
+      roomId?: string;
+      revision?: number;
+    }) => void,
+  ) {
+    this.sampleListeners.add(listener);
+    return () => {
+      this.sampleListeners.delete(listener);
+    };
+  }
   private session = crypto.randomUUID();
   private sequence = 0;
   private timer?: ReturnType<typeof setInterval>;
@@ -416,6 +437,18 @@ export class DiagnosticRecorder {
             memory?: { usedJSHeapSize: number; jsHeapSizeLimit: number };
           }
         ).memory;
+        for (const listener of this.sampleListeners) {
+          try {
+            listener({
+              at: Date.now(),
+              media,
+              roomId: context.room?.id,
+              revision: context.media.revision,
+            });
+          } catch {
+            /* Debug display cannot interrupt diagnostic retention. */
+          }
+        }
         await this.record({
           kind: "sample",
           media,

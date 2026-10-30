@@ -113,6 +113,7 @@ const bridge: DesktopBridge = {
   diagnostics: {
     record: (entry) => ipcRenderer.invoke("desktop:diagnostic-record", entry),
     status: () => ipcRenderer.invoke("desktop:diagnostic-status"),
+    nativeStatus: () => ipcRenderer.invoke("desktop:diagnostic-native"),
   },
   memberOverlay: {
     publish: (snapshot) =>

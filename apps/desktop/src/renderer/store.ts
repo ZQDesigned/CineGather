@@ -36,6 +36,7 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  debugMode: boolean;
   microphoneMonitor: MicrophoneMonitorStatus;
   notifications: import("@cinegather/contracts").NotificationRecord[];
   chat: ChatSnapshot;
@@ -84,6 +85,7 @@ interface State {
   joinValue: string;
 }
 export const useApp = create<State>(() => ({
+  debugMode: false,
   notifications: [],
   chat: { items: [], unread: 0, loading: false, failed: false },
   chatTab: "members",
