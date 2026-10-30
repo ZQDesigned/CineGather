@@ -1,3 +1,4 @@
+import type { Stats } from "node:fs";
 import { readdir, lstat, readFile } from "node:fs/promises";
 import {
   appendFileSync,
@@ -92,14 +93,25 @@ export interface InstallerEvidence {
   issues: string[];
 }
 function sanitize(value: unknown): unknown {
-  if (typeof value === "string")
-    return value
+  if (typeof value === "string") {
+    let clean = value;
+    const profiles = [
+      process.env.LOCALAPPDATA,
+      process.env.APPDATA,
+      process.env.USERPROFILE,
+    ]
+      .filter((p): p is string => Boolean(p && p.length > 4))
+      .sort((a, b) => b.length - a.length);
+    for (const profile of profiles)
+      clean = clean.split(profile).join("<USER_DIRECTORY>");
+    return clean
       .replace(/([a-z]:\\Users\\)[^\\]+/gi, "$1<USER>")
       .replace(/https?:\/\/[^\s"<>]+/gi, "<URL>")
       .replace(
         /(?:Bearer\s+|(?:token|password|secret)=)[^\s,;]+/gi,
         "<REDACTED>",
       );
+  }
   if (Array.isArray(value)) return value.map(sanitize);
   if (value && typeof value === "object")
     return Object.fromEntries(
@@ -190,8 +202,7 @@ export async function readInstallerDiagnostics(
   };
   if (!directory) return result;
   try {
-    const files: { name: string; stat: Awaited<ReturnType<typeof lstat>> }[] =
-      [];
+    const files: { name: string; stat: Stats }[] = [];
     for (const name of (await readdir(directory)).filter((n) =>
       owned.test(n),
     )) {
@@ -272,7 +283,10 @@ export async function readInstallerDiagnostics(
                   }
                 : raw;
             }
-            result.records.push(sanitize(record.parse(value)));
+            result.records.push({
+              ...(sanitize(record.parse(value)) as object),
+              sourceFile: f.name,
+            });
           } catch {
             result.issues.push(f.name + ":invalid-or-torn-record");
           }
@@ -285,5 +299,8 @@ export async function readInstallerDiagnostics(
     result.issues.push((error as NodeJS.ErrnoException).code ?? "read-failed");
   }
   result.issues = [...new Set(result.issues)].slice(0, 100);
+  result.records.sort(
+    (a, b) => (a as { at: number }).at - (b as { at: number }).at,
+  );
   return result;
 }

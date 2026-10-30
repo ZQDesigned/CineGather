@@ -50,8 +50,10 @@ Function ${PREFIX}cgLog
   FileOpen $0 "$cgLogFile" a
   ${IfNot} ${Errors}
     FileSeek $0 0 END $1
-    ${If} $1 < 1048576
+    ${If} $1 < 1040000
       FileWriteUTF16LE $0 "v1$\t$2$\t$3$\t$cgUpdateId$\t${VERSION}$\t$cgStage$\t$cgDetail$\t$cgCode$\t$cgWin32$\r$\n"
+    ${ElseIf} $1 < 1041000
+      FileWriteUTF16LE $0 "v1$\t$2$\t$3$\t$cgUpdateId$\t${VERSION}$\tnative-log-truncated$\tbyte-limit$\t$\t$\r$\n"
     ${EndIf}
     FileClose $0
   ${Else}
@@ -142,6 +144,8 @@ FunctionEnd
 !macroend
 
 !macro customInit
+  ; Legacy uninstallers cannot report a first failed file to this process.
+  StrCpy $cgFailedPath ""
   Push $0
   Push $1
   ${GetParameters} $0
