@@ -11,7 +11,10 @@ const realEventClock: NotificationClock = {
 /** A single persistent connection, with backoff instead of rapid version polling. */
 export function watchUpdateEvents(
   url: string,
-  receive: (event: "policy" | "release", data: string) => void,
+  receive: (
+    event: "policy" | "release" | "announcements",
+    data: string,
+  ) => void,
   request: (input: string, init: RequestInit) => Promise<Response> = fetch,
   clock: NotificationClock = realEventClock,
 ) {
@@ -79,7 +82,9 @@ export function watchUpdateEvents(
             if (
               !stopped &&
               revision === generation &&
-              (event === "policy" || event === "release")
+              (event === "policy" ||
+                event === "release" ||
+                event === "announcements")
             )
               try {
                 receive(event, data.join("\n"));

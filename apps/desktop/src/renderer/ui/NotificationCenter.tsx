@@ -1,3 +1,4 @@
+import { openAnnouncements, readAllNotifications, report } from "../controller";
 import { useState } from "react";
 import { Badge, Button, Empty, Flex, Popover, Typography } from "antd";
 import { Bell } from "lucide-react";
@@ -31,7 +32,7 @@ export function NotificationCenter() {
                 size="small"
                 type="text"
                 disabled={!unread}
-                onClick={() => notificationInbox.read()}
+                onClick={() => void readAllNotifications().catch(report)}
               >
                 全部已读
               </Button>
@@ -46,6 +47,16 @@ export function NotificationCenter() {
             </Flex>
           </Flex>
           <div style={{ maxHeight: "min(440px, 65vh)", overflowY: "auto" }}>
+            <Button
+              block
+              type="text"
+              onClick={() => {
+                setOpen(false);
+                openAnnouncements();
+              }}
+            >
+              全站公告
+            </Button>
             {!items.length && (
               <Empty
                 image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -90,8 +101,9 @@ export function NotificationCenter() {
                       minute: "2-digit",
                     })}
                   </Typography.Text>
-                  {item.active &&
-                  (!item.expiresAt || item.expiresAt > Date.now()) ? (
+                  {item.target === "announcements" ||
+                  (item.active &&
+                    (!item.expiresAt || item.expiresAt > Date.now())) ? (
                     <Button
                       size="small"
                       type="link"

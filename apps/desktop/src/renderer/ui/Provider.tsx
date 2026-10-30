@@ -1,3 +1,5 @@
+import { useApp } from "../store";
+import { announcementActive } from "../announcements";
 import { App as AntApp, ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import type { ReactNode } from "react";
@@ -9,6 +11,12 @@ export function UIProvider({
   children: ReactNode;
   overlay?: boolean;
 }) {
+  const announcements = useApp((s) => s.announcements);
+  const hasMaintenance = announcements.items.some(
+    (a) =>
+      a.kind === "maintenance" &&
+      announcementActive(a, Date.now() + announcements.offset),
+  );
   return (
     <ConfigProvider
       locale={zhCN}
@@ -47,7 +55,7 @@ export function UIProvider({
       {!overlay && <GlobalStyles />}
       <AntApp
         message={{ maxCount: 3 }}
-        notification={{ placement: "topRight", top: 72 }}
+        notification={{ placement: "topRight", top: hasMaintenance ? 108 : 72 }}
       >
         {children}
       </AntApp>

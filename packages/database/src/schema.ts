@@ -383,3 +383,57 @@ export const shareRequests = pgTable(
     ),
   ],
 );
+
+export const announcements = pgTable(
+  "announcements",
+  {
+    id: uuid("id").primaryKey(),
+    title: text("title").notNull(),
+    body: text("body").notNull(),
+    kind: text("kind").notNull().default("notice"),
+    popup: boolean("popup").notNull().default(true),
+    status: text("status").notNull().default("draft"),
+    startsAt: time("starts_at"),
+    expiresAt: time("expires_at"),
+    publishedAt: time("published_at"),
+    createdBy: uuid("created_by").references(() => users.id, {
+      onDelete: "set null",
+    }),
+    createdAt: time("created_at").notNull().defaultNow(),
+    updatedAt: time("updated_at").notNull().defaultNow(),
+  },
+  (t) => [
+    check(
+      "announcements_status_check",
+      sql`${t.status} IN ('draft','scheduled','published','withdrawn')`,
+    ),
+    check(
+      "announcements_kind_check",
+      sql`${t.kind} IN ('notice','maintenance')`,
+    ),
+    check(
+      "announcements_text_check",
+      sql`length(${t.title}) BETWEEN 1 AND 120 AND length(${t.body}) BETWEEN 1 AND 4000`,
+    ),
+    check(
+      "announcements_time_check",
+      sql`${t.expiresAt} IS NULL OR ${t.startsAt} IS NULL OR ${t.expiresAt}>${t.startsAt}`,
+    ),
+    index("announcements_due_idx").on(t.status, t.startsAt),
+    index("announcements_published_idx").on(t.publishedAt),
+  ],
+);
+export const announcementReceipts = pgTable(
+  "announcement_receipts",
+  {
+    announcementId: uuid("announcement_id")
+      .notNull()
+      .references(() => announcements.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    receivedAt: time("received_at").notNull().defaultNow(),
+    readAt: time("read_at"),
+  },
+  (t) => [primaryKey({ columns: [t.announcementId, t.userId] })],
+);

@@ -1,5 +1,9 @@
 import { z } from "zod";
-import { accountRoleSchema, adminPermissionSchema } from "./permissions";
+import {
+  accountRoleSchema,
+  adminPermissionSchema,
+  adminPermissionKeys,
+} from "./permissions";
 export const adminQuery = z.object({
   q: z.string().trim().max(100).default(""),
   page: z.coerce.number().int().min(1).max(100000).default(1),
@@ -80,7 +84,7 @@ export const adminRoleInput = z
     permissions: z
       .array(adminPermissionSchema)
       .min(1)
-      .max(7)
+      .max(adminPermissionKeys.length)
       .refine((p) => new Set(p).size === p.length, "权限不能重复"),
     reason: adminReason.shape.reason,
   })
@@ -89,6 +93,7 @@ export const adminRoleInput = z
       ["users.manage", "users.read"],
       ["users.screen-share", "users.read"],
       ["rooms.manage", "rooms.read"],
+      ["announcements.manage", "announcements.read"],
     ] as const)
       if (
         value.permissions.includes(manage) &&

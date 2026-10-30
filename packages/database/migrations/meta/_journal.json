@@ -141,6 +141,13 @@
       "when": 1793285988938,
       "tag": "0019_remove_karaoke_preview",
       "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1793359279177,
+      "tag": "0020_announcements",
+      "breakpoints": true
     }
   ]
 }

@@ -18,6 +18,7 @@ import type { ChatSnapshot } from "@cinegather/client-core";
 import type { ChatMessage } from "@cinegather/contracts";
 import type { Friend } from "./friends";
 export type Modal =
+  | "announcements"
   | "room-settings"
   | "create"
   | "join"
@@ -36,6 +37,11 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  announcements: import("./announcements").AnnouncementSnapshot;
+  pendingAnnouncementIds: string[];
+  announcementToastIds: string[];
+  selectedAnnouncementId?: string;
+  announcementAuto: boolean;
   debugMode: boolean;
   microphoneMonitor: MicrophoneMonitorStatus;
   notifications: import("@cinegather/contracts").NotificationRecord[];
@@ -85,6 +91,10 @@ interface State {
   joinValue: string;
 }
 export const useApp = create<State>(() => ({
+  announcements: { items: [], readIds: [], offset: 0 },
+  pendingAnnouncementIds: [],
+  announcementToastIds: [],
+  announcementAuto: false,
   debugMode: false,
   notifications: [],
   chat: { items: [], unread: 0, loading: false, failed: false },

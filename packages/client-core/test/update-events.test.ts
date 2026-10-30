@@ -14,7 +14,7 @@ test("stream handles split CRLF frames and multiple data lines without another H
             "event: pol",
             'icy\r\ndata: {"minimumVersions":',
             "\r\ndata: {}}\r\n\r",
-            "\nevent: release\ndata: signed\n\n",
+            "\nevent: announcements\ndata: {}\n\nevent: release\ndata: signed\n\n",
           ])
             c.enqueue(new TextEncoder().encode(chunk));
           c.close();
@@ -38,6 +38,7 @@ test("stream handles split CRLF frames and multiple data lines without another H
   expect(calls).toBe(1);
   expect(received).toEqual([
     'policy:{"minimumVersions":\n{}}',
+    "announcements:{}",
     "release:signed",
   ]);
 });

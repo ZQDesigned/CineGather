@@ -1,3 +1,4 @@
+import { AnnouncementDialog } from "./Announcements";
 import {
   Select,
   Checkbox,
@@ -56,6 +57,7 @@ export function Dialogs() {
   );
 }
 function DialogContent({ modal }: { modal: Modal }) {
+  if (modal === "announcements") return <AnnouncementDialog />;
   if (modal === "friend-remark") return <FriendRemark />;
   if (modal === "add-friend")
     return (

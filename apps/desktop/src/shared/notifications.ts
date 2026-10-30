@@ -97,6 +97,11 @@ export class NotificationInbox {
     );
     this.emit();
   }
+  remove(id: string) {
+    if (!this.items.some((item) => item.id === id)) return;
+    this.items = this.items.filter((item) => item.id !== id);
+    this.emit();
+  }
   clear() {
     this.items = [];
     this.emit();

@@ -36,6 +36,7 @@ function includeRead(values: AdminPermission[]) {
   if (set.has("users.screen-share")) set.add("users.read");
   if (set.has("users.manage")) set.add("users.read");
   if (set.has("rooms.manage")) set.add("rooms.read");
+  if (set.has("announcements.manage")) set.add("announcements.read");
   return adminPermissionKeys.filter((p) => set.has(p));
 }
 function PermissionPicker({

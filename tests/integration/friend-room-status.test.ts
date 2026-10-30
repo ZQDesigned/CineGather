@@ -176,7 +176,7 @@ test("the latest active admission wins and expired, left or closed memberships a
   expect((await friend()).room).toEqual({ memberCount: 1, maxMembers: 8 });
   await db
     .update(members)
-    .set({ admittedUntil: new Date(Date.now() - 1) })
+    .set({ admittedUntil: new Date(Date.now() - 60_000) })
     .where(eq(members.userId, people[1]!.id));
   expect((await friend()).room).toBeNull();
   await db

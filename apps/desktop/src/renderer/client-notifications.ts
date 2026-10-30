@@ -65,12 +65,16 @@ export function openClientNotification(
   const item = notificationInbox.snapshot().find((item) => item.id === id);
   if (!item) return;
   notificationInbox.read(id);
-  if (item.active) activate(item);
+  if (item.active || item.target === "announcements") activate(item);
 }
-export function publishClientNotification(event: ClientNotification) {
+export function publishClientNotification(
+  event: ClientNotification,
+  quiet = false,
+) {
   if (leaving) return;
   const identity = scope();
   if (!identity || !notificationInbox.publish(event)) return;
+  if (quiet) return;
   const prefs =
     state().settings.notifications ?? defaultNotificationPreferences;
   const now = performance.now();

@@ -1,3 +1,4 @@
+import { AnnouncementClient, announcementNotification } from "./announcements";
 import { shouldAdvanceUpdateRequirement } from "../shared/update-requirement";
 import { reconcileAudioDevices } from "./audio-devices";
 import { RoomCuePlayer, RoomPresenceCues } from "./room-cues";
@@ -31,6 +32,7 @@ import {
   bindClientNotifications,
   publishClientNotification,
   notificationInbox,
+  clientNotificationEnabled,
 } from "./client-notifications";
 import { serverOrigin } from "./server-address";
 import {
@@ -271,6 +273,93 @@ export async function setPresence(visibility: "online" | "invisible") {
       notice:
         visibility === "invisible" ? "已隐身，好友将看到你离线" : "已设为在线",
     });
+}
+let announcementBindingRevision = 0;
+export const siteAnnouncements = new AnnouncementClient(
+  {
+    load: async (signedIn) =>
+      signedIn
+        ? unwrap(await api.GET("/api/v1/announcements/inbox"))
+        : unwrap(await api.GET("/api/v1/announcements")),
+    receive: async (ids) =>
+      unwrap(
+        await api.POST("/api/v1/announcements/receive", { body: { ids } }),
+      ),
+    read: async (ids) => {
+      unwrap(await api.POST("/api/v1/announcements/read", { body: { ids } }));
+    },
+    changed: (announcements) => update({ announcements }),
+    notices: (items, fresh, readIds) => {
+      const visible = new Set(items.map((a) => "announcement:" + a.id));
+      for (const item of notificationInbox.snapshot())
+        if (item.target === "announcements" && !visible.has(item.id))
+          notificationInbox.remove(item.id);
+      for (const item of items) {
+        publishClientNotification(
+          announcementNotification(item, state().announcements.offset),
+          !fresh.includes(item.id),
+        );
+        if (readIds.includes(item.id))
+          notificationInbox.read("announcement:" + item.id);
+      }
+      if (clientNotificationEnabled("system"))
+        update({
+          pendingAnnouncementIds: [
+            ...new Set([
+              ...state().pendingAnnouncementIds,
+              ...items
+                .filter((a) => fresh.includes(a.id) && a.popup)
+                .map((a) => a.id),
+            ]),
+          ],
+          announcementToastIds: [
+            ...new Set([
+              ...state().announcementToastIds,
+              ...items
+                .filter((a) => fresh.includes(a.id) && !a.popup)
+                .map((a) => a.id),
+            ]),
+          ],
+        });
+    },
+  },
+  {
+    load: () =>
+      JSON.parse(
+        localStorage.getItem("cinegather.announcements:" + baseUrl) ?? "null",
+      ),
+    save: (value) =>
+      localStorage.setItem(
+        "cinegather.announcements:" + baseUrl,
+        JSON.stringify(value),
+      ),
+  },
+);
+export function openAnnouncements(id?: string) {
+  update({
+    selectedAnnouncementId: id,
+    announcementAuto: false,
+    modal: "announcements",
+  });
+}
+export async function readAnnouncements(ids: string[]) {
+  const user = state().user?.id;
+  await siteAnnouncements.read(ids);
+  if (user === state().user?.id)
+    for (const id of ids) notificationInbox.read("announcement:" + id);
+}
+export async function readAllNotifications() {
+  const user = state().user?.id;
+  const ids = state()
+    .announcements.items.filter(
+      (a) => !state().announcements.readIds.includes(a.id),
+    )
+    .map((a) => a.id);
+  for (let i = 0; i < ids.length; i += 100) {
+    if (user !== state().user?.id) return;
+    await readAnnouncements(ids.slice(i, i + 100));
+  }
+  if (user === state().user?.id) notificationInbox.read();
 }
 async function checkClientPolicy() {
   try {
@@ -956,6 +1045,7 @@ function receiveInvitation(value: string) {
   });
 }
 export async function initialize() {
+  const announcementBinding = ++announcementBindingRevision;
   const stopNotifications = bindClientNotifications(baseUrl, async (item) => {
     const userId = state().user?.id;
     if (document.fullscreenElement) {
@@ -971,6 +1061,7 @@ export async function initialize() {
       update({ modal: "updates" });
       return;
     }
+    if (item.target === "announcements") openAnnouncements(item.entityId);
     if (item.target === "friends") {
       location.hash = "/friends";
       update({ modal: null });
@@ -1118,23 +1209,44 @@ export async function initialize() {
         ? "darwin"
         : "web",
   );
-  const stopPolicyEvents =
+  void siteAnnouncements.scope(state().user?.id);
+  const stopAnnouncementScope = useApp.subscribe((next, before) => {
+    if (next.user?.id !== before.user?.id) {
+      update({
+        pendingAnnouncementIds: [],
+        announcementToastIds: [],
+        selectedAnnouncementId: undefined,
+        announcementAuto: false,
+        ...(next.modal === "announcements" ? { modal: null } : {}),
+      });
+      void siteAnnouncements.scope(next.user?.id);
+    }
+  });
+  const rendererPolicy =
     !window.desktop ||
     nativeUpdates?.mode === "disabled" ||
-    baseUrl !== clientUpdateOrigin
-      ? watchUpdateEvents(eventUrl.href, (event, raw) => {
-          if (event !== "policy") return;
-          const policy = clientPolicySchema.parse(JSON.parse(raw));
-          const platform = window.desktop?.platform;
-          requireClientUpdate(
-            policy.minimumVersions[
-              platform === "win32" || platform === "darwin" ? platform : "web"
-            ],
-            policy.reason,
-          );
-        })
-      : Object.assign(() => {}, { reconnect: () => {} });
+    baseUrl !== clientUpdateOrigin;
+  const stopPolicyEvents = watchUpdateEvents(eventUrl.href, (event, raw) => {
+    if (event === "announcements") {
+      void siteAnnouncements.refresh();
+      return;
+    }
+    if (event !== "policy" || !rendererPolicy) return;
+    const policy = clientPolicySchema.parse(JSON.parse(raw));
+    const platform = window.desktop?.platform;
+    requireClientUpdate(
+      policy.minimumVersions[
+        platform === "win32" || platform === "darwin" ? platform : "web"
+      ],
+      policy.reason,
+    );
+  });
+  const announcementTimer = setInterval(
+    () => void siteAnnouncements.refresh(),
+    60000,
+  );
   const onlinePolicy = () => {
+    void siteAnnouncements.refresh();
     stopPolicyEvents.reconnect();
     void window.desktop?.updates?.reconnect?.().catch(() => {});
   };
@@ -1163,6 +1275,7 @@ export async function initialize() {
     if (state().room) void chat.sync();
   }, 30_000);
   const focus = () => {
+    void siteAnnouncements.refresh();
     void syncPresence();
     void syncFriends();
     if (state().room) void chat.sync();
@@ -1182,6 +1295,10 @@ export async function initialize() {
     stopNotifications();
     stopDoNotDisturb?.();
     stopPolicyEvents();
+    clearInterval(announcementTimer);
+    stopAnnouncementScope();
+    if (announcementBinding === announcementBindingRevision)
+      siteAnnouncements.stop();
     window.removeEventListener("online", onlinePolicy);
     clearInterval(friendsTimer);
     clearInterval(presenceTimer);

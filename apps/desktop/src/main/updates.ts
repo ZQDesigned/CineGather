@@ -126,7 +126,7 @@ export async function createUpdates(
           verifyRelease(raw, publicKey, process.platform, process.arch),
         );
         scheduler.checked();
-      } else {
+      } else if (event === "policy") {
         const policy = clientPolicySchema.parse(JSON.parse(raw));
         const previous = controller.snapshot().minimumVersion;
         controller.requireUpdate(

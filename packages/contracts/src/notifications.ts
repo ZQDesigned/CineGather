@@ -39,6 +39,7 @@ export const clientNotificationSchema = z.strictObject({
     "room-requests",
     "share",
     "diagnostics",
+    "announcements",
     "updates",
   ]),
   roomId: z.string().min(1).max(128).optional(),

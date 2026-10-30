@@ -1,3 +1,4 @@
+import { AdminAnnouncements } from "./AdminAnnouncements";
 import {
   Alert,
   App,
@@ -123,6 +124,10 @@ const Surface = styled.section`
   }
 `;
 const actionNames: Record<string, string> = {
+  "admin.announcement_create": "创建公告",
+  "admin.announcement_edit": "编辑公告",
+  "admin.announcement_publish": "发布公告",
+  "admin.announcement_withdraw": "撤回公告",
   "admin.screen_share_updated": "修改屏幕共享能力",
   "admin.registration_updated": "更新注册设置",
   "admin.user_disable": "停用账号",
@@ -184,6 +189,9 @@ function AdminPanel() {
   const canAudit = hasAdminPermission(user, "audit.read"),
     isSuper = !!user?.isSuperAdmin;
   const allowedTabs = [
+    ...(hasAdminPermission(user, "announcements.read")
+      ? [{ key: "announcements", label: "公告管理" }]
+      : []),
     ...(canUsers ? [{ key: "users", label: "用户管理" }] : []),
     ...(canRooms ? [{ key: "rooms", label: "房间管理" }] : []),
     ...(canAudit ? [{ key: "audit", label: "操作记录" }] : []),
@@ -622,28 +630,30 @@ function AdminPanel() {
             setDraft("");
           }}
         />
-        {activeTab !== "overview" && activeTab !== "registration" && (
-          <Input.Search
-            aria-label="搜索管理数据"
-            placeholder={
-              activeTab === "users"
-                ? "搜索用户名或昵称"
-                : activeTab === "rooms"
-                  ? "搜索房间名或房间号"
-                  : activeTab === "roles"
-                    ? "搜索角色名称"
-                    : "搜索操作人或对象"
-            }
-            allowClear
-            value={draft}
-            maxLength={100}
-            onChange={(e) => setDraft(e.target.value)}
-            onSearch={(value) => {
-              setSearch(value.trim());
-              setPage(1);
-            }}
-          />
-        )}
+        {activeTab !== "overview" &&
+          activeTab !== "registration" &&
+          activeTab !== "announcements" && (
+            <Input.Search
+              aria-label="搜索管理数据"
+              placeholder={
+                activeTab === "users"
+                  ? "搜索用户名或昵称"
+                  : activeTab === "rooms"
+                    ? "搜索房间名或房间号"
+                    : activeTab === "roles"
+                      ? "搜索角色名称"
+                      : "搜索操作人或对象"
+              }
+              allowClear
+              value={draft}
+              maxLength={100}
+              onChange={(e) => setDraft(e.target.value)}
+              onSearch={(value) => {
+                setSearch(value.trim());
+                setPage(1);
+              }}
+            />
+          )}
       </div>
       <div className="admin-table" ref={tableRef}>
         {activeTab === "registration" ? (
@@ -673,6 +683,8 @@ function AdminPanel() {
               ]}
             />
           </Card>
+        ) : activeTab === "announcements" ? (
+          <AdminAnnouncements revision={revision} height={tableHeight} />
         ) : activeTab === "users" ? (
           <Table<AdminUser>
             rowKey="id"

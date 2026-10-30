@@ -9,6 +9,7 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import type { Request, Response, NextFunction } from "express";
 import { randomUUID } from "node:crypto";
+import { AnnouncementScheduler } from "./announcement-scheduler";
 import { AdminController } from "./admin-controller";
 import { ApiController } from "./controller";
 import { AuthGuard, ErrorFilter, type AuthRequest } from "./http";
@@ -44,7 +45,7 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
 }
 @Module({
   controllers: [ApiController, AdminController],
-  providers: [Metrics, Reconciler, UpdateEvents],
+  providers: [Metrics, Reconciler, UpdateEvents, AnnouncementScheduler],
 })
 class AppModule {}
 export async function createApp({

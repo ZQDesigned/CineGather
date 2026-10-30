@@ -571,3 +571,5 @@ export * from "./watch-profile";
 
 export type MicrophoneEffect = "none" | "ktv";
 export const defaultMicrophoneReverbStrength = 40;
+
+export * from "./announcements";

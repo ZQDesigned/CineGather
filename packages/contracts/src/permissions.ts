@@ -7,6 +7,8 @@ export const adminPermissionKeys = [
   "rooms.read",
   "rooms.manage",
   "audit.read",
+  "announcements.read",
+  "announcements.manage",
 ] as const;
 export const adminPermissionSchema = z.enum(adminPermissionKeys);
 export type AdminPermission = z.infer<typeof adminPermissionSchema>;
@@ -18,6 +20,8 @@ export const adminPermissionLabels: Record<AdminPermission, string> = {
   "rooms.read": "查看房间",
   "rooms.manage": "管理房间",
   "audit.read": "查看操作记录",
+  "announcements.read": "查看公告",
+  "announcements.manage": "公告管理",
 };
 export const accountRoleSchema = z.object({ id: z.uuid(), name: z.string() });
 export interface AdminAccess {

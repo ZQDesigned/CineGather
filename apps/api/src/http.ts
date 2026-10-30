@@ -115,6 +115,8 @@ export function Endpoint(
 export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest<AuthRequest>();
+    if (req.method === "GET" && req.path === "/api/v1/announcements")
+      return true;
     if (
       [
         "/api/v1/health",

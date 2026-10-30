@@ -1,3 +1,4 @@
+import { subscribeAnnouncements } from "./announcements";
 import type { OnModuleDestroy } from "@nestjs/common";
 import { readFile, stat } from "node:fs/promises";
 import { watchFile, unwatchFile } from "node:fs";
@@ -15,7 +16,12 @@ export class UpdateEvents implements OnModuleDestroy {
   private watchers = new Map<string, () => void>();
   private revisions = new Map<string, number>();
   private disposed = false;
+  private unsubscribeAnnouncements?: () => void;
   start(directory: string) {
+    this.unsubscribeAnnouncements = subscribeAnnouncements(() => {
+      for (const client of this.clients)
+        this.send(client.response, "announcements", "{}");
+    });
     for (const channel of [
       "win32-x64",
       "win32-arm64",
@@ -90,6 +96,7 @@ export class UpdateEvents implements OnModuleDestroy {
     response.flushHeaders();
     let lastPolicy = JSON.stringify(policy());
     this.send(response, "policy", lastPolicy);
+    this.send(response, "announcements", "{}");
     const channel = platform + "-" + arch;
     const timer = setInterval(() => {
       const next = JSON.stringify(policy());
@@ -112,6 +119,7 @@ export class UpdateEvents implements OnModuleDestroy {
   }
   onModuleDestroy() {
     this.disposed = true;
+    this.unsubscribeAnnouncements?.();
     for (const [file, listener] of this.watchers) unwatchFile(file, listener);
     this.watchers.clear();
     for (const client of this.clients) {

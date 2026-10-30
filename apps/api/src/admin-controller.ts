@@ -1,14 +1,17 @@
+import * as announcements from "./announcements";
 import {
   Body,
   Controller,
   Get,
   Param,
   Post,
+  Patch,
+  Headers,
   Query,
   Req,
   UseGuards,
 } from "@nestjs/common";
-import { ApiBearerAuth, ApiQuery } from "@nestjs/swagger";
+import { ApiBearerAuth, ApiQuery, ApiHeader } from "@nestjs/swagger";
 import * as c from "@cinegather/contracts";
 import * as admin from "./admin";
 import {
@@ -50,6 +53,86 @@ export class AdminController {
     );
   }
 
+  @Get("announcements")
+  @RequireAdminPermission("announcements.read")
+  @ApiQuery({ name: "q", required: false })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "pageSize", required: false, type: Number })
+  @Endpoint("adminAnnouncements", c.adminAnnouncementsSchema)
+  announcements(@Query() query: unknown) {
+    return announcements.listAdminAnnouncements(parse(c.adminQuery, query));
+  }
+  @Post("announcements")
+  @ApiHeader({ name: "idempotency-key", required: false })
+  @RequireAdminPermission("announcements.manage")
+  @Endpoint(
+    "adminCreateAnnouncement",
+    c.announcementSchema,
+    c.announcementInput,
+    [],
+    201,
+  )
+  createAnnouncement(
+    @Req() req: AuthRequest,
+    @Body() body: unknown,
+    @Headers("idempotency-key") key?: string,
+  ) {
+    return announcements.saveAnnouncement(
+      req.user,
+      parse(c.announcementInput, body),
+      undefined,
+      key,
+    );
+  }
+  @Patch("announcements/:announcementId")
+  @RequireAdminPermission("announcements.manage")
+  @Endpoint(
+    "adminEditAnnouncement",
+    c.announcementSchema,
+    c.announcementInput,
+    ["announcementId"],
+  )
+  editAnnouncement(
+    @Req() req: AuthRequest,
+    @Param("announcementId") id: string,
+    @Body() body: unknown,
+  ) {
+    return announcements.saveAnnouncement(
+      req.user,
+      parse(c.announcementInput, body),
+      id,
+    );
+  }
+  @Post("announcements/:announcementId/publish")
+  @RequireAdminPermission("announcements.manage")
+  @Endpoint(
+    "adminPublishAnnouncement",
+    c.announcementSchema,
+    undefined,
+    ["announcementId"],
+    201,
+  )
+  publishAnnouncement(
+    @Req() req: AuthRequest,
+    @Param("announcementId") id: string,
+  ) {
+    return announcements.publishAnnouncement(req.user, id);
+  }
+  @Post("announcements/:announcementId/withdraw")
+  @RequireAdminPermission("announcements.manage")
+  @Endpoint(
+    "adminWithdrawAnnouncement",
+    c.announcementSchema,
+    undefined,
+    ["announcementId"],
+    201,
+  )
+  withdrawAnnouncement(
+    @Req() req: AuthRequest,
+    @Param("announcementId") id: string,
+  ) {
+    return announcements.withdrawAnnouncement(req.user, id);
+  }
   @Get("overview")
   @RequireAdminPermission("overview.read")
   @Endpoint("adminOverview", c.adminOverviewSchema)

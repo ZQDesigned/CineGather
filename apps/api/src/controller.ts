@@ -1,3 +1,4 @@
+import * as announcements from "./announcements";
 import * as queue from "./share-requests";
 import { listSessions, revokeDevices } from "./account-sessions";
 import { sessionDevice } from "./session-device";
@@ -116,6 +117,73 @@ export class ApiController {
       res,
       () => c.clientPolicySchema.parse(req.app.get("cinegather.clientPolicy")),
     );
+  }
+  @Get("announcements")
+  @Endpoint("announcementFeed", c.announcementFeedSchema)
+  announcements() {
+    return announcements.announcementFeed();
+  }
+  @Get("announcements/inbox")
+  @Endpoint("announcementInbox", c.announcementInboxSchema)
+  announcementInbox(@Req() req: AuthRequest) {
+    return announcements.announcementInbox(req.user);
+  }
+  @Post("announcements/receive")
+  @Endpoint(
+    "receiveAnnouncements",
+    c.announcementClaimsSchema,
+    c.announcementIdsInput,
+    [],
+    201,
+  )
+  receiveAnnouncements(@Req() req: AuthRequest, @Body() body: unknown) {
+    return announcements.receiveAnnouncements(
+      req.user,
+      parse(c.announcementIdsInput, body).ids,
+    );
+  }
+  @Post("announcements/read")
+  @Endpoint(
+    "readAnnouncements",
+    c.announcementClaimsSchema,
+    c.announcementIdsInput,
+    [],
+    201,
+  )
+  readAnnouncements(@Req() req: AuthRequest, @Body() body: unknown) {
+    return announcements.receiveAnnouncements(
+      req.user,
+      parse(c.announcementIdsInput, body).ids,
+      true,
+    );
+  }
+  @Post("announcements/:announcementId/receive")
+  @Endpoint(
+    "receiveAnnouncement",
+    c.announcementReceiptSchema,
+    undefined,
+    ["announcementId"],
+    201,
+  )
+  receiveAnnouncement(
+    @Req() req: AuthRequest,
+    @Param("announcementId") id: string,
+  ) {
+    return announcements.receiveAnnouncement(req.user, id);
+  }
+  @Post("announcements/:announcementId/read")
+  @Endpoint(
+    "readAnnouncement",
+    c.announcementReceiptSchema,
+    undefined,
+    ["announcementId"],
+    201,
+  )
+  readAnnouncement(
+    @Req() req: AuthRequest,
+    @Param("announcementId") id: string,
+  ) {
+    return announcements.receiveAnnouncement(req.user, id, true);
   }
   @Get("registration")
   @Endpoint("registrationPolicy", c.registrationPolicySchema)

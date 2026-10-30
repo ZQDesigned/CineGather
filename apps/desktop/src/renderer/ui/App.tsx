@@ -1,3 +1,4 @@
+import { AnnouncementLayer } from "./Announcements";
 import { NotificationCenter } from "./NotificationCenter";
 import { DoNotDisturb } from "./DoNotDisturb";
 
@@ -452,6 +453,7 @@ export function App() {
             <WindowControls />
           </div>
         </header>
+        <AnnouncementLayer />
         <Feedback />
         <RoomInvitationNotifications />
         <RoomRequestNotifications />
