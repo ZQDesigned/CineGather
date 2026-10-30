@@ -449,6 +449,7 @@ export async function diagnosticArchive(
   entries: DiagnosticRecord[],
   metadata: Record<string, unknown>,
   current: unknown,
+  installer?: { available: boolean; records: unknown[]; issues: string[] },
 ) {
   const safe = entries
     .map((x) => diagnosticRecordSchema.parse(x))
@@ -492,6 +493,10 @@ export async function diagnosticArchive(
           exportedAt: Date.now(),
           retentionMs: diagnosticRetentionMs,
           ...metadata,
+          capabilities: {
+            ...(metadata.capabilities as object),
+            installerHistory: Boolean(installer?.available),
+          },
           coverage: {
             since: summary.since,
             until: summary.until,
@@ -581,7 +586,32 @@ export async function diagnosticArchive(
         ),
       ),
     ),
-    "README.txt": strToU8(guide),
+    "README.txt": strToU8(
+      guide +
+        (installer
+          ? "\n升级诊断见 upgrade/history.ndjson 和 upgrade/status.json；包含安装路径（用户目录已遮盖）、相关进程名、阶段、退出码及文件占用。即时占用探测不能证明历史原因；legacy 卸载器可能无法提供最初失败文件。\n"
+          : ""),
+    ),
+    ...(installer
+      ? {
+          "upgrade/history.ndjson": strToU8(
+            installer.records.map((v) => JSON.stringify(v)).join("\n") + "\n",
+          ),
+          "upgrade/status.json": strToU8(
+            JSON.stringify(
+              {
+                available: installer.available,
+                issues: installer.issues,
+                retentionDays: 30,
+                maxBytes: 33554432,
+                localUserPathsRedacted: true,
+              },
+              null,
+              2,
+            ),
+          ),
+        }
+      : {}),
   };
   return new Promise<Uint8Array>((resolve, reject) =>
     zip(files, { level: 3 }, (error, data) =>

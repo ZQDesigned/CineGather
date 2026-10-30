@@ -30,7 +30,15 @@ export function windowsDownloader(
   updater: WindowsUpdater,
   beforeInstall: () => Promise<void>,
   pending?: PendingUpdateStore,
+  trace?: (phase: string, details: Record<string, unknown>) => void,
 ): Pick<UpdateTransport, "download" | "install" | "cancel" | "discard"> {
+  const note = (phase: string, details: Record<string, unknown> = {}) => {
+    try {
+      trace?.(phase, details);
+    } catch {
+      /* Diagnostics never block updating. */
+    }
+  };
   let cancellation: CancellationToken | undefined;
   let downloaded: Release | undefined;
   let installer: string | undefined;
@@ -43,6 +51,7 @@ export function windowsDownloader(
     cancel: () => cancellation?.cancel(),
     discard: () => pending?.clear(),
     download: async (release, progress) => {
+      note("download-requested", { targetVersion: release.version });
       downloaded = undefined;
       installer = undefined;
       cancellation = new CancellationToken();
@@ -66,18 +75,47 @@ export function windowsDownloader(
         if (cancellation.cancelled) throw new Error("下载已取消");
         pending?.save(release, installer);
         downloaded = structuredClone(release);
+        note("download-verified", {
+          targetVersion: release.version,
+          path: installer,
+        });
       } finally {
         updater.removeListener("download-progress", listener);
       }
     },
     install: async (allowed = () => true) => {
       if (!installer || !downloaded) throw new Error("尚未下载更新");
-      await verifyInstaller(installer, downloaded.artifact);
-      if (!allowed()) throw new Error("更新要求已改变，请重新检查新版");
-      await beforeInstall();
-      if (!allowed()) throw new Error("更新要求已改变，请重新检查新版");
-      pending?.clear();
-      updater.quitAndInstall(true, true);
+      note("install-requested", {
+        targetVersion: downloaded.version,
+        path: installer,
+      });
+      let stage = "installer-verification";
+      try {
+        await verifyInstaller(installer, downloaded.artifact);
+        note("installer-verified", {
+          targetVersion: downloaded.version,
+          path: installer,
+        });
+        if (!allowed()) throw new Error("更新要求已改变，请重新检查新版");
+        stage = "cleanup";
+        note("cleanup-started");
+        await beforeInstall();
+        note("cleanup-complete");
+        if (!allowed()) throw new Error("更新要求已改变，请重新检查新版");
+        pending?.clear();
+        stage = "handoff";
+        note("installer-handoff", {
+          targetVersion: downloaded.version,
+          path: installer,
+        });
+        updater.quitAndInstall(true, true);
+      } catch (error) {
+        const code = (error as NodeJS.ErrnoException)?.code;
+        note(stage + "-failed", {
+          code: typeof code === "string" ? code.slice(0, 100) : "unknown",
+        });
+        throw error;
+      }
     },
   };
 }

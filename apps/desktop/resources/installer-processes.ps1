@@ -1,5 +1,6 @@
 param(
   [Parameter(Mandatory = $true)][string]$InstallDirectory,
+  [string]$AttemptId = "",
   [switch]$CheckOnly
 )
 $ErrorActionPreference = 'Stop'
@@ -13,15 +14,21 @@ $logDirectory = Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs'
 function Record([string]$action, [string]$image = '') {
   try {
     New-Item -ItemType Directory -Force $logDirectory | Out-Null
-    @{ time = [DateTime]::UtcNow.ToString('o'); action = $action; image = $image } |
+    $logFile = Join-Path $logDirectory 'process-cleanup.jsonl'
+    if ((Test-Path $logFile) -and (Get-Item $logFile).Length -gt 1048576) { Move-Item $logFile (Join-Path $logDirectory 'process-cleanup.previous.jsonl') -Force }
+    @{ v=1;pid=$PID;attempt=$AttemptId;root=$root;code=$script:lastCode; time = [DateTime]::UtcNow.ToString('o'); action = $action; image = $image } |
       ConvertTo-Json -Compress | Add-Content (Join-Path $logDirectory 'process-cleanup.jsonl')
   } catch { }
 }
 try {
+  $script:lastCode = "process-query"
+  Record 'query-started'
   $targets = @(Get-CimInstance Win32_Process -Filter "Name='CineGather.exe' OR Name='CGScreenCaptureHost.exe' OR Name='CGProcessAudioHost.exe'" | Where-Object {
     $image = $_.ExecutablePath
     $image -and @($expected | Where-Object { [string]::Equals($_, $image, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
   })
+  $script:lastCode = "ok"
+  Record 'query-complete'
   if ($CheckOnly) {
     if ($targets.Count -gt 0) { exit 10 }
     exit 0
@@ -41,6 +48,7 @@ try {
   Record 'ready'
   exit 0
 } catch {
+  $script:lastCode = $_.Exception.HResult
   Record 'cleanup-failed'
   exit 20
 }

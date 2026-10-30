@@ -1,3 +1,7 @@
+import {
+  readInstallerDiagnostics,
+  installerDiagnosticDirectory,
+} from "./installer-diagnostics";
 import { app, BrowserWindow, dialog, powerMonitor } from "electron";
 import { cpus, freemem, totalmem, loadavg, release } from "node:os";
 import { randomUUID } from "node:crypto";
@@ -280,6 +284,7 @@ export class ProductionDiagnostics {
           },
         },
         current,
+        await readInstallerDiagnostics(installerDiagnosticDirectory()),
       );
       await writeFile(target.filePath, archive, { mode: 0o600 });
       return true;

@@ -1,7 +1,11 @@
 import { app, shell, powerMonitor } from "electron";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { NsisUpdater } from "electron-updater";
+import { DiagnosticNsisUpdater } from "./installer-updater";
+import {
+  InstallerJournal,
+  installerDiagnosticDirectory,
+} from "./installer-diagnostics";
 import type { UpdateStatus } from "@cinegather/contracts";
 import {
   artifactURL,
@@ -49,10 +53,21 @@ export async function createUpdates(
           process.arch,
         )
       : undefined;
-  const updater = mode === "install" ? new NsisUpdater() : undefined;
+  const journal = new InstallerJournal(
+    installerDiagnosticDirectory(),
+    app.getVersion(),
+  );
+  journal.record("application-start", { path: process.execPath, scope: mode });
+  app.on("before-quit", () => journal.record("application-before-quit"));
+  app.on("will-quit", () => journal.record("application-will-quit"));
+  const updater =
+    mode === "install" ? new DiagnosticNsisUpdater(journal) : undefined;
   if (updater) {
     updater.updateConfigPath = resource("updater.yml");
     updater.on("error", (error) => {
+      journal.record("updater-error", {
+        code: (error as NodeJS.ErrnoException).code ?? "unknown",
+      });
       console.warn("Client update:", error.message);
       if (controller.snapshot().status === "installing")
         controller.installFailed();
@@ -80,7 +95,9 @@ export async function createUpdates(
       };
     },
     ...(updater
-      ? windowsDownloader(updater, beforeInstall, pending)
+      ? windowsDownloader(updater, beforeInstall, pending, (phase, details) =>
+          journal.record(phase, details),
+        )
       : {
           download: unsupported,
           install: unsupported,

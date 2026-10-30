@@ -522,3 +522,55 @@ test("same-cutoff metadata changes preserve an in-flight installer and its progr
   await downloading;
   expect(s.controller.snapshot().status).toBe("downloaded");
 });
+
+test("installation diagnostics distinguish verification, cleanup and handoff failures while preserving installation behavior", async () => {
+  const { windowsDownloader } = await import("../src/main/windows-update");
+  const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const dir = await mkdtemp(join(tmpdir(), "cg-update-trace-")),
+    file = join(dir, "setup.exe");
+  const phases: string[] = [];
+  let fail = true,
+    installed = false;
+  const updater = {
+    autoDownload: true,
+    autoInstallOnAppQuit: true,
+    allowDowngrade: false,
+    allowPrerelease: false,
+    disableWebInstaller: true,
+    setFeedURL: () => {},
+    checkForUpdates: async () => ({ updateInfo: { version: release.version } }),
+    downloadUpdate: async () => [file],
+    on: () => {},
+    removeListener: () => {},
+    quitAndInstall: () => {
+      installed = true;
+    },
+  };
+  const d = windowsDownloader(
+    updater,
+    async () => {
+      if (fail)
+        throw Object.assign(new Error("private"), { code: "CLEANUP_FAILED" });
+    },
+    undefined,
+    (phase) => phases.push(phase),
+  );
+  try {
+    await writeFile(file, "test");
+    await d.download(release, () => {});
+    await expect(d.install()).rejects.toThrow();
+    expect(installed).toBe(false);
+    expect(phases).toContain("cleanup-failed");
+    expect(phases).not.toContain("installer-handoff");
+    fail = false;
+    await d.install();
+    expect(phases).toContain("installer-verified");
+    expect(phases).toContain("cleanup-complete");
+    expect(phases).toContain("installer-handoff");
+    expect(installed).toBe(true);
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
+});
