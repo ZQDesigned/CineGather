@@ -66,15 +66,19 @@ public static class CGDiagnosticDialog {
  [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr w,Each cb,IntPtr arg);
  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr w,out uint p);
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr w,StringBuilder s,int n);
+ [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr SendMessageTimeout(IntPtr w,uint m,IntPtr p,StringBuilder s,uint flags,uint timeout,out IntPtr result);
  [DllImport("user32.dll")] static extern bool PostMessage(IntPtr w,uint m,IntPtr p,IntPtr l);
- public static void Dismiss(int[] processes) { EnumWindows((w,x)=>{uint p;GetWindowThreadProcessId(w,out p);if(Array.IndexOf(processes,(int)p)<0)return true;bool match=false;EnumChildWindows(w,(c,y)=>{var s=new StringBuilder(4096);GetWindowText(c,s,4096);if(s.ToString().Contains("installer-logs"))match=true;return true;},IntPtr.Zero);if(match)PostMessage(w,0x111,(IntPtr)1,IntPtr.Zero);return true;},IntPtr.Zero); }
+ // GetWindowText cannot read another process's static control text. Use a
+ // bounded WM_GETTEXT query, restricted to this fixture's process family.
+ static string Text(IntPtr w) { var s=new StringBuilder(4096);IntPtr result;SendMessageTimeout(w,0xD,(IntPtr)s.Capacity,s,2,500,out result);return s.ToString(); }
+ public static string Dismiss(int[] processes) { var seen=new StringBuilder();EnumWindows((w,x)=>{uint p;GetWindowThreadProcessId(w,out p);if(Array.IndexOf(processes,(int)p)<0)return true;bool match=false;seen.AppendLine("pid="+p+" title="+Text(w));EnumChildWindows(w,(c,y)=>{var text=Text(c);seen.AppendLine(text);if(text.Contains("installer-logs"))match=true;return true;},IntPtr.Zero);if(match)PostMessage(w,0x111,(IntPtr)1,IntPtr.Zero);return true;},IntPtr.Zero);return seen.ToString(); }
 }
 '@
  for($i=0;$i -lt 30 -and !$failure.HasExited;$i++){
   $known=@(Get-CimInstance Win32_Process)
   $ids=New-Object 'System.Collections.Generic.HashSet[int]';[void]$ids.Add($failure.Id)
   for($pass=0;$pass -lt 4;$pass++){foreach($p in $known){if($ids.Contains([int]$p.ParentProcessId) -and $p.ExecutablePath -eq $installer){[void]$ids.Add([int]$p.ProcessId)}}}
-  [CGDiagnosticDialog]::Dismiss([int[]]@($ids));Start-Sleep -Milliseconds 500
+  [CGDiagnosticDialog]::Dismiss([int[]]@($ids)) | Set-Content (Join-Path $evidence 'fixture-dialogs.txt');Start-Sleep -Milliseconds 500
  }
  if(!$failure.WaitForExit(5000)){throw 'failure-dialog-did-not-close'}
  if($failure.ExitCode -ne 2){throw ('unexpected-failure-exit-'+$failure.ExitCode)}
