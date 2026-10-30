@@ -7,7 +7,7 @@ import {
   lstatSync,
   unlinkSync,
 } from "node:fs";
-import { join } from "node:path";
+import { join, win32 } from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
 const journalIssues = new Map<string, number>();
@@ -16,7 +16,7 @@ const remember = (code: string) =>
 const maxFile = 1024 * 1024,
   maxTotal = 32 * maxFile;
 const owned =
-  /^(?:app-[\da-f-]+\.jsonl|nsis-\d+-\d+\.tsv|snapshot-[\w-]+\.json|process-cleanup(?:\.previous)?\.jsonl)$/i;
+  /^(?:app-[\da-f-]+\.jsonl|nsis-\d+-\d+\.tsv|snapshot-[\w-]+\.json|process-cleanup(?:\.previous|\.legacy)?\.jsonl)$/i;
 const text = z.string().max(4096),
   integer = z.number().int().finite();
 const processInfo = z.object({
@@ -129,11 +129,15 @@ function sanitize(value: unknown): unknown {
     );
   return value;
 }
-export function installerDiagnosticDirectory() {
-  return process.platform === "win32" && process.env.LOCALAPPDATA
-    ? join(process.env.LOCALAPPDATA, "CineGather", "installer-logs")
+export function installerDiagnosticDirectory(
+  localAppData = process.env.LOCALAPPDATA,
+  platform: NodeJS.Platform = process.platform,
+) {
+  return platform === "win32" && localAppData
+    ? win32.join(localAppData, "CGInstallDiagnostics", "installer-logs")
     : undefined;
 }
+
 export class InstallerJournal {
   readonly attempt = randomUUID();
   failures = 0;

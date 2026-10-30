@@ -27,7 +27,7 @@
   ${If} $0 != 0
     !insertmacro cgRecord "${CG_CONTEXT}" "process-cleanup-failed" "$0" "2" ""
     Call ${CG_CONTEXT}cgFailureSnapshot
-    MessageBox MB_OK|MB_ICONEXCLAMATION "Unable to close CineGather capture processes. Please exit CineGather and retry. Installer log: %LOCALAPPDATA%\CineGather\installer-logs" /SD IDOK
+    MessageBox MB_OK|MB_ICONEXCLAMATION "Unable to close CineGather capture processes. Please exit CineGather and retry. Installer log: %LOCALAPPDATA%\CGInstallDiagnostics\installer-logs" /SD IDOK
     SetErrorLevel 2
     Quit
   ${EndIf}

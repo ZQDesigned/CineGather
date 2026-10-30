@@ -2,7 +2,7 @@
  [ValidateSet('Snapshot','Export')][string]$Action='Export',
  [string]$InstallDirectory='', [string]$AttemptId='', [string]$InstallerVersion='',
  [string]$Phase='manual-export', [int]$ExitCode=0, [string]$FailedPath='', [string]$TargetPath='',
- [string]$LogDirectory=(Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs'),
+ [string]$LogDirectory=(Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs'),
  [string]$OutputDirectory=[Environment]::GetFolderPath('Desktop')
 )
 $ErrorActionPreference='Stop'
@@ -11,7 +11,17 @@ if($InstallDirectory){$InstallDirectory=[IO.Path]::GetFullPath($InstallDirectory
 if($AttemptId -notmatch '^(?:[a-fA-F0-9-]{36}|nsis-\d+-\d+)$'){$AttemptId=[guid]::NewGuid().ToString()}
 New-Item -ItemType Directory -Force -Path $LogDirectory | Out-Null
 function SafePath([string]$Path){if($env:USERPROFILE){return $Path.Replace($env:USERPROFILE,'<USERPROFILE>')};return $Path}
+# Import only the old cleanup journal, never application data or credentials.
+$legacyIssue=$null
+$legacy=Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs\process-cleanup.jsonl'
+try{
+ if(Test-Path -LiteralPath $legacy){
+  $cutoff=[DateTime]::UtcNow.AddDays(-30)
+  @(Get-Content -LiteralPath $legacy -Tail 5000 | Where-Object {try{([DateTime](ConvertFrom-Json $_).time) -gt $cutoff}catch{$false}}) | Set-Content -LiteralPath (Join-Path $LogDirectory 'process-cleanup.legacy.jsonl') -Encoding UTF8
+ }
+}catch{$legacyIssue=@{stage='legacy-journal-read';code=$_.Exception.HResult}}
 $report=@{v=1;at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();phase=$Phase;attempt=$AttemptId;version=$InstallerVersion;pid=$PID;path=(SafePath $InstallDirectory);code=$ExitCode;failedPath=(SafePath $FailedPath);targetPath=(SafePath $TargetPath);complete=$false;processes=@();files=@();registry=@();volumes=@();access=@();issues=@()}
+if($legacyIssue){$report.issues+= $legacyIssue}
 $snapshot=Join-Path $LogDirectory ('snapshot-'+$AttemptId+'-'+$PID+'-'+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()+'.json')
 function SaveSnapshot {
  $json=ConvertTo-Json -InputObject $report -Depth 10
@@ -65,7 +75,7 @@ Section 'registry' {
 }
 
 Section 'permissions' {
- foreach($p in @($InstallDirectory,$FailedPath) | Select-Object -Unique){
+ foreach($p in @($InstallDirectory,$FailedPath,$TargetPath,$(if($TargetPath){Split-Path $TargetPath -Parent})) | Select-Object -Unique){
   if(!$p -or !(Test-Path -LiteralPath $p)){continue}
   $a=Get-Acl -LiteralPath $p
   $report.access+=@{path=(SafePath $p);owner=[string]$a.Owner;sddl=[string]$a.Sddl}
@@ -144,7 +154,7 @@ Section 'file-resource-users' {
 $report.complete=$true
 SaveSnapshot
 # Never follow links while pruning, and only delete this feature's own logs.
-$owned='^(app-[a-f0-9-]+\.jsonl|nsis-\d+-\d+\.tsv|snapshot-[a-z0-9-]+\.json|process-cleanup(\.previous)?\.jsonl)$'
+$owned='^(app-[a-f0-9-]+\.jsonl|nsis-\d+-\d+\.tsv|snapshot-[a-z0-9-]+\.json|process-cleanup(\.previous|\.legacy)?\.jsonl)$'
 $history=@(Get-ChildItem -LiteralPath $LogDirectory -File | Where-Object {$_.Name -match $owned -and !($_.Attributes -band [IO.FileAttributes]::ReparsePoint)} | Sort-Object LastWriteTimeUtc -Descending)
 $count=0;$bytes=0
 foreach($f in $history){$count++;$bytes+=$f.Length;if($f.FullName -eq $snapshot){continue};if($count -gt 64 -or $bytes -gt 33554432 -or $f.LastWriteTimeUtc -lt [DateTime]::UtcNow.AddDays(-30)){Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue}}

@@ -161,3 +161,18 @@ test("failed move evidence preserves both paths and file hashes without confusin
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("diagnostic storage is separate from the common custom LocalAppData CineGather install directory", async () => {
+  const { installerDiagnosticDirectory } = await import(
+    "../src/main/installer-diagnostics"
+  );
+  const { win32 } = await import("node:path");
+  const local = "C:\\Users\\Alice\\AppData\\Local";
+  const directory = installerDiagnosticDirectory(local, "win32");
+  expect(directory).toBeDefined();
+  expect(
+    win32
+      .relative(win32.join(local, "CineGather"), directory!)
+      .startsWith(".."),
+  ).toBe(true);
+});

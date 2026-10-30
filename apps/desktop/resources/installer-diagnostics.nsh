@@ -38,8 +38,8 @@ Function ${PREFIX}cgLog
   System::Call 'kernel32::GetSystemTimeAsFileTime(*l .r2)'
   System::Call 'kernel32::GetCurrentProcessId() i .r3'
   ${If} $cgLogFile == ""
-    CreateDirectory "$LOCALAPPDATA\CineGather\installer-logs"
-    StrCpy $cgLogFile "$LOCALAPPDATA\CineGather\installer-logs\nsis-$3-$2.tsv"
+    CreateDirectory "$LOCALAPPDATA\CGInstallDiagnostics\installer-logs"
+    StrCpy $cgLogFile "$LOCALAPPDATA\CGInstallDiagnostics\installer-logs\nsis-$3-$2.tsv"
     ${If} $cgUpdateId == ""
       ReadEnvStr $cgUpdateId "CG_UPDATE_ATTEMPT"
     ${EndIf}
@@ -78,7 +78,7 @@ Function ${PREFIX}cgPrepareSupport
   IfErrors 0 +2
     StrCpy $cgSupportSavedError 1
   StrCpy $0 "$OUTDIR"
-  StrCpy $cgSupport "$LOCALAPPDATA\CineGather\support"
+  StrCpy $cgSupport "$LOCALAPPDATA\CGInstallDiagnostics\support"
   ClearErrors
   CreateDirectory "$cgSupport\${VERSION}"
   ${IfNot} ${Errors}
@@ -177,7 +177,7 @@ FunctionEnd
   !insertmacro cgRecord "" "${PHASE}" "$INSTDIR" "$R0" ""
   ${If} $R0 != 0
     Call cgFailureSnapshot
-    MessageBox MB_OK|MB_ICONEXCLAMATION "升级未完成：旧版本卸载失败，退出码 $R0。$\r$\n诊断记录：$LOCALAPPDATA\CineGather\installer-logs$\r$\n导出工具：$LOCALAPPDATA\CineGather\support\Collect-upgrade-diagnostics.lnk$\r$\n请先导出诊断，再重试安装。"
+    MessageBox MB_OK|MB_ICONEXCLAMATION "升级未完成：旧版本卸载失败，退出码 $R0。$\r$\n诊断记录：$LOCALAPPDATA\CGInstallDiagnostics\installer-logs$\r$\n导出工具：$LOCALAPPDATA\CGInstallDiagnostics\support\Collect-upgrade-diagnostics.lnk$\r$\n请先导出诊断，再重试安装。"
     SetErrorLevel 2
     Quit
   ${EndIf}
@@ -263,7 +263,7 @@ FunctionEnd
       Pop $R0
       !insertmacro cgRecord "un." "rollback-attempted" "$cgFailedPath" "2" ""
       Call un.cgFailureSnapshot
-      Abort 'Cannot move an installed file. Diagnostic logs: $LOCALAPPDATA\CineGather\installer-logs'
+      Abort 'Cannot move an installed file. Diagnostic logs: $LOCALAPPDATA\CGInstallDiagnostics\installer-logs'
     ${EndIf}
   ${EndIf}
   SetOutPath $TEMP

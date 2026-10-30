@@ -158,7 +158,7 @@ try {
         round,
         journalDirectory: join(
           process.env.LOCALAPPDATA!,
-          "CineGather",
+          "CGInstallDiagnostics",
           "installer-logs",
         ),
         installer,
@@ -220,7 +220,7 @@ try {
       );
       const historyDirectory = join(
         process.env.LOCALAPPDATA!,
-        "CineGather",
+        "CGInstallDiagnostics",
         "installer-logs",
       );
       await expect

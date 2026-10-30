@@ -5,7 +5,7 @@ $root='D:\CGPlat\CineGather Diagnostics'
 $evidence=Join-Path $PSScriptRoot '../.local/installer-diagnostics-windows'
 New-Item -ItemType Directory -Force $evidence | Out-Null
 $evidence=(Resolve-Path $evidence).Path
-$logs=Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs'
+$logs=Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs'
 function RunInstaller([string[]]$Flags){
  $p=Start-Process $installer -ArgumentList $Flags -PassThru
  if(!$p.WaitForExit(120000)){throw 'installer-timeout'}
@@ -48,7 +48,7 @@ try{
  if($held.HasExited){throw 'unrelated-process-was-killed'}
  if((Get-FileHash $asar -Algorithm SHA256).Hash -ne $before){throw 'rollback-did-not-preserve-app'}
  $version=(Get-Content (Join-Path $PSScriptRoot '../apps/desktop/package.json') -Raw | ConvertFrom-Json).version
- $support=Join-Path $env:LOCALAPPDATA ('CineGather\support\'+$version+'\installer-diagnostics.ps1')
+ $support=Join-Path $env:LOCALAPPDATA ('CGInstallDiagnostics\support\'+$version+'\installer-diagnostics.ps1')
  if(!(Test-Path $support)){throw 'independent-support-missing'}
  & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $support -Action Export -InstallDirectory $root -OutputDirectory $evidence
  if($LASTEXITCODE -ne 0 -or !(Get-ChildItem $evidence -Filter 'CineGather-upgrade-diagnostics-*.zip')){throw 'standalone-export-failed'}

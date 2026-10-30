@@ -10,7 +10,7 @@ $expected = @(
   "$root\resources\capture\CGProcessAudioHost.exe",
   "$root\resources\capture\obs\bin\64bit\CGScreenCaptureHost.exe"
 )
-$logDirectory = Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs'
+$logDirectory = Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs'
 function Record([string]$action, [string]$image = '', [int]$TargetProcessId=0) {
   try {
     New-Item -ItemType Directory -Force $logDirectory | Out-Null
