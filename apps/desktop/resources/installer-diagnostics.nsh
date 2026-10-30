@@ -104,7 +104,12 @@ Function ${PREFIX}cgFailureSnapshot
   Push $0
   Push $1
   Call ${PREFIX}cgPrepareSupport
-  nsExec::ExecToStack /TIMEOUT=20000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$cgSupport\${VERSION}\installer-diagnostics.ps1" -Action Snapshot -InstallDirectory "$INSTDIR" -AttemptId "$cgUpdateId" -InstallerVersion "${VERSION}" -Phase "$cgStage" -ExitCode 2 -FailedPath "$cgFailedPath" -TargetPath "$cgFailedTarget"'
+  ; Execute the embedded helper from NSIS's private extraction directory.
+  ; The persistent manual-support copy is user writable and is never trusted
+  ; as code for an elevated automatic installer invocation.
+  InitPluginsDir
+  File /oname=$PLUGINSDIR\cg-installer-diagnostics.ps1 "${BUILD_RESOURCES_DIR}\installer-diagnostics.ps1"
+  nsExec::ExecToStack /TIMEOUT=20000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\cg-installer-diagnostics.ps1" -Action Snapshot -InstallDirectory "$INSTDIR" -AttemptId "$cgUpdateId" -InstallerVersion "${VERSION}" -Phase "$cgStage" -ExitCode 2 -FailedPath "$cgFailedPath" -TargetPath "$cgFailedTarget"'
   Pop $0
   Pop $1
   ; nsExec can return the literal "timeout" or "error". Store in detail;
