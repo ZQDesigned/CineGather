@@ -133,7 +133,11 @@ Section 'file-resource-users' {
  if($TargetPath -and (Test-Path -LiteralPath $TargetPath -PathType Leaf)){$files+=Get-Item -LiteralPath $TargetPath}
  if($InstallDirectory -and (Test-Path -LiteralPath $InstallDirectory)){$files+=@(Get-ChildItem -LiteralPath $InstallDirectory -File -Recurse -ErrorAction SilentlyContinue | Where-Object {!($_.Attributes -band [IO.FileAttributes]::ReparsePoint)} | Select-Object -First 255)}
  $queries=0
- foreach($f in $files | Sort-Object FullName -Unique | Select-Object -First 256){
+ # Preserve priority: the precise failed source and destination must survive
+ # the inventory cap even when a large installation has thousands of files.
+ $seen=@{};$priority=@()
+ foreach($f in $files){if(!$seen.ContainsKey($f.FullName)){$seen[$f.FullName]=$true;$priority+=$f}}
+ foreach($f in $priority | Select-Object -First 256){
   $probe=[CGInstallProbe]::CheckDeleteAccess($f.FullName)
   $row=@{path=(SafePath $f.FullName);size=[double]$f.Length;code=$probe.Error;owners=@()}
   if(($probe.Error -ne 0 -or $f.FullName -eq $FailedPath) -and $queries -lt 16){

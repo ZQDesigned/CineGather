@@ -14,6 +14,9 @@ function RunInstaller([string[]]$Flags){
 RunInstaller @('/S',('/D='+$root))
 $asar=Join-Path $root 'resources\app.asar'
 $before=(Get-FileHash $asar -Algorithm SHA256).Hash
+$lockedFile=Join-Path $root 'zz-diagnostic-lock.data'
+'diagnostic lock fixture' | Set-Content $lockedFile
+for($n=0;$n -lt 300;$n++){'filler' | Set-Content (Join-Path $root ('diagnostic-filler-'+$n+'.data'))}
 $helper=Join-Path $evidence 'CGForeignLock.exe'
 $marker=Join-Path $evidence 'lock-ready'
 $cs=Join-Path $evidence 'lock.cs'
@@ -24,7 +27,7 @@ public class ForeignLock { public static void Main(string[] args) { using(var fi
 '@ | Set-Content $cs
 & "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe" /nologo /target:winexe "/out:$helper" $cs
 if($LASTEXITCODE -ne 0){throw 'fixture-compilation-failed'}
-$held=Start-Process $helper -ArgumentList @(('"'+$asar+'"'),('"'+$marker+'"')) -PassThru
+$held=Start-Process $helper -ArgumentList @(('"'+$lockedFile+'"'),('"'+$marker+'"')) -PassThru
 $failure=$null
 try{
  for($i=0;$i -lt 100 -and !(Test-Path $marker);$i++){Start-Sleep -Milliseconds 100}
@@ -41,7 +44,7 @@ try{
  }
  if(!$found){throw 'missing-failed-uninstall-result'}
  $rowsText=$rows -join "`n"
- if($rowsText -notmatch 'atomic-rename-failed' -or $rowsText -notmatch 'app.asar'){throw 'missing-first-failed-file'}
+ if($rowsText -notmatch 'atomic-rename-failed' -or $rowsText -notmatch 'zz-diagnostic-lock.data'){throw 'missing-first-failed-file'}
  $snapshots=@(Get-ChildItem $logs -Filter 'snapshot-*.json' | Where-Object {$_.LastWriteTimeUtc -gt $since} | ForEach-Object {Get-Content $_.FullName -Raw | ConvertFrom-Json})
  $owners=@($snapshots | ForEach-Object {$_.files} | ForEach-Object {$_.owners} | ForEach-Object {$_.pid})
  if($owners -notcontains $held.Id){throw 'foreign-file-owner-not-reported'}
