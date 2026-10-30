@@ -130,3 +130,34 @@ test("export strips command lines from failure snapshots and enforces its record
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("failed move evidence preserves both paths and file hashes without confusing a later probe with the native error", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cg-move-evidence-"));
+  try {
+    await writeFile(
+      join(root, "snapshot-move.json"),
+      JSON.stringify({
+        v: 1,
+        at: 1,
+        phase: "rollback-attempted",
+        failedPath: "D:\\CG\\resources\\app.asar",
+        targetPath: "C:\\Temp\\ns.tmp\\old-install\\resources\\app.asar",
+        files: [
+          {
+            path: "D:\\CG\\resources\\app.asar",
+            code: 32,
+            sha256: "a".repeat(64),
+          },
+        ],
+      }),
+    );
+    const d = await readInstallerDiagnostics(root);
+    expect(d.records[0]).toMatchObject({
+      failedPath: "D:\\CG\\resources\\app.asar",
+      targetPath: "C:\\Temp\\ns.tmp\\old-install\\resources\\app.asar",
+      files: [{ code: 32, sha256: "a".repeat(64) }],
+    });
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});

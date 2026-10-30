@@ -39,6 +39,8 @@ const record = z.object({
   matchedCount: integer.optional(),
   inaccessibleCount: integer.optional(),
   path: text.optional(),
+  failedPath: text.optional(),
+  targetPath: text.optional(),
   detail: text.optional(),
   code: z.union([integer, z.string().max(100)]).optional(),
   win32Code: integer.optional(),
@@ -53,6 +55,11 @@ const record = z.object({
         code: integer.optional(),
         owners: z.array(processInfo).max(32).optional(),
         queryCode: integer.optional(),
+        sha256: z
+          .string()
+          .regex(/^[a-f0-9]{64}$/i)
+          .optional(),
+        hashError: z.union([integer, z.string().max(100)]).optional(),
       }),
     )
     .max(256)

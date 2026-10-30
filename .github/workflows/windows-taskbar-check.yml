@@ -19,7 +19,7 @@ permissions:
 jobs:
   check:
     runs-on: windows-latest
-    timeout-minutes: 10
+    timeout-minutes: 14
     steps:
       - uses: actions/checkout@v4
       - uses: oven-sh/setup-bun@v2
@@ -63,11 +63,18 @@ jobs:
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
           bun tools/windows-in-app-upgrade-smoke.ts "apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+      - name: Verify failure evidence and independent export with the reused build
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          ./tools/windows-installer-diagnostics-smoke.ps1 -Installer "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
           name: windows-taskbar-evidence
           include-hidden-files: true
           path: |
+            .local/installer-diagnostics-windows/**
             .local/windows-upgrade/*.json
+            .local/windows-upgrade/installer-logs/**
             .local/windows-upgrade/*.error

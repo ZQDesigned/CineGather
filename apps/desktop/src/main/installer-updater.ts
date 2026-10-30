@@ -13,7 +13,9 @@ export class DiagnosticNsisUpdater extends NsisUpdater {
     env?: NodeJS.ProcessEnv,
     stdio: "ignore" | "inherit" = "ignore",
   ) {
-    const marker = "--cg-update-id=" + this.journal.attempt;
+    // FileFunc.GetOptions uses the option's first character as its value
+    // delimiter. A '-' option would truncate a hyphenated UUID at its first '-'.
+    const marker = "/CGUPDATEID=" + this.journal.attempt;
     const final = [...args];
     const installArg = final.findIndex((a) => a.startsWith("/D="));
     final.splice(installArg < 0 ? final.length : installArg, 0, marker);

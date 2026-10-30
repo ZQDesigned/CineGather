@@ -13,6 +13,7 @@ Var cgWin32
 Var cgUpdateId
 Var cgSavedError
 Var cgLogFailures
+Var cgFailedTarget
 Var cgFailedPath
 Var cgSupport
 Var cgSupportSavedError
@@ -103,7 +104,7 @@ Function ${PREFIX}cgFailureSnapshot
   Push $0
   Push $1
   Call ${PREFIX}cgPrepareSupport
-  nsExec::ExecToStack /TIMEOUT=20000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$cgSupport\${VERSION}\installer-diagnostics.ps1" -Action Snapshot -InstallDirectory "$INSTDIR" -AttemptId "$cgUpdateId" -InstallerVersion "${VERSION}" -Phase "$cgStage" -ExitCode 2 -FailedPath "$cgFailedPath"'
+  nsExec::ExecToStack /TIMEOUT=20000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$cgSupport\${VERSION}\installer-diagnostics.ps1" -Action Snapshot -InstallDirectory "$INSTDIR" -AttemptId "$cgUpdateId" -InstallerVersion "${VERSION}" -Phase "$cgStage" -ExitCode 2 -FailedPath "$cgFailedPath" -TargetPath "$cgFailedTarget"'
   Pop $0
   Pop $1
   ; nsExec can return the literal "timeout" or "error". Store in detail;
@@ -146,10 +147,11 @@ FunctionEnd
 !macro customInit
   ; Legacy uninstallers cannot report a first failed file to this process.
   StrCpy $cgFailedPath ""
+  StrCpy $cgFailedTarget ""
   Push $0
   Push $1
   ${GetParameters} $0
-  ${GetOptions} $0 "--cg-update-id=" $cgUpdateId
+  ${GetOptions} $0 "/CGUPDATEID=" $cgUpdateId
   ClearErrors
   Pop $1
   Pop $0
@@ -224,6 +226,8 @@ Function un.cgAtomicRMDir
       StrCmp "$R0\$R2" "${UNINSTALL_FILENAME}" cgIgnoreSelf
       StrCpy $R3 "$INSTDIR$R0\$R2"
       StrCpy $cgFailedPath "$R3"
+      StrCpy $cgFailedTarget "$PLUGINSDIR\old-install$R0\$R2"
+      !insertmacro cgRecord "un." "atomic-rename-target" "$cgFailedTarget" "2" ""
       !insertmacro cgRecord "un." "atomic-rename-failed" "$R3" "2" "$9"
       Goto cgDone
     cgIgnoreSelf:

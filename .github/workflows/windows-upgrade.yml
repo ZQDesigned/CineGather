@@ -93,6 +93,7 @@ jobs:
           path: |
             .local/installer-diagnostics-windows/**
             .local/windows-upgrade/*.json
+            .local/windows-upgrade/installer-logs/**
             .local/windows-upgrade/*.jsonl
             .local/noise-verification/*.json
             .local/window-chrome-verification/*.json

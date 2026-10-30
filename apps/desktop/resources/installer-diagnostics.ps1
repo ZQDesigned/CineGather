@@ -1,7 +1,7 @@
 ﻿param(
  [ValidateSet('Snapshot','Export')][string]$Action='Export',
  [string]$InstallDirectory='', [string]$AttemptId='', [string]$InstallerVersion='',
- [string]$Phase='manual-export', [int]$ExitCode=0, [string]$FailedPath='',
+ [string]$Phase='manual-export', [int]$ExitCode=0, [string]$FailedPath='', [string]$TargetPath='',
  [string]$LogDirectory=(Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs'),
  [string]$OutputDirectory=[Environment]::GetFolderPath('Desktop')
 )
@@ -11,7 +11,7 @@ if($InstallDirectory){$InstallDirectory=[IO.Path]::GetFullPath($InstallDirectory
 if($AttemptId -notmatch '^(?:[a-fA-F0-9-]{36}|nsis-\d+-\d+)$'){$AttemptId=[guid]::NewGuid().ToString()}
 New-Item -ItemType Directory -Force -Path $LogDirectory | Out-Null
 function SafePath([string]$Path){if($env:USERPROFILE){return $Path.Replace($env:USERPROFILE,'<USERPROFILE>')};return $Path}
-$report=@{v=1;at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();phase=$Phase;attempt=$AttemptId;version=$InstallerVersion;pid=$PID;path=(SafePath $InstallDirectory);code=$ExitCode;complete=$false;processes=@();files=@();registry=@();volumes=@();access=@();issues=@()}
+$report=@{v=1;at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();phase=$Phase;attempt=$AttemptId;version=$InstallerVersion;pid=$PID;path=(SafePath $InstallDirectory);code=$ExitCode;failedPath=(SafePath $FailedPath);targetPath=(SafePath $TargetPath);complete=$false;processes=@();files=@();registry=@();volumes=@();access=@();issues=@()}
 $snapshot=Join-Path $LogDirectory ('snapshot-'+$AttemptId+'-'+$PID+'-'+[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()+'.json')
 function SaveSnapshot {
  $json=ConvertTo-Json -InputObject $report -Depth 10
@@ -34,19 +34,36 @@ Section 'processes' {
  $report.processes=@($all | Where-Object {$_.Name -match 'CineGather|CGScreenCaptureHost|CGProcessAudioHost|old-uninstaller' -or ($InstallDirectory -and $_.ExecutablePath -and $_.ExecutablePath.StartsWith($InstallDirectory,[StringComparison]::OrdinalIgnoreCase))} | Select-Object -First 128 | ForEach-Object {ProcessInfo $_})
 }
 Section 'registry' {
- foreach($base in @('HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall','HKLM:\Software\Microsoft\Windows\CurrentVersion\Uninstall','HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall')){
-  if(!(Test-Path $base)){continue}
-  foreach($key in Get-ChildItem $base){
-   $v=Get-ItemProperty $key.PSPath -ErrorAction SilentlyContinue
-   if($v.DisplayName -notlike '*CineGather*'){continue}
-   $location=[string]$v.InstallLocation
-   $report.registry+=@{hive=$key.Name;version=[string]$v.DisplayVersion;path=(SafePath $location)}
-   if(!$InstallDirectory -and $location -and (Test-Path -LiteralPath $location)){$script:InstallDirectory=$location}
+ # Use explicit views: an NSIS-launched 32-bit PowerShell must still see a
+ # 64-bit installation, and a stale per-machine entry must remain visible.
+ foreach($hive in @([Microsoft.Win32.RegistryHive]::CurrentUser,[Microsoft.Win32.RegistryHive]::LocalMachine)){
+  foreach($view in @([Microsoft.Win32.RegistryView]::Registry64,[Microsoft.Win32.RegistryView]::Registry32)){
+   $baseKey=$null;$uninstall=$null
+   try{
+    $baseKey=[Microsoft.Win32.RegistryKey]::OpenBaseKey($hive,$view)
+    $uninstall=$baseKey.OpenSubKey('Software\Microsoft\Windows\CurrentVersion\Uninstall')
+    if(!$uninstall){continue}
+    foreach($name in $uninstall.GetSubKeyNames()){
+     $entry=$null;$meta=$null
+     try{
+      $entry=$uninstall.OpenSubKey($name)
+      if(!$entry -or [string]$entry.GetValue('DisplayName') -notlike '*CineGather*'){continue}
+      $location=[string]$entry.GetValue('InstallLocation')
+      # electron-builder stores the authoritative location in Software/APP_GUID.
+      if($name -match '^[a-fA-F0-9-]{36}$'){$meta=$baseKey.OpenSubKey('Software\'+$name);if($meta){$location=[string]$meta.GetValue('InstallLocation')}}
+      if(!$location){$command=[string]$entry.GetValue('UninstallString');if($command -match '^"([^"]+Uninstall CineGather\.exe)"'){$location=Split-Path $matches[1] -Parent}}
+      $report.registry+=@{hive=([string]$hive+':'+[string]$view+'\'+$name);version=[string]$entry.GetValue('DisplayVersion');path=(SafePath $location)}
+      if(!$InstallDirectory -and $location -and (Test-Path -LiteralPath $location)){$script:InstallDirectory=$location}
+     }catch{if($report.issues.Count -lt 100){$report.issues+=@{stage='registry-entry';code=$_.Exception.HResult}}}
+     finally{if($meta){$meta.Dispose()};if($entry){$entry.Dispose()}}
+    }
+   }finally{if($uninstall){$uninstall.Dispose()};if($baseKey){$baseKey.Dispose()}}
   }
  }
  $report.registry=@($report.registry | Select-Object -First 16)
  $report.path=SafePath $InstallDirectory
 }
+
 Section 'permissions' {
  foreach($p in @($InstallDirectory,$FailedPath) | Select-Object -Unique){
   if(!$p -or !(Test-Path -LiteralPath $p)){continue}
@@ -103,6 +120,7 @@ Section 'file-resource-users' {
  Add-Type -TypeDefinition $native -Language CSharp
  $files=@()
  if($FailedPath -and (Test-Path -LiteralPath $FailedPath -PathType Leaf)){$files+=Get-Item -LiteralPath $FailedPath}
+ if($TargetPath -and (Test-Path -LiteralPath $TargetPath -PathType Leaf)){$files+=Get-Item -LiteralPath $TargetPath}
  if($InstallDirectory -and (Test-Path -LiteralPath $InstallDirectory)){$files+=@(Get-ChildItem -LiteralPath $InstallDirectory -File -Recurse -ErrorAction SilentlyContinue | Where-Object {!($_.Attributes -band [IO.FileAttributes]::ReparsePoint)} | Select-Object -First 255)}
  $queries=0
  foreach($f in $files | Sort-Object FullName -Unique | Select-Object -First 256){
@@ -114,6 +132,10 @@ Section 'file-resource-users' {
     $ownerProcess=$all | Where-Object {$_.ProcessId -eq $owner.Process.ProcessId} | Select-Object -First 1
     if($ownerProcess){$row.owners+=ProcessInfo $ownerProcess}else{$row.owners+=@{pid=[int]$owner.Process.ProcessId;name=[string]$owner.AppName}}
    }
+  }
+  if($f.FullName -eq $FailedPath -or $f.FullName -eq $TargetPath){
+   if($f.Length -le 104857600){try{$row.sha256=(Get-FileHash -LiteralPath $f.FullName -Algorithm SHA256).Hash}catch{$row.hashError=$_.Exception.HResult}}
+   else{$row.hashError='size-limit'}
   }
   $report.files+=$row
  }

@@ -64,10 +64,15 @@ public static class CGDiagnosticDialog {
  [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr w,out uint p);
  [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr w,StringBuilder s,int n);
  [DllImport("user32.dll")] static extern bool PostMessage(IntPtr w,uint m,IntPtr p,IntPtr l);
- public static void Dismiss(int process) { EnumWindows((w,x)=>{uint p;GetWindowThreadProcessId(w,out p);if(p!=(uint)process)return true;bool match=false;EnumChildWindows(w,(c,y)=>{var s=new StringBuilder(4096);GetWindowText(c,s,4096);if(s.ToString().Contains("installer-logs"))match=true;return true;},IntPtr.Zero);if(match)PostMessage(w,0x111,(IntPtr)1,IntPtr.Zero);return true;},IntPtr.Zero); }
+ public static void Dismiss(int[] processes) { EnumWindows((w,x)=>{uint p;GetWindowThreadProcessId(w,out p);if(Array.IndexOf(processes,(int)p)<0)return true;bool match=false;EnumChildWindows(w,(c,y)=>{var s=new StringBuilder(4096);GetWindowText(c,s,4096);if(s.ToString().Contains("installer-logs"))match=true;return true;},IntPtr.Zero);if(match)PostMessage(w,0x111,(IntPtr)1,IntPtr.Zero);return true;},IntPtr.Zero); }
 }
 '@
- for($i=0;$i -lt 30 -and !$failure.HasExited;$i++){[CGDiagnosticDialog]::Dismiss($failure.Id);Start-Sleep -Milliseconds 500}
+ for($i=0;$i -lt 30 -and !$failure.HasExited;$i++){
+  $known=@(Get-CimInstance Win32_Process)
+  $ids=New-Object 'System.Collections.Generic.HashSet[int]';[void]$ids.Add($failure.Id)
+  for($pass=0;$pass -lt 4;$pass++){foreach($p in $known){if($ids.Contains([int]$p.ParentProcessId) -and $p.ExecutablePath -eq $installer){[void]$ids.Add([int]$p.ProcessId)}}}
+  [CGDiagnosticDialog]::Dismiss([int[]]@($ids));Start-Sleep -Milliseconds 500
+ }
  if(!$failure.WaitForExit(5000)){throw 'failure-dialog-did-not-close'}
  if($failure.ExitCode -ne 2){throw ('unexpected-failure-exit-'+$failure.ExitCode)}
  Stop-Process -Id $held.Id -Force

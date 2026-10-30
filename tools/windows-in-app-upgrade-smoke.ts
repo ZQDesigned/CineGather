@@ -1,7 +1,7 @@
 import { _electron, expect, type ElectronApplication } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
-import { mkdir, writeFile, readFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile, cp } from "node:fs/promises";
 import { join, resolve } from "node:path";
 import { windowsProcessIdentity } from "./windows-identity-probe";
 import { windowsAppId } from "../apps/desktop/src/main/window-chrome";
@@ -122,7 +122,17 @@ try {
         const updater = diagnostic
           ? new diagnostic.DiagnosticNsisUpdater(journal)
           : new NsisUpdater();
-        if (journal) writeFileSync(options.log + ".attempt", journal.attempt);
+        if (journal) {
+          journal.record("diagnostic-fixture-start");
+          writeFileSync(options.log + ".attempt", journal.attempt);
+          writeFileSync(
+            options.log + ".health.json",
+            JSON.stringify({
+              attempt: journal.attempt,
+              failures: journal.failures,
+            }),
+          );
+        }
         // Replace only the already-verified download cache in this fixture. The
         // actual quitAndInstall/doInstall/spawn and NSIS uninstall paths run intact.
         updater.downloadedUpdateHelper = {
@@ -208,23 +218,34 @@ try {
       const { readInstallerDiagnostics } = await import(
         "../apps/desktop/src/main/installer-diagnostics"
       );
-      const history = await readInstallerDiagnostics(
-        join(process.env.LOCALAPPDATA!, "CineGather", "installer-logs"),
+      const historyDirectory = join(
+        process.env.LOCALAPPDATA!,
+        "CineGather",
+        "installer-logs",
       );
-      expect(
-        history.records.some(
-          (r) =>
-            (r as { attempt?: string; phase: string }).attempt === attempt &&
-            (r as { phase: string }).phase === "installer-spawn-accepted",
-        ),
-      ).toBe(true);
-      expect(
-        history.records.some(
-          (r) =>
-            (r as { attempt?: string; phase: string }).attempt === attempt &&
-            (r as { phase: string }).phase === "install-success",
-        ),
-      ).toBe(true);
+      await expect
+        .poll(
+          async () => {
+            const history = await readInstallerDiagnostics(historyDirectory);
+            await writeFile(
+              join(directory, "diagnostic-update-history.json"),
+              JSON.stringify(history, null, 2),
+            );
+            await cp(historyDirectory, join(directory, "installer-logs"), {
+              recursive: true,
+              force: true,
+            });
+            const own = history.records.filter(
+              (r) => (r as { attempt?: string }).attempt === attempt,
+            ) as { phase: string }[];
+            return (
+              own.some((r) => r.phase === "installer-spawn-accepted") &&
+              own.some((r) => r.phase === "install-success")
+            );
+          },
+          { timeout: 30000, intervals: [500, 1000, 2000] },
+        )
+        .toBe(true);
     }
     const after = shortcuts();
     expect(after).toEqual(before);
