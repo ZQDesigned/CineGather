@@ -54,6 +54,10 @@ try{
  $version=(Get-Content (Join-Path $PSScriptRoot '../apps/desktop/package.json') -Raw | ConvertFrom-Json).version
  $support=Join-Path $env:LOCALAPPDATA ('CGInstallDiagnostics\support\'+$version+'\installer-diagnostics.ps1')
  if(!(Test-Path $support)){throw 'independent-support-missing'}
+ $menu=Join-Path ([Environment]::GetFolderPath('Programs')) 'CineGather 升级诊断.lnk'
+ if(!(Test-Path $menu)){throw 'diagnostic-menu-missing'}
+ $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($menu)
+ if(!$shortcut.Arguments.Contains($support)){throw 'diagnostic-menu-depends-on-install-directory'}
  & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $support -Action Export -InstallDirectory $root -OutputDirectory $evidence
  if($LASTEXITCODE -ne 0 -or !(Get-ChildItem $evidence -Filter 'CineGather-upgrade-diagnostics-*.zip')){throw 'standalone-export-failed'}
  # Dismiss only this fixture installer's error box, without foreground/focus.

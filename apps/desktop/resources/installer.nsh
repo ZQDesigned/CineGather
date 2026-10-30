@@ -38,7 +38,7 @@
 
 !macro customInstall
   !insertmacro cgRecord "" "payload-installed" "$INSTDIR" "0" ""
-  CreateShortCut "$SMPROGRAMS\CineGather 升级诊断.lnk" "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" '-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File "$INSTDIR\resources\support\installer-diagnostics.ps1" -InstallDirectory "$INSTDIR"'
+  CreateShortCut "$SMPROGRAMS\CineGather 升级诊断.lnk" "$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" '-NoLogo -NoProfile -NoExit -ExecutionPolicy Bypass -File "$LOCALAPPDATA\CGInstallDiagnostics\support\${VERSION}\installer-diagnostics.ps1" -InstallDirectory "$INSTDIR"'
   RMDir /r "$INSTDIR\resources\capture\obs\source"
   Push $0
   FileOpen $0 "$INSTDIR\resources\install-mode" w
