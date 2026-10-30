@@ -2,6 +2,8 @@ export * from "./chat";
 export * from "./update-events";
 export * from "./room";
 export * from "./share";
+export * from "./mobile-session";
+export * from "./mobile-microphone";
 export function parseInvitation(value: string): {
   roomId: string;
   inviteToken?: string;
