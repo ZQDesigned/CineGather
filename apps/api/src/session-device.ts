@@ -5,24 +5,33 @@ export function sessionDevice(input: {
   agent?: string;
   address?: string;
 }) {
-  const platform = ["win32", "darwin", "linux", "web"].includes(
-    input.platform ?? "",
-  )
+  const platform = [
+    "win32",
+    "darwin",
+    "linux",
+    "web",
+    "android",
+    "ios",
+  ].includes(input.platform ?? "")
     ? input.platform!
     : "unknown";
   const agent = (input.agent ?? "").slice(0, 1024);
   const os =
-    platform === "win32" || /Windows NT/.test(agent)
-      ? "Windows"
-      : /iPhone|iPad/.test(agent)
+    platform === "android"
+      ? "Android"
+      : platform === "ios"
         ? "iOS"
-        : /Android/.test(agent)
-          ? "Android"
-          : platform === "darwin" || /Macintosh|Mac OS X/.test(agent)
-            ? "macOS"
-            : platform === "linux" || /Linux/.test(agent)
-              ? "Linux"
-              : undefined;
+        : platform === "win32" || /Windows NT/.test(agent)
+          ? "Windows"
+          : /iPhone|iPad/.test(agent)
+            ? "iOS"
+            : /Android/.test(agent)
+              ? "Android"
+              : platform === "darwin" || /Macintosh|Mac OS X/.test(agent)
+                ? "macOS"
+                : platform === "linux" || /Linux/.test(agent)
+                  ? "Linux"
+                  : undefined;
   const browser = /Edg\//.test(agent)
     ? "Edge"
     : /Firefox\//.test(agent)
@@ -32,10 +41,12 @@ export function sessionDevice(input: {
         : /Safari\//.test(agent)
           ? "Safari"
           : undefined;
-  const desktop = ["win32", "darwin", "linux"].includes(platform);
+  const native = ["win32", "darwin", "linux", "android", "ios"].includes(
+    platform,
+  );
   return {
     deviceName:
-      desktop && os
+      native && os
         ? `${os} 客户端`
         : browser
           ? `${browser}${os ? `（${os}）` : ""}`

@@ -1816,6 +1816,8 @@ export interface operations {
                             win32: string;
                             darwin: string;
                             web: string;
+                            android?: string;
+                            ios?: string;
                         };
                         reason: string;
                     };

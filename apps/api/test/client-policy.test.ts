@@ -70,3 +70,44 @@ test("outdated clients can still fetch policy, revoke sharing, leave and sign ou
     ),
   ).toBeDefined();
 });
+
+test("mobile version floors are independent from newer desktop versions", () => {
+  const mobile = readClientPolicy({
+    CLIENT_MIN_VERSION_WINDOWS: "9.0.0",
+    CLIENT_MIN_VERSION_ANDROID: "0.1.2",
+    CLIENT_MIN_VERSION_IOS: "0.1.3",
+  });
+  expect(
+    compatibilityFailure("GET", "/api/v1/rooms", "android", "0.1.2", mobile),
+  ).toBeUndefined();
+  expect(
+    compatibilityFailure("GET", "/api/v1/rooms", "ios", "0.1.3", mobile),
+  ).toBeUndefined();
+  expect(
+    compatibilityFailure("GET", "/api/v1/rooms", "android", "0.1.1", mobile)
+      ?.minimumVersion,
+  ).toBe("0.1.2");
+  expect(
+    compatibilityFailure("GET", "/api/v1/rooms", "ios", "0.1.2", mobile)
+      ?.minimumVersion,
+  ).toBe("0.1.3");
+  expect(
+    compatibilityFailure("GET", "/api/v1/rooms", "win32", "0.1.26", mobile)
+      ?.minimumVersion,
+  ).toBe("9.0.0");
+});
+
+test("an unconfigured mobile cutoff stays disabled without disabling desktop policy", () => {
+  expect(
+    compatibilityFailure("GET", "/api/v1/rooms", "android", "0.1.0", policy()),
+  ).toBeUndefined();
+  expect(
+    compatibilityFailure("GET", "/api/v1/rooms", "ios", "0.1.0", policy()),
+  ).toBeUndefined();
+  expect(() =>
+    readClientPolicy({ CLIENT_MIN_VERSION_ANDROID: "invalid" }),
+  ).toThrow();
+  expect(() =>
+    readClientPolicy({ CLIENT_MIN_VERSION_IOS: "invalid" }),
+  ).toThrow();
+});

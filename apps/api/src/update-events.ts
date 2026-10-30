@@ -4,7 +4,7 @@ import { readFile, stat } from "node:fs/promises";
 import { watchFile, unwatchFile } from "node:fs";
 import { join } from "node:path";
 import type { Request, Response } from "express";
-import type { ClientPolicy } from "@cinegather/contracts";
+import { clientPlatformSchema, type ClientPolicy } from "@cinegather/contracts";
 export class UpdateEvents implements OnModuleDestroy {
   private clients = new Set<{
     response: Response;
@@ -77,7 +77,7 @@ export class UpdateEvents implements OnModuleDestroy {
     const platform = String(request.query.platform ?? "web"),
       arch = String(request.query.arch ?? "x64");
     if (
-      !["win32", "darwin", "web"].includes(platform) ||
+      !clientPlatformSchema.safeParse(platform).success ||
       !["x64", "arm64"].includes(arch)
     )
       return response.status(400).end();

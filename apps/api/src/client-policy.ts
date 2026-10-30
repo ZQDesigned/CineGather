@@ -1,5 +1,6 @@
 import {
   clientPolicySchema,
+  clientPlatformSchema,
   versionBelow,
   type ClientPolicy,
 } from "@cinegather/contracts";
@@ -11,6 +12,8 @@ export function readClientPolicy(
       win32: env.CLIENT_MIN_VERSION_WINDOWS ?? "0.0.0",
       darwin: env.CLIENT_MIN_VERSION_MACOS ?? "0.0.0",
       web: env.CLIENT_MIN_VERSION_WEB ?? "0.0.0",
+      android: env.CLIENT_MIN_VERSION_ANDROID ?? "0.0.0",
+      ios: env.CLIENT_MIN_VERSION_IOS ?? "0.0.0",
     },
     reason:
       env.CLIENT_UPDATE_REASON ?? "当前版本已不受支持，请更新映聚后继续使用。",
@@ -39,12 +42,12 @@ export function compatibilityFailure(
     (method === "POST" && /^\/api\/v1\/rooms\/[^/]+\/leave$/.test(path))
   )
     return;
-  const minimumVersion =
-    platform && Object.hasOwn(policy.minimumVersions, platform)
-      ? policy.minimumVersions[
-          platform as keyof ClientPolicy["minimumVersions"]
-        ]
-      : Object.values(policy.minimumVersions).reduce(
+  const knownPlatform = clientPlatformSchema.safeParse(platform);
+  const minimumVersion = knownPlatform.success
+    ? (policy.minimumVersions[knownPlatform.data] ?? "0.0.0")
+    : Object.values(policy.minimumVersions)
+        .filter((v): v is string => typeof v === "string")
+        .reduce(
           (highest, next) => (versionBelow(highest, next) ? next : highest),
           "0.0.0",
         );

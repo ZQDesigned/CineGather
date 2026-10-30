@@ -1,6 +1,9 @@
 import createClient from "openapi-fetch";
 import type { paths } from "./schema";
-import { clientVersionSchema } from "@cinegather/contracts";
+import {
+  clientVersionSchema,
+  type ClientPlatform,
+} from "@cinegather/contracts";
 export type { paths, components, operations } from "./schema";
 const staleSessions = new WeakSet<Response>();
 export function createApi(
@@ -8,7 +11,7 @@ export function createApi(
   getToken: () => string | undefined,
   options: {
     timeoutMs?: number;
-    identity?: { version: string; platform: "win32" | "darwin" | "web" };
+    identity?: { version: string; platform: ClientPlatform };
     onUpdateRequired?: (minimumVersion: string, reason: string) => void;
   } = {},
 ) {

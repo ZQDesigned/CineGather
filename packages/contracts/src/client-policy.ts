@@ -1,5 +1,13 @@
 export const clientUpdateOrigin = "https://cgplat.zqdesigned.city";
 import { z } from "zod";
+export const clientPlatformSchema = z.enum([
+  "win32",
+  "darwin",
+  "web",
+  "android",
+  "ios",
+]);
+export type ClientPlatform = z.infer<typeof clientPlatformSchema>;
 export const clientVersionSchema = z
   .string()
   .max(40)
@@ -12,6 +20,8 @@ export const clientPolicySchema = z.object({
     win32: clientVersionSchema,
     darwin: clientVersionSchema,
     web: clientVersionSchema,
+    android: clientVersionSchema.optional(),
+    ios: clientVersionSchema.optional(),
   }),
   reason: z.string().min(1).max(500),
 });

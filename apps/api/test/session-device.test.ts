@@ -39,3 +39,19 @@ test("untrusted headers do not introduce arbitrary labels or unbounded stored in
     "loginAddress",
   ]);
 });
+
+test("native mobile clients have useful session names even without a browser user agent", () => {
+  for (const [platform, label] of [
+    ["android", "Android 客户端"],
+    ["ios", "iOS 客户端"],
+  ]) {
+    const device = sessionDevice({
+      platform,
+      version: "0.1.26",
+      address: "203.0.113.2",
+    });
+    expect(device.deviceName).toBe(label!);
+    expect(device.clientPlatform).toBe(platform!);
+    expect(device.clientVersion).toBe("0.1.26");
+  }
+});
