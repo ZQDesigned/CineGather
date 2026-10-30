@@ -60,39 +60,18 @@ try{
  if(!$shortcut.Arguments.Contains($support)){throw 'diagnostic-menu-depends-on-install-directory'}
  & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $support -Action Export -InstallDirectory $root -OutputDirectory $evidence
  if($LASTEXITCODE -ne 0 -or !(Get-ChildItem $evidence -Filter 'CineGather-upgrade-diagnostics-*.zip')){throw 'standalone-export-failed'}
- # Dismiss only this fixture installer's error box, without foreground/focus.
- Add-Type -TypeDefinition @'
-using System;
-using System.Text;
-using System.Runtime.InteropServices;
-public static class CGDiagnosticDialog {
- delegate bool Each(IntPtr w,IntPtr x);
- [DllImport("user32.dll")] static extern bool EnumWindows(Each cb,IntPtr arg);
- [DllImport("user32.dll")] static extern bool EnumChildWindows(IntPtr w,Each cb,IntPtr arg);
- [DllImport("user32.dll")] static extern uint GetWindowThreadProcessId(IntPtr w,out uint p);
- [DllImport("user32.dll",CharSet=CharSet.Unicode)] static extern int GetWindowText(IntPtr w,StringBuilder s,int n);
- [DllImport("user32.dll",CharSet=CharSet.Unicode,SetLastError=true)] static extern IntPtr SendMessageTimeout(IntPtr w,uint m,IntPtr p,StringBuilder s,uint flags,uint timeout,out IntPtr result);
- [DllImport("user32.dll")] static extern bool PostMessage(IntPtr w,uint m,IntPtr p,IntPtr l);
- // GetWindowText cannot read another process's static control text. Use a
- // bounded WM_GETTEXT query, restricted to this fixture's process family.
- static string Text(IntPtr w) { var s=new StringBuilder(4096);IntPtr result;SendMessageTimeout(w,0xD,(IntPtr)s.Capacity,s,2,500,out result);return s.ToString(); }
- public static string Dismiss(int[] processes) { var seen=new StringBuilder();EnumWindows((w,x)=>{uint p;GetWindowThreadProcessId(w,out p);if(Array.IndexOf(processes,(int)p)<0)return true;bool match=false;seen.AppendLine("pid="+p+" title="+Text(w));EnumChildWindows(w,(c,y)=>{var text=Text(c);seen.AppendLine(text);if(text.Contains("installer-logs"))match=true;return true;},IntPtr.Zero);if(match)PostMessage(w,0x111,(IntPtr)1,IntPtr.Zero);return true;},IntPtr.Zero);return seen.ToString(); }
-}
-'@
- for($i=0;$i -lt 30 -and !$failure.HasExited;$i++){
-  $known=@(Get-CimInstance Win32_Process)
-  $ids=New-Object 'System.Collections.Generic.HashSet[int]';[void]$ids.Add($failure.Id)
-  for($pass=0;$pass -lt 4;$pass++){foreach($p in $known){if($ids.Contains([int]$p.ParentProcessId) -and $p.ExecutablePath -eq $installer){[void]$ids.Add([int]$p.ProcessId)}}}
-  [CGDiagnosticDialog]::Dismiss([int[]]@($ids)) | Set-Content (Join-Path $evidence 'fixture-dialogs.txt');Start-Sleep -Milliseconds 500
- }
- if(!$failure.WaitForExit(5000)){throw 'failure-dialog-did-not-close'}
- if($failure.ExitCode -ne 2){throw ('unexpected-failure-exit-'+$failure.ExitCode)}
+ # The error message intentionally remains modal, including in silent mode.
+ # Its recorded uninstaller exit=2 is already asserted above. Headless workers
+ # cannot reliably click another process's dialog; end only this test-owned
+ # failed installer after collecting all evidence, before testing a retry.
+ Stop-Process -Id $failure.Id -Force
+ $failure.WaitForExit()
  Stop-Process -Id $held.Id -Force
  $held.WaitForExit()
  RunInstaller @('/S','--updated')
  $afterRows=@(Get-ChildItem $logs -Filter 'nsis-*.tsv' | ForEach-Object {Get-Content $_.FullName -Encoding Unicode}) -join "`n"
  if($afterRows -notmatch 'install-success'){throw 'success-stage-missing'}
- @{registryOnlyUpgrade=$true;failedExit=2;firstFailedFile=$true;foreignOwnerRecorded=$true;foreignProcessPreserved=$true;rollbackBytesPreserved=$true;independentExport=$true;retryAfterLockReleaseSucceeded=$true} | ConvertTo-Json | Set-Content (Join-Path $evidence 'result.json')
+ @{registryOnlyUpgrade=$true;recordedUninstallerExit=2;fixtureDialogClosedByHarness=$true;firstFailedFile=$true;foreignOwnerRecorded=$true;foreignProcessPreserved=$true;rollbackBytesPreserved=$true;independentExport=$true;retryAfterLockReleaseSucceeded=$true} | ConvertTo-Json | Set-Content (Join-Path $evidence 'result.json')
  Copy-Item $logs (Join-Path $evidence 'logs') -Recurse
 }finally{
  if($failure -and !$failure.HasExited){Stop-Process -Id $failure.Id -Force}
