@@ -1,6 +1,12 @@
 name: windows-upgrade
 on:
   workflow_dispatch:
+    inputs:
+      runner:
+        description: Windows validation worker
+        type: choice
+        options: [windows-latest, windows-2022]
+        default: windows-latest
   push:
     paths:
       - tools/windows-upgrade-smoke.ps1
@@ -26,7 +32,7 @@ on:
       - .github/workflows/windows-upgrade.yml
 jobs:
   upgrade:
-    runs-on: windows-latest
+    runs-on: ${{ inputs.runner || 'windows-latest' }}
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
