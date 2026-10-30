@@ -131,7 +131,8 @@ Section 'file-resource-users' {
  $files=@()
  if($FailedPath -and (Test-Path -LiteralPath $FailedPath -PathType Leaf)){$files+=Get-Item -LiteralPath $FailedPath}
  if($TargetPath -and (Test-Path -LiteralPath $TargetPath -PathType Leaf)){$files+=Get-Item -LiteralPath $TargetPath}
- if($InstallDirectory -and (Test-Path -LiteralPath $InstallDirectory)){$files+=@(Get-ChildItem -LiteralPath $InstallDirectory -File -Recurse -ErrorAction SilentlyContinue | Where-Object {!($_.Attributes -band [IO.FileAttributes]::ReparsePoint)} | Select-Object -First 255)}
+ # Read one sentinel beyond the export cap so truncation is always explicit.
+ if($InstallDirectory -and (Test-Path -LiteralPath $InstallDirectory)){$files+=@(Get-ChildItem -LiteralPath $InstallDirectory -File -Recurse -ErrorAction SilentlyContinue | Where-Object {!($_.Attributes -band [IO.FileAttributes]::ReparsePoint)} | Select-Object -First 257)}
  $queries=0
  # Preserve priority: the precise failed source and destination must survive
  # the inventory cap even when a large installation has thousands of files.
@@ -153,7 +154,7 @@ Section 'file-resource-users' {
   }
   $report.files+=$row
  }
- if($files.Count -gt 256){$report.issues+=@{stage='file-resource-users';code='file-count-limit'}}
+ if($priority.Count -gt 256){$report.issues+=@{stage='file-resource-users';code='file-count-limit'}}
 }
 $report.complete=$true
 SaveSnapshot

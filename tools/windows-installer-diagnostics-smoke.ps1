@@ -48,6 +48,7 @@ try{
  $snapshots=@(Get-ChildItem $logs -Filter 'snapshot-*.json' | Where-Object {$_.LastWriteTimeUtc -gt $since} | ForEach-Object {Get-Content $_.FullName -Raw | ConvertFrom-Json})
  $owners=@($snapshots | ForEach-Object {$_.files} | ForEach-Object {$_.owners} | ForEach-Object {$_.pid})
  if($owners -notcontains $held.Id){throw 'foreign-file-owner-not-reported'}
+ if(!@($snapshots | ForEach-Object {$_.issues} | Where-Object {$_.code -eq 'file-count-limit'}).Count){throw 'file-inventory-truncation-not-reported'}
  if($held.HasExited){throw 'unrelated-process-was-killed'}
  if((Get-FileHash $asar -Algorithm SHA256).Hash -ne $before){throw 'rollback-did-not-preserve-app'}
  $version=(Get-Content (Join-Path $PSScriptRoot '../apps/desktop/package.json') -Raw | ConvertFrom-Json).version
