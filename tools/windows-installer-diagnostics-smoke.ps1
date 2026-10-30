@@ -57,7 +57,12 @@ try{
  $menu=Join-Path ([Environment]::GetFolderPath('Programs')) 'CineGather 升级诊断.lnk'
  if(!(Test-Path $menu)){throw 'diagnostic-menu-missing'}
  $shortcut=(New-Object -ComObject WScript.Shell).CreateShortcut($menu)
- if(!$shortcut.Arguments.Contains($support)){throw 'diagnostic-menu-depends-on-install-directory'}
+ @{arguments=$shortcut.Arguments;expectedHelper=$support} | ConvertTo-Json | Set-Content (Join-Path $evidence 'diagnostic-menu.json')
+ if($shortcut.Arguments -notmatch '-File "([^"]+)"'){throw 'diagnostic-menu-helper-argument-missing'}
+ $menuScript=[Environment]::ExpandEnvironmentVariables($matches[1])
+ # Shell links may canonicalize a user's directory to its 8.3 alias.
+ # Verify the actual helper and its outside-install location, not path spelling.
+ if(!(Test-Path -LiteralPath $menuScript) -or $menuScript -notlike ('*\CGInstallDiagnostics\support\'+$version+'\installer-diagnostics.ps1') -or (Get-FileHash -LiteralPath $menuScript).Hash -ne (Get-FileHash -LiteralPath $support).Hash){throw 'diagnostic-menu-depends-on-install-directory'}
  & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $support -Action Export -InstallDirectory $root -OutputDirectory $evidence
  if($LASTEXITCODE -ne 0 -or !(Get-ChildItem $evidence -Filter 'CineGather-upgrade-diagnostics-*.zip')){throw 'standalone-export-failed'}
  # The error message intentionally remains modal, including in silent mode.
