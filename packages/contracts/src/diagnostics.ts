@@ -247,7 +247,39 @@ const microphoneEffectSchema = z.object({
   active: z.enum(["none", "ktv"]),
   fallback: z.boolean().optional(),
 });
+export const videoHealthSchema = z.object({
+  kind: z.enum([
+    "checking",
+    "smooth",
+    "few-updates",
+    "network",
+    "decode",
+    "render",
+    "unavailable",
+    "paused",
+  ]),
+  receivedFps: number.optional(),
+  decodedFps: number.optional(),
+  presentedFps: number.optional(),
+  lostPercent: number.optional(),
+  jitterMs: number.optional(),
+  decodeMs: number.optional(),
+});
+export const microphoneMonitorSchema = z.object({
+  state: z.enum(["off", "starting", "active"]),
+  volume: z.number().int().min(0).max(100),
+  outputLatencyMs: number.optional(),
+  reason: z
+    .enum([
+      "input-unavailable",
+      "output-unavailable",
+      "processing-unavailable",
+      "device-changed",
+    ])
+    .optional(),
+});
 export const mediaDiagnosticSchema = z.object({
+  videoHealth: videoHealthSchema.optional(),
   microphoneEffect: microphoneEffectSchema.optional(),
   watchProfile: watchProfileSchema.optional(),
   watchTargetMs: number.optional(),
@@ -457,6 +489,7 @@ export const nativeDiagnosticSchema = z.object({
   audioSourceActive: z.boolean().optional(),
 });
 export const diagnosticRecordSchema = z.object({
+  microphoneMonitor: microphoneMonitorSchema.optional(),
   gpu: gpuDiagnosticSchema.optional(),
   issues: diagnosticIssues,
   v: z.literal(1),
@@ -619,6 +652,8 @@ export function repairDiagnosticRecord(input: unknown): DiagnosticRecord {
   return safeDiagnosticRecord(candidate);
 }
 export const diagnosticSnapshotSchema = z.object({
+  videoHealth: videoHealthSchema.optional(),
+  microphoneMonitor: microphoneMonitorSchema.optional(),
   microphoneEffect: microphoneEffectSchema.optional(),
   encoderCapabilities: encoderCapabilitiesSchema.optional(),
   issues: diagnosticIssues,

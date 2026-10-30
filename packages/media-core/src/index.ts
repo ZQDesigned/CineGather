@@ -11,3 +11,8 @@ export {
   type MicrophoneEffectStatus,
 } from "./microphone-processor";
 export { KtvReverb } from "./ktv-reverb";
+export {
+  MicrophoneMonitor,
+  type MicrophoneMonitorStatus,
+} from "./microphone-monitor";
+export { VideoHealth, type VideoHealthStatus } from "./video-health";

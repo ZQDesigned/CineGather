@@ -11,7 +11,11 @@ import {
   parseInvitation,
   watchUpdateEvents,
 } from "@cinegather/client-core";
-import { Accompaniment, MediaSession } from "@cinegather/media-core";
+import {
+  Accompaniment,
+  MediaSession,
+  MicrophoneMonitor,
+} from "@cinegather/media-core";
 import { DisconnectReason } from "livekit-client";
 import type {
   CaptureSelection,
@@ -543,6 +547,7 @@ const roomCuePlayer = new RoomCuePlayer(
 const roomCues = new RoomPresenceCues((cue) => roomCuePlayer.play(cue));
 export const media = new MediaSession(
   (summary) => {
+    if (summary.state === "disconnected") void microphoneMonitor.stop();
     roomCues.observe(summary);
     if (summary.state === "connected" && state().media.state !== "connected")
       void chat.sync();
@@ -604,6 +609,28 @@ export const media = new MediaSession(
   },
   (roomId, message) => chat.receive(roomId, message),
 );
+export const microphoneMonitor = new MicrophoneMonitor((status) => {
+  const previous = state().microphoneMonitor;
+  update({ microphoneMonitor: status });
+  if (status.reason === "device-changed" && previous.state !== "off")
+    update({ notice: "音频设备已变化，耳返已关闭" });
+});
+export async function toggleMicrophoneMonitor(enabled: boolean) {
+  if (!enabled) return microphoneMonitor.stop();
+  const room = state().room?.id;
+  if (!room || state().roomState !== "connected")
+    throw new Error("请先进入房间");
+  await microphoneMonitor.enable(state().settings);
+  if (state().room?.id !== room || state().roomState !== "connected")
+    await microphoneMonitor.stop();
+}
+export async function setMicrophoneMonitorVolume(value: number) {
+  microphoneMonitor.volume(value);
+  await persistSettings((current) => ({
+    ...current,
+    microphoneMonitorVolume: value,
+  }));
+}
 export const diagnostics = new DiagnosticRecorder(media, state, async () =>
   unwrap(
     await api.GET("/api/v1/diagnostics", { signal: AbortSignal.timeout(8000) }),
@@ -886,12 +913,16 @@ export const roomSession = new RoomCoordinator({
   },
   disconnect: () => {
     pttHolds.clear();
-    return Promise.all([accompaniment.stop(), media.disconnect()]).then(
-      () => {},
-    );
+    return Promise.all([
+      accompaniment.stop(),
+      microphoneMonitor.stop(),
+      media.disconnect(),
+    ]).then(() => {});
   },
   stopShare,
   changed: (roomState, room, revision) => {
+    if (roomState === "idle" || roomState === "leaving")
+      void microphoneMonitor.stop();
     if (roomState === "idle" || roomState === "leaving") {
       chat.leave();
       update({ chatTab: "members", chatNotification: undefined });
@@ -1518,6 +1549,7 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
     settings.microphoneEffect ?? "none",
     settings.microphoneReverbStrength,
   );
+  await microphoneMonitor.configure(settings).catch(report);
   update({
     settings,
     notice:
@@ -1538,8 +1570,8 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
     .catch(() => {})
     .then(async () => {
       const before = state().settings;
-      const apply = (settings: DesktopSettings) =>
-        key === "noiseReduction"
+      const apply = async (settings: DesktopSettings) => {
+        await (key === "noiseReduction"
           ? media.configureMicrophone(
               settings.noiseReduction,
               state().settings.microphoneEffect ?? "none",
@@ -1548,7 +1580,9 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
           : media.devices(
               key === "inputDevice" ? settings.inputDevice : undefined,
               key === "outputDevice" ? settings.outputDevice : undefined,
-            );
+            ));
+        await microphoneMonitor.configure(settings).catch(report);
+      };
       const next = await persistSettings((current) => ({
         ...current,
         [key]: value,
@@ -1575,11 +1609,15 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
   return work;
 }
 export async function setMicrophoneReverbStrength(value: number) {
-  media.setMicrophoneReverbStrength(value);
+  previewMicrophoneReverbStrength(value);
   await persistSettings((current) => ({
     ...current,
     microphoneReverbStrength: value,
   }));
+}
+export function previewMicrophoneReverbStrength(value: number) {
+  media.setMicrophoneReverbStrength(value);
+  microphoneMonitor.strength(value);
 }
 export async function setMicrophoneEffect(effect: MicrophoneEffect) {
   const next = await persistSettings((current) => ({
@@ -1591,6 +1629,7 @@ export async function setMicrophoneEffect(effect: MicrophoneEffect) {
     effect,
     next.microphoneReverbStrength,
   );
+  await microphoneMonitor.configure(next).catch(report);
 }
 export async function setWatchProfile(
   profile: import("@cinegather/contracts").WatchProfile,

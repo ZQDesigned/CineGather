@@ -8,6 +8,7 @@ import { verifyServer } from "../server-address";
 import { Button } from "./Controls";
 import { ModalShell, useDialogOpen } from "./Modal";
 import { capabilities } from "../platform";
+import { videoHealthCopy } from "../video-health-copy";
 import type { DiagnosticHistoryStatus } from "@cinegather/contracts";
 
 export function Diagnostics() {
@@ -93,6 +94,7 @@ export function Diagnostics() {
             : "unavailable",
         connection: { status: connection, checkedAt },
         shareState: app.shareState,
+        microphoneMonitor: app.microphoneMonitor,
         server:
           metrics &&
           Object.fromEntries(
@@ -165,6 +167,14 @@ export function Diagnostics() {
               )
             ? "正在准备共享"
             : "还未共享画面";
+  const picture =
+    app.media.watching && !app.media.sharer?.local
+      ? videoHealthCopy(
+          app.media.videoPaused
+            ? "paused"
+            : (app.media.videoHealth?.kind ?? "checking"),
+        )
+      : undefined;
   const title =
     connection === "unavailable"
       ? "暂时无法连接服务器"
@@ -172,13 +182,15 @@ export function Diagnostics() {
         ? "正在恢复房间连接"
         : failed
           ? "房间连接已断开"
-          : unstable
-            ? "网络有些不稳定"
-            : connected
-              ? "房间连接正常"
-              : connection === "checking"
-                ? "正在检查连接"
-                : "可以加入房间了";
+          : picture
+            ? picture.title
+            : unstable
+              ? "网络有些不稳定"
+              : connected
+                ? "房间连接正常"
+                : connection === "checking"
+                  ? "正在检查连接"
+                  : "可以加入房间了";
   const description =
     connection === "unavailable"
       ? "请检查网络连接，或在设置中确认服务器地址。"
@@ -186,11 +198,13 @@ export function Diagnostics() {
         ? "请稍等，我们正在尝试恢复连接。"
         : failed
           ? "请检查网络，然后重新连接房间。"
-          : unstable
-            ? "如果声音断续或画面卡顿，可以切换网络后再试。"
-            : connected
-              ? "可以在这里查看语音和画面的当前状态。"
-              : "加入房间后，可以检查语音和共享状态。";
+          : picture
+            ? picture.description
+            : unstable
+              ? "如果声音断续或画面卡顿，可以切换网络后再试。"
+              : connected
+                ? "可以在这里查看语音和画面的当前状态。"
+                : "加入房间后，可以检查语音和共享状态。";
   const status = (label: string, description: string, color?: string) => (
     <Space direction="vertical" size={3}>
       <Tag color={color}>{label}</Tag>
@@ -250,11 +264,13 @@ export function Diagnostics() {
         type={
           connection === "unavailable" || failed
             ? "error"
-            : reconnecting || unstable
+            : reconnecting || unstable || picture?.warning
               ? "warning"
-              : connected
-                ? "success"
-                : "info"
+              : picture && app.media.videoHealth?.kind !== "smooth"
+                ? "info"
+                : connected
+                  ? "success"
+                  : "info"
         }
         title={title}
         description={description}
@@ -375,9 +391,58 @@ export function Diagnostics() {
                       : "一位成员开始共享后，大家就能一起观看。",
                 app.shareState === "failed"
                   ? "error"
-                  : app.media.sharer && app.media.watching
+                  : app.media.videoHealth?.kind === "smooth" &&
+                      app.media.watching
                     ? "success"
                     : undefined,
+              ),
+            },
+            {
+              key: "picture-health",
+              label: "画面播放",
+              children: (
+                <Space direction="vertical" size={6}>
+                  {status(
+                    picture?.title ??
+                      (app.media.sharer?.local
+                        ? "请在观看端检查"
+                        : "尚未开始观看"),
+                    picture?.description ??
+                      (app.media.sharer?.local
+                        ? "你正在共享，实际播放状态需要在观看端检查。"
+                        : "加入观看后，会自动检查接收和播放状态。"),
+                    picture?.warning
+                      ? "warning"
+                      : app.media.videoHealth?.kind === "smooth"
+                        ? "success"
+                        : undefined,
+                  )}
+                  {picture?.warning &&
+                    app.media.videoHealth?.kind === "network" &&
+                    app.media.watchBuffering !== false && (
+                      <Button
+                        size="small"
+                        onClick={() =>
+                          void actions
+                            .setWatchProfile("smooth")
+                            .catch(actions.report)
+                        }
+                      >
+                        切换至流畅
+                      </Button>
+                    )}
+                  {app.media.videoHealth?.kind === "render" && (
+                    <Button
+                      size="small"
+                      onClick={() => {
+                        actions.media.watch(false);
+                        actions.media.watch(true);
+                      }}
+                    >
+                      重新加入观看
+                    </Button>
+                  )}
+                </Space>
               ),
             },
           ]}

@@ -40,3 +40,31 @@ test("reverb strength defaults to the existing preset at 40 percent and accepts 
       }).success,
     ).toBe(false);
 });
+
+test("ear monitor only persists its bounded volume, never an enabled capture state", () => {
+  const legacy = { ...defaultSettings } as Record<string, unknown>;
+  delete legacy.microphoneMonitorVolume;
+  expect(settingsSchema.parse(legacy)).toHaveProperty(
+    "microphoneMonitorVolume",
+    30,
+  );
+  for (const value of [0, 100])
+    expect(
+      settingsSchema.parse({
+        ...defaultSettings,
+        microphoneMonitorVolume: value,
+      }),
+    ).toHaveProperty("microphoneMonitorVolume", value);
+  expect(
+    settingsSchema.safeParse({
+      ...defaultSettings,
+      microphoneMonitorVolume: 101,
+    }).success,
+  ).toBe(false);
+  expect(
+    settingsSchema.safeParse({
+      ...defaultSettings,
+      microphoneMonitorEnabled: true,
+    }).success,
+  ).toBe(false);
+});

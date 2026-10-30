@@ -173,6 +173,7 @@ class BrowserHistory {
   }
 }
 type Context = {
+  microphoneMonitor?: import("@cinegather/media-core").MicrophoneMonitorStatus;
   room?: { id: string };
   roomState: string;
   shareState: string;
@@ -224,6 +225,7 @@ export class DiagnosticRecorder {
           ? { id: context.room.id, hash: await diagnosticHash(context.room.id) }
           : undefined;
       const candidate = repairDiagnosticRecord({
+        microphoneMonitor: context.microphoneMonitor,
         v: 1,
         appVersion: version,
         at: Date.now(),

@@ -9,7 +9,10 @@ import type {
   RoomInvitation,
   RoomJoinRequest,
 } from "@cinegather/contracts";
-import type { MediaSummary } from "@cinegather/media-core";
+import type {
+  MediaSummary,
+  MicrophoneMonitorStatus,
+} from "@cinegather/media-core";
 import { defaultSettings } from "../shared/settings";
 import type { ChatSnapshot } from "@cinegather/client-core";
 import type { ChatMessage } from "@cinegather/contracts";
@@ -33,6 +36,7 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  microphoneMonitor: MicrophoneMonitorStatus;
   notifications: import("@cinegather/contracts").NotificationRecord[];
   chat: ChatSnapshot;
   chatTab: "members" | "chat";
@@ -105,6 +109,7 @@ export const useApp = create<State>(() => ({
   busy: false,
   cinema: false,
   settings: defaults,
+  microphoneMonitor: { state: "off", volume: 30 },
   memberVolumes: {},
   voiceVolume: 1,
   screenVolume: 1,

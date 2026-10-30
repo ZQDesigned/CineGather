@@ -341,6 +341,7 @@ export interface DesktopSettings {
   noiseReduction: NoiseReduction;
   microphoneEffect?: MicrophoneEffect;
   microphoneReverbStrength?: number;
+  microphoneMonitorVolume?: number;
   memberOverlay?: MemberOverlayPreferences;
   minimizeToTray: boolean;
   pushToTalk: boolean;

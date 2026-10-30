@@ -153,7 +153,7 @@ export function MicrophoneEffectControl({ disabled }: { disabled: boolean }) {
                 onChange={(value) => {
                   setStrength(value);
                   pendingStrength.current = value;
-                  actions.media.setMicrophoneReverbStrength(value);
+                  actions.previewMicrophoneReverbStrength(value);
                 }}
                 onChangeComplete={commitStrength}
               />

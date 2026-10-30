@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Popover, Select } from "antd";
+import { Popover, Select, Switch, Slider } from "antd";
 import styled from "@emotion/styled";
 import { ChevronUp } from "lucide-react";
 import type { DesktopSettings } from "@cinegather/contracts";
@@ -27,11 +27,31 @@ const Panel = styled.div`
   .ant-select {
     width: 100%;
   }
+  .audio-monitor {
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+  .audio-monitor-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+  }
+  .audio-monitor-note {
+    font-size: 12px;
+    color: var(--muted);
+    margin-top: 6px;
+  }
+  .ant-slider {
+    margin: 12px 6px 2px;
+  }
 `;
 type AudioKey = "inputDevice" | "outputDevice" | "noiseReduction";
 export function AudioQuickControl({ disabled }: { disabled: boolean }) {
   const settings = useApp((s) => s.settings);
   const devices = useApp((s) => s.audioDevices);
+  const monitor = useApp((s) => s.microphoneMonitor);
+  const canOpen = !disabled || monitor.state !== "off";
   const platform = capabilities();
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -39,8 +59,8 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
   const working = useRef(false);
   const trigger = useRef<HTMLButtonElement>(null);
   useEffect(() => {
-    if (disabled) setOpen(false);
-  }, [disabled]);
+    if (!canOpen) setOpen(false);
+  }, [canOpen]);
   useEffect(() => {
     if (!open) return;
     let current = true;
@@ -83,9 +103,9 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
     <Popover
       trigger="click"
       placement="topLeft"
-      open={open && !disabled}
+      open={open && canOpen}
       onOpenChange={(value) => {
-        if (!disabled) setOpen(value);
+        if (canOpen) setOpen(value);
       }}
       content={
         <Panel
@@ -135,6 +155,48 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
               )}
             />
           </div>
+          <div className="audio-monitor">
+            <div className="audio-monitor-heading">
+              <span>耳返</span>
+              <Switch
+                aria-label="耳返"
+                checked={monitor.state !== "off"}
+                disabled={
+                  (disabled || !platform.microphone) && monitor.state === "off"
+                }
+                onChange={(value) =>
+                  void actions
+                    .toggleMicrophoneMonitor(value)
+                    .catch(actions.report)
+                }
+              />
+            </div>
+            <div className="audio-monitor-note">请佩戴耳机使用，避免回声</div>
+            {monitor.state !== "off" && (
+              <>
+                <div className="audio-monitor-heading audio-monitor-note">
+                  <span>
+                    {monitor.state === "starting" ? "正在开启耳返" : "耳返音量"}
+                  </span>
+                  <output>{monitor.volume}%</output>
+                </div>
+                <Slider
+                  ariaLabelForHandle="耳返音量"
+                  min={0}
+                  max={100}
+                  step={1}
+                  value={monitor.volume}
+                  tooltip={{ open: false }}
+                  onChange={(value) => actions.microphoneMonitor.volume(value)}
+                  onChangeComplete={(value) =>
+                    void actions
+                      .setMicrophoneMonitorVolume(value)
+                      .catch(actions.report)
+                  }
+                />
+              </>
+            )}
+          </div>
         </Panel>
       }
     >
@@ -143,8 +205,8 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
         type="text"
         className="audio-quick-trigger"
         aria-label="音频快捷设置"
-        aria-expanded={open && !disabled}
-        disabled={disabled}
+        aria-expanded={open && canOpen}
+        disabled={!canOpen}
       >
         <ChevronUp size={15} />
       </Button>

@@ -1,4 +1,5 @@
 import { KtvReverb } from "./ktv-reverb";
+import { VideoHealth, type VideoHealthStatus } from "./video-health";
 import {
   createMicrophoneProcessor,
   type MicrophoneEffectStatus,
@@ -65,6 +66,7 @@ export interface ParticipantSummary {
   quality: string;
 }
 export interface MediaSummary {
+  videoHealth?: VideoHealthStatus;
   watchProfile?: WatchProfile;
   watchBuffering?: boolean;
   watchAdvice?: WatchAdvice;
@@ -80,6 +82,8 @@ export interface MediaSummary {
   microphoneEffect?: MicrophoneEffectStatus;
 }
 export class MediaSession {
+  private pictureHealth = new VideoHealth();
+  private pictureStatus?: VideoHealthStatus;
   private watchPolicy = new WatchPlaybackPolicy();
   private watchHealth = new WatchHealth();
   private watchAdvice?: WatchAdvice;
@@ -410,6 +414,7 @@ export class MediaSession {
         : undefined,
       microphoneNoise: this.noiseStatus,
       microphoneEffect: this.effectStatus,
+      videoHealth: this.pictureStatus,
       audioBlocked: !room.canPlaybackAudio || this.voices.blocked,
       watching: this.subscriptions.watching,
       videoPaused:
@@ -1061,6 +1066,8 @@ export class MediaSession {
     this.mixer.replaceMembers(volumes, applyExisting && Boolean(this.room));
   }
   watch(enabled: boolean) {
+    this.pictureHealth.reset();
+    this.pictureStatus = undefined;
     this.watchHealth.reset();
     this.watchAdvice = undefined;
     this.subscriptions.watch(enabled);
@@ -1068,6 +1075,8 @@ export class MediaSession {
   }
   setVideoVisible(visible: boolean) {
     if (this.subscriptions.videoVisible === visible) return;
+    this.pictureHealth.reset();
+    this.pictureStatus = undefined;
     this.watchHealth.reset();
     this.watchAdvice = undefined;
     this.subscriptions.setVideoVisible(visible);
@@ -1130,6 +1139,7 @@ export class MediaSession {
       state: detail.state,
       microphoneNoise: detail.microphoneNoise,
       microphoneEffect: detail.microphoneEffect,
+      videoHealth: detail.videoHealth,
       watching: detail.watching,
       videoPaused: detail.videoPaused,
       capturedAt: new Date().toISOString(),
@@ -1270,7 +1280,22 @@ export class MediaSession {
       this.watchAdvice = watchAdvice;
       this.emit();
     }
+    if (room === this.room) {
+      const next = this.pictureHealth.sample({
+        track: screen?.track,
+        at: performance.now(),
+        watching: this.subscriptions.watching,
+        visible: this.subscriptions.videoVisible,
+        paused: screen?.muted,
+        stats: stat,
+        playback,
+      });
+      const changed = next?.kind !== this.pictureStatus?.kind;
+      this.pictureStatus = next;
+      if (changed) this.emit();
+    }
     return {
+      videoHealth: this.pictureStatus,
       watchProfile: this.watchPolicy.profile,
       watchTargetMs: watchProfiles[this.watchPolicy.profile].targetMs,
       watchBuffering: this.watchPolicy.apply(
@@ -1306,6 +1331,8 @@ export class MediaSession {
     };
   }
   async disconnect() {
+    this.pictureHealth.reset();
+    this.pictureStatus = undefined;
     if (this.room) this.diagnoseEvent("local-disconnect");
     this.diagnosticHashes.clear();
     this.subscriptions.reset();

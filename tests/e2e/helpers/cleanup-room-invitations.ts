@@ -23,6 +23,13 @@ const input = z
   .parse(JSON.parse(process.argv[2]!));
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 try {
+  // A create/join can finish after a failing UI assertion. Include rooms owned
+  // by these exact fixture users so late/archived rooms cannot be orphaned.
+  const owned = await db
+    .select({ id: rooms.id })
+    .from(rooms)
+    .where(inArray(rooms.ownerUserId, input.users));
+  input.rooms = [...new Set([...input.rooms, ...owned.map((r) => r.id)])];
   await db.transaction(async (tx) => {
     if (input.rooms.length) {
       await tx.delete(invites).where(inArray(invites.roomId, input.rooms));
