@@ -242,6 +242,7 @@ const microphoneNoiseSchema = z.object({
   engine: z.enum(["deepfilternet3", "rnnoise", "platform"]).optional(),
 });
 const microphoneEffectSchema = z.object({
+  strength: z.number().int().min(0).max(100).optional(),
   requested: z.enum(["none", "ktv"]),
   active: z.enum(["none", "ktv"]),
   fallback: z.boolean().optional(),
@@ -477,6 +478,7 @@ export const diagnosticRecordSchema = z.object({
       watchProfile: watchProfileSchema.optional(),
       noiseReduction: z.enum(["off", "basic", "enhanced"]).optional(),
       microphoneEffect: z.enum(["none", "ktv"]).optional(),
+      microphoneReverbStrength: z.number().int().min(0).max(100).optional(),
       pushToTalk: z.boolean().optional(),
       watching: z.boolean(),
       videoPaused: z.boolean().optional(),

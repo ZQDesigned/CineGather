@@ -18,7 +18,7 @@ test("actual KTV preset has an audible decaying tail and a silent mute gate", as
   await page.goto("/");
   const result = await page.evaluate(async (module) => {
     const { createKtvReverbGraph } = await import(module);
-    const render = async (effect: boolean, muted = false) => {
+    const render = async (effect: boolean, muted = false, strength = 40) => {
       const context = new OfflineAudioContext(1, 48000 * 2, 48000),
         source = context.createBufferSource();
       const buffer = context.createBuffer(1, 4800, 48000),
@@ -27,7 +27,7 @@ test("actual KTV preset has an audible decaying tail and a silent mute gate", as
         samples[i] = 0.15 * Math.sin((2 * Math.PI * 440 * i) / 48000);
       source.buffer = buffer;
       if (effect)
-        createKtvReverbGraph(context, source, muted).output.connect(
+        createKtvReverbGraph(context, source, muted, strength).output.connect(
           context.destination,
         );
       else source.connect(context.destination);
@@ -51,6 +51,8 @@ test("actual KTV preset has an audible decaying tail and a silent mute gate", as
       dry: await render(false),
       ktv: await render(true),
       muted: await render(true, true),
+      zero: await render(true, false, 0),
+      strong: await render(true, false, 100),
     };
   }, modulePath);
   expect(result.dry.tail).toBe(0);
@@ -59,6 +61,9 @@ test("actual KTV preset has an audible decaying tail and a silent mute gate", as
   expect(result.ktv.voice).toBeGreaterThan(0.06);
   expect(result.ktv.peak).toBeLessThan(0.5);
   expect(result.muted.peak).toBe(0);
+  expect(result.zero.tail).toBe(0);
+  expect(result.strong.tail).toBeGreaterThan(result.ktv.tail * 2.2);
+  expect(result.strong.peak).toBeLessThan(1);
   console.log(JSON.stringify({ ktvOfflineAudio: result }));
 });
 
@@ -128,9 +133,36 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
       "aria-pressed",
       String(value === "ktv"),
     );
+    if (value === "ktv") await control.click();
     await expect(target.getByRole("menu", { name: "麦克风音效" })).toHaveCount(
       0,
     );
+  };
+  const setStrength = async (value: 0 | 100, target = sender!) => {
+    const control = target.getByRole("button", {
+      name: "麦克风音效",
+      exact: true,
+    });
+    await control.click();
+    const slider = target.getByRole("slider", {
+      name: "混响强度",
+      exact: true,
+    });
+    await expect(slider).toBeEnabled();
+    await slider.focus();
+    await target.keyboard.press(value === 100 ? "End" : "Home");
+    await expect(slider).toHaveAttribute("aria-valuenow", String(value));
+    await expect
+      .poll(() =>
+        target.evaluate(async () =>
+          window.desktop
+            ? (await window.desktop.loadSettings()).microphoneReverbStrength
+            : JSON.parse(localStorage.getItem("cinegather.settings")!)
+                .microphoneReverbStrength,
+        ),
+      )
+      .toBe(value);
+    await target.keyboard.press("Escape");
   };
   const sample = async () =>
     listener.evaluate(async () => {
@@ -230,7 +262,9 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     sender.setDefaultTimeout(15000);
     await login(sender, s.token, true);
     await sender.evaluate(() => {
+      Object.assign(window, { ktvCaptureCalls: 0 });
       navigator.mediaDevices.getUserMedia = async () => {
+        (window as unknown as { ktvCaptureCalls: number }).ktvCaptureCalls++;
         const c = new AudioContext({ sampleRate: 48000 }),
           o = c.createOscillator(),
           g = c.createGain(),
@@ -300,6 +334,7 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
       listener.locator('audio[data-cinegather-purpose="voice"]'),
     ).toHaveCount(1);
     await setEffect("ktv", listener);
+    await setStrength(100, listener);
     await expect(
       listener.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeEnabled();
@@ -335,6 +370,29 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     expect(ktv.find((x) => x.purpose === "voice")!.tail).toBeGreaterThan(
       dry.find((x) => x.purpose === "voice")!.tail * 3 + 0.0001,
     );
+    const captureBefore = await sender.evaluate(
+      () => (window as unknown as { ktvCaptureCalls: number }).ktvCaptureCalls,
+    );
+    await setStrength(100);
+    const strong = await sample();
+    // Opus and received pulse alignment affect tail RMS; the exact 2.5x DSP
+    // scaling is checked by the offline render above.
+    console.log(JSON.stringify({ wireStrength: { baseline: ktv, strong } }));
+    expect(strong.find((x) => x.purpose === "voice")!.tail).toBeGreaterThan(
+      ktv.find((x) => x.purpose === "voice")!.tail * 1.8,
+    );
+    await setStrength(0);
+    const zero = await sample();
+    expect(zero.find((x) => x.purpose === "voice")!.tail).toBeLessThan(
+      ktv.find((x) => x.purpose === "voice")!.tail * 0.1 + 0.0001,
+    );
+    await setStrength(100);
+    expect(
+      await sender.evaluate(
+        () =>
+          (window as unknown as { ktvCaptureCalls: number }).ktvCaptureCalls,
+      ),
+    ).toBe(captureBefore);
     const musicBefore = dry.find((x) => x.purpose === "accompaniment")!.rms,
       musicAfter = ktv.find((x) => x.purpose === "accompaniment")!.rms;
     expect(musicAfter / musicBefore).toBeGreaterThan(0.9);
@@ -369,7 +427,7 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     const zip = unzipSync(new Uint8Array(await readFile(path)));
     expect(
       JSON.parse(strFromU8(zip["current.json"]!)).microphoneEffect,
-    ).toMatchObject({ requested: "ktv", active: "ktv" });
+    ).toMatchObject({ requested: "ktv", active: "ktv", strength: 100 });
     await sender
       .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
@@ -403,6 +461,10 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
       musicRatio: musicAfter / musicBefore,
       mutePreserved: true,
       nativeSettingsPersisted: true,
+      strong,
+      zero,
+      strengthPersisted: 100,
+      noAdditionalCapture: true,
     };
     await testInfo.attach("ktv-measurement", {
       body: JSON.stringify(evidence, null, 2),
@@ -437,6 +499,9 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     );
     await sender.setViewportSize({ width: 1100, height: 760 });
     await remembered.click();
+    await expect(
+      sender.getByRole("slider", { name: "混响强度", exact: true }),
+    ).toHaveAttribute("aria-valuenow", "100");
     const menuBox = (await sender
       .getByRole("menu", { name: "麦克风音效", exact: true })
       .boundingBox())!;

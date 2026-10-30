@@ -25,6 +25,7 @@ import {
   type DiagnosticIssue,
   type MediaDiagnostic,
   qualityPresets,
+  defaultMicrophoneReverbStrength,
   type Quality,
   type NoiseReduction,
   type MicrophoneEffect,
@@ -108,6 +109,7 @@ export class MediaSession {
   private microphoneWanted = false;
   private noiseMode: NoiseReduction = "enhanced";
   private effectMode: MicrophoneEffect = "none";
+  private effectStrength = defaultMicrophoneReverbStrength;
   private effectStatus?: MicrophoneEffectStatus;
   private processorRevision = 0;
   private processorWork = Promise.resolve();
@@ -645,13 +647,33 @@ export class MediaSession {
       }
     }
   }
+  setMicrophoneReverbStrength(value: number) {
+    this.effectStrength = Number.isFinite(value)
+      ? Math.round(Math.max(0, Math.min(100, value)))
+      : defaultMicrophoneReverbStrength;
+    const track =
+      this.room &&
+      voicePublication(this.room.localParticipant.trackPublications)?.track;
+    const processor =
+      track instanceof LocalAudioTrack ? track.getProcessor() : undefined;
+    if (processor instanceof KtvReverb)
+      processor.setStrength(this.effectStrength);
+    if (this.effectStatus)
+      this.effectStatus = {
+        ...this.effectStatus,
+        strength: this.effectStrength,
+      };
+    this.emit();
+  }
   noiseReduction(mode: NoiseReduction) {
     return this.configureMicrophone(mode, this.effectMode);
   }
   async configureMicrophone(
     mode: NoiseReduction,
     effect: MicrophoneEffect = "none",
+    strength = this.effectStrength,
   ) {
+    this.setMicrophoneReverbStrength(strength);
     this.noiseMode = mode;
     this.effectMode = effect;
     const revision = ++this.processorRevision,
@@ -684,6 +706,7 @@ export class MediaSession {
           effect,
           status,
           () => !this.microphoneWanted,
+          this.effectStrength,
         );
         if (!current()) {
           await processor?.destroy();
@@ -737,11 +760,14 @@ export class MediaSession {
         if (mode !== "enhanced")
           this.noiseStatus = { requested: mode, active: mode };
         const attached = track.getProcessor();
-        if (attached instanceof KtvReverb)
+        if (attached instanceof KtvReverb) {
           attached.setMuted(!this.microphoneWanted);
+          attached.setStrength(this.effectStrength);
+        }
         this.effectStatus = {
           requested: effect,
           active,
+          strength: this.effectStrength,
           ...(effect !== active
             ? { reason: "reverb-unavailable" as const }
             : {}),
@@ -1270,6 +1296,7 @@ export class MediaSession {
             requested: this.effectStatus.requested,
             active: this.effectStatus.active,
             fallback: Boolean(this.effectStatus.reason),
+            strength: this.effectStrength,
           }
         : undefined,
       tracks: reports.filter(

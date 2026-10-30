@@ -17,3 +17,26 @@ test("legacy microphone settings default to original voice and keep the explicit
     }).success,
   ).toBe(false);
 });
+
+test("reverb strength defaults to the existing preset at 40 percent and accepts 0 through 100", () => {
+  const legacy = { ...defaultSettings } as Record<string, unknown>;
+  delete legacy.microphoneReverbStrength;
+  expect(settingsSchema.parse(legacy)).toHaveProperty(
+    "microphoneReverbStrength",
+    40,
+  );
+  for (const value of [0, 40, 100])
+    expect(
+      settingsSchema.parse({
+        ...defaultSettings,
+        microphoneReverbStrength: value,
+      }),
+    ).toHaveProperty("microphoneReverbStrength", value);
+  for (const value of [-1, 101, Number.NaN, 1.5])
+    expect(
+      settingsSchema.safeParse({
+        ...defaultSettings,
+        microphoneReverbStrength: value,
+      }).success,
+    ).toBe(false);
+});

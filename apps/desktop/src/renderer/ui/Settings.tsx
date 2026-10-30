@@ -312,6 +312,8 @@ export function Settings() {
             if (status.reason && revision === testRevision.current)
               update({ notice: "高质量降噪暂不可用，已切换兼容降噪" });
           },
+          undefined,
+          settings.microphoneReverbStrength,
         );
         if (revision !== testRevision.current) {
           stream.getTracks().forEach((track) => track.stop());

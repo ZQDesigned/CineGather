@@ -39,6 +39,7 @@ test("the KTV graph follows denoising, gates mute and releases only its own reso
   const gains: {
     value: number;
     last?: number;
+    target?: number;
     setValueAtTime(v: number): void;
   }[] = [];
   const speaker = {};
@@ -52,6 +53,10 @@ test("the KTV graph follows denoising, gates mute and releases only its own reso
   const parameter = () => ({
     value: 0,
     last: undefined as number | undefined,
+    target: undefined as number | undefined,
+    setTargetAtTime(v: number) {
+      this.target = v;
+    },
     setValueAtTime(v: number) {
       this.last = v;
     },
@@ -115,6 +120,13 @@ test("the KTV graph follows denoising, gates mute and releases only its own reso
     p.setMuted(false);
     expect(gains[3]!.last).toBe(1);
     p.setMuted(true);
+    expect(gains[3]!.last).toBe(0);
+    const track = p.processedTrack;
+    p.setStrength(100);
+    expect(gains[1]!.target).toBeCloseTo(0.7);
+    p.setStrength(0);
+    expect(gains[1]!.target).toBe(0);
+    expect(p.processedTrack).toBe(track);
     expect(gains[3]!.last).toBe(0);
     expect(speakerRoutes).toBe(0);
     await p.destroy();

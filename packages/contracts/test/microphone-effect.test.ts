@@ -8,6 +8,7 @@ test("KTV configuration and actual processor fallback survive diagnostic snapsho
     requested: "ktv",
     active: "none",
     fallback: true,
+    strength: 85,
   } as const;
   expect(
     diagnosticSnapshotSchema.parse({ microphoneEffect }).microphoneEffect,

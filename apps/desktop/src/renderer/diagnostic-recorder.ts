@@ -237,6 +237,7 @@ export class DiagnosticRecorder {
           quality: context.settings.quality,
           watchProfile: context.settings.watchProfile,
           noiseReduction: context.settings.noiseReduction,
+          microphoneReverbStrength: context.settings.microphoneReverbStrength,
           microphoneEffect: context.settings.microphoneEffect ?? "none",
           pushToTalk: context.settings.pushToTalk,
           watching: context.media.watching,

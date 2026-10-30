@@ -870,6 +870,7 @@ export const roomSession = new RoomCoordinator({
       await media.configureMicrophone(
         state().settings.noiseReduction,
         state().settings.microphoneEffect ?? "none",
+        state().settings.microphoneReverbStrength,
       );
       await media.microphone(
         !(capabilities().pushToTalk && state().settings.pushToTalk),
@@ -1515,6 +1516,7 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
   await media.configureMicrophone(
     settings.noiseReduction,
     settings.microphoneEffect ?? "none",
+    settings.microphoneReverbStrength,
   );
   update({
     settings,
@@ -1541,6 +1543,7 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
           ? media.configureMicrophone(
               settings.noiseReduction,
               state().settings.microphoneEffect ?? "none",
+              state().settings.microphoneReverbStrength,
             )
           : media.devices(
               key === "inputDevice" ? settings.inputDevice : undefined,
@@ -1571,12 +1574,23 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
   roomAudioWork = work;
   return work;
 }
+export async function setMicrophoneReverbStrength(value: number) {
+  media.setMicrophoneReverbStrength(value);
+  await persistSettings((current) => ({
+    ...current,
+    microphoneReverbStrength: value,
+  }));
+}
 export async function setMicrophoneEffect(effect: MicrophoneEffect) {
   const next = await persistSettings((current) => ({
     ...current,
     microphoneEffect: effect,
   }));
-  await media.configureMicrophone(next.noiseReduction, effect);
+  await media.configureMicrophone(
+    next.noiseReduction,
+    effect,
+    next.microphoneReverbStrength,
+  );
 }
 export async function setWatchProfile(
   profile: import("@cinegather/contracts").WatchProfile,

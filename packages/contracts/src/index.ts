@@ -340,6 +340,7 @@ export interface DesktopSettings {
   autoDownloadUpdates?: boolean;
   noiseReduction: NoiseReduction;
   microphoneEffect?: MicrophoneEffect;
+  microphoneReverbStrength?: number;
   memberOverlay?: MemberOverlayPreferences;
   minimizeToTray: boolean;
   pushToTalk: boolean;
@@ -565,3 +566,4 @@ export * from "./notifications";
 export * from "./watch-profile";
 
 export type MicrophoneEffect = "none" | "ktv";
+export const defaultMicrophoneReverbStrength = 40;

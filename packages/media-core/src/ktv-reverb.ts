@@ -3,6 +3,11 @@ import type {
   Track,
   TrackProcessor,
 } from "livekit-client";
+import { defaultMicrophoneReverbStrength } from "@cinegather/contracts";
+const strengthValue = (value: number) =>
+  Number.isFinite(value)
+    ? Math.round(Math.max(0, Math.min(100, value)))
+    : defaultMicrophoneReverbStrength;
 
 // A fixed small-room preset: intelligible dry vocal plus a quiet decaying tail.
 export function ktvImpulse(sampleRate: number) {
@@ -23,6 +28,7 @@ export function createKtvReverbGraph(
   context: BaseAudioContext,
   source: AudioNode,
   muted = false,
+  strength = defaultMicrophoneReverbStrength,
 ) {
   const dry = context.createGain(),
     wet = context.createGain(),
@@ -34,7 +40,8 @@ export function createKtvReverbGraph(
     reverb = context.createConvolver(),
     limiter = context.createDynamicsCompressor();
   dry.gain.value = 1;
-  wet.gain.value = 0.28;
+  // 40% retains the released 0.28 wet gain; 100% reaches 0.7, with dry gain fixed.
+  wet.gain.value = strengthValue(strength) * 0.007;
   output.gain.value = muted ? 0 : 1;
   preDelay.delayTime.value = 0.022;
   highpass.type = "highpass";
@@ -64,6 +71,7 @@ export function createKtvReverbGraph(
   mix.connect(limiter).connect(output);
   return {
     output,
+    wet,
     nodes: [
       dry,
       wet,
@@ -85,6 +93,7 @@ export class KtvReverb
   private context?: AudioContext;
   private destination?: MediaStreamAudioDestinationNode;
   private gate?: GainNode;
+  private wet?: GainNode;
   private nodes: AudioNode[] = [];
   private generation = 0;
   constructor(
@@ -93,7 +102,17 @@ export class KtvReverb
       AudioProcessorOptions
     >,
     private readonly isMuted = () => false,
+    private strength = defaultMicrophoneReverbStrength,
   ) {}
+  setStrength(value: number) {
+    this.strength = strengthValue(value);
+    if (this.wet && this.context)
+      this.wet.gain.setTargetAtTime(
+        this.strength * 0.007,
+        this.context.currentTime,
+        0.02,
+      );
+  }
   setMuted(muted: boolean) {
     if (this.gate && this.context)
       this.gate.gain.setValueAtTime(muted ? 0 : 1, this.context.currentTime);
@@ -111,8 +130,14 @@ export class KtvReverb
       const destination = (this.destination =
         context.createMediaStreamDestination());
       destination.channelCount = 1;
-      const graph = createKtvReverbGraph(context, source, this.isMuted());
+      const graph = createKtvReverbGraph(
+        context,
+        source,
+        this.isMuted(),
+        this.strength,
+      );
       this.gate = graph.output;
+      this.wet = graph.wet;
       graph.output.connect(destination);
       this.nodes = [source, ...graph.nodes, destination];
       this.processedTrack = destination.stream.getAudioTracks()[0];
@@ -136,6 +161,7 @@ export class KtvReverb
     this.processedTrack = undefined;
     this.context = undefined;
     this.gate = undefined;
+    this.wet = undefined;
   }
   async destroy() {
     ++this.generation;

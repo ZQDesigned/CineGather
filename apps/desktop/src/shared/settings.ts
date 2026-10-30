@@ -4,10 +4,9 @@ import {
   notificationPreferencesSchema,
   defaultNotificationPreferences,
   watchProfileSchema,
-} from "@cinegather/contracts";
-import type {
-  DesktopSettings,
-  MemberOverlayPreferences,
+  defaultMicrophoneReverbStrength,
+  type DesktopSettings,
+  type MemberOverlayPreferences,
 } from "@cinegather/contracts";
 export const defaultOverlayPreferences: MemberOverlayPreferences = {
   enabled: true,
@@ -40,6 +39,12 @@ export const settingsSchema = z.strictObject({
     })
     .default(defaultOverlayPreferences),
   microphoneEffect: z.enum(["none", "ktv"]).default("none"),
+  microphoneReverbStrength: z
+    .number()
+    .int()
+    .min(0)
+    .max(100)
+    .default(defaultMicrophoneReverbStrength),
   noiseReduction: z.enum(["enhanced", "basic", "off"]).default("enhanced"),
   minimizeToTray: z.boolean(),
   pushToTalk: z.boolean(),
@@ -58,6 +63,7 @@ export const defaultSettings = {
   autoDownloadUpdates: true,
   noiseReduction: "enhanced",
   microphoneEffect: "none",
+  microphoneReverbStrength: defaultMicrophoneReverbStrength,
   memberOverlay: defaultOverlayPreferences,
   minimizeToTray: true,
   pushToTalk: false,
