@@ -12,3 +12,7 @@ LICENSE
 bun.lock
 packages/api-client/src/schema.ts
 packages/database/migrations/meta
+apps/mobile/android/
+apps/mobile/ios/
+apps/mobile/.expo/
+apps/mobile/modules/**/build/

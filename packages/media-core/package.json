@@ -1,7 +1,8 @@
 {
   "name": "@cinegather/media-core",
   "exports": {
-    ".": "./src/index.ts"
+    ".": "./src/index.ts",
+    "./protocol": "./src/protocol.ts"
   },
   "dependencies": {
     "@cinegather/contracts": "workspace:*",

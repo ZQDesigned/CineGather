@@ -35,7 +35,7 @@
     "dev:web": "bun run --filter @cinegather/desktop dev:web",
     "build:web": "bun run --filter @cinegather/desktop build:web",
     "serve:web": "bun run --filter @cinegather/desktop serve:web",
-    "typecheck": "tsc --noEmit",
+    "typecheck": "tsc --noEmit && bun run --filter @cinegather/mobile typecheck",
     "lint": "eslint .",
     "test": "bun test packages apps/api/test apps/desktop/test",
     "test:integration": "bun test tests/integration",
@@ -62,7 +62,8 @@
     "test:native-host": "bun tools/native-host-smoke.ts",
     "icons:build": "bun tools/icons.ts",
     "superadmin:grant": "bun tools/superadmin.ts grant",
-    "superadmin:revoke": "bun tools/superadmin.ts revoke"
+    "superadmin:revoke": "bun tools/superadmin.ts revoke",
+    "dev:mobile": "bun run --filter @cinegather/mobile start"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",
