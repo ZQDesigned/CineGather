@@ -1,5 +1,10 @@
 ; Native logging remains available when PowerShell or WMI is blocked.
 ; Keep this journal outside $INSTDIR so old uninstallers cannot delete it.
+!ifdef BUILD_UNINSTALLER
+  !define MUI_CUSTOMFUNCTION_UNABORT un.cgUserAbort
+!else
+  !define MUI_CUSTOMFUNCTION_ABORT cgUserAbort
+!endif
 Var cgLogFile
 Var cgStage
 Var cgDetail
@@ -116,7 +121,7 @@ FunctionEnd
   Function un.onUninstFailed
     !insertmacro cgRecord "un." "uninstall-failed" "$INSTDIR" "2" ""
   FunctionEnd
-  Function un.onUserAbort
+  Function un.cgUserAbort
     !insertmacro cgRecord "un." "uninstall-aborted" "$INSTDIR" "" ""
   FunctionEnd
 !else
@@ -128,7 +133,7 @@ FunctionEnd
     !insertmacro cgRecord "" "install-failed" "$INSTDIR" "2" ""
     Call cgFailureSnapshot
   FunctionEnd
-  Function .onUserAbort
+  Function cgUserAbort
     !insertmacro cgRecord "" "install-aborted" "$INSTDIR" "" ""
   FunctionEnd
 !endif

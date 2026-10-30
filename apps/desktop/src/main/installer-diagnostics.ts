@@ -1,14 +1,17 @@
+import { readdir, lstat, readFile } from "node:fs/promises";
 import {
   appendFileSync,
   mkdirSync,
   readdirSync,
   lstatSync,
   unlinkSync,
-  readFileSync,
 } from "node:fs";
 import { join } from "node:path";
 import { randomUUID } from "node:crypto";
 import { z } from "zod";
+const journalIssues = new Map<string, number>();
+const remember = (code: string) =>
+  journalIssues.set(code, (journalIssues.get(code) ?? 0) + 1);
 const maxFile = 1024 * 1024,
   maxTotal = 32 * maxFile;
 const owned =
@@ -124,6 +127,7 @@ export class InstallerJournal {
       const path = join(this.directory, `app-${this.attempt}.jsonl`);
       if ((existsSize(path) ?? 0) >= maxFile) {
         this.failures++;
+        remember("journal-size-limit");
         return;
       }
       const value = record.parse({
@@ -156,8 +160,14 @@ export class InstallerJournal {
         )
           unlinkSync(join(this.directory, f.name));
       }
-    } catch {
+    } catch (error) {
       this.failures++;
+      const code = (error as NodeJS.ErrnoException).code;
+      remember(
+        ["EACCES", "EPERM", "ENOSPC", "EIO", "ENOTDIR"].includes(code ?? "")
+          ? code!
+          : "journal-write-failed",
+      );
     }
   }
 }
@@ -174,15 +184,25 @@ export async function readInstallerDiagnostics(
   const result: InstallerEvidence = {
     available: false,
     records: [],
-    issues: [],
+    issues: [...journalIssues].map(
+      ([code, count]) => "application-journal:" + code + ":" + count,
+    ),
   };
   if (!directory) return result;
   try {
-    const files = readdirSync(directory)
-      .filter((n) => owned.test(n))
-      .map((name) => ({ name, stat: lstatSync(join(directory, name)) }))
-      .filter((f) => f.stat.isFile())
-      .sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
+    const files: { name: string; stat: Awaited<ReturnType<typeof lstat>> }[] =
+      [];
+    for (const name of (await readdir(directory)).filter((n) =>
+      owned.test(n),
+    )) {
+      try {
+        const stat = await lstat(join(directory, name));
+        if (stat.isFile()) files.push({ name, stat });
+      } catch {
+        result.issues.push(name + ":metadata-unavailable");
+      }
+    }
+    files.sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
     result.available = true;
     let bytes = 0;
     for (const f of files) {
@@ -195,7 +215,7 @@ export async function readInstallerDiagnostics(
         continue;
       }
       try {
-        const buffer = readFileSync(join(directory, f.name));
+        const buffer = await readFile(join(directory, f.name));
         const lines = f.name.endsWith(".tsv")
           ? buffer
               .toString("utf16le")
@@ -208,6 +228,10 @@ export async function readInstallerDiagnostics(
                 .split(/\r?\n/)
             : [buffer.toString("utf8").replace(/^\uFEFF/, "")];
         for (const line of lines.filter((s) => s.trim())) {
+          if (result.records.length >= 10000) {
+            result.issues.push(f.name + ":count-limit");
+            break;
+          }
           try {
             let value: unknown;
             if (f.name.endsWith(".tsv")) {

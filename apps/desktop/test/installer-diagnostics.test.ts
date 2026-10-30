@@ -94,3 +94,39 @@ test("retention removes only owned history, preserves other files and the curren
     await rm(root, { recursive: true, force: true });
   }
 });
+
+test("export strips command lines from failure snapshots and enforces its record cap within a single file", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cg-install-limits-"));
+  try {
+    await writeFile(
+      join(root, "snapshot-safe.json"),
+      JSON.stringify({
+        v: 1,
+        at: Date.now(),
+        phase: "failure-snapshot",
+        path: "C:\\Users\\Alice\\AppData\\Local\\CineGather",
+        processes: [
+          {
+            pid: 42,
+            name: "CineGather.exe",
+            commandLine: "--token=DO-NOT-EXPORT",
+          },
+        ],
+        token: "DO-NOT-EXPORT",
+      }),
+    );
+    const snapshot = JSON.stringify(await readInstallerDiagnostics(root));
+    expect(snapshot).toContain("<USER>");
+    expect(snapshot).not.toContain("Alice");
+    expect(snapshot).not.toContain("DO-NOT-EXPORT");
+    await writeFile(
+      join(root, "app-aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa.jsonl"),
+      (JSON.stringify({ v: 1, at: 1, phase: "x" }) + "\n").repeat(11000),
+    );
+    const limited = await readInstallerDiagnostics(root);
+    expect(limited.records.length).toBeLessThanOrEqual(10000);
+    expect(limited.issues.some((i) => i.includes("count-limit"))).toBe(true);
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
