@@ -1,26 +1,29 @@
-import { useEffect, useState } from "react";
-import { View, Text } from "react-native";
+import { useState } from "react";
+import { View, Text, Share } from "react-native";
 import { Link, Send, Users } from "lucide-react-native";
 import { runtime } from "../runtime";
 import { useRuntime, useMedia, action } from "./use-runtime";
-import { Dialog, Avatar, Button, EmptyState, styles, colors } from "./ui";
+import { Avatar, Button, EmptyState, styles, colors } from "./ui";
+import { Sheet, UnavailableSheet, useSheetRoom } from "./Sheet";
 
-export function InviteFriends({
-  visible,
-  close,
-  share,
-}: {
-  visible: boolean;
-  close(): void;
-  share(): void | Promise<unknown>;
-}) {
+export function InviteFriends() {
   const state = useRuntime(),
-    media = useMedia();
+    media = useMedia(),
+    room = useSheetRoom();
   const [sent, setSent] = useState<Set<string>>(new Set());
-  const roomId = state.room?.id;
-  useEffect(() => {
-    if (visible) setSent(new Set());
-  }, [visible, roomId]);
+  if (!room) return <UnavailableSheet />;
+  const roomId = room.id;
+  const share = action(async () => {
+    const value = await runtime.api.call("invite", (c) =>
+      c.POST("/api/v1/rooms/{roomId}/invites", {
+        params: { path: { roomId } },
+        body: { expiresInHours: 24, maxUses: 10 },
+      }),
+    );
+    await Share.share({
+      message: `加入映聚房间「${room.name}」\n${runtime.origin}/?room=${room.code}#invite=${value.token}`,
+    });
+  });
   const friends = state.friends.items
     .filter((f) => f.status === "accepted")
     .sort(
@@ -30,7 +33,7 @@ export function InviteFriends({
     );
   const full = !!state.room && media.members.length >= state.room.maxMembers;
   return (
-    <Dialog visible={visible} title="邀请好友" close={close}>
+    <Sheet title="邀请好友">
       {friends.map((friend) => {
         const present = media.members.some((m) => m.id === friend.userId);
         const invited = sent.has(friend.userId);
@@ -92,6 +95,6 @@ export function InviteFriends({
           分享邀请链接
         </Button>
       </View>
-    </Dialog>
+    </Sheet>
   );
 }

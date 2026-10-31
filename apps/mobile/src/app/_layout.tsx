@@ -10,6 +10,7 @@ import { runtime } from "../runtime";
 import { useSession, useRuntime } from "../components/use-runtime";
 import { Auth } from "../components/Auth";
 import { colors, Dialog, Label, Button } from "../components/ui";
+import { nativeSheetOptions } from "../components/Sheet";
 export default function Layout() {
   const session = useSession(),
     state = useRuntime();
@@ -40,6 +41,9 @@ export default function Layout() {
                 headerBackTitle: "返回",
               }}
             />
+            <Stack.Screen name="audio-options" options={nativeSheetOptions} />
+            <Stack.Screen name="member-options" options={nativeSheetOptions} />
+            <Stack.Screen name="invite-friends" options={nativeSheetOptions} />
             <Stack.Screen name="devices" options={{ title: "登录设备" }} />
           </Stack>
           <ErrorToast />

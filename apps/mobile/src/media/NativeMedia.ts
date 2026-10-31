@@ -415,6 +415,9 @@ export class NativeMedia {
       tracks,
     };
   }
+  gain(kind: "voice" | "share") {
+    return kind === "voice" ? this.voiceGain : this.shareGain;
+  }
   setGain(kind: "voice" | "share", gain: number) {
     if (kind === "voice") this.voiceGain = Math.max(0, Math.min(2, gain));
     else this.shareGain = Math.max(0, Math.min(2, gain));

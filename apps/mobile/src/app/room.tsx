@@ -13,7 +13,6 @@ import {
   Platform,
   useWindowDimensions,
   AppState,
-  Share,
   Keyboard,
   Pressable,
   StyleSheet,
@@ -21,7 +20,6 @@ import {
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { VideoTrack } from "@livekit/react-native";
-import Slider from "@react-native-community/slider";
 import * as Orientation from "expo-screen-orientation";
 import {
   MonitorPlay,
@@ -61,7 +59,6 @@ import {
   EmptyState,
 } from "../components/ui";
 import { Screen } from "../components/Screen";
-import { InviteFriends } from "../components/InviteFriends";
 export default function RoomScreen() {
   const state = useRuntime(),
     media = useMedia(),
@@ -69,13 +66,6 @@ export default function RoomScreen() {
     insets = useSafeAreaInsets();
   const [tab, setTab] = useState<"members" | "chat">("members"),
     [draft, setDraft] = useState("");
-  const [selected, setSelected] = useState<string>(),
-    [outputs, setOutputs] = useState<string[]>([]),
-    [audio, setAudio] = useState(false);
-  const [voice, setVoice] = useState(1),
-    [shared, setShared] = useState(1),
-    [memberGain, setMemberGain] = useState(1);
-  const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState(false),
     [name, setName] = useState(""),
     [max, setMax] = useState("5");
@@ -153,17 +143,6 @@ export default function RoomScreen() {
       await operation();
       await runtime.refresh();
     });
-  const shareInvite = work(async () => {
-    const value = await runtime.api.call("invite", (c) =>
-      c.POST("/api/v1/rooms/{roomId}/invites", {
-        params: { path: { roomId: room.id } },
-        body: { expiresInHours: 24, maxUses: 10 },
-      }),
-    );
-    await Share.share({
-      message: `加入映聚房间「${room.name}」\n${runtime.origin}/?room=${room.code}#invite=${value.token}`,
-    });
-  });
   const video = (
     <View
       testID="video-frame"
@@ -270,7 +249,10 @@ export default function RoomScreen() {
             label="邀请好友"
             testID="room-invite-friends"
             onPress={() => {
-              setInviting(true);
+              router.push({
+                pathname: "/invite-friends",
+                params: { roomId: room.id },
+              });
               void runtime.refresh().catch((e) => runtime.fail(e));
             }}
           />
@@ -489,8 +471,10 @@ export default function RoomScreen() {
                         icon={MoreHorizontal}
                         label={`${member.name}的成员操作`}
                         onPress={() => {
-                          setSelected(member.id);
-                          setMemberGain(runtime.media.memberGain(member.id));
+                          router.push({
+                            pathname: "/member-options",
+                            params: { roomId: room.id, userId: member.id },
+                          });
                         }}
                       />
                     )}
@@ -632,10 +616,12 @@ export default function RoomScreen() {
               <IconButton
                 icon={ChevronUp}
                 label="音频与输出设备"
-                onPress={action(async () => {
-                  setOutputs(await runtime.media.outputs());
-                  setAudio(true);
-                })}
+                onPress={() =>
+                  router.push({
+                    pathname: "/audio-options",
+                    params: { roomId: room.id },
+                  })
+                }
               />
             </View>
             <Button
@@ -654,56 +640,6 @@ export default function RoomScreen() {
           </View>
         )}
       </RoomKeyboard>
-      <InviteFriends
-        key={room.id}
-        visible={inviting}
-        close={() => setInviting(false)}
-        share={shareInvite}
-      />
-      <Dialog visible={audio} title="音频" close={() => setAudio(false)}>
-        <Label>语音音量 {Math.round(voice * 100)}%</Label>
-        <Slider
-          accessibilityLabel="语音音量"
-          minimumValue={0}
-          maximumValue={2}
-          value={voice}
-          onValueChange={(v) => {
-            setVoice(v);
-            runtime.media.setGain("voice", v);
-          }}
-        />
-        <Label>共享音量 {Math.round(shared * 100)}%</Label>
-        <Slider
-          accessibilityLabel="共享音量"
-          minimumValue={0}
-          maximumValue={2}
-          value={shared}
-          onValueChange={(v) => {
-            setShared(v);
-            runtime.media.setGain("share", v);
-          }}
-        />
-        <Label>输出设备</Label>
-        {outputs.map((output) => (
-          <Button
-            key={output}
-            onPress={action(() => runtime.media.selectOutput(output))}
-          >
-            {(
-              {
-                speaker: "扬声器",
-                speakerphone: "扬声器",
-                earpiece: "听筒",
-                headset: "耳机",
-                bluetooth: "蓝牙耳机",
-                default: "系统选择 / 蓝牙设备",
-                force_speaker: "扬声器",
-              } as Record<string, string>
-            )[output] ?? output}
-          </Button>
-        ))}
-        <Label muted>已启用基础降噪与回声消除。</Label>
-      </Dialog>
       <Dialog
         visible={editing}
         title="房间设置"
@@ -730,121 +666,6 @@ export default function RoomScreen() {
         >
           保存
         </Button>
-      </Dialog>
-      <Dialog
-        visible={!!selected}
-        title="成员操作"
-        close={() => setSelected(undefined)}
-      >
-        <Label>用户音量 {Math.round(memberGain * 100)}%</Label>
-        <Slider
-          accessibilityLabel="用户音量"
-          minimumValue={0}
-          maximumValue={2}
-          value={memberGain}
-          onValueChange={(value) => {
-            setMemberGain(value);
-            if (selected) runtime.media.setMemberGain(selected, value);
-          }}
-          onSlidingComplete={(value) => {
-            if (
-              state.friends.items.some(
-                (f) => f.userId === selected && f.status === "accepted",
-              )
-            )
-              void runtime.api
-                .call("friend-volume", (c) =>
-                  c.PATCH("/api/v1/friends/{userId}/preferences", {
-                    params: { path: { userId: selected! } },
-                    body: { volume: Math.round(value * 100) },
-                  }),
-                )
-                .catch((e) => runtime.fail(e));
-          }}
-        />
-        {owner && (
-          <>
-            <Button
-              onPress={work(() =>
-                runtime.api.call("mute-member", (c) =>
-                  c.POST(
-                    "/api/v1/rooms/{roomId}/members/{userId}/microphone/mute",
-                    {
-                      body: {},
-                      params: { path: { roomId: room.id, userId: selected! } },
-                    },
-                  ),
-                ),
-              )}
-            >
-              关闭麦克风
-            </Button>
-            <Button
-              onPress={work(() =>
-                runtime.api.call("toggle-microphone-permission", (c) =>
-                  c.POST(
-                    "/api/v1/rooms/{roomId}/members/{userId}/permissions",
-                    {
-                      params: { path: { roomId: room.id, userId: selected! } },
-                      body: {
-                        microphoneAllowed:
-                          room.memberPermissions?.find(
-                            (p) => p.userId === selected,
-                          )?.microphoneAllowed === false,
-                      },
-                    },
-                  ),
-                ),
-              )}
-            >
-              {room.memberPermissions?.find((p) => p.userId === selected)
-                ?.microphoneAllowed === false
-                ? "允许开麦"
-                : "禁止开麦"}
-            </Button>
-            <Button
-              onPress={work(() =>
-                runtime.api.call("stop-accompaniment", (c) =>
-                  c.POST(
-                    "/api/v1/rooms/{roomId}/members/{userId}/accompaniment/stop",
-                    {
-                      body: {},
-                      params: { path: { roomId: room.id, userId: selected! } },
-                    },
-                  ),
-                ),
-              )}
-            >
-              关闭伴奏
-            </Button>
-            <Button
-              onPress={work(async () => {
-                await runtime.api.call("transfer-owner", (c) =>
-                  c.POST("/api/v1/rooms/{roomId}/members/{userId}/owner", {
-                    params: { path: { roomId: room.id, userId: selected! } },
-                  }),
-                );
-                setSelected(undefined);
-              })}
-            >
-              转移房主
-            </Button>
-            <Button
-              danger
-              onPress={work(async () => {
-                await runtime.api.call("remove-member", (c) =>
-                  c.DELETE("/api/v1/rooms/{roomId}/members/{userId}", {
-                    params: { path: { roomId: room.id, userId: selected! } },
-                    body: { ban: false },
-                  }),
-                );
-                setSelected(undefined);
-              })}
-            >
-              移出房间
-            </Button>
-          </>
-        )}
       </Dialog>
     </Screen>
   );
