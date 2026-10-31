@@ -58,6 +58,7 @@ try:
         "bunx", "expo", "prebuild", "--platform", "ios", "--no-clean", "--no-install"
     ])
     run(["pod", "install"], app / "ios")
+    run(["bun", root / "tools/third-party.ts", "mobile"])
     archive = output / f"CineGather-{version}-ios.xcarchive"
     if archive.exists():
         shutil.rmtree(archive)
@@ -80,6 +81,7 @@ try:
         payload.mkdir()
         target = payload / "app.app"
         shutil.copytree(built_app, target, symlinks=True)
+        shutil.copyfile(output / "MOBILE_THIRD_PARTY_NOTICES.txt", target / "THIRD_PARTY_NOTICES.txt")
         for profile in target.rglob("*.mobileprovision"):
             profile.unlink()
         frameworks = sorted(target.rglob("*.framework"), key=lambda p: len(p.parts), reverse=True)

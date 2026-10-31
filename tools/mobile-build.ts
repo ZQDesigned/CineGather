@@ -5,6 +5,7 @@ import {
   writeFileSync,
   chmodSync,
   rmSync,
+  copyFileSync,
 } from "node:fs";
 import { homedir } from "node:os";
 import { resolve } from "node:path";
@@ -127,6 +128,13 @@ try {
       "--no-install",
     ],
     env,
+  );
+  await command(["bun", resolve(root, "tools/third-party.ts"), "mobile"], env);
+  const assets = resolve(app, "android/app/src/main/assets");
+  mkdirSync(assets, { recursive: true });
+  copyFileSync(
+    resolve(output, "MOBILE_THIRD_PARTY_NOTICES.txt"),
+    resolve(assets, "THIRD_PARTY_NOTICES.txt"),
   );
   mkdirSync(output, { recursive: true });
   const workers = resolve(root, ".local/mobile/native-workers.gradle");

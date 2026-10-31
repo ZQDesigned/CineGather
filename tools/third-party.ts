@@ -5,6 +5,7 @@ import {
   writeFile,
   stat,
   mkdir,
+  rename,
 } from "node:fs/promises";
 import { createHash } from "node:crypto";
 import { dirname, join, resolve } from "node:path";
@@ -56,10 +57,41 @@ async function walk(directory: string) {
   for (const name of Object.keys(pkg.dependencies ?? {}).sort())
     await walk(await locate(name, directory));
 }
-await walk(join(root, "apps/desktop"));
+const platform = process.argv[2] ?? process.platform;
+await walk(join(root, platform === "mobile" ? "apps/mobile" : "apps/desktop"));
+if (platform === "mobile") {
+  const acknowledgements = join(
+    root,
+    "apps/mobile/ios/Pods/Target Support Files/Pods-app/Pods-app-acknowledgements.plist",
+  );
+  if (await stat(acknowledgements).catch(() => undefined)) {
+    const result =
+      await Bun.$`plutil -convert json -o - ${acknowledgements}`.text();
+    const native = JSON.parse(result) as {
+      PreferenceSpecifiers: { Title?: string; FooterText?: string }[];
+    };
+    for (const item of native.PreferenceSpecifiers)
+      if (item.FooterText)
+        notices.push(
+          `${item.Title ?? "Native dependency"}\n\n${item.FooterText}`,
+        );
+  }
+  const directory = join(root, ".local/mobile/artifacts");
+  await mkdir(directory, { recursive: true });
+  const output = join(directory, "MOBILE_THIRD_PARTY_NOTICES.txt");
+  const temporary = `${output}.${process.pid}.tmp`;
+  await writeFile(
+    temporary,
+    `CineGather mobile third-party notices\n\n${notices.sort().join("\n\n" + "=".repeat(78) + "\n\n")}\n`,
+  );
+  await rename(temporary, output);
+  console.log(
+    `Generated mobile dependency notices for ${notices.length} components.`,
+  );
+  process.exit(0);
+}
 // Koffi selects a platform-specific optional N-API runtime. Inventory the one
 // explicitly shipped by this build, rather than omitting optional packages.
-const platform = process.argv[2] ?? process.platform;
 const arch = process.argv[3] ?? process.arch;
 if (platform !== "web")
   await walk(await locate(`@koromix/koffi-${platform}-${arch}`, root));
