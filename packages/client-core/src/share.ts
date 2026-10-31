@@ -9,6 +9,13 @@ export interface ShareDependencies {
   stop(): Promise<void>;
   changed(state: ShareState, revision: number): void;
   error(error: unknown): void;
+  timers?: {
+    setInterval(
+      handler: () => void,
+      delay: number,
+    ): ReturnType<typeof setInterval>;
+    clearInterval(id: ReturnType<typeof setInterval>): void;
+  };
 }
 export class ShareCoordinator {
   state: ShareState = "idle";
@@ -18,7 +25,7 @@ export class ShareCoordinator {
   private starting = false;
   private switching = false;
   private revokedLeases = new Set<string>();
-  private renewing = false;
+  private renewing?: number;
   private stopping?: Promise<void>;
   constructor(private readonly deps: ShareDependencies) {}
   private change(state: ShareState) {
@@ -62,7 +69,10 @@ export class ShareCoordinator {
         await this.stop();
         return;
       }
-      this.timer = setInterval(() => void this.renew(revision), 10_000);
+      this.timer = (this.deps.timers?.setInterval ?? setInterval)(
+        () => void this.renew(revision),
+        10_000,
+      );
       if (!sourceFirst) {
         this.change("selectingSource");
         const selected = await this.deps.select();
@@ -116,8 +126,9 @@ export class ShareCoordinator {
     }
   }
   private async renew(revision: number) {
-    if (this.renewing || !this.lease || revision !== this.revision) return;
-    this.renewing = true;
+    if (this.renewing === revision || !this.lease || revision !== this.revision)
+      return;
+    this.renewing = revision;
     try {
       const next = await this.deps.renew(this.lease);
       if (revision === this.revision) this.lease = next;
@@ -128,7 +139,7 @@ export class ShareCoordinator {
         this.deps.error(error);
       }
     } finally {
-      this.renewing = false;
+      if (this.renewing === revision) this.renewing = undefined;
     }
   }
   async revoke(leaseId: string) {
@@ -151,7 +162,8 @@ export class ShareCoordinator {
   }
   private async stopInternal() {
     ++this.revision;
-    clearInterval(this.timer);
+    if (this.timer !== undefined)
+      (this.deps.timers?.clearInterval ?? clearInterval)(this.timer);
     this.timer = undefined;
     const lease = this.lease;
     this.lease = undefined;

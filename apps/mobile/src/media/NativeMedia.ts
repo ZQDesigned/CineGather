@@ -73,6 +73,7 @@ export class NativeMedia {
     private readonly events: {
       message(message: ChatMessage): void;
       roomChanged?(): void;
+      stopShare?(leaseId: string): void;
       disconnected(reason: string): void;
       error(error: unknown): void;
       foregroundService?(microphone: boolean): Promise<void>;
@@ -247,6 +248,12 @@ export class NativeMedia {
           senderIdentity,
           room.name,
         );
+        if (control?.action === "stop-share")
+          this.events.stopShare?.(control.leaseId);
+        if (control?.action === "session-replaced") {
+          this.events.disconnected("房间已在另一台设备打开，本设备已退出房间");
+          return;
+        }
         if (control?.action === "mute-microphone") {
           this.microphone.setWanted(false);
           void this.reconcileMic();

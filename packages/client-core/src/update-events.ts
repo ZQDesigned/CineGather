@@ -12,7 +12,7 @@ const realEventClock: NotificationClock = {
 export function watchUpdateEvents(
   url: string,
   receive: (
-    event: "policy" | "release" | "announcements",
+    event: "policy" | "release" | "announcements" | "mobile-update",
     data: string,
   ) => void,
   request: (input: string, init: RequestInit) => Promise<Response> = fetch,
@@ -84,7 +84,8 @@ export function watchUpdateEvents(
               revision === generation &&
               (event === "policy" ||
                 event === "release" ||
-                event === "announcements")
+                event === "announcements" ||
+                event === "mobile-update")
             )
               try {
                 receive(event, data.join("\n"));

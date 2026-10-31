@@ -11,7 +11,16 @@ export function createApi(
   getToken: () => string | undefined,
   options: {
     timeoutMs?: number;
-    identity?: { version: string; platform: ClientPlatform };
+    identity?: {
+      version: string;
+      platform: ClientPlatform;
+      mobile?: {
+        runtime: string;
+        build: number;
+        revision: number;
+        channel: string;
+      };
+    };
     onUpdateRequired?: (minimumVersion: string, reason: string) => void;
   } = {},
 ) {
@@ -24,6 +33,13 @@ export function createApi(
       if (options.identity) {
         request.headers.set("X-CineGather-Version", options.identity.version);
         request.headers.set("X-CineGather-Platform", options.identity.platform);
+        const mobile = options.identity.mobile;
+        if (mobile) {
+          request.headers.set("X-CineGather-Runtime", mobile.runtime);
+          request.headers.set("X-CineGather-Build", String(mobile.build));
+          request.headers.set("X-CineGather-Revision", String(mobile.revision));
+          request.headers.set("X-CineGather-Channel", mobile.channel);
+        }
       }
       const token = getToken();
       if (token) request.headers.set("Authorization", `Bearer ${token}`);

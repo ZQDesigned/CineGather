@@ -155,6 +155,17 @@ test("revoking one device removes its exact media peer and keeps the other devic
   const firstId = list.find((s: { current: boolean }) => s.current).id;
   expect(firstIdentity).toEndWith("/" + firstId);
   const otherId = list.find((s: { current: boolean }) => !s.current).id;
+  // Retain coverage for legacy databases containing two admitted devices.
+  // New joins replace the first admission instead of creating that state.
+  await db
+    .update(roomSessions)
+    .set({ admittedUntil: new Date(Date.now() + 30_000) })
+    .where(
+      and(
+        eq(roomSessions.roomId, roomId),
+        eq(roomSessions.credentialId, firstId),
+      ),
+    );
   await db
     .update(roomSessions)
     .set({ admittedUntil: new Date(Date.now() - 1000) })
@@ -427,6 +438,11 @@ test("handoff only transfers after the approved device confirms, with stale and 
       Buffer.from(extraJoin.body.token.split(".")[1]!, "base64url").toString(),
     ).sub;
     identities.push(extraIdentity);
+    // Taking over a device stops its share. The new device must explicitly start again.
+    b.sessionToken = extra.sessionToken;
+    expect(
+      (await req(`/rooms/${roomId}/share-lease`, b.sessionToken, {})).status,
+    ).toBe(201);
     const beforePolicy = changes.length;
     expect(
       (
@@ -438,8 +454,8 @@ test("handoff only transfers after the approved device confirms, with stale and 
       ).status,
     ).toBe(201);
     expect(changes.slice(beforePolicy)).toEqual([
-      { identity: identities[1]!, sharing: true },
-      { identity: extraIdentity, sharing: false },
+      { identity: identities[1]!, sharing: false },
+      { identity: extraIdentity, sharing: true },
     ]);
     // Permission changes are rechecked at consumption, not just at approval.
     await req(`/rooms/${roomId}/share-requests`, c.sessionToken, {});

@@ -188,7 +188,11 @@ test("room restrictions revoke native sharing, forbid new leases and mic tokens,
     await req(`/rooms/${otherRoom}/join`, b.token, {});
     const unaffected = await req(`/rooms/${otherRoom}`, b.token);
     expect(unaffected.body.memberPermissions ?? []).toHaveLength(0);
-    await req(url, a.token, { sharingAllowed: true });
+    // Switching rooms ends the old admission; return before changing its policy.
+    expect((await req(`/rooms/${roomId}/join`, b.token, {})).status).toBe(201);
+    expect((await req(url, a.token, { sharingAllowed: true })).status).toBe(
+      201,
+    );
     expect(
       (await req(`/rooms/${roomId}/share-lease`, b.token, {})).status,
     ).toBe(201);

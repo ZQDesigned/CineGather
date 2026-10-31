@@ -684,7 +684,14 @@ export const media = new MediaSession(
     } else if (command.action === "mute-microphone") {
       pttHolds.clear();
       update({ warning: "房主已关闭你的麦克风" });
-    } else {
+    } else if (command.action === "session-replaced") {
+      void roomSession
+        .leave(false)
+        .then(() =>
+          update({ warning: "房间已在另一台设备打开，本设备已退出房间" }),
+        )
+        .catch(report);
+    } else if (command.action === "stop-share") {
       void shareSession
         .revoke(command.leaseId)
         .then((stopped) => {
@@ -762,11 +769,13 @@ async function handleRemoteRemoval() {
   const code = result?.error?.code;
   update({
     warning:
-      code === "FORBIDDEN" || code === "ROOM_BANNED"
-        ? "你已被房主移出房间"
-        : code === "ROOM_NOT_FOUND"
-          ? "房间已关闭"
-          : "你已被服务器移出房间",
+      code === "ROOM_SESSION_REPLACED"
+        ? "房间已在另一台设备打开，本设备已退出房间"
+        : code === "FORBIDDEN" || code === "ROOM_BANNED"
+          ? "你已被房主移出房间"
+          : code === "ROOM_NOT_FOUND"
+            ? "房间已关闭"
+            : "你已被服务器移出房间",
   });
   await refreshRooms();
 }

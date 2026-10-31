@@ -175,9 +175,40 @@ export async function createRoom(
   );
 }
 export async function getRoom(user: User, roomId: string) {
-  return db.transaction((tx) =>
-    requireMember(tx, roomId, user.id, false, true),
-  );
+  return db.transaction(async (tx) => {
+    const info = await requireMember(tx, roomId, user.id, false, true);
+    const credentialId = sessionCredential(user);
+    if (credentialId) {
+      const [admission] = await tx
+        .select()
+        .from(roomSessions)
+        .where(
+          and(
+            eq(roomSessions.roomId, info.id),
+            eq(roomSessions.credentialId, credentialId),
+          ),
+        );
+      if (admission && !admission.admittedUntil) {
+        const [active] = await tx
+          .select()
+          .from(roomSessions)
+          .where(
+            and(
+              eq(roomSessions.userId, user.id),
+              isNotNull(roomSessions.admittedUntil),
+            ),
+          )
+          .limit(1);
+        if (active)
+          fail(
+            409,
+            "ROOM_SESSION_REPLACED",
+            "房间已在另一台设备打开，本设备已退出房间",
+          );
+      }
+    }
+    return info;
+  });
 }
 export async function listRooms(user: User) {
   const rows = await db
@@ -323,6 +354,35 @@ export async function joinRoom(
     ? eq(rooms.code, reference.toUpperCase())
     : eq(rooms.id, uuid(reference));
   return db.transaction(async (tx) => {
+    // Serialize joins for this account across API instances and lock affected
+    // rooms in stable order, so concurrent cross-room takeovers cannot deadlock.
+    await tx.execute(
+      sql`SELECT pg_advisory_xact_lock(hashtextextended(${"room-device:" + user.id}, 0))`,
+    );
+    const [target] = await tx
+      .select({ id: rooms.id })
+      .from(rooms)
+      .where(condition);
+    if (!target) fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
+    const previousSessions = await tx
+      .select()
+      .from(roomSessions)
+      .where(
+        and(
+          eq(roomSessions.userId, user.id),
+          isNotNull(roomSessions.admittedUntil),
+        ),
+      );
+    await tx
+      .select({ id: rooms.id })
+      .from(rooms)
+      .where(
+        inArray(rooms.id, [
+          ...new Set([target.id, ...previousSessions.map((s) => s.roomId)]),
+        ]),
+      )
+      .orderBy(rooms.id)
+      .for("update");
     const [room] = await tx.select().from(rooms).where(condition).for("update");
     if (!room || room.status !== "active")
       fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
@@ -398,6 +458,59 @@ export async function joinRoom(
     const occupying = await occupiedUserIds(tx, roomId, participants);
     if (!occupying.has(user.id) && occupying.size >= room.maxMembers)
       fail(409, "ROOM_FULL", "房间人数已满");
+    const credentialId = sessionCredential(user);
+    if (credentialId) {
+      const displaced = previousSessions.filter(
+        (s) => s.roomId !== roomId || s.credentialId !== credentialId,
+      );
+      for (const prior of displaced) {
+        const identity = memberIdentity(user.id, prior.credentialId);
+        await media
+          .control(identity, {
+            action: "session-replaced",
+            roomId: prior.roomId,
+          })
+          .catch(() => {});
+        await media.remove(prior.roomId, identity);
+        await tx
+          .update(roomSessions)
+          .set({ admittedUntil: null })
+          .where(
+            and(
+              eq(roomSessions.roomId, prior.roomId),
+              eq(roomSessions.credentialId, prior.credentialId),
+            ),
+          );
+        const [priorLease] = await tx
+          .select()
+          .from(leases)
+          .where(eq(leases.roomId, prior.roomId));
+        if (
+          priorLease?.holderUserId === user.id &&
+          (!priorLease.credentialId ||
+            priorLease.credentialId === prior.credentialId)
+        ) {
+          await revokeNative(tx, prior.roomId, user.id);
+          await tx
+            .update(leases)
+            .set({
+              holderUserId: null,
+              credentialId: null,
+              leaseId: null,
+              expiresAt: null,
+            })
+            .where(eq(leases.roomId, prior.roomId));
+        }
+      }
+      for (const priorRoom of new Set(displaced.map((s) => s.roomId))) {
+        await refreshSessionAdmission(tx, priorRoom, user.id);
+        if (priorRoom !== roomId) await settleRoom(tx, priorRoom);
+      }
+      if (displaced.length)
+        await audit(tx, user.id, "room.device_replaced", roomId, {
+          count: displaced.length,
+        });
+    }
     await tx
       .update(members)
       .set({

@@ -1,3 +1,9 @@
+import { MobileUpdateStore } from "./mobile-update-store";
+import { serveMobileUpdate } from "./mobile-update-http";
+import {
+  mobileCompatibilityFailure,
+  mobileUpdateExempt,
+} from "./mobile-updates";
 import "reflect-metadata";
 import {
   Module,
@@ -92,9 +98,14 @@ export async function createApp({
       "Idempotency-Key",
       "X-CineGather-Version",
       "X-CineGather-Platform",
+      "X-CineGather-Runtime",
+      "X-CineGather-Build",
+      "X-CineGather-Revision",
+      "X-CineGather-Channel",
     ],
     exposedHeaders: ["X-Request-Id", "X-CineGather-Min-Version"],
   });
+  const mobileUpdates = new MobileUpdateStore(updateDirectory);
   const buckets = new Map<string, { count: number; reset: number }>();
   const metrics = app.get(Metrics);
   app.use(
@@ -155,6 +166,56 @@ export async function createApp({
           requestId: req.requestId,
         });
         return;
+      }
+      if (
+        req.method === "GET" &&
+        req.path.startsWith("/api/v1/mobile-updates/")
+      ) {
+        serveMobileUpdate(mobileUpdates, req, res);
+        return;
+      }
+      const mobilePlatform = req.get("X-CineGather-Platform");
+      if (
+        (mobilePlatform === "android" || mobilePlatform === "ios") &&
+        !mobileUpdateExempt(req.method, req.path)
+      ) {
+        try {
+          const policy = mobileUpdates.policy(
+            mobilePlatform,
+            req.get("X-CineGather-Channel") ?? "stable",
+            req.get("X-CineGather-Runtime") ?? "unknown",
+          );
+          const mobileFailure =
+            policy &&
+            mobileCompatibilityFailure(
+              req.method,
+              req.path,
+              {
+                build: req.get("X-CineGather-Build"),
+                runtime: req.get("X-CineGather-Runtime"),
+                revision: req.get("X-CineGather-Revision"),
+              },
+              policy,
+            );
+          if (mobileFailure) {
+            res
+              .status(426)
+              .setHeader("X-CineGather-Mobile-Update", mobileFailure.kind)
+              .json({
+                code: "MOBILE_UPDATE_REQUIRED",
+                message: mobileFailure.reason,
+                requestId: req.requestId,
+              });
+            return;
+          }
+        } catch {
+          res.status(503).json({
+            code: "UPDATE_POLICY_UNAVAILABLE",
+            message: "版本策略暂不可用，请稍后重试",
+            requestId: req.requestId,
+          });
+          return;
+        }
       }
       const failure = compatibilityFailure(
         req.method,

@@ -10,6 +10,7 @@ import { runtime } from "../runtime";
 import { useSession, useRuntime } from "../components/use-runtime";
 import { Auth } from "../components/Auth";
 import { colors, Dialog, Label, Button } from "../components/ui";
+import { UpdateGate } from "../components/Updates";
 import { nativeSheetOptions } from "../components/Sheet";
 export default function Layout() {
   const session = useSession(),
@@ -20,58 +21,68 @@ export default function Layout() {
   return (
     <SafeAreaProvider>
       <StatusBar style="light" />
-      {session.status !== "signed-in" ? (
-        <Auth />
-      ) : (
-        <View style={{ flex: 1, backgroundColor: colors.bg }}>
-          <Stack
-            screenOptions={{
-              headerShown: false,
-              headerStyle: { backgroundColor: colors.bg },
-              headerTintColor: colors.text,
-              contentStyle: { backgroundColor: colors.bg },
-              headerShadowVisible: false,
-            }}
-          >
-            <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
-            <Stack.Screen
-              name="room"
-              options={{
-                title: state.room?.name ?? "房间",
-                headerBackTitle: "返回",
-              }}
-            />
-            <Stack.Screen name="create-room" options={nativeSheetOptions} />
-            <Stack.Screen name="join-room" options={nativeSheetOptions} />
-            <Stack.Screen name="add-friend" options={nativeSheetOptions} />
-            <Stack.Screen name="audio-options" options={nativeSheetOptions} />
-            <Stack.Screen name="member-options" options={nativeSheetOptions} />
-            <Stack.Screen name="invite-friends" options={nativeSheetOptions} />
-            <Stack.Screen name="devices" options={{ title: "登录设备" }} />
-          </Stack>
-          <ErrorToast />
-          <Dialog
-            visible={!!state.popup}
-            title={state.popup?.title ?? "全站公告"}
-            close={() => {
-              if (state.popup)
-                void runtime
-                  .readAnnouncement(state.popup.id)
-                  .catch((e) => runtime.fail(e));
-            }}
-          >
-            <Label>{state.popup?.body}</Label>
-            <Button
-              primary
-              onPress={async () => {
-                if (state.popup) await runtime.readAnnouncement(state.popup.id);
+      <UpdateGate>
+        {session.status !== "signed-in" ? (
+          <Auth />
+        ) : (
+          <View style={{ flex: 1, backgroundColor: colors.bg }}>
+            <Stack
+              screenOptions={{
+                headerShown: false,
+                headerStyle: { backgroundColor: colors.bg },
+                headerTintColor: colors.text,
+                contentStyle: { backgroundColor: colors.bg },
+                headerShadowVisible: false,
               }}
             >
-              知道了
-            </Button>
-          </Dialog>
-        </View>
-      )}
+              <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
+              <Stack.Screen
+                name="room"
+                options={{
+                  title: state.room?.name ?? "房间",
+                  headerBackTitle: "返回",
+                }}
+              />
+              <Stack.Screen name="create-room" options={nativeSheetOptions} />
+              <Stack.Screen name="join-room" options={nativeSheetOptions} />
+              <Stack.Screen name="add-friend" options={nativeSheetOptions} />
+              <Stack.Screen name="share-screen" options={nativeSheetOptions} />
+              <Stack.Screen name="audio-options" options={nativeSheetOptions} />
+              <Stack.Screen
+                name="member-options"
+                options={nativeSheetOptions}
+              />
+              <Stack.Screen
+                name="invite-friends"
+                options={nativeSheetOptions}
+              />
+              <Stack.Screen name="devices" options={{ title: "登录设备" }} />
+            </Stack>
+            <ErrorToast />
+            <Dialog
+              visible={!!state.popup}
+              title={state.popup?.title ?? "全站公告"}
+              close={() => {
+                if (state.popup)
+                  void runtime
+                    .readAnnouncement(state.popup.id)
+                    .catch((e) => runtime.fail(e));
+              }}
+            >
+              <Label>{state.popup?.body}</Label>
+              <Button
+                primary
+                onPress={async () => {
+                  if (state.popup)
+                    await runtime.readAnnouncement(state.popup.id);
+                }}
+              >
+                知道了
+              </Button>
+            </Dialog>
+          </View>
+        )}
+      </UpdateGate>
     </SafeAreaProvider>
   );
 }

@@ -8,12 +8,19 @@ import {
   MobileSession,
   RoomCoordinator,
   RoomChat,
+  MobileShare,
+  mobileShareCapability,
   parseInvitation,
   type ChatSnapshot,
 } from "@cinegather/client-core";
 import {
   type RoomInfo,
   type RoomState,
+  type ShareState,
+  type Quality,
+  qualityPresets,
+  leaseSchema,
+  nativePublicationSchema,
   userSchema,
   sessionSchema,
   friendsSchema,
@@ -25,10 +32,17 @@ import {
   announcementInboxSchema,
 } from "@cinegather/contracts";
 import { ApiError } from "@cinegather/api-client";
+import { CriticalTimers } from "livekit-client";
+import { screenShare } from "./platform/screen-share";
 import { NativeMedia } from "./media/NativeMedia";
 import { appendDiagnostic } from "./platform/journal";
 import { localNotice } from "./platform/notifications";
 import { roomAudio } from "./platform/room-audio";
+import {
+  MobileUpdateService,
+  mobileUpdateIdentity,
+  mobileCodeVersion,
+} from "./platform/updates";
 
 export interface Notice {
   id: number;
@@ -38,6 +52,7 @@ export interface Notice {
 }
 export interface RuntimeSnapshot {
   roomState: RoomState;
+  shareState: ShareState;
   room?: RoomInfo;
   rooms: RoomInfo[];
   friends: ReturnType<typeof friendsSchema.parse>;
@@ -53,12 +68,20 @@ export interface RuntimeSnapshot {
 }
 export class MobileRuntime {
   readonly origin: string;
-  readonly version = Constants.expoConfig?.version ?? "0.1.26";
+  readonly version = mobileCodeVersion;
+  readonly updates: MobileUpdateService;
   readonly session: MobileSession;
   readonly api: MobileApi;
   readonly media: NativeMedia;
   readonly coordinator: RoomCoordinator;
   readonly chat: RoomChat;
+  readonly sharing: MobileShare;
+  private shareAudio = true;
+  private shareQuality: Quality = "cinema";
+  private shareContexts = new Map<
+    string,
+    { roomId: string; token: string; captureId: string }
+  >();
   private listeners = new Set<() => void>();
   private generation = 0;
   private roomRevision = 0;
@@ -76,6 +99,7 @@ export class MobileRuntime {
   private knownAnnouncements = new Set<string>();
   private current: RuntimeSnapshot = {
     roomState: "idle",
+    shareState: "idle",
     rooms: [],
     friends: { items: [], roomInvitations: [], roomJoinRequests: [] },
     chat: { items: [], unread: 0, loading: false, failed: false },
@@ -123,6 +147,8 @@ export class MobileRuntime {
       origin: this.origin,
       platform: Platform.OS === "ios" ? "ios" : "android",
       version: this.version,
+      mobile: mobileUpdateIdentity,
+      updateRequired: (kind) => this.updates?.require(kind),
       getToken: () => this.session.getToken(),
       expire: async (token) => this.session.invalidate(token),
       trace: (e) => {
@@ -160,6 +186,9 @@ export class MobileRuntime {
       },
     });
     this.media = new NativeMedia({
+      stopShare: (leaseId) => {
+        void this.sharing.revoke(leaseId).catch((e) => this.fail(e));
+      },
       roomChanged: () => {
         void this.refreshRoom().catch((e) => this.fail(e));
       },
@@ -168,8 +197,7 @@ export class MobileRuntime {
         if (room) this.chat.receive(room.id, message);
       },
       disconnected: (reason) => {
-        this.notice("房间连接", reason);
-        void this.coordinator.leave().catch((e) => this.fail(e));
+        void this.handleRoomDisconnect(reason).catch((e) => this.fail(e));
       },
       error: (e) => this.fail(e),
       foregroundService: async (microphone) => {
@@ -181,6 +209,144 @@ export class MobileRuntime {
       stopService: async () => {
         await roomAudio.stop();
       },
+    });
+    const context = (scope: string) => {
+      const value = this.shareContexts.get(scope);
+      if (!value) throw new Error("共享会话已失效");
+      return value;
+    };
+    this.sharing = new MobileShare({
+      timers: {
+        setInterval: (fn, delay) => CriticalTimers.setInterval(fn, delay),
+        clearInterval: (id) => CriticalTimers.clearInterval(id),
+      },
+      scope: () =>
+        this.current.roomState === "connected" &&
+        this.current.room &&
+        this.session.getToken()
+          ? `${this.current.room.id}:${this.roomRevision}:${this.generation}`
+          : undefined,
+      allowed: () => this.canShare(),
+      acquire: async (scope) => {
+        const value = {
+          roomId: this.current.room!.id,
+          token: this.session.getToken()!,
+          captureId: this.sharing.captureId!,
+        };
+        this.shareContexts.set(scope, value);
+        try {
+          return leaseSchema.parse(
+            await this.api.call(
+              "share-acquire",
+              (c) =>
+                c.POST("/api/v1/rooms/{roomId}/share-lease", {
+                  params: { path: { roomId: value.roomId } },
+                }),
+              { token: value.token },
+            ),
+          );
+        } catch (error) {
+          this.shareContexts.delete(scope);
+          throw error;
+        }
+      },
+      renew: async (scope, lease) => {
+        const value = context(scope);
+        const renewed = leaseSchema.parse(
+          await this.api.call(
+            "share-renew",
+            (c) =>
+              c.POST("/api/v1/rooms/{roomId}/share-lease/renew", {
+                params: { path: { roomId: value.roomId } },
+                body: { leaseId: lease.leaseId, revision: lease.revision },
+              }),
+            { token: value.token },
+          ),
+        );
+        if (this.sharing.captureId === value.captureId)
+          await screenShare.renew(
+            value.captureId,
+            Date.parse(renewed.expiresAt),
+          );
+        return renewed;
+      },
+      release: async (scope, lease) => {
+        const value = context(scope);
+        try {
+          await this.api.call(
+            "share-release",
+            (c) =>
+              c.DELETE("/api/v1/rooms/{roomId}/share-lease", {
+                params: { path: { roomId: value.roomId } },
+                body: { leaseId: lease.leaseId, revision: lease.revision },
+              }),
+            { token: value.token, invalidate: false },
+          );
+        } catch (e) {
+          if (
+            !(e instanceof ApiError && [401, 403, 404, 409].includes(e.status))
+          )
+            throw e;
+        } finally {
+          this.shareContexts.delete(scope);
+        }
+      },
+      publish: async (scope, lease, id) => {
+        const value = context(scope);
+        const publication = nativePublicationSchema.parse(
+          await this.api.call(
+            "share-native",
+            (c) =>
+              c.POST("/api/v1/rooms/{roomId}/share-lease/native", {
+                params: { path: { roomId: value.roomId } },
+                body: { leaseId: lease.leaseId, revision: lease.revision },
+              }),
+            { token: value.token },
+          ),
+        );
+        if (
+          this.sharing.captureId !== id ||
+          this.current.shareState !== "publishing" ||
+          this.session.getToken() !== value.token
+        )
+          throw new Error("共享已取消");
+        if (AppState.currentState !== "active")
+          throw new Error("请返回映聚后重新发起共享");
+        const preset = qualityPresets[this.shareQuality];
+        await screenShare.start({
+          id,
+          url: publication.url,
+          token: publication.token,
+          audio: this.shareAudio,
+          expiresAt: Date.parse(publication.expiresAt),
+          width: preset.width,
+          height: preset.height,
+          fps: preset.frameRate,
+          bitrate: preset.maxBitrate,
+        });
+      },
+      stop: (id) => screenShare.stop(id),
+      changed: (shareState) => this.patch({ shareState }),
+      error: (e) => this.fail(e),
+    });
+    screenShare.listen((event) => {
+      try {
+        appendDiagnostic({
+          time: Date.now(),
+          event: "screen-share-status",
+          ...event,
+        });
+      } catch {
+        this.diagnosticFailures++;
+      }
+      if (
+        ["stopped", "failed"].includes(event.state) &&
+        event.id === this.sharing.captureId
+      ) {
+        if (event.state === "failed" && event.reason)
+          this.fail(new Error(event.reason));
+        void this.sharing.ended(event.id).catch((e) => this.fail(e));
+      }
     });
     this.chat = new RoomChat(
       async (roomId, after) =>
@@ -209,9 +375,13 @@ export class MobileRuntime {
           }),
         );
       },
-      connect: (url, token) => this.media.connect(url, token),
+      connect: async (url, token) => {
+        if (this.updates.updater.snapshot().required)
+          throw new Error("请先完成应用更新");
+        await this.media.connect(url, token);
+      },
       disconnect: () => this.media.disconnect(),
-      stopShare: async () => {},
+      stopShare: () => this.sharing.stop(),
       changed: (roomState, room, revision) => {
         this.roomRevision = revision;
         const previous = this.current.room?.id;
@@ -228,6 +398,10 @@ export class MobileRuntime {
       },
       error: (e) => this.fail(e),
     });
+    this.updates = new MobileUpdateService(
+      () => this.coordinator.leave(true, true),
+      this.origin,
+    );
   }
   snapshot = () => this.current;
   subscribe = (listener: () => void) => {
@@ -277,6 +451,7 @@ export class MobileRuntime {
   start() {
     if (this.started) return;
     this.started = true;
+    this.updates.start();
     const preferenceRevision = this.preferenceRevision;
     void SecureStore.getItemAsync("cinegather.preference.dnd")
       .then((value) => {
@@ -293,6 +468,11 @@ export class MobileRuntime {
           version: this.version,
           platform: Platform.OS,
           media: await this.media.diagnostics(),
+          capture: await screenShare.diagnostics(),
+          updates: {
+            identity: mobileUpdateIdentity,
+            ...this.updates.updater.snapshot(),
+          },
         });
       },
       error: () => {
@@ -408,12 +588,15 @@ export class MobileRuntime {
     );
   }
   async refresh() {
+    if (this.updates.updater.snapshot().required) return;
     if (this.refreshing) return this.refreshing;
     const token = this.session.getToken(),
       generation = this.generation;
     if (!token) return;
     const current = () =>
-      this.session.getToken() === token && this.generation === generation;
+      this.session.getToken() === token &&
+      this.generation === generation &&
+      !this.updates.updater.snapshot().required;
     this.refreshing = (async () => {
       const results = await Promise.allSettled([
         this.api.call("rooms", (c) => c.GET("/api/v1/rooms")),
@@ -483,14 +666,101 @@ export class MobileRuntime {
       });
     return this.refreshing;
   }
-  refreshRoom() {
-    return this.roomSync.refresh();
+  private async handleRoomDisconnect(reason: string) {
+    const room = this.current.room,
+      token = this.session.getToken(),
+      revision = this.roomRevision;
+    if (!room) return;
+    const removed = reason === "你已被房主移出房间";
+    // The room read locks the same server transaction as takeover/moderation.
+    // Resolve the cause even when the control packet lost the race with removal.
+    const status = removed
+      ? this.api
+          .call(
+            "room-disconnect-status",
+            (c) =>
+              c.GET("/api/v1/rooms/{roomId}", {
+                params: { path: { roomId: room.id } },
+              }),
+            { token, invalidate: false },
+          )
+          .then(
+            () => undefined,
+            (error) => error,
+          )
+      : Promise.resolve(undefined);
+    await this.coordinator.leave(!removed && !reason.includes("另一台设备"));
+    const result = await status;
+    if (
+      this.session.getToken() !== token ||
+      this.current.room ||
+      this.roomRevision !== revision + 1
+    )
+      return;
+    this.notice(
+      "房间连接",
+      result instanceof ApiError && result.code === "ROOM_SESSION_REPLACED"
+        ? "房间已在另一台设备打开，本设备已退出房间"
+        : reason,
+    );
+  }
+  async refreshRoom() {
+    const room = this.current.room;
+    try {
+      await this.roomSync.refresh();
+    } catch (error) {
+      if (
+        error instanceof ApiError &&
+        error.code === "ROOM_SESSION_REPLACED" &&
+        this.current.room?.id === room?.id
+      ) {
+        this.notice(
+          "已在其他设备加入房间",
+          "房间已在另一台设备打开，本设备已退出房间",
+        );
+        await this.coordinator.leave(false);
+        return;
+      }
+      throw error;
+    }
+  }
+  canShare() {
+    const user = this.session.snapshot().user;
+    return (
+      !!user?.screenShareEnabled &&
+      this.current.roomState === "connected" &&
+      this.current.room?.memberPermissions?.find((m) => m.userId === user.id)
+        ?.sharingAllowed !== false
+    );
+  }
+  async startSharing(audio: boolean, quality: Quality) {
+    if (!screenShare.available)
+      throw new Error("当前安装包尚未包含屏幕共享模块，请安装新版测试客户端");
+    if (AppState.currentState !== "active")
+      throw new Error("请返回映聚后发起共享");
+    const capability = mobileShareCapability(
+      Platform.OS,
+      parseInt(String(Platform.Version)),
+    );
+    this.shareAudio = audio && capability.audio;
+    this.shareQuality = quality;
+    if (this.shareAudio && Platform.OS === "android") {
+      const { PermissionsAndroid } = await import("react-native");
+      const result = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+      );
+      if (result !== PermissionsAndroid.RESULTS.GRANTED)
+        throw new Error("共享声音需要录音权限，也可关闭共享声音后重试");
+    }
+    await this.sharing.start();
   }
   private applyPermissions(room: RoomInfo) {
     const allowed =
       room.memberPermissions?.find(
         (m) => m.userId === this.session.snapshot().user?.id,
       )?.microphoneAllowed !== false;
+    if (!this.canShare() && !["idle", "failed"].includes(this.sharing.state))
+      void this.sharing.stop().catch((e) => this.fail(e));
     if (this.media.snapshot().microphoneAllowed !== allowed)
       this.media.setAllowed(allowed);
   }
@@ -514,6 +784,8 @@ export class MobileRuntime {
     );
   }
   async join(input: string, password?: string, inviteToken?: string) {
+    if (this.updates.updater.snapshot().required)
+      throw new Error("请先完成应用更新");
     const parsed = parseInvitation(input);
     await this.coordinator.enter(
       parsed.roomId,

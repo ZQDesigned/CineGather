@@ -54,8 +54,9 @@ beforeAll(async () => {
     expect(r.status).toBe(201);
     roomIds.push(r.body.id);
     await req(`/rooms/${r.body.id}/join`, people[0]!.token, {});
+    // Keep the first room occupied when the sender switches to the second.
+    if (i === 0) await req(`/rooms/${r.body.id}/join`, people[1]!.token, {});
   }
-  await req(`/rooms/${roomIds[0]}/join`, people[1]!.token, {});
 });
 afterAll(async () => {
   await app?.close();

@@ -33,6 +33,7 @@ import {
   Badge,
 } from "../../components/ui";
 import { enableNotifications } from "../../platform/notifications";
+import { UpdateSettings } from "../../components/Updates";
 import { exportDiagnostics } from "../../platform/diagnostics";
 export default function Settings() {
   const session = useSession(),
@@ -189,6 +190,7 @@ export default function Settings() {
           />
         </View>
       </View>
+      <UpdateSettings />
       <View style={styles.group}>
         <MenuRow
           icon={LogOut}

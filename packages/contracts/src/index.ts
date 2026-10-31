@@ -515,6 +515,9 @@ export const ACCOMPANIMENT_TRACK = "cinegather-accompaniment-v1";
 export const ROOM_CONTROL_TOPIC = "cinegather.room-control.v1";
 export const roomControlSchema = z.discriminatedUnion("action", [
   z
+    .object({ action: z.literal("session-replaced"), roomId: z.uuid() })
+    .strict(),
+  z
     .object({ action: z.literal("stop-accompaniment"), roomId: z.uuid() })
     .strict(),
   z.object({ action: z.literal("mute-microphone"), roomId: z.uuid() }).strict(),
@@ -573,3 +576,4 @@ export type MicrophoneEffect = "none" | "ktv";
 export const defaultMicrophoneReverbStrength = 40;
 
 export * from "./announcements";
+export * from "./mobile-updates";

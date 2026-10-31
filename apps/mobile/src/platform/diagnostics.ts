@@ -10,6 +10,9 @@ export async function exportDiagnostics() {
   );
   const bytes = zipSync({
     ...diagnosticFiles(),
+    "updates.json": strToU8(
+      JSON.stringify(await runtime.updates.diagnostics(), null, 2),
+    ),
     "diagnostics.json": strToU8(JSON.stringify(runtime.diagnostics(), null, 2)),
   });
   file.write(bytes);

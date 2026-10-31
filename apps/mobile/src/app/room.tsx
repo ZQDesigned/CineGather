@@ -23,6 +23,8 @@ import { VideoTrack } from "@livekit/react-native";
 import * as Orientation from "expo-screen-orientation";
 import {
   MonitorPlay,
+  MonitorUp,
+  Square,
   Mic,
   MicOff,
   ChevronUp,
@@ -150,12 +152,14 @@ export default function RoomScreen() {
         width: "100%",
         ...(fullscreen
           ? { flex: 1 }
-          : {
-              height:
-                keyboard && tab === "chat"
-                  ? 96
-                  : Math.min(((width - 32) * 9) / 16, height * 0.42),
-            }),
+          : landscape
+            ? { flex: 1, minHeight: 0 }
+            : {
+                height:
+                  keyboard && tab === "chat"
+                    ? 96
+                    : Math.min(((width - 32) * 9) / 16, height * 0.42),
+              }),
         backgroundColor: "#080b12",
         borderRadius: fullscreen ? 0 : 16,
         overflow: "hidden",
@@ -180,17 +184,25 @@ export default function RoomScreen() {
             numberOfLines={2}
             style={[styles.heading, { textAlign: "center" }]}
           >
-            {media.sharer ? `${media.sharer} 正在共享` : "当前暂无共享"}
+            {state.shareState === "active"
+              ? "你正在共享屏幕"
+              : !["idle", "failed"].includes(state.shareState)
+                ? "正在准备共享…"
+                : media.sharer
+                  ? `${media.sharer} 正在共享`
+                  : "当前暂无共享"}
           </Text>
-          {media.sharer && !media.watching && (
-            <Button
-              primary
-              testID="watch-join"
-              onPress={() => runtime.media.watch(true)}
-            >
-              加入观看
-            </Button>
-          )}
+          {media.sharer &&
+            !media.watching &&
+            ["idle", "failed"].includes(state.shareState) && (
+              <Button
+                primary
+                testID="watch-join"
+                onPress={() => runtime.media.watch(true)}
+              >
+                加入观看
+              </Button>
+            )}
           {media.watching && (
             <Label muted>
               {media.foreground ? "正在连接画面…" : "后台已暂停画面"}
@@ -568,6 +580,32 @@ export default function RoomScreen() {
             )}
           </View>
         </View>
+        {!compactTyping && (
+          <View style={{ paddingHorizontal: 16, paddingVertical: 6 }}>
+            <Button
+              icon={
+                ["idle", "failed"].includes(state.shareState)
+                  ? MonitorUp
+                  : Square
+              }
+              primary={state.shareState === "active"}
+              testID="room-share-screen"
+              onPress={
+                ["idle", "failed"].includes(state.shareState)
+                  ? () =>
+                      router.push({
+                        pathname: "/share-screen",
+                        params: { roomId: room.id },
+                      })
+                  : action(() => runtime.sharing.stop())
+              }
+            >
+              {["idle", "failed"].includes(state.shareState)
+                ? "共享屏幕"
+                : "停止共享"}
+            </Button>
+          </View>
+        )}
         {!compactTyping && (
           <View
             testID="room-controls"

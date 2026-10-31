@@ -29,6 +29,7 @@ export function compatibilityFailure(
   path = path.replace(/\/+$/, "");
   if (
     !path.startsWith("/api/v1/") ||
+    path.startsWith("/api/v1/mobile-updates/") ||
     method === "OPTIONS" ||
     [
       "/api/v1/health",

@@ -16,6 +16,13 @@ export class MobileApi {
       origin: string;
       platform: "android" | "ios";
       version: string;
+      mobile?: {
+        runtime: string;
+        build: number;
+        revision: number;
+        channel: string;
+      };
+      updateRequired?(kind: "hot" | "package"): void;
       getToken(): string | undefined;
       expire(expectedToken: string): Promise<boolean>;
       trace?(event: MobileApiTrace): void;
@@ -43,10 +50,17 @@ export class MobileApi {
           identity: {
             platform: this.deps.platform,
             version: this.deps.version,
+            mobile: this.deps.mobile,
           },
         }),
       );
       status = result.response.status;
+      if (status === 426)
+        this.deps.updateRequired?.(
+          result.response.headers.get("X-CineGather-Mobile-Update") === "hot"
+            ? "hot"
+            : "package",
+        );
       return unwrap(result);
     } catch (error) {
       if (error instanceof ApiError) {

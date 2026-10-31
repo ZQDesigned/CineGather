@@ -48,3 +48,6 @@ yarn-error.*
 **/.cxx/
 **/.gradle/
 **/Pods/
+
+# Public OTA trust certificate; private keys remain outside the repository.
+!resources/update-certificate.pem

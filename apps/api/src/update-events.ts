@@ -22,6 +22,17 @@ export class UpdateEvents implements OnModuleDestroy {
       for (const client of this.clients)
         this.send(client.response, "announcements", "{}");
     });
+    for (const platform of ["android", "ios"])
+      for (const channel of ["stable", "preview"]) {
+        const file = join(directory, "mobile", channel, platform + ".json");
+        const refresh = () => {
+          for (const client of this.clients)
+            if (client.channel === platform + "-arm64")
+              this.send(client.response, "mobile-update", "{}");
+        };
+        this.watchers.set(file, refresh);
+        watchFile(file, { interval: 1000, persistent: false }, refresh);
+      }
     for (const channel of [
       "win32-x64",
       "win32-arm64",
