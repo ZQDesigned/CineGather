@@ -1,12 +1,16 @@
 import { parseArgs } from "node:util";
 import { resolve, join } from "node:path";
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, writeFile, readFile } from "node:fs/promises";
 import {
   mobilePlatformSchema,
   mobileChannelSchema,
   clientVersionSchema,
 } from "@cinegather/contracts";
 import { mobileExportSchema } from "./mobile-publish";
+import {
+  readNativeBaseline,
+  withNativeBaseline,
+} from "./mobile-native-baseline";
 if (import.meta.main) {
   const { values } = parseArgs({
     options: {
@@ -15,6 +19,8 @@ if (import.meta.main) {
       revision: { type: "string" },
       version: { type: "string" },
       out: { type: "string" },
+      "native-artifact": { type: "string" },
+      "artifact-sha256": { type: "string" },
     },
     strict: true,
   });
@@ -26,6 +32,15 @@ if (import.meta.main) {
     throw Error(
       "Usage: bun tools/mobile-export.ts --platform android|ios --channel stable|preview --revision <n> --version <x.y.z> --out <directory>",
     );
+  if (!!values["native-artifact"] !== !!values["artifact-sha256"])
+    throw Error("Provide both the native artifact and its published SHA256");
+  const baseline = values["native-artifact"]
+    ? readNativeBaseline(
+        await readFile(resolve(values["native-artifact"])),
+        platform,
+        values["artifact-sha256"]!,
+      )
+    : undefined;
   const cwd = resolve(import.meta.dir, "../apps/mobile"),
     out = resolve(values.out);
   const env = {
@@ -81,13 +96,16 @@ if (import.meta.main) {
     throw Error(
       "Native sources changed during export; rebuild/re-export before publishing",
     );
-  const config = JSON.parse(
+  const sourceConfig = JSON.parse(
     await command(["expo", "config", "--type", "public", "--json"], true),
   );
+  const config = baseline
+    ? withNativeBaseline(baseline, sourceConfig)
+    : sourceConfig;
   const descriptor = mobileExportSchema.parse({
     platform,
     channel,
-    runtime: after.runtimeVersion,
+    runtime: baseline?.runtime ?? after.runtimeVersion,
     revision,
     version,
     nativeBuild: Number(
@@ -98,6 +116,17 @@ if (import.meta.main) {
     nativeVersion: config.version,
     expoClient: config,
   });
+  if (baseline)
+    await writeFile(
+      join(out, "native-baseline.json"),
+      JSON.stringify({
+        platform,
+        sha256: baseline.sha256,
+        nativeBuild: baseline.nativeBuild,
+        runtime: baseline.runtime,
+        sourceRuntime: after.runtimeVersion,
+      }),
+    );
   await writeFile(
     join(out, "cinegather-export.json"),
     JSON.stringify(descriptor),

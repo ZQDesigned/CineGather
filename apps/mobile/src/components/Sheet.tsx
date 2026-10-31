@@ -15,6 +15,12 @@ import {
 } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
+import Constants from "expo-constants";
+import { mobileSheetLayout } from "@cinegather/client-core";
+const sheetLayout = mobileSheetLayout(
+  Platform.OS,
+  Number(Constants.nativeBuildVersion ?? 0),
+);
 import { IconButton, Label, colors, styles } from "./ui";
 import { useRuntime } from "./use-runtime";
 import { SnackbarHost } from "./Snackbar";
@@ -24,7 +30,7 @@ export const nativeSheetOptions = {
   presentation: "formSheet" as const,
   headerShown: false,
   gestureEnabled: true,
-  sheetAllowedDetents: [0.6, 1],
+  sheetAllowedDetents: sheetLayout.detents,
   sheetInitialDetentIndex: 0,
   sheetGrabberVisible: true,
   sheetCornerRadius: 26,
@@ -60,16 +66,22 @@ export function Sheet({
     Keyboard.metrics()?.height ?? 0,
   );
   useEffect(() => {
-    if (Platform.OS !== "ios") return;
+    if (!sheetLayout.reserveKeyboard) return;
     const update = (event: KeyboardEvent) => {
-      Keyboard.scheduleLayoutAnimation(event);
+      if (Platform.OS === "ios") Keyboard.scheduleLayoutAnimation(event);
       setKeyboardHeight(event.endCoordinates.height);
     };
-    const show = Keyboard.addListener("keyboardWillShow", update);
-    const hide = Keyboard.addListener("keyboardWillHide", (event) => {
-      Keyboard.scheduleLayoutAnimation(event);
-      setKeyboardHeight(0);
-    });
+    const show = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillShow" : "keyboardDidShow",
+      update,
+    );
+    const hide = Keyboard.addListener(
+      Platform.OS === "ios" ? "keyboardWillHide" : "keyboardDidHide",
+      (event) => {
+        if (Platform.OS === "ios") Keyboard.scheduleLayoutAnimation(event);
+        setKeyboardHeight(0);
+      },
+    );
     return () => {
       show.remove();
       hide.remove();
@@ -83,7 +95,7 @@ export function Sheet({
     }, []),
   );
   const [footerHeight, setFooterHeight] = useState(0);
-  const nativeFooter = Platform.OS === "android";
+  const nativeFooter = sheetLayout.nativeFooter;
   const footerView = (
     <View
       testID="native-sheet-footer"
@@ -125,7 +137,7 @@ export function Sheet({
         style={{
           flex: 1,
           backgroundColor: colors.surface,
-          paddingBottom: Platform.OS === "ios" ? keyboardHeight : 0,
+          paddingBottom: sheetLayout.reserveKeyboard ? keyboardHeight : 0,
         }}
       >
         <ScrollView
