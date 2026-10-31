@@ -19,7 +19,7 @@ import {
 } from "react-native";
 import { router, useFocusEffect } from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
-import { VideoTrack } from "@livekit/react-native";
+import { ZoomableVideo } from "../components/ZoomableVideo";
 import * as Orientation from "expo-screen-orientation";
 import {
   MonitorPlay,
@@ -170,10 +170,9 @@ export default function RoomScreen() {
       }}
     >
       {media.video ? (
-        <VideoTrack
+        <ZoomableVideo
+          key={`${media.video.publication.trackSid}:${media.video.publication.track?.mediaStreamTrack.id}`}
           trackRef={media.video}
-          objectFit="contain"
-          style={{ width: "100%", height: "100%" }}
         />
       ) : (
         <View style={{ alignItems: "center", padding: 16, gap: 12 }}>
