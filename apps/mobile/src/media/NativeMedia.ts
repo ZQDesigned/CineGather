@@ -72,6 +72,7 @@ export class NativeMedia {
   constructor(
     private readonly events: {
       message(message: ChatMessage): void;
+      roomChanged?(): void;
       disconnected(reason: string): void;
       error(error: unknown): void;
       foregroundService?(microphone: boolean): Promise<void>;
@@ -208,6 +209,16 @@ export class NativeMedia {
       RoomEvent.LocalTrackUnpublished,
     ] as const;
     for (const event of syncEvents) room.on(event, this.sync);
+    for (const event of [
+      RoomEvent.ParticipantConnected,
+      RoomEvent.ParticipantDisconnected,
+      RoomEvent.ParticipantPermissionsChanged,
+      RoomEvent.RoomMetadataChanged,
+      RoomEvent.Reconnected,
+    ])
+      room.on(event, () => {
+        if (this.room === room) this.events.roomChanged?.();
+      });
     room.on(RoomEvent.ParticipantPermissionsChanged, (_previous, p) => {
       if (p !== room.localParticipant) return;
       const permission = p.permissions;

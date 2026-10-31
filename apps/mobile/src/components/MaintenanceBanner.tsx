@@ -1,10 +1,11 @@
 import { Pressable, Text } from "react-native";
-import { router } from "expo-router";
+import { router, useSegments } from "expo-router";
 import { Info, ChevronRight } from "lucide-react-native";
 import { useRuntime } from "./use-runtime";
 import { colors } from "./ui";
 export function MaintenanceBanner() {
   const { announcements } = useRuntime();
+  const segments = useSegments();
   const notice = announcements.find(
     (a) => a.kind === "maintenance" && a.state === "active",
   );
@@ -14,7 +15,10 @@ export function MaintenanceBanner() {
       testID="maintenance-banner"
       accessibilityRole="button"
       accessibilityLabel={`${notice.title}，查看公告`}
-      onPress={() => router.push("/notifications")}
+      onPress={() => {
+        if (segments[0] === "(tabs)") router.navigate("/(tabs)/notifications");
+        else router.dismissTo("/(tabs)/notifications");
+      }}
       style={{
         backgroundColor: "#29243a",
         marginHorizontal: 16,

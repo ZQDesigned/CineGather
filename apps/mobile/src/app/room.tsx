@@ -61,6 +61,7 @@ import {
   EmptyState,
 } from "../components/ui";
 import { Screen } from "../components/Screen";
+import { InviteFriends } from "../components/InviteFriends";
 export default function RoomScreen() {
   const state = useRuntime(),
     media = useMedia(),
@@ -74,6 +75,7 @@ export default function RoomScreen() {
   const [voice, setVoice] = useState(1),
     [shared, setShared] = useState(1),
     [memberGain, setMemberGain] = useState(1);
+  const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState(false),
     [name, setName] = useState(""),
     [max, setMax] = useState("5");
@@ -151,7 +153,7 @@ export default function RoomScreen() {
       await operation();
       await runtime.refresh();
     });
-  const invite = work(async () => {
+  const shareInvite = work(async () => {
     const value = await runtime.api.call("invite", (c) =>
       c.POST("/api/v1/rooms/{roomId}/invites", {
         params: { path: { roomId: room.id } },
@@ -263,7 +265,15 @@ export default function RoomScreen() {
               }}
             />
           )}
-          <IconButton icon={UserPlus} label="邀请朋友" onPress={invite} />
+          <IconButton
+            icon={UserPlus}
+            label="邀请好友"
+            testID="room-invite-friends"
+            onPress={() => {
+              setInviting(true);
+              void runtime.refresh().catch((e) => runtime.fail(e));
+            }}
+          />
         </>
       }
     >
@@ -644,6 +654,12 @@ export default function RoomScreen() {
           </View>
         )}
       </RoomKeyboard>
+      <InviteFriends
+        key={room.id}
+        visible={inviting}
+        close={() => setInviting(false)}
+        share={shareInvite}
+      />
       <Dialog visible={audio} title="音频" close={() => setAudio(false)}>
         <Label>语音音量 {Math.round(voice * 100)}%</Label>
         <Slider

@@ -37,8 +37,13 @@ export class MobilePulse {
     this.timer = undefined;
   }
   pulse = () => {
-    if (!this.active || this.running || this.clock.now() - this.last < 4000)
+    if (!this.active || this.running) return;
+    const remaining = this.deps.interval() - (this.clock.now() - this.last);
+    if (remaining > 0) {
+      this.clock.clear(this.timer);
+      this.timer = this.clock.set(this.pulse, remaining);
       return;
+    }
     this.clock.clear(this.timer);
     this.timer = undefined;
     this.last = this.clock.now();

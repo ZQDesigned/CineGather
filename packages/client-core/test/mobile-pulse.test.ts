@@ -103,3 +103,63 @@ test("stopping a pulse during an in-flight request cannot resurrect its timer", 
   await flush();
   expect(timer.count).toBe(0);
 });
+
+test("two-second room synchronization keeps recurring instead of stopping at the old diagnostic throttle", async () => {
+  const timer = clock();
+  let calls = 0;
+  const pulse = new MobilePulse({
+    clock: timer,
+    interval: () => 2000,
+    run: async () => {
+      calls++;
+    },
+    error: () => {},
+  });
+  pulse.start();
+  await flush();
+  timer.advance(2000);
+  timer.fire();
+  await flush();
+  expect(calls).toBe(2);
+  expect(timer.count).toBe(1);
+  timer.advance(2000);
+  timer.fire();
+  await flush();
+  expect(calls).toBe(3);
+  pulse.stop();
+});
+test("an early timer or a longer background interval reschedules the remaining delay", async () => {
+  const timer = clock();
+  let calls = 0,
+    interval = 5000;
+  const pulse = new MobilePulse({
+    clock: timer,
+    interval: () => interval,
+    run: async () => {
+      calls++;
+    },
+    error: () => {},
+  });
+  pulse.start();
+  await flush();
+  timer.advance(1000);
+  timer.fire();
+  await flush();
+  expect(calls).toBe(1);
+  expect(timer.count).toBe(1);
+  timer.advance(4000);
+  timer.fire();
+  await flush();
+  expect(calls).toBe(2);
+  interval = 30000;
+  timer.advance(5000);
+  timer.fire();
+  await flush();
+  expect(calls).toBe(2);
+  expect(timer.count).toBe(1);
+  timer.advance(25000);
+  timer.fire();
+  await flush();
+  expect(calls).toBe(3);
+  pulse.stop();
+});

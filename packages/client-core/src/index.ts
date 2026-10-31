@@ -28,3 +28,5 @@ export function parseInvitation(value: string): {
 }
 export * from "./mobile-pulse";
 export * from "./mobile-timers";
+
+export * from "./room-snapshot";

@@ -4,6 +4,7 @@ import Constants from "expo-constants";
 import {
   MobileApi,
   MobilePulse,
+  RoomSnapshotSync,
   MobileSession,
   RoomCoordinator,
   RoomChat,
@@ -60,6 +61,8 @@ export class MobileRuntime {
   readonly chat: RoomChat;
   private listeners = new Set<() => void>();
   private generation = 0;
+  private roomRevision = 0;
+  private readonly roomSync: RoomSnapshotSync;
   private poll?: ReturnType<typeof setTimeout>;
   private refreshing?: Promise<void>;
   private started = false;
@@ -127,7 +130,39 @@ export class MobileRuntime {
         this.traces = this.traces.slice(-10000);
       },
     });
+    this.roomSync = new RoomSnapshotSync({
+      scope: () => {
+        const session = this.session.getToken(),
+          room = this.current.room;
+        return session && room && this.current.roomState === "connected"
+          ? { session, roomId: room.id, revision: this.roomRevision }
+          : undefined;
+      },
+      read: async (roomId, token) =>
+        roomSchema.parse(
+          await this.api.call(
+            "room",
+            (c) =>
+              c.GET("/api/v1/rooms/{roomId}", { params: { path: { roomId } } }),
+            { token },
+          ),
+        ),
+      apply: (room) => {
+        const promoted =
+          this.current.room?.ownerUserId !== room.ownerUserId &&
+          room.ownerUserId === this.session.snapshot().user?.id;
+        this.patch({
+          room,
+          rooms: this.current.rooms.map((r) => (r.id === room.id ? room : r)),
+        });
+        this.applyPermissions(room);
+        if (promoted) this.notice("你已成为房主", "现在可以管理房间和成员");
+      },
+    });
     this.media = new NativeMedia({
+      roomChanged: () => {
+        void this.refreshRoom().catch((e) => this.fail(e));
+      },
       message: (message) => {
         const room = this.current.room;
         if (room) this.chat.receive(room.id, message);
@@ -177,13 +212,15 @@ export class MobileRuntime {
       connect: (url, token) => this.media.connect(url, token),
       disconnect: () => this.media.disconnect(),
       stopShare: async () => {},
-      changed: (roomState, room) => {
+      changed: (roomState, room, revision) => {
+        this.roomRevision = revision;
         const previous = this.current.room?.id;
         this.patch({ roomState, room });
         if (roomState === "connected" && room) {
           const id = this.session.snapshot().user?.id;
           if (id && previous !== room.id) void this.chat.enter(room.id, id);
           this.applyPermissions(room);
+          void this.refreshRoom().catch((e) => this.fail(e));
           void roomAudio
             .start(room.name, this.media.snapshot().microphone)
             .catch((e) => this.fail(e));
@@ -263,8 +300,15 @@ export class MobileRuntime {
       },
     });
     pulse.start();
+    const roomPulse = new MobilePulse({
+      interval: () => (AppState.currentState === "active" ? 2000 : 30000),
+      run: () => this.refreshRoom(),
+      error: (e) => this.fail(e),
+    });
+    roomPulse.start();
     roomAudio.addListener("tick", () => {
       pulse.pulse();
+      roomPulse.pulse();
       if (
         AppState.currentState !== "active" &&
         Date.now() - lastBackgroundRefresh > 30000
@@ -296,7 +340,10 @@ export class MobileRuntime {
       this.media.setForeground(state === "active");
       pulse.pulse();
       this.chat.setView(false, true);
-      if (state === "active") void this.refresh();
+      if (state === "active") {
+        void this.refreshRoom().catch((e) => this.fail(e));
+        void this.refresh();
+      }
     });
     roomAudio.addListener("leave", () => {
       void this.coordinator.leave().catch((e) => this.fail(e));
@@ -427,25 +474,8 @@ export class MobileRuntime {
             this.media.setMemberGain(friend.userId, friend.volume / 100, true);
       }
       await this.refreshAnnouncements();
-      const room = this.current.room;
-      if (room) {
-        try {
-          const fresh = roomSchema.parse(
-            await this.api.call("room", (c) =>
-              c.GET("/api/v1/rooms/{roomId}", {
-                params: { path: { roomId: room.id } },
-              }),
-            ),
-          );
-          if (current() && this.current.room?.id === room.id) {
-            this.patch({ room: fresh });
-            this.applyPermissions(fresh);
-          }
-        } catch (e) {
-          this.fail(e);
-        }
-        await this.chat.sync();
-      }
+      await this.refreshRoom();
+      if (this.current.room) await this.chat.sync();
     })()
       .catch((e) => this.fail(e))
       .finally(() => {
@@ -453,11 +483,34 @@ export class MobileRuntime {
       });
     return this.refreshing;
   }
+  refreshRoom() {
+    return this.roomSync.refresh();
+  }
   private applyPermissions(room: RoomInfo) {
-    this.media.setAllowed(
+    const allowed =
       room.memberPermissions?.find(
         (m) => m.userId === this.session.snapshot().user?.id,
-      )?.microphoneAllowed !== false,
+      )?.microphoneAllowed !== false;
+    if (this.media.snapshot().microphoneAllowed !== allowed)
+      this.media.setAllowed(allowed);
+  }
+  async inviteFriend(userId: string, roomId: string) {
+    if (
+      this.current.room?.id !== roomId ||
+      this.current.roomState !== "connected"
+    )
+      throw new Error("房间已变更，请重新打开邀请");
+    if (
+      !this.current.friends.items.some(
+        (f) => f.userId === userId && f.status === "accepted",
+      )
+    )
+      throw new Error("该用户已不在你的好友列表中");
+    await this.api.call("invite-friend", (c) =>
+      c.POST("/api/v1/rooms/{roomId}/friend-invitations", {
+        params: { path: { roomId } },
+        body: { userId },
+      }),
     );
   }
   async join(input: string, password?: string, inviteToken?: string) {
