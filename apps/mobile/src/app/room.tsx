@@ -1,4 +1,11 @@
-import { useEffect, useState } from "react";
+import { MaintenanceBanner } from "../components/MaintenanceBanner";
+import {
+  useEffect,
+  useState,
+  useLayoutEffect,
+  useRef,
+  useCallback,
+} from "react";
 import {
   View,
   Text,
@@ -9,7 +16,7 @@ import {
   AppState,
   Share,
 } from "react-native";
-import { router } from "expo-router";
+import { router, useFocusEffect, useNavigation } from "expo-router";
 import { VideoTrack } from "@livekit/react-native";
 import Slider from "@react-native-community/slider";
 import * as Orientation from "expo-screen-orientation";
@@ -47,13 +54,35 @@ export default function RoomScreen() {
     [max, setMax] = useState("5");
   const [fullscreen, setFullscreen] = useState(false);
   const { width, height } = useWindowDimensions();
-  useEffect(() => {
-    runtime.chat.setView(
-      tab === "chat" && AppState.currentState === "active",
-      true,
-    );
-    return () => runtime.chat.setView(false, true);
-  }, [tab]);
+  const scroll = useRef<ScrollView>(null),
+    bottom = useRef(true),
+    focused = useRef(false);
+  const navigation = useNavigation();
+  useLayoutEffect(() => {
+    navigation.setOptions({ headerShown: !fullscreen });
+  }, [navigation, fullscreen]);
+  useFocusEffect(
+    useCallback(() => {
+      focused.current = true;
+      bottom.current = true;
+      const update = () =>
+        runtime.chat.setView(
+          tab === "chat" && AppState.currentState === "active",
+          bottom.current,
+        );
+      update();
+      if (tab === "chat")
+        requestAnimationFrame(() =>
+          scroll.current?.scrollToEnd({ animated: false }),
+        );
+      const listener = AppState.addEventListener("change", update);
+      return () => {
+        focused.current = false;
+        listener.remove();
+        runtime.chat.setView(false, true);
+      };
+    }, [tab]),
+  );
   useEffect(
     () => () => {
       void Orientation.unlockAsync();
@@ -117,7 +146,7 @@ export default function RoomScreen() {
   );
   if (fullscreen)
     return (
-      <Page scroll={false}>
+      <Page scroll={false} safeBottom>
         {video}
         <Button
           onPress={async () => {
@@ -130,16 +159,34 @@ export default function RoomScreen() {
       </Page>
     );
   return (
-    <Page scroll={false}>
+    <Page scroll={false} safeBottom>
       <KeyboardAvoidingView
         style={{ flex: 1 }}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={90}
       >
         <ScrollView
+          ref={scroll}
+          scrollEventThrottle={100}
+          onScroll={({ nativeEvent: e }) => {
+            bottom.current =
+              e.contentOffset.y + e.layoutMeasurement.height >=
+              e.contentSize.height - 60;
+            runtime.chat.setView(
+              focused.current &&
+                tab === "chat" &&
+                AppState.currentState === "active",
+              bottom.current,
+            );
+          }}
+          onContentSizeChange={() => {
+            if (tab === "chat" && bottom.current)
+              scroll.current?.scrollToEnd({ animated: false });
+          }}
           contentContainerStyle={{ padding: 16, gap: 16 }}
           keyboardShouldPersistTaps="handled"
         >
+          <MaintenanceBanner />
           <View style={styles.spread}>
             <Label muted>
               {room.code} {room.access === "password" ? "加密房" : "普通房"}
@@ -266,10 +313,7 @@ export default function RoomScreen() {
                   <Button
                     onPress={() => {
                       setSelected(member.id);
-                      setMemberGain(
-                        (state.friends.items.find((f) => f.userId === member.id)
-                          ?.volume ?? 100) / 100,
-                      );
+                      setMemberGain(runtime.media.memberGain(member.id));
                     }}
                   >
                     更多
@@ -365,6 +409,7 @@ export default function RoomScreen() {
             {(
               {
                 speaker: "扬声器",
+                speakerphone: "扬声器",
                 earpiece: "听筒",
                 headset: "耳机",
                 bluetooth: "蓝牙耳机",
@@ -469,7 +514,10 @@ export default function RoomScreen() {
                 ),
               )}
             >
-              切换禁止开麦
+              {room.memberPermissions?.find((p) => p.userId === selected)
+                ?.microphoneAllowed === false
+                ? "允许开麦"
+                : "禁止开麦"}
             </Button>
             <Button
               onPress={work(() =>

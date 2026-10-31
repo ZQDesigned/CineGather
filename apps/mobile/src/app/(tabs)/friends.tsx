@@ -100,7 +100,7 @@ export default function Friends() {
               primary
               onPress={action(async () => {
                 await runtime.join(invite.roomId, undefined, invite.token);
-                if (runtime.snapshot().room) {
+                if (runtime.snapshot().roomState === "connected") {
                   await runtime.dismissInvite(invite.id);
                   router.push("/room");
                 }

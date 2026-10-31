@@ -1,3 +1,5 @@
+import { MaintenanceBanner } from "../../components/MaintenanceBanner";
+import { DndButton } from "../../components/DndButton";
 import { Tabs, router } from "expo-router";
 import { View, Text, Pressable } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -12,6 +14,7 @@ export default function TabsLayout() {
   ).length;
   return (
     <SafeAreaView edges={["top"]} style={styles.screen}>
+      <MaintenanceBanner />
       {state.room && (
         <View
           style={{
@@ -37,6 +40,7 @@ export default function TabsLayout() {
           headerStyle: { backgroundColor: colors.bg },
           headerTintColor: colors.text,
           headerShadowVisible: false,
+          headerRight: () => <DndButton />,
           tabBarStyle: {
             backgroundColor: colors.surface,
             borderTopColor: colors.border,

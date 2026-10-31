@@ -140,6 +140,8 @@ export function Field({
     <View style={{ gap: 8 }}>
       {label && <Text style={styles.text}>{label}</Text>}
       <TextInput
+        autoCapitalize={props.secureTextEntry ? "none" : undefined}
+        autoCorrect={props.secureTextEntry ? false : undefined}
         {...props}
         accessibilityLabel={props.accessibilityLabel ?? label}
         placeholderTextColor={colors.muted}
@@ -160,12 +162,17 @@ export function Avatar({ name }: { name: string }) {
 export function Page({
   children,
   scroll = true,
+  safeBottom = false,
 }: {
   children: ReactNode;
   scroll?: boolean;
+  safeBottom?: boolean;
 }) {
   return (
-    <SafeAreaView edges={["left", "right"]} style={styles.screen}>
+    <SafeAreaView
+      edges={safeBottom ? ["left", "right", "bottom"] : ["left", "right"]}
+      style={styles.screen}
+    >
       {scroll ? (
         <ScrollView
           keyboardShouldPersistTaps="handled"

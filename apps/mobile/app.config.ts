@@ -24,12 +24,18 @@ const config: ExpoConfig = {
     permissions: [
       "RECORD_AUDIO",
       "MODIFY_AUDIO_SETTINGS",
+      "BLUETOOTH_CONNECT",
       "POST_NOTIFICATIONS",
       "FOREGROUND_SERVICE",
       "FOREGROUND_SERVICE_MICROPHONE",
       "FOREGROUND_SERVICE_MEDIA_PLAYBACK",
     ],
-    blockedPermissions: ["android.permission.CAMERA"],
+    blockedPermissions: [
+      "android.permission.CAMERA",
+      "android.permission.READ_EXTERNAL_STORAGE",
+      "android.permission.WRITE_EXTERNAL_STORAGE",
+      "android.permission.SYSTEM_ALERT_WINDOW",
+    ],
     adaptiveIcon: {
       foregroundImage: "./assets/icon.png",
       backgroundColor: "#0e1118",
@@ -37,10 +43,12 @@ const config: ExpoConfig = {
   },
   plugins: [
     "expo-router",
+    "./plugins/with-release-signing.cjs",
     "expo-secure-store",
     "expo-sharing",
     "expo-notifications",
     "expo-screen-orientation",
+    ["expo-build-properties", { ios: { enableSceneSupport: true } }],
     [
       "expo-splash-screen",
       {

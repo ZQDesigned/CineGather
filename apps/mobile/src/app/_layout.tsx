@@ -1,3 +1,4 @@
+import { DndButton } from "../components/DndButton";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -31,7 +32,11 @@ export default function Layout() {
             <Stack.Screen name="(tabs)" options={{ headerShown: false }} />
             <Stack.Screen
               name="room"
-              options={{ title: state.room?.name ?? "房间" }}
+              options={{
+                title: state.room?.name ?? "房间",
+                headerBackTitle: "返回",
+                headerRight: () => <DndButton />,
+              }}
             />
             <Stack.Screen name="devices" options={{ title: "登录设备" }} />
           </Stack>

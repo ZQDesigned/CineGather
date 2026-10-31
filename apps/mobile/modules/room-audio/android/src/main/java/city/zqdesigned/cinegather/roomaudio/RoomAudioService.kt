@@ -14,8 +14,10 @@ import androidx.core.content.ContextCompat
 class RoomAudioService : Service() {
   companion object { var events: ((String, Map<String, Any>) -> Unit)? = null; const val CHANNEL = "cinegather-room-audio" }
   private lateinit var audio: AudioManager
+  private var wake: PowerManager.WakeLock? = null
   private var focus: AudioFocusRequest? = null
   private val handler = Handler(Looper.getMainLooper())
+  private val tick = object : Runnable { override fun run() { events?.invoke("tick", emptyMap()); handler.postDelayed(this, 5000) } }
   private val devices = object : AudioDeviceCallback() {
     override fun onAudioDevicesRemoved(removed: Array<out AudioDeviceInfo>) {
       if (removed.any { it.type in setOf(AudioDeviceInfo.TYPE_WIRED_HEADSET, AudioDeviceInfo.TYPE_WIRED_HEADPHONES, AudioDeviceInfo.TYPE_BLUETOOTH_SCO, AudioDeviceInfo.TYPE_BLE_HEADSET, AudioDeviceInfo.TYPE_USB_HEADSET) }) events?.invoke("routeLost", emptyMap())
@@ -24,8 +26,10 @@ class RoomAudioService : Service() {
   override fun onCreate() {
     super.onCreate()
     audio = getSystemService(AudioManager::class.java)
+    wake = getSystemService(PowerManager::class.java).newWakeLock(PowerManager.PARTIAL_WAKE_LOCK, "CineGather:RoomAudio").apply { setReferenceCounted(false); acquire() }
     getSystemService(NotificationManager::class.java).createNotificationChannel(NotificationChannel(CHANNEL, "房间语音", NotificationManager.IMPORTANCE_LOW).apply { setSound(null, null) })
     audio.registerAudioDeviceCallback(devices, handler)
+    handler.postDelayed(tick, 5000)
   }
   override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
     if (intent?.action == "leave") { events?.invoke("leave", emptyMap()); stopSelf(); return START_NOT_STICKY }
@@ -41,14 +45,16 @@ class RoomAudioService : Service() {
     if (focus == null) {
       focus = AudioFocusRequest.Builder(AudioManager.AUDIOFOCUS_GAIN)
         .setAudioAttributes(AudioAttributes.Builder().setUsage(AudioAttributes.USAGE_VOICE_COMMUNICATION).setContentType(AudioAttributes.CONTENT_TYPE_SPEECH).build())
-        .setOnAudioFocusChangeListener({ change -> events?.invoke("interruption", mapOf("interrupted" to (change != AudioManager.AUDIOFOCUS_GAIN))) }, handler)
+        .setOnAudioFocusChangeListener({ change -> if (change != AudioManager.AUDIOFOCUS_LOSS_TRANSIENT_CAN_DUCK) events?.invoke("interruption", mapOf("interrupted" to (change != AudioManager.AUDIOFOCUS_GAIN))) }, handler)
         .build()
-      val granted = audio.requestAudioFocus(focus!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
-      events?.invoke("interruption", mapOf("interrupted" to !granted))
     }
+    val granted = audio.requestAudioFocus(focus!!) == AudioManager.AUDIOFOCUS_REQUEST_GRANTED
+    events?.invoke("interruption", mapOf("interrupted" to !granted))
     return START_NOT_STICKY
   }
   override fun onDestroy() {
+    handler.removeCallbacks(tick)
+    wake?.let { if (it.isHeld) it.release() }; wake = null
     audio.unregisterAudioDeviceCallback(devices)
     focus?.let { audio.abandonAudioFocusRequest(it) }; focus = null
     stopForeground(STOP_FOREGROUND_REMOVE)

@@ -13,5 +13,8 @@ export function useMedia() {
   return useSyncExternalStore(runtime.media.subscribe, runtime.media.snapshot);
 }
 export function action(work: () => Promise<unknown>) {
-  return () => work().catch((e) => runtime.fail(e));
+  return () => {
+    runtime.clearError();
+    return work().catch((e) => runtime.fail(e));
+  };
 }

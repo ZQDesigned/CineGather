@@ -21,7 +21,7 @@ export default function Lobby() {
     [max, setMax] = useState("5");
   const enter = async (input: string) => {
     await runtime.join(input, password || undefined);
-    if (runtime.snapshot().room) {
+    if (runtime.snapshot().roomState === "connected") {
       setDialog(undefined);
       router.push("/room");
     }
@@ -120,7 +120,7 @@ export default function Lobby() {
           onPress={action(async () => {
             if (dialog === "create") {
               await runtime.create(name, Number(max), password || undefined);
-              if (runtime.snapshot().room) {
+              if (runtime.snapshot().roomState === "connected") {
                 setDialog(undefined);
                 router.push("/room");
               }

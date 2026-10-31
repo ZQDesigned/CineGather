@@ -6,6 +6,24 @@ export class MobileMicrophoneIntent {
   private permission = false;
   private interrupted = false;
   private wanted = false;
+  private revision = 0;
+  beginUnmute() {
+    if (!this.inRoom || !this.allowed) return;
+    this.interrupted = false;
+    return ++this.revision;
+  }
+  completeUnmute(request: number, granted: boolean) {
+    if (
+      request !== this.revision ||
+      !this.inRoom ||
+      !this.allowed ||
+      this.interrupted
+    )
+      return false;
+    this.setPermission(granted);
+    this.wanted = granted;
+    return this.enabled;
+  }
   get enabled() {
     return (
       this.inRoom &&
@@ -19,22 +37,31 @@ export class MobileMicrophoneIntent {
     return this.wanted;
   }
   setWanted(wanted: boolean) {
+    if (!wanted) ++this.revision;
     this.wanted = wanted && this.allowed && this.inRoom;
   }
   setPermission(granted: boolean) {
     this.permission = granted;
-    if (!granted) this.wanted = false;
+    if (!granted) {
+      ++this.revision;
+      this.wanted = false;
+    }
   }
   setAllowed(allowed: boolean) {
     this.allowed = allowed;
-    if (!allowed) this.wanted = false;
+    if (!allowed) {
+      ++this.revision;
+      this.wanted = false;
+    }
   }
   setInterrupted(interrupted: boolean) {
+    if (interrupted) ++this.revision;
     this.interrupted = interrupted;
   }
   setInRoom(inRoom: boolean) {
     this.inRoom = inRoom;
     if (!inRoom) {
+      ++this.revision;
       this.wanted = false;
       this.allowed = true;
       this.interrupted = false;

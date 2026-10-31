@@ -3,6 +3,7 @@ import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 import {
   MobileApi,
+  MobilePulse,
   MobileSession,
   RoomCoordinator,
   RoomChat,
@@ -22,6 +23,7 @@ import {
   type AnnouncementInbox,
   announcementInboxSchema,
 } from "@cinegather/contracts";
+import { ApiError } from "@cinegather/api-client";
 import { NativeMedia } from "./media/NativeMedia";
 import { appendDiagnostic } from "./platform/journal";
 import { localNotice } from "./platform/notifications";
@@ -62,11 +64,12 @@ export class MobileRuntime {
   private refreshing?: Promise<void>;
   private started = false;
   private traces: unknown[] = [];
-  private diagnosticTimer?: ReturnType<typeof setTimeout>;
   private diagnosticFailures = 0;
   private knownRequests = new Set<string>();
   private knownInvites = new Set<string>();
   private noticeId = 0;
+  private preferenceRevision = 0;
+  private preferenceSave = Promise.resolve();
   private knownAnnouncements = new Set<string>();
   private current: RuntimeSnapshot = {
     roomState: "idle",
@@ -181,6 +184,9 @@ export class MobileRuntime {
           const id = this.session.snapshot().user?.id;
           if (id && previous !== room.id) void this.chat.enter(room.id, id);
           this.applyPermissions(room);
+          void roomAudio
+            .start(room.name, this.media.snapshot().microphone)
+            .catch((e) => this.fail(e));
         } else if (!room) this.chat.leave();
       },
       error: (e) => this.fail(e),
@@ -198,10 +204,13 @@ export class MobileRuntime {
     for (const fn of this.listeners) fn();
   }
   fail(error: unknown) {
+    if (error instanceof ApiError && error.staleSession) return;
     this.patch({
       error:
         error instanceof Error
-          ? error.message.slice(0, 500)
+          ? /[\u4e00-\u9fff]/.test(error.message)
+            ? error.message.slice(0, 500)
+            : "操作未完成，请检查网络后重试"
           : "操作未完成，请稍后重试",
     });
   }
@@ -217,28 +226,53 @@ export class MobileRuntime {
     this.patch({ visibility });
   }
   setDnd(dnd: boolean) {
+    ++this.preferenceRevision;
     this.patch({ dnd });
+    this.preferenceSave = this.preferenceSave
+      .catch(() => {})
+      .then(() =>
+        SecureStore.setItemAsync("cinegather.preference.dnd", dnd ? "1" : "0"),
+      )
+      .catch(() => {
+        this.fail(new Error("免打扰设置未能保存，请重试"));
+      });
   }
   start() {
     if (this.started) return;
     this.started = true;
-    const sample = async () => {
-      try {
+    const preferenceRevision = this.preferenceRevision;
+    void SecureStore.getItemAsync("cinegather.preference.dnd")
+      .then((value) => {
+        if (preferenceRevision === this.preferenceRevision)
+          this.patch({ dnd: value === "1" });
+      })
+      .catch(() => {});
+    let lastBackgroundRefresh = 0;
+    const pulse = new MobilePulse({
+      interval: () => (this.current.room ? 5000 : 30000),
+      run: async () => {
         appendDiagnostic({
           time: Date.now(),
           version: this.version,
           platform: Platform.OS,
           media: await this.media.diagnostics(),
         });
-      } catch {
+      },
+      error: () => {
         this.diagnosticFailures++;
+      },
+    });
+    pulse.start();
+    roomAudio.addListener("tick", () => {
+      pulse.pulse();
+      if (
+        AppState.currentState !== "active" &&
+        Date.now() - lastBackgroundRefresh > 30000
+      ) {
+        lastBackgroundRefresh = Date.now();
+        void this.refresh();
       }
-      this.diagnosticTimer = setTimeout(
-        sample,
-        this.current.room ? 5000 : 30000,
-      );
-    };
-    void sample();
+    });
     this.session.subscribe(() => {
       const token = this.session.getToken();
       if (!token) {
@@ -246,17 +280,21 @@ export class MobileRuntime {
         this.knownRequests.clear();
         this.knownInvites.clear();
         this.knownAnnouncements.clear();
+        this.media.resetMemberGains();
         if (this.current.roomState !== "idle")
           void this.coordinator.leave().catch((e) => this.fail(e));
         this.patch({
           rooms: [],
           friends: { items: [], roomInvitations: [], roomJoinRequests: [] },
           notices: [],
+          announcements: [],
+          popup: undefined,
         });
       } else void this.refresh();
     });
     const app = AppState.addEventListener("change", (state) => {
       this.media.setForeground(state === "active");
+      pulse.pulse();
       this.chat.setView(false, true);
       if (state === "active") void this.refresh();
     });
@@ -334,9 +372,12 @@ export class MobileRuntime {
         this.api.call("rooms", (c) => c.GET("/api/v1/rooms")),
         this.api.call("friends", (c) => c.GET("/api/v1/friends")),
         this.api.call("presence", (c) => c.POST("/api/v1/presence/heartbeat")),
+        this.api.call("presence-settings", (c) => c.GET("/api/v1/presence")),
       ]);
       if (!current()) return;
-      const [rooms, friends] = results;
+      const [rooms, friends, , visibility] = results;
+      if (visibility?.status === "fulfilled")
+        this.patch({ visibility: visibility.value.visibility });
       if (rooms?.status === "fulfilled")
         this.patch({
           rooms: rooms.value.items.map((r) => roomSchema.parse(r)),
@@ -369,7 +410,9 @@ export class MobileRuntime {
               this.current.roomState === "idle"
             )
               void this.join(invitation.roomId, undefined, invitation.token)
-                .then(() => this.dismissInvite(invitation.id))
+                .then((joined) =>
+                  joined ? this.dismissInvite(invitation.id) : undefined,
+                )
                 .catch((e) => this.fail(e));
             else
               this.notice(
@@ -381,7 +424,7 @@ export class MobileRuntime {
         this.patch({ friends: value });
         for (const friend of value.items)
           if (friend.volume !== undefined)
-            this.media.setMemberGain(friend.userId, friend.volume / 100);
+            this.media.setMemberGain(friend.userId, friend.volume / 100, true);
       }
       await this.refreshAnnouncements();
       const room = this.current.room;
@@ -424,6 +467,7 @@ export class MobileRuntime {
       inviteToken ?? parsed.inviteToken,
       password,
     );
+    return this.current.roomState === "connected";
   }
   async create(name: string, maxMembers: number, password?: string) {
     const room = await this.api.call("create-room", (c) =>
@@ -471,13 +515,13 @@ export class MobileRuntime {
     if (popup) this.patch({ popup });
   }
   async readAnnouncement(announcementId: string) {
+    if (this.current.popup?.id === announcementId)
+      this.patch({ popup: undefined });
     await this.api.call("read-announcement", (c) =>
       c.POST("/api/v1/announcements/{announcementId}/read", {
         params: { path: { announcementId } },
       }),
     );
-    if (this.current.popup?.id === announcementId)
-      this.patch({ popup: undefined });
     await this.refreshAnnouncements();
   }
   async dismissInvite(inviteId: string) {

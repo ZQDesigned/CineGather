@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { Text, View, Switch, Linking, Alert } from "react-native";
+import { Text, View, Linking, Alert } from "react-native";
 import { router } from "expo-router";
 import { runtime } from "../../runtime";
 import {
@@ -37,14 +37,7 @@ export default function Settings() {
       </View>
       <View style={styles.card}>
         <Text style={styles.heading}>通知</Text>
-        <View style={styles.spread}>
-          <Label>免打扰</Label>
-          <Switch
-            accessibilityLabel="免打扰"
-            value={state.dnd}
-            onValueChange={(value) => runtime.setDnd(value)}
-          />
-        </View>
+
         <Button
           onPress={action(async () => {
             const granted = await enableNotifications();

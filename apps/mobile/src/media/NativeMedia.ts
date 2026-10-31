@@ -1,3 +1,4 @@
+import { roomAudio } from "../platform/room-audio";
 import { AppState, PermissionsAndroid, Platform } from "react-native";
 import { AudioSession, AndroidAudioTypePresets } from "@livekit/react-native";
 import {
@@ -323,28 +324,30 @@ export class NativeMedia {
     const room = this.room,
       revision = this.revision;
     if (!room || !this.current.connected) return;
-    if (this.microphone.requested) {
+    if (this.microphone.requested && this.microphone.enabled) {
       this.microphone.setWanted(false);
       return this.reconcileMic();
     }
     if (!this.current.microphoneAllowed)
       throw new Error("房主已禁止你开启麦克风");
     if (!this.foreground) throw new Error("请返回应用后开启麦克风");
-    if (Platform.OS === "android") {
-      const permission = await PermissionsAndroid.request(
-        PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
-      );
-      if (revision !== this.revision || this.room !== room) return;
-      const granted = permission === PermissionsAndroid.RESULTS.GRANTED;
-      this.microphone.setPermission(granted);
-      if (!granted)
-        throw new Error("麦克风权限未开启，请在系统设置中允许映聚使用麦克风");
-    } else this.microphone.setPermission(true); // Native WebRTC requests iOS permission on capture.
+    const request = this.microphone.beginUnmute();
+    if (request === undefined) return;
+    const granted =
+      Platform.OS === "android"
+        ? (await PermissionsAndroid.request(
+            PermissionsAndroid.PERMISSIONS.RECORD_AUDIO,
+          )) === PermissionsAndroid.RESULTS.GRANTED
+        : await roomAudio.requestMicrophonePermission();
+    if (revision !== this.revision || this.room !== room) return;
+    if (!granted) {
+      this.microphone.completeUnmute(request, false);
+      throw new Error("麦克风权限未开启，请在系统设置中允许映聚使用麦克风");
+    }
     await this.events.foregroundService?.(true);
     if (revision !== this.revision || this.room !== room || !this.foreground)
       return;
-    this.microphone.setInterrupted(false);
-    this.microphone.setWanted(true);
+    if (!this.microphone.completeUnmute(request, true)) return;
     return this.reconcileMic();
   }
   private reconcileMic() {
@@ -357,6 +360,11 @@ export class NativeMedia {
           await room.localParticipant.setMicrophoneEnabled(
             this.microphone.enabled,
           );
+          if (
+            !this.microphone.enabled &&
+            room.localParticipant.isMicrophoneEnabled
+          )
+            await room.localParticipant.setMicrophoneEnabled(false);
         } catch (error) {
           this.microphone.setWanted(false);
           this.events.error(error);
@@ -401,11 +409,23 @@ export class NativeMedia {
     else this.shareGain = Math.max(0, Math.min(2, gain));
     this.sync();
   }
-  setMemberGain(userId: string, gain: number) {
+  memberGain(userId: string) {
+    return this.gains.get(userId) ?? 1;
+  }
+  resetMemberGains() {
+    this.gains.clear();
+    this.sync();
+  }
+  setMemberGain(userId: string, gain: number, initialOnly = false) {
+    if (initialOnly && this.gains.has(userId)) return;
     this.gains.set(userId, Math.max(0, Math.min(2, gain)));
     this.sync();
   }
   async outputs() {
+    if (Platform.OS === "android" && Number(Platform.Version) >= 31)
+      await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+      );
     return this.room ? AudioSession.getAudioOutputs() : [];
   }
   async selectOutput(output: string) {
