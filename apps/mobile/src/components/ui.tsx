@@ -233,7 +233,16 @@ export function Field({
         {...props}
         accessibilityLabel={props.accessibilityLabel ?? label}
         placeholderTextColor={colors.muted}
-        style={[styles.field, props.style]}
+        style={[
+          styles.field,
+          Platform.OS === "android" && {
+            // Give native font metrics the full single-line content area.
+            paddingVertical: props.multiline ? 11 : 0,
+            includeFontPadding: true,
+            textAlignVertical: props.multiline ? "top" : "center",
+          },
+          props.style,
+        ]}
       />
     </View>
   );

@@ -37,8 +37,8 @@ const config: ExpoConfig = {
       "android.permission.SYSTEM_ALERT_WINDOW",
     ],
     adaptiveIcon: {
-      foregroundImage: "./assets/icon.png",
-      backgroundColor: "#0e1118",
+      foregroundImage: "./assets/icon-adaptive-foreground.png",
+      backgroundImage: "./assets/icon-adaptive-background.png",
     },
   },
   plugins: [
