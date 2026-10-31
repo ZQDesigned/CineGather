@@ -407,9 +407,9 @@ export function MenuRow({
       </View>
       {working ? (
         <ActivityIndicator size="small" color={colors.accent} />
-      ) : (
-        value
-      )}
+      ) : value ? (
+        <View style={{ justifyContent: "center" }}>{value}</View>
+      ) : null}
       {onPress && <ChevronRight size={16} color={colors.muted} />}
     </Pressable>
   );
