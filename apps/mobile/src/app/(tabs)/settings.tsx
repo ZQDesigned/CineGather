@@ -100,7 +100,11 @@ export default function Settings() {
                     },
                   },
                 ]);
-              else runtime.notice("通知已开启", "房间与好友通知将在后台提醒你");
+              else
+                runtime.feedback.show({
+                  text: "通知已开启，房间与好友通知将在后台提醒你",
+                  tone: "success",
+                });
             })}
           />
         </View>
@@ -245,7 +249,10 @@ export default function Settings() {
             setPasswordDialog(false);
             setOld("");
             setPassword("");
-            runtime.notice("密码已修改", "请使用新密码登录其他设备");
+            runtime.feedback.show({
+              text: "密码已修改，请使用新密码登录其他设备",
+              tone: "success",
+            });
           })}
         >
           保存密码

@@ -11,7 +11,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { runtime } from "../runtime";
 import { useRuntime, useSession } from "./use-runtime";
-import { styles, colors, Field, Button } from "./ui";
+import { styles, Field, Button } from "./ui";
 export function Auth() {
   const session = useSession(),
     state = useRuntime();
@@ -75,11 +75,6 @@ export function Auth() {
               value={password}
               onChangeText={setPassword}
             />
-            {(session.error || state.error) && (
-              <Text accessibilityRole="alert" style={{ color: colors.danger }}>
-                {session.error ?? state.error}
-              </Text>
-            )}
             <Button
               primary
               testID="auth-submit"

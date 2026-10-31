@@ -1,0 +1,41 @@
+diff --git a/android/src/main/java/com/swmansion/rnscreens/ScreenFooter.kt b/android/src/main/java/com/swmansion/rnscreens/ScreenFooter.kt
+index a56b6831642a0f210a32d86f49f259808e34d1af..9559d45ee27758181b172b48b150f38e409bdbcf 100644
+--- a/android/src/main/java/com/swmansion/rnscreens/ScreenFooter.kt
++++ b/android/src/main/java/com/swmansion/rnscreens/ScreenFooter.kt
+@@ -95,7 +95,7 @@ class ScreenFooter(
+         layoutFooterOnYAxis(
+             lastContainerHeight,
+             bottom - top,
+-            sheetTopInStableState(requireSheetBehavior().state),
++            sheetTopForCurrentState(),
+             lastBottomInset,
+         )
+     }
+@@ -171,6 +171,15 @@ class ScreenFooter(
+         sheetBehavior?.let { unregisterWithSheetBehavior(it) }
+     }
+-
++
++    // Insets and React layout can arrive while Material is dragging or settling.
++    // Stable-state offsets are not defined then; use the actual current sheet top.
++    private fun sheetTopForCurrentState(): Int =
++        if (SheetUtils.isStateStable(requireSheetBehavior().state)) {
++            sheetTopInStableState(requireSheetBehavior().state)
++        } else {
++            sheetTopWhileDragging(lastSlideOffset)
++        }
++
+     /**
+      * Calculate position of sheet's top while it is in stable state given concrete sheet state.
+      *
+@@ -232,7 +241,8 @@ class ScreenFooter(
+         layoutFooterOnYAxis(
+             containerHeight,
+             reactHeight,
+-            sheetTopInStableState(requireSheetBehavior().state),
++            sheetTopForCurrentState(),
++            lastBottomInset,
+         )
+     }
+-
++

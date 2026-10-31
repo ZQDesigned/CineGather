@@ -141,7 +141,10 @@ export default function Friends() {
                     params: { path: { userId: friend.userId } },
                   }),
                 );
-                runtime.notice("申请已发送", "好友同意后将自动加入房间");
+                runtime.feedback.show({
+                  text: "申请已发送，好友同意后将自动加入房间",
+                  tone: "success",
+                });
               })}
             >
               {friend.room.memberCount >= friend.room.maxMembers

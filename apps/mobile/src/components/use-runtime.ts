@@ -14,7 +14,8 @@ export function useMedia() {
 }
 export function action(work: () => Promise<unknown>) {
   return () => {
-    runtime.clearError();
-    return work().catch((e) => runtime.fail(e));
+    return Promise.resolve()
+      .then(work)
+      .catch((e) => runtime.fail(e));
   };
 }

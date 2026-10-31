@@ -2,6 +2,7 @@ import { AppState, Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
 import {
+  SnackbarQueue,
   MobileApi,
   MobilePulse,
   RoomSnapshotSync,
@@ -57,7 +58,6 @@ export interface RuntimeSnapshot {
   rooms: RoomInfo[];
   friends: ReturnType<typeof friendsSchema.parse>;
   chat: ChatSnapshot;
-  error?: string;
   notices: Notice[];
   dnd: boolean;
   announcements: AnnouncementInbox["items"];
@@ -67,6 +67,7 @@ export interface RuntimeSnapshot {
   visibility: "online" | "invisible";
 }
 export class MobileRuntime {
+  readonly feedback = new SnackbarQueue();
   readonly origin: string;
   readonly version = mobileCodeVersion;
   readonly updates: MobileUpdateService;
@@ -416,8 +417,9 @@ export class MobileRuntime {
   }
   fail(error: unknown) {
     if (error instanceof ApiError && error.staleSession) return;
-    this.patch({
-      error:
+    this.feedback.show({
+      tone: "error",
+      text:
         error instanceof Error
           ? /[\u4e00-\u9fff]/.test(error.message)
             ? error.message.slice(0, 500)
@@ -426,12 +428,16 @@ export class MobileRuntime {
     });
   }
   clearError() {
-    this.patch({ error: undefined });
+    this.feedback.dismiss();
   }
-  notice(title: string, body: string) {
+  notice(title: string, body: string, options: { snackbar?: boolean } = {}) {
     const notice = { id: ++this.noticeId, title, body, time: Date.now() };
     this.patch({ notices: [notice, ...this.current.notices].slice(0, 200) });
-    if (!this.current.dnd) void localNotice(title, body).catch(() => {});
+    if (!this.current.dnd) {
+      if (options.snackbar !== false)
+        this.feedback.show({ text: `${title}\n${body}` });
+      void localNotice(title, body).catch(() => {});
+    }
   }
   setVisibility(visibility: "online" | "invisible") {
     this.patch({ visibility });
@@ -451,6 +457,7 @@ export class MobileRuntime {
   start() {
     if (this.started) return;
     this.started = true;
+    this.feedback.setForeground(AppState.currentState === "active");
     this.updates.start();
     const preferenceRevision = this.preferenceRevision;
     void SecureStore.getItemAsync("cinegather.preference.dnd")
@@ -497,7 +504,14 @@ export class MobileRuntime {
         void this.refresh();
       }
     });
+    let lastSessionError: string | undefined;
     this.session.subscribe(() => {
+      const session = this.session.snapshot();
+      if (session.status === "signed-out") this.feedback.clear();
+      const sessionError = session.error;
+      if (sessionError && sessionError !== lastSessionError)
+        this.fail(new Error(sessionError));
+      lastSessionError = sessionError;
       const token = this.session.getToken();
       if (!token) {
         ++this.generation;
@@ -517,6 +531,7 @@ export class MobileRuntime {
       } else void this.refresh();
     });
     const app = AppState.addEventListener("change", (state) => {
+      this.feedback.setForeground(state === "active");
       this.media.setForeground(state === "active");
       pulse.pulse();
       this.chat.setView(false, true);
@@ -834,7 +849,9 @@ export class MobileRuntime {
     );
     for (const item of fresh) {
       this.knownAnnouncements.add(item.id);
-      this.notice(item.title, item.body);
+      this.notice(item.title, item.body, {
+        snackbar: !(item.popup && item.state === "active"),
+      });
     }
     const popup = fresh.find((a) => a.popup && a.state === "active");
     if (popup) this.patch({ popup });

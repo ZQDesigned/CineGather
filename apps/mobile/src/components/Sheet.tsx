@@ -1,11 +1,23 @@
-import { useState, type ReactNode } from "react";
-import { ScrollView, View, Text, Pressable, Platform } from "react-native";
-import { Stack, router, useLocalSearchParams } from "expo-router";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
+import {
+  ScrollView,
+  View,
+  Text,
+  Platform,
+  Keyboard,
+  type KeyboardEvent,
+} from "react-native";
+import {
+  Stack,
+  router,
+  useLocalSearchParams,
+  useFocusEffect,
+} from "expo-router";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { X } from "lucide-react-native";
 import { IconButton, Label, colors, styles } from "./ui";
 import { useRuntime } from "./use-runtime";
-import { runtime } from "../runtime";
+import { SnackbarHost } from "./Snackbar";
 
 // Opt individual routes into native presentation; centered Dialog remains available.
 export const nativeSheetOptions = {
@@ -42,25 +54,60 @@ export function Sheet({
   footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
-  const state = useRuntime();
+  // Native form sheets use a local origin; reserve keyboard height from the
+  // shared screen bottom instead of mixing local and screen Y coordinates.
+  const [keyboardHeight, setKeyboardHeight] = useState(
+    Keyboard.metrics()?.height ?? 0,
+  );
+  useEffect(() => {
+    if (Platform.OS !== "ios") return;
+    const update = (event: KeyboardEvent) => {
+      Keyboard.scheduleLayoutAnimation(event);
+      setKeyboardHeight(event.endCoordinates.height);
+    };
+    const show = Keyboard.addListener("keyboardWillShow", update);
+    const hide = Keyboard.addListener("keyboardWillHide", (event) => {
+      Keyboard.scheduleLayoutAnimation(event);
+      setKeyboardHeight(0);
+    });
+    return () => {
+      show.remove();
+      hide.remove();
+    };
+  }, []);
+  const [focused, setFocused] = useState(false);
+  useFocusEffect(
+    useCallback(() => {
+      setFocused(true);
+      return () => setFocused(false);
+    }, []),
+  );
   const [footerHeight, setFooterHeight] = useState(0);
   const nativeFooter = Platform.OS === "android";
-  const footerView = footer ? (
+  const footerView = (
     <View
       testID="native-sheet-footer"
       onLayout={(event) => setFooterHeight(event.nativeEvent.layout.height)}
       style={{
-        paddingHorizontal: 18,
-        paddingTop: 12,
-        paddingBottom: Math.max(insets.bottom, 16),
-        borderTopWidth: 0.5,
-        borderTopColor: colors.border,
         backgroundColor: colors.surface,
+        paddingBottom: Math.max(insets.bottom, 16),
       }}
     >
-      {footer}
+      <SnackbarHost priority={10} enabled={focused} inline />
+      {footer && (
+        <View
+          style={{
+            paddingHorizontal: 18,
+            paddingTop: 12,
+            borderTopWidth: 0.5,
+            borderTopColor: colors.border,
+          }}
+        >
+          {footer}
+        </View>
+      )}
     </View>
-  ) : undefined;
+  );
   return (
     <>
       {nativeFooter && (
@@ -68,14 +115,18 @@ export function Sheet({
           options={{
             // Android lays out sheet content at its largest detent. Let the
             // native footer follow the visible edge during dragging and IME changes.
-            unstable_sheetFooter: footerView ? () => footerView : undefined,
+            unstable_sheetFooter: () => footerView,
           }}
         />
       )}
       <View
         testID="native-sheet-container"
         collapsable={false}
-        style={{ flex: 1, backgroundColor: colors.surface }}
+        style={{
+          flex: 1,
+          backgroundColor: colors.surface,
+          paddingBottom: Platform.OS === "ios" ? keyboardHeight : 0,
+        }}
       >
         <ScrollView
           testID="native-sheet"
@@ -91,9 +142,7 @@ export function Sheet({
           contentContainerStyle={{
             paddingHorizontal: 18,
             paddingTop: Platform.OS === "ios" ? 20 : 12,
-            paddingBottom: footer
-              ? 16 + (nativeFooter ? footerHeight : 0)
-              : Math.max(insets.bottom, 16),
+            paddingBottom: 16 + (nativeFooter ? footerHeight : 0),
             gap: 16,
           }}
         >
@@ -106,19 +155,6 @@ export function Sheet({
             </Text>
             <IconButton icon={X} label="关闭面板" onPress={closeSheet} />
           </View>
-          {state.error && (
-            <Pressable
-              accessibilityRole="alert"
-              onPress={() => runtime.clearError()}
-              style={{
-                backgroundColor: "#492735",
-                padding: 12,
-                borderRadius: 12,
-              }}
-            >
-              <Text style={styles.text}>{state.error}</Text>
-            </Pressable>
-          )}
           {children}
         </ScrollView>
         {!nativeFooter && footerView}

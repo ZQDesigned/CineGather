@@ -1,4 +1,9 @@
-import { useState, useSyncExternalStore, type ReactNode } from "react";
+import {
+  useEffect,
+  useState,
+  useSyncExternalStore,
+  type ReactNode,
+} from "react";
 import { View, Text, ActivityIndicator, ScrollView } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Download, RefreshCw } from "lucide-react-native";
@@ -72,20 +77,15 @@ export function UpdateSettings() {
   );
 }
 function UpdateActions({ required = false }: { required?: boolean }) {
-  const state = useMobileUpdates(),
-    [error, setError] = useState<string>();
+  const state = useMobileUpdates();
+  useEffect(() => {
+    if (!required && state.error) runtime.fail(new Error(state.error));
+  }, [required, state.error]);
   const busy = ["checking", "downloading", "applying"].includes(state.status);
   const release =
     state.kind === "package" ? state.policy?.native : state.policy?.ota;
   const perform = (action: () => Promise<void>) => () => {
-    setError(undefined);
-    void action().catch((error) =>
-      setError(
-        error instanceof Error && /[\u4e00-\u9fff]/.test(error.message)
-          ? error.message
-          : "暂时无法完成，请稍后重试。",
-      ),
-    );
+    void action().catch((error) => runtime.fail(error));
   };
   return (
     <>
@@ -115,7 +115,7 @@ function UpdateActions({ required = false }: { required?: boolean }) {
           </Label>
         </View>
       )}
-      {(error || state.error) && <Label>{error ?? state.error}</Label>}
+      {required && state.error && <Label>{state.error}</Label>}
       {state.status === "unsupported" ? (
         <Label muted>
           正式安装版本支持在线更新，开发版继续使用本地服务同步。
