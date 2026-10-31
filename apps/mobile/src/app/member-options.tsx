@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { useLocalSearchParams, useNavigation } from "expo-router";
 import Slider from "@react-native-community/slider";
+import { Check, UserPlus } from "lucide-react-native";
+import { memberFriendAction } from "@cinegather/client-core";
 import { runtime } from "../runtime";
 import {
   useMedia,
@@ -26,6 +28,10 @@ export default function MemberOptions() {
   const [memberGain, setMemberGain] = useState(() =>
     selected ? runtime.media.memberGain(selected) : 1,
   );
+  const [completedFriend, setCompletedFriend] = useState<{
+    userId: string;
+    action: "pending" | "accepted";
+  }>();
   if (
     !room ||
     !selected ||
@@ -34,6 +40,17 @@ export default function MemberOptions() {
   )
     return <UnavailableSheet />;
   const owner = room.ownerUserId === session.user?.id;
+  const relationship = memberFriendAction(
+    session.user?.id,
+    selected,
+    state.friends.items.find((f) => f.userId === selected),
+  );
+  const friendAction =
+    relationship === "accepted"
+      ? relationship
+      : completedFriend?.userId === selected
+        ? completedFriend.action
+        : relationship;
   const work = (operation: () => Promise<unknown>) =>
     action(async () => {
       await operation();
@@ -67,6 +84,43 @@ export default function MemberOptions() {
               .catch((e) => runtime.fail(e));
         }}
       />
+      <Button
+        testID="member-add-friend"
+        icon={friendAction === "accepted" ? Check : UserPlus}
+        disabled={friendAction !== "request" && friendAction !== "accept"}
+        onPress={action(async () => {
+          if (friendAction !== "request" && friendAction !== "accept") return;
+          const token = runtime.session.getToken();
+          await runtime.api.call(
+            friendAction === "accept" ? "accept-friend" : "add-friend",
+            (c) =>
+              friendAction === "accept"
+                ? c.POST("/api/v1/friends/{userId}/accept", {
+                    params: { path: { userId: selected } },
+                  })
+                : c.POST("/api/v1/friends", { body: { userId: selected } }),
+          );
+          if (runtime.session.getToken() !== token) return;
+          if (navigation.isFocused())
+            setCompletedFriend({
+              userId: selected,
+              action: friendAction === "accept" ? "accepted" : "pending",
+            });
+          runtime.feedback.show({
+            text: friendAction === "accept" ? "已添加好友" : "好友申请已发送",
+            tone: "success",
+          });
+          await runtime.refresh();
+        })}
+      >
+        {friendAction === "accepted"
+          ? "已是好友"
+          : friendAction === "pending"
+            ? "已发送申请"
+            : friendAction === "accept"
+              ? "同意好友申请"
+              : "添加好友"}
+      </Button>
       {owner && (
         <>
           <Button
