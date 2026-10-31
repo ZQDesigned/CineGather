@@ -81,6 +81,18 @@ try:
         payload.mkdir()
         target = payload / "app.app"
         shutil.copytree(built_app, target, symlinks=True)
+        # Xcode can process Info.plist after Expo's Release cleanup build phase.
+        # Remove only Expo development discovery metadata from the final payload.
+        target_info = plist(target / "Info.plist")
+        services = target_info.get("NSBonjourServices", [])
+        services = [service for service in services if service != "_expo._tcp"]
+        if services:
+            target_info["NSBonjourServices"] = services
+        else:
+            target_info.pop("NSBonjourServices", None)
+        if "Expo Dev Launcher" in target_info.get("NSLocalNetworkUsageDescription", ""):
+            target_info.pop("NSLocalNetworkUsageDescription", None)
+        (target / "Info.plist").write_bytes(plistlib.dumps(target_info))
         shutil.copyfile(output / "MOBILE_THIRD_PARTY_NOTICES.txt", target / "THIRD_PARTY_NOTICES.txt")
         for profile in target.rglob("*.mobileprovision"):
             profile.unlink()
