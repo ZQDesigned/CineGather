@@ -38,7 +38,7 @@
     "dist:win": "bun ../../tools/icons.ts && bun ../../tools/windows-audio-build.ts && python ../../native/capture/build-windows.py && bun ../../tools/windows-native-smoke.ts ../../.local/native-runtime/windows/obs && electron-vite build && bun ../../tools/third-party.ts win32 x64 && electron-builder --win --x64 --publish never",
     "dist:mac": "bun ../../tools/icons.ts && python3 ../../native/capture/build-macos.py && electron-vite build && bun ../../tools/third-party.ts darwin arm64 && electron-builder --mac --arm64 --publish never"
   },
-  "version": "0.1.26",
+  "version": "0.1.27",
   "private": true,
   "type": "module",
   "license": "MIT",

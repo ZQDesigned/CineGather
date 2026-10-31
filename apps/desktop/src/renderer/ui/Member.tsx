@@ -12,6 +12,8 @@ import {
 import { useRef, useState } from "react";
 import styled from "@emotion/styled";
 import {
+  Check,
+  Clock3,
   Crown,
   MonitorOff,
   Ellipsis,
@@ -27,8 +29,9 @@ import {
 import type { ParticipantSummary } from "@cinegather/media-core";
 import type { RoomInfo } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
+import { memberFriendAction } from "@cinegather/client-core";
 import * as actions from "../controller";
-import { update, useApp } from "../store";
+import { state, update, useApp } from "../store";
 
 const MemberPopup = styled.div`
   width: 236px;
@@ -97,6 +100,11 @@ export function Member({
 }) {
   const { modal } = App.useApp();
   const sharerId = useApp((s) => s.media.sharer?.id);
+  const selfId = useApp((s) => s.user?.id);
+  const friendship = useApp((s) => s.friends.find((f) => f.userId === p.id));
+  const friendAction = memberFriendAction(selfId, p.id, friendship);
+  const [friendBusy, setFriendBusy] = useState(false);
+  const friendFlight = useRef(false);
   const permission = room.memberPermissions?.find((m) => m.userId === p.id);
   const microphoneAllowed = permission?.microphoneAllowed !== false;
   const sharingAllowed = permission?.sharingAllowed !== false;
@@ -107,10 +115,33 @@ export function Member({
     role?: "menuitemcheckbox";
     "aria-checked"?: boolean;
   })[] = [
-    { key: "friend", label: "添加好友", icon: <UserPlus size={15} /> },
+    ...(["accepted", "unavailable"].includes(friendAction)
+      ? []
+      : [
+          {
+            key: friendAction === "accept" ? "accept-friend" : "friend",
+            label:
+              friendAction === "pending"
+                ? "好友申请已发送"
+                : friendAction === "accept"
+                  ? "同意好友申请"
+                  : "添加好友",
+            disabled: friendBusy || friendAction === "pending",
+            icon:
+              friendAction === "pending" ? (
+                <Clock3 size={15} />
+              ) : friendAction === "accept" ? (
+                <Check size={15} />
+              ) : (
+                <UserPlus size={15} />
+              ),
+          },
+        ]),
     ...(room.role === "owner"
       ? [
-          { type: "divider" as const },
+          ...(["accepted", "unavailable"].includes(friendAction)
+            ? []
+            : [{ type: "divider" as const }]),
           { key: "transfer", label: "转移房主", icon: <Crown size={15} /> },
           {
             key: "mute",
@@ -193,12 +224,54 @@ export function Member({
       return;
     }
     void actions.run(async () => {
-      if (key === "friend") {
-        unwrap(
-          await actions.api.POST("/api/v1/friends", { body: { userId: p.id } }),
+      if (key === "friend" || key === "accept-friend") {
+        if (friendFlight.current || state().user?.id !== selfId) return;
+        const latest = memberFriendAction(
+          selfId,
+          p.id,
+          state().friends.find((f) => f.userId === p.id),
         );
-        await actions.refreshFriends();
-        update({ notice: "好友请求已发送" });
+        if (latest !== (key === "accept-friend" ? "accept" : "request")) {
+          update({ notice: "好友关系已更新，请重新打开成员菜单" });
+          return;
+        }
+        friendFlight.current = true;
+        setFriendBusy(true);
+        try {
+          unwrap(
+            key === "accept-friend"
+              ? await actions.api.POST("/api/v1/friends/{userId}/accept", {
+                  params: { path: { userId: p.id } },
+                })
+              : await actions.api.POST("/api/v1/friends", {
+                  body: { userId: p.id },
+                }),
+          );
+          if (state().user?.id !== selfId) return;
+          update((current) => {
+            const existing = current.friends.find((f) => f.userId === p.id);
+            return {
+              friends: [
+                ...current.friends.filter((f) => f.userId !== p.id),
+                {
+                  userId: p.id,
+                  displayName: p.name,
+                  incoming: false,
+                  ...existing,
+                  status:
+                    key === "accept-friend" || existing?.status === "accepted"
+                      ? "accepted"
+                      : "pending",
+                },
+              ],
+              notice: key === "accept-friend" ? "已添加好友" : "好友请求已发送",
+            };
+          });
+          await actions.refreshFriends().catch(actions.report);
+        } finally {
+          friendFlight.current = false;
+          setFriendBusy(false);
+        }
       } else if (
         (key === "block-mic" || key === "block-share") &&
         room.role === "owner"
