@@ -1,8 +1,10 @@
-import { DndButton } from "../components/DndButton";
 import { useEffect } from "react";
 import { Stack } from "expo-router";
 import { StatusBar } from "expo-status-bar";
-import { SafeAreaProvider } from "react-native-safe-area-context";
+import {
+  SafeAreaProvider,
+  useSafeAreaInsets,
+} from "react-native-safe-area-context";
 import { View, Text, Pressable } from "react-native";
 import { runtime } from "../runtime";
 import { useSession, useRuntime } from "../components/use-runtime";
@@ -23,6 +25,7 @@ export default function Layout() {
         <View style={{ flex: 1, backgroundColor: colors.bg }}>
           <Stack
             screenOptions={{
+              headerShown: false,
               headerStyle: { backgroundColor: colors.bg },
               headerTintColor: colors.text,
               contentStyle: { backgroundColor: colors.bg },
@@ -35,28 +38,11 @@ export default function Layout() {
               options={{
                 title: state.room?.name ?? "房间",
                 headerBackTitle: "返回",
-                headerRight: () => <DndButton />,
               }}
             />
             <Stack.Screen name="devices" options={{ title: "登录设备" }} />
           </Stack>
-          {state.error && (
-            <Pressable
-              accessibilityRole="alert"
-              onPress={() => runtime.clearError()}
-              style={{
-                position: "absolute",
-                top: 100,
-                left: 20,
-                right: 20,
-                padding: 16,
-                borderRadius: 14,
-                backgroundColor: "#492735",
-              }}
-            >
-              <Text style={{ color: colors.text }}>{state.error}</Text>
-            </Pressable>
-          )}
+          <ErrorToast />
           <Dialog
             visible={!!state.popup}
             title={state.popup?.title ?? "全站公告"}
@@ -80,5 +66,33 @@ export default function Layout() {
         </View>
       )}
     </SafeAreaProvider>
+  );
+}
+
+function ErrorToast() {
+  const state = useRuntime(),
+    insets = useSafeAreaInsets();
+  if (!state.error) return null;
+  const banner = state.announcements.some(
+    (a) => a.kind === "maintenance" && a.state === "active",
+  );
+  return (
+    <Pressable
+      accessibilityRole="alert"
+      onPress={() => runtime.clearError()}
+      style={{
+        position: "absolute",
+        top: insets.top + 52 + (banner ? 44 : 0) + 8,
+        left: 16,
+        right: 16,
+        padding: 14,
+        borderRadius: 14,
+        backgroundColor: "#492735",
+      }}
+    >
+      <Text style={{ color: colors.text, fontSize: 14, lineHeight: 22 }}>
+        {state.error}
+      </Text>
+    </Pressable>
   );
 }

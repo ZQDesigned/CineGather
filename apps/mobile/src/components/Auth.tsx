@@ -27,17 +27,22 @@ export function Auth() {
       >
         <ScrollView
           keyboardShouldPersistTaps="handled"
+          automaticallyAdjustContentInsets={false}
+          contentInsetAdjustmentBehavior="never"
           contentContainerStyle={{
             flexGrow: 1,
             justifyContent: "center",
-            padding: 26,
+            padding: 20,
             gap: 24,
+            width: "100%",
+            maxWidth: 480,
+            alignSelf: "center",
           }}
         >
           <View style={{ alignItems: "center", gap: 18 }}>
             <Image
               source={icon}
-              style={{ width: 84, height: 84, borderRadius: 22 }}
+              style={{ width: 64, height: 64, borderRadius: 18 }}
             />
             <Text style={styles.title}>相聚，从映聚开始</Text>
           </View>
@@ -103,6 +108,7 @@ export function Auth() {
             )}
             {state.registration && (
               <Button
+                quiet
                 onPress={() => {
                   runtime.clearError();
                   setMode(mode === "login" ? "register" : "login");

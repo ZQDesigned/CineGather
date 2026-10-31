@@ -1,8 +1,10 @@
+import { RefreshCw, Smartphone } from "lucide-react-native";
+import { Screen } from "../components/Screen";
 import { useEffect, useState } from "react";
 import { Text, View, Alert } from "react-native";
 import type { operations } from "@cinegather/api-client";
 import { runtime } from "../runtime";
-import { Page, styles, Label, Button } from "../components/ui";
+import { styles, Label, Button, Badge, IconButton } from "../components/ui";
 import { action } from "../components/use-runtime";
 type Sessions =
   operations["listDeviceSessions"]["responses"][200]["content"]["application/json"];
@@ -18,15 +20,22 @@ export default function Devices() {
     void load().catch((e) => runtime.fail(e));
   }, []);
   return (
-    <Page>
-      <Text style={styles.title}>登录设备</Text>
-      <Button onPress={action(load)}>刷新</Button>
+    <Screen
+      title="登录设备"
+      back
+      actions={
+        <IconButton icon={RefreshCw} label="刷新设备" onPress={action(load)} />
+      }
+    >
       {sessions?.items.map((device) => (
         <View key={device.id} style={styles.card}>
-          <Text style={styles.heading}>
-            {device.deviceName}
-            {device.current ? "（当前设备）" : ""}
-          </Text>
+          <View style={styles.row}>
+            <Smartphone size={22} color="#969fb4" />
+            <Text style={[styles.heading, { flex: 1 }]}>
+              {device.deviceName}
+            </Text>
+            {device.current && <Badge tone="accent">当前设备</Badge>}
+          </View>
           <Label muted>
             最近使用{" "}
             {device.lastActiveAt
@@ -63,6 +72,6 @@ export default function Devices() {
           )}
         </View>
       ))}
-    </Page>
+    </Screen>
   );
 }

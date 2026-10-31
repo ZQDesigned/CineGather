@@ -1,9 +1,15 @@
 import { useState } from "react";
 import { Text, View } from "react-native";
+import { Film, Plus, LogIn, RefreshCw } from "lucide-react-native";
+import { Screen } from "../../components/Screen";
 import { router } from "expo-router";
 import { useRuntime, useSession, action } from "../../components/use-runtime";
 import {
-  Page,
+  Avatar,
+  Badge,
+  IconButton,
+  SectionHeading,
+  EmptyState,
   styles,
   Button,
   Field,
@@ -27,13 +33,36 @@ export default function Lobby() {
     }
   };
   return (
-    <Page>
-      <Text style={styles.title}>你好，{session.user?.displayName}</Text>
+    <Screen
+      title="放映厅"
+      actions={
+        <IconButton
+          icon={RefreshCw}
+          label="刷新房间"
+          onPress={action(() => runtime.refresh())}
+        />
+      }
+      contentStyle={{ flexGrow: 1 }}
+    >
+      <View style={[styles.spread, { paddingVertical: 8 }]}>
+        <View style={{ flex: 1, gap: 3 }}>
+          <Label muted>欢迎回来</Label>
+          <Text numberOfLines={1} style={styles.title}>
+            {session.user?.displayName}
+          </Text>
+        </View>
+        <Avatar name={session.user?.displayName ?? "映"} size={48} />
+      </View>
       <View style={styles.card}>
-        <Text style={styles.title}>好时光，值得一起看。</Text>
+        <View style={styles.row}>
+          <Film size={20} color="#b4a0f4" />
+          <Text style={styles.heading}>开始相聚</Text>
+        </View>
         <View style={styles.row}>
           <Button
             primary
+            icon={Plus}
+            style={{ flex: 1 }}
             onPress={() => {
               setPassword("");
               setDialog("create");
@@ -42,6 +71,8 @@ export default function Lobby() {
             创建房间
           </Button>
           <Button
+            icon={LogIn}
+            style={{ flex: 1 }}
             onPress={() => {
               setPassword("");
               setDialog("join");
@@ -51,18 +82,21 @@ export default function Lobby() {
           </Button>
         </View>
       </View>
-      <View style={styles.spread}>
-        <Text style={styles.heading}>你的房间</Text>
-        <Button onPress={action(() => runtime.refresh())}>刷新</Button>
-      </View>
+      <SectionHeading title="你的房间" count={state.rooms.length} />
       {state.rooms.map((room) => (
         <View key={room.id} style={styles.card}>
-          <Text style={styles.heading}>{room.name}</Text>
-          <Label muted>
-            {room.access === "password" ? "加密房" : "普通房"} {room.code}
-            最多 {room.maxMembers} 人
-          </Label>
+          <Text numberOfLines={2} style={styles.heading}>
+            {room.name}
+          </Text>
+          <View style={styles.spread}>
+            <View style={styles.row}>
+              <Badge>{room.access === "password" ? "加密房" : "普通房"}</Badge>
+              <Label muted>{room.code}</Label>
+            </View>
+            <Label muted>最多 {room.maxMembers} 人</Label>
+          </View>
           <Button
+            icon={LogIn}
             onPress={action(async () => {
               if (state.room?.id === room.id) router.push("/room");
               else if (room.access === "password") {
@@ -76,6 +110,15 @@ export default function Lobby() {
           </Button>
         </View>
       ))}
+      {!state.rooms.length && (
+        <View style={{ flex: 1, justifyContent: "center", maxHeight: 240 }}>
+          <EmptyState
+            icon={Film}
+            title="还没有房间"
+            detail="创建房间，或用房间号加入"
+          />
+        </View>
+      )}
       <Dialog
         visible={!!dialog}
         title={dialog === "create" ? "创建房间" : "加入房间"}
@@ -130,6 +173,6 @@ export default function Lobby() {
           {dialog === "create" ? "创建并加入" : "加入房间"}
         </Button>
       </Dialog>
-    </Page>
+    </Screen>
   );
 }

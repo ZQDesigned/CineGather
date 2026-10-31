@@ -1,5 +1,6 @@
 import { Pressable, Text } from "react-native";
 import { router } from "expo-router";
+import { Info, ChevronRight } from "lucide-react-native";
 import { useRuntime } from "./use-runtime";
 import { colors } from "./ui";
 export function MaintenanceBanner() {
@@ -10,18 +11,31 @@ export function MaintenanceBanner() {
   if (!notice) return null;
   return (
     <Pressable
+      testID="maintenance-banner"
       accessibilityRole="button"
+      accessibilityLabel={`${notice.title}，查看公告`}
       onPress={() => router.push("/notifications")}
       style={{
-        backgroundColor: "#30283e",
-        paddingHorizontal: 16,
-        paddingVertical: 12,
+        backgroundColor: "#29243a",
+        marginHorizontal: 16,
+        marginTop: 4,
+        marginBottom: 4,
+        paddingHorizontal: 12,
+        minHeight: 36,
+        flexDirection: "row",
+        alignItems: "center",
+        gap: 8,
         borderRadius: 10,
       }}
     >
-      <Text numberOfLines={2} style={{ color: colors.accent, fontSize: 14 }}>
-        {notice.title} 查看公告 ›
+      <Info size={15} color={colors.accent} />
+      <Text
+        numberOfLines={1}
+        style={{ flex: 1, color: colors.accent, fontSize: 12, lineHeight: 18 }}
+      >
+        {notice.title}
       </Text>
+      <ChevronRight size={15} color={colors.accent} />
     </Pressable>
   );
 }

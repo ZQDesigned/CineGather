@@ -1,11 +1,15 @@
-import { Button } from "./ui";
+import { Moon, MoonStar } from "lucide-react-native";
+import { IconButton } from "./ui";
 import { useRuntime } from "./use-runtime";
 import { runtime } from "../runtime";
 export function DndButton() {
   const { dnd } = useRuntime();
   return (
-    <Button onPress={() => runtime.setDnd(!dnd)}>
-      {dnd ? "恢复通知" : "免打扰"}
-    </Button>
+    <IconButton
+      icon={dnd ? MoonStar : Moon}
+      label={dnd ? "恢复通知" : "开启免打扰"}
+      active={dnd}
+      onPress={() => runtime.setDnd(!dnd)}
+    />
   );
 }
