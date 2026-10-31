@@ -2,18 +2,25 @@ import { useState } from "react";
 import { View, Text, Share } from "react-native";
 import { Link, Send, Users } from "lucide-react-native";
 import { runtime } from "../runtime";
-import { useRuntime, useMedia, action } from "./use-runtime";
+import { useRuntime, useMedia, useSession, action } from "./use-runtime";
 import { Avatar, Button, EmptyState, styles, colors } from "./ui";
 import { Sheet, UnavailableSheet, useSheetRoom } from "./Sheet";
 
 export function InviteFriends() {
   const state = useRuntime(),
     media = useMedia(),
+    session = useSession(),
     room = useSheetRoom();
   const [sent, setSent] = useState<Set<string>>(new Set());
   if (!room) return <UnavailableSheet />;
   const roomId = room.id;
+  const canShareLink = room.ownerUserId === session.user?.id;
   const share = action(async () => {
+    const current = runtime.snapshot();
+    if (current.roomState !== "connected" || current.room?.id !== roomId)
+      throw new Error("房间状态已改变，请重新打开邀请面板");
+    if (current.room.ownerUserId !== runtime.session.snapshot().user?.id)
+      throw new Error("仅房主可分享邀请链接");
     const value = await runtime.api.call("invite", (c) =>
       c.POST("/api/v1/rooms/{roomId}/invites", {
         params: { path: { roomId } },
@@ -81,20 +88,26 @@ export function InviteFriends() {
         <EmptyState
           icon={Users}
           title="还没有可邀请的好友"
-          detail="可以通过用户名添加好友，或分享房间链接"
+          detail={
+            canShareLink
+              ? "可以通过用户名添加好友，或分享房间链接"
+              : "可以通过用户名添加好友"
+          }
         />
       )}
-      <View
-        style={{
-          borderTopWidth: 0.5,
-          borderTopColor: colors.border,
-          paddingTop: 14,
-        }}
-      >
-        <Button icon={Link} onPress={share}>
-          分享邀请链接
-        </Button>
-      </View>
+      {canShareLink && (
+        <View
+          style={{
+            borderTopWidth: 0.5,
+            borderTopColor: colors.border,
+            paddingTop: 14,
+          }}
+        >
+          <Button icon={Link} onPress={share}>
+            分享邀请链接
+          </Button>
+        </View>
+      )}
     </Sheet>
   );
 }
