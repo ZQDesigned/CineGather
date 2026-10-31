@@ -58,6 +58,8 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
           & 7z x '.local/taskbar-archive/$PLUGINSDIR/app-64.7z' '-oapps/desktop/release/win-unpacked' -y | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'Payload extraction failed' }
+      - name: Verify actual viewing window controls with the reused build
+        run: bun tools/viewing-window-controls-smoke.ts apps/desktop/release/win-unpacked/CineGather.exe
       - name: Verify actual in-app upgrade and uninstall
         shell: pwsh
         run: |
@@ -74,6 +76,7 @@ jobs:
           name: windows-taskbar-evidence
           include-hidden-files: true
           path: |
+            .local/viewing-window-controls-verification/**
             .local/installer-diagnostics-windows/**
             .local/windows-upgrade/*.json
             .local/windows-upgrade/installer-logs/**

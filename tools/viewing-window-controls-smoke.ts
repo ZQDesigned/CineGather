@@ -27,6 +27,12 @@ try {
     env: { ...process.env, ELECTRON_RENDERER_URL: url },
   });
   const page = await app.firstWindow();
+  // A cold Vite optimizer can outlast the assertion timeout. Start UI checks
+  // after the fixture's module scripts finish loading, not on about:blank.
+  await page.waitForURL((loaded) => loaded.origin === new URL(url).origin, {
+    waitUntil: "domcontentloaded",
+    timeout: 30000,
+  });
   await expect(page.locator(".app")).toBeVisible();
   await page.evaluate(async () => {
     const dependency = (name: string) => {
