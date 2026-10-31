@@ -1,6 +1,6 @@
 {
   "name": "@cinegather/mobile",
-  "version": "0.1.26",
+  "version": "0.1.0",
   "main": "index.ts",
   "dependencies": {
     "@cinegather/api-client": "workspace:*",
@@ -43,7 +43,7 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "expo start --dev-client --port 8088",
+    "start": "bun ../../tools/mobile-dev.ts",
     "android": "expo run:android --port 8088",
     "ios": "expo run:ios --port 8088",
     "typecheck": "tsc --noEmit"

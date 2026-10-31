@@ -9,6 +9,7 @@ import {
 import { homedir } from "node:os";
 import { resolve } from "node:path";
 import { randomBytes } from "node:crypto";
+import mobileRelease from "../apps/mobile/mobile-release.json";
 const root = resolve(import.meta.dir, "..");
 const app = resolve(root, "apps/mobile");
 const sdk = process.env.ANDROID_HOME ?? resolve(homedir(), "Android/SDK");
@@ -34,9 +35,17 @@ async function command(
   if (await child.exited)
     throw new Error(`Mobile build command failed: ${args[0]}`);
 }
+if (Bun.argv[2] === "ios") {
+  const child = Bun.spawn(["python3", resolve(root, "tools/mobile-ios.py")], {
+    stdin: "inherit",
+    stdout: "inherit",
+    stderr: "inherit",
+  });
+  process.exit(await child.exited);
+}
 if (Bun.argv[2] !== "android")
   throw new Error(
-    "Usage: bun tools/mobile-build.ts android (local signed arm64 APK; no upload)",
+    "Usage: bun tools/mobile-build.ts android|ios (local production APK or self-sign IPA; no upload)",
   );
 if (!existsSync(sdk) || !existsSync(java))
   throw new Error(
@@ -97,13 +106,26 @@ try {
     ANDROID_SDK_ROOT: sdk,
     JAVA_HOME: java,
     EXPO_PUBLIC_API_ORIGIN: "https://cgplat.zqdesigned.city",
+    CG_MOBILE_UPDATE_ORIGIN: "https://cgplat.zqdesigned.city",
+    CG_MOBILE_CHANNEL: "stable",
+    CG_MOBILE_VERSION: mobileRelease.version,
+    CG_MOBILE_REVISION: String(mobileRelease.revision),
+    NODE_ENV: "production",
     CINEGATHER_ANDROID_KEYSTORE: store,
     CINEGATHER_ANDROID_STORE_PASSWORD: password,
     CINEGATHER_ANDROID_KEY_ALIAS: "cinegather",
     CINEGATHER_ANDROID_KEY_PASSWORD: password,
   };
   await command(
-    ["bunx", "expo", "prebuild", "--platform", "android", "--no-install"],
+    [
+      "bunx",
+      "expo",
+      "prebuild",
+      "--platform",
+      "android",
+      "--no-clean",
+      "--no-install",
+    ],
     env,
   );
   mkdirSync(output, { recursive: true });

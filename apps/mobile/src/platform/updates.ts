@@ -1,5 +1,6 @@
 import { AppState, Linking, Platform } from "react-native";
 import Constants from "expo-constants";
+import mobileRelease from "../../mobile-release.json";
 import * as SecureStore from "expo-secure-store";
 import { requireOptionalNativeModule } from "expo-modules-core";
 import { fetch as streamFetch } from "expo/fetch";
@@ -33,7 +34,7 @@ export const mobileUpdateIdentity: MobileUpdateIdentity = {
   revision: Number(extra?.revision ?? 1),
 };
 export const mobileCodeVersion = String(
-  extra?.version ?? Constants.expoConfig?.version ?? "0.1.26",
+  extra?.version ?? Constants.expoConfig?.version ?? mobileRelease.version,
 );
 export class MobileUpdateService {
   readonly updater: MobileUpdater;

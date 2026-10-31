@@ -1,14 +1,22 @@
 import { useEffect, useState } from "react";
 import { Alert, Button, Card, Flex, Spin, Tag, Typography } from "antd";
-import { AppleFilled, WindowsFilled } from "@ant-design/icons";
+import { AndroidFilled, AppleFilled, WindowsFilled } from "@ant-design/icons";
 import styled from "@emotion/styled";
 import { Download } from "lucide-react";
-import { clientUpdateOrigin, clientVersionSchema } from "@cinegather/contracts";
+import {
+  clientUpdateOrigin,
+  clientVersionSchema,
+  mobileDownloadsSchema,
+} from "@cinegather/contracts";
+import type { ReactNode } from "react";
 import { ModalShell } from "./Modal";
 
 const DownloadLayout = styled.div`
   .download-version {
-    margin-bottom: 20px;
+    margin-bottom: 12px;
+  }
+  .download-section + .download-section {
+    margin-top: 24px;
   }
   .download-grid {
     display: grid;
@@ -45,11 +53,26 @@ const DownloadLayout = styled.div`
     margin: 0;
   }
   .download-error {
-    margin-top: 16px;
+    margin-top: 12px;
+  }
+  .mobile-download-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .ios-install-note {
+    margin-top: 12px;
+  }
+  @media (max-width: 640px) {
+    .download-grid {
+      grid-template-columns: 1fr;
+    }
+    .ant-card-body {
+      padding-top: 20px;
+      gap: 12px;
+    }
   }
 `;
 
-export function ClientDownload() {
+function useDownloadVersion(kind: "desktop" | "mobile") {
   const [latest, setLatest] = useState<string>();
   const [error, setError] = useState(false);
   const [attempt, setAttempt] = useState(0);
@@ -59,106 +82,177 @@ export function ClientDownload() {
     setLatest(undefined);
     void (async () => {
       try {
-        const response = await fetch("/downloads/windows-latest.json", {
-          cache: "no-store",
-          signal: AbortSignal.any([
-            controller.signal,
-            AbortSignal.timeout(8000),
-          ]),
-        });
+        const response = await fetch(
+          `/downloads/${kind === "mobile" ? "mobile" : "windows"}-latest.json`,
+          {
+            cache: "no-store",
+            signal: AbortSignal.any([
+              controller.signal,
+              AbortSignal.timeout(8000),
+            ]),
+          },
+        );
         if (!response.ok) throw new Error("Download metadata unavailable");
         const metadata = await response.json();
-        const version = clientVersionSchema.parse(metadata.version);
+        const version =
+          kind === "mobile"
+            ? mobileDownloadsSchema.parse(metadata).version
+            : clientVersionSchema.parse(metadata.version);
         if (!controller.signal.aborted) setLatest(version);
       } catch {
         if (!controller.signal.aborted) setError(true);
       }
     })();
     return () => controller.abort();
-  }, [attempt]);
-  const releases = [
-    {
-      label: "Windows 安装版",
-      detail: "x64",
-      file: "win-x64-setup.exe",
-      icon: <WindowsFilled />,
-      recommended: true,
-    },
-    {
-      label: "Windows 便携版",
-      detail: "x64",
-      file: "win-x64-portable.exe",
-      icon: <WindowsFilled />,
-    },
-    {
-      label: "macOS",
-      detail: "Apple Silicon",
-      file: "mac-arm64.dmg",
-      icon: <AppleFilled />,
-    },
-  ];
+  }, [kind, attempt]);
+  return { latest, error, retry: () => setAttempt((value) => value + 1) };
+}
+
+const desktopReleases = [
+  {
+    label: "Windows 安装版",
+    detail: "x64",
+    file: "win-x64-setup.exe",
+    icon: <WindowsFilled />,
+    recommended: true,
+  },
+  {
+    label: "Windows 便携版",
+    detail: "x64",
+    file: "win-x64-portable.exe",
+    icon: <WindowsFilled />,
+  },
+  {
+    label: "macOS",
+    detail: "Apple Silicon",
+    file: "mac-arm64.dmg",
+    icon: <AppleFilled />,
+  },
+];
+const mobileReleases = [
+  {
+    label: "Android",
+    detail: "arm64，APK 安装包",
+    file: "android-arm64.apk",
+    icon: <AndroidFilled />,
+  },
+  {
+    label: "iOS",
+    detail: "IPA，自行签名安装",
+    file: "ios-self-sign.ipa",
+    icon: <AppleFilled />,
+  },
+];
+
+function DownloadSection({
+  kind,
+  release,
+  releases,
+}: {
+  kind: "desktop" | "mobile";
+  release: ReturnType<typeof useDownloadVersion>;
+  releases: {
+    label: string;
+    detail: string;
+    file: string;
+    icon: ReactNode;
+    recommended?: boolean;
+  }[];
+}) {
+  const { latest, error, retry } = release;
+  return (
+    <section
+      className="download-section"
+      aria-label={kind === "mobile" ? "手机版下载" : "桌面版下载"}
+    >
+      <Flex align="center" gap={8} wrap className="download-version">
+        <Typography.Text strong>
+          {kind === "mobile" ? "手机版" : "桌面版"}
+        </Typography.Text>
+        <Typography.Text type="secondary">最新版本</Typography.Text>
+        {latest ? (
+          <Tag color="purple">v{latest}</Tag>
+        ) : error ? (
+          <Typography.Text type="secondary">暂不可用</Typography.Text>
+        ) : (
+          <Spin size="small" aria-label="正在获取最新版本" />
+        )}
+      </Flex>
+      <div
+        className={`download-grid ${kind === "mobile" ? "mobile-download-grid" : ""}`}
+      >
+        {releases.map(({ label, detail, file, icon, recommended }) => (
+          <Card
+            key={file}
+            className={recommended ? "recommended-download" : undefined}
+          >
+            <span className="system-icon" aria-hidden="true">
+              {icon}
+            </span>
+            <div className="download-title">
+              <Typography.Text strong>{label}</Typography.Text>
+              {recommended && <Tag color="purple">推荐</Tag>}
+            </div>
+            <Typography.Text type="secondary">{detail}</Typography.Text>
+            <Button
+              block
+              type={recommended ? "primary" : "default"}
+              icon={<Download size={16} />}
+              aria-label={`下载${label}`}
+              disabled={!latest}
+              href={
+                latest
+                  ? `${clientUpdateOrigin}/downloads/CineGather-${latest}-${file}`
+                  : undefined
+              }
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              下载
+            </Button>
+          </Card>
+        ))}
+      </div>
+      {error && (
+        <Alert
+          className="download-error"
+          type="warning"
+          showIcon
+          title="暂时无法获取最新版本，请重试。"
+          action={
+            <Button size="small" onClick={retry}>
+              重试
+            </Button>
+          }
+        />
+      )}
+    </section>
+  );
+}
+
+export function ClientDownload() {
+  const desktop = useDownloadVersion("desktop");
+  const mobile = useDownloadVersion("mobile");
   return (
     <ModalShell title="下载客户端" wide>
       <DownloadLayout>
-        <Flex align="center" gap={8} className="download-version">
-          <Typography.Text type="secondary">最新版本</Typography.Text>
-          {latest ? (
-            <Tag color="purple">v{latest}</Tag>
-          ) : error ? (
-            <Typography.Text type="secondary">暂不可用</Typography.Text>
-          ) : (
-            <Spin size="small" aria-label="正在获取最新版本" />
-          )}
-        </Flex>
-        <div className="download-grid">
-          {releases.map(({ label, detail, file, icon, recommended }) => (
-            <Card
-              key={file}
-              className={recommended ? "recommended-download" : undefined}
-            >
-              <span className="system-icon" aria-hidden="true">
-                {icon}
-              </span>
-              <div className="download-title">
-                <Typography.Text strong>{label}</Typography.Text>
-                {recommended && <Tag color="purple">推荐</Tag>}
-              </div>
-              <Typography.Text type="secondary">{detail}</Typography.Text>
-              <Button
-                block
-                type={recommended ? "primary" : "default"}
-                icon={<Download size={16} />}
-                aria-label={`下载${label}`}
-                disabled={!latest}
-                href={
-                  latest
-                    ? `${clientUpdateOrigin}/downloads/CineGather-${latest}-${file}`
-                    : undefined
-                }
-                target="_blank"
-                rel="noopener noreferrer"
-              >
-                下载
-              </Button>
-            </Card>
-          ))}
-        </div>
-        {error && (
-          <Alert
-            className="download-error"
-            type="warning"
-            showIcon
-            title="暂时无法获取最新版本，请重试。"
-            action={
-              <Button
-                size="small"
-                onClick={() => setAttempt((value) => value + 1)}
-              >
-                重试
-              </Button>
-            }
-          />
-        )}
+        <DownloadSection
+          kind="desktop"
+          release={desktop}
+          releases={desktopReleases}
+        />
+        <DownloadSection
+          kind="mobile"
+          release={mobile}
+          releases={mobileReleases}
+        />
+        <Alert
+          className="ios-install-note"
+          type="info"
+          showIcon
+          title="iOS 安装包需要自行签名后安装"
+          description="签名时请保留屏幕广播扩展和 App Groups 配置，以使用旧版 iOS 屏幕共享。"
+        />
       </DownloadLayout>
     </ModalShell>
   );

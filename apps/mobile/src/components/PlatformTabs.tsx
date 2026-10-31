@@ -55,24 +55,37 @@ function TabBar({ state, descriptors, navigation }: BarProps) {
             onLongPress={() =>
               navigation.emit({ type: "tabLongPress", target: route.key })
             }
-            style={{
+            style={({ pressed }) => ({
               flex: 1,
               minHeight: 52,
+              marginHorizontal: 4,
+              borderRadius: 16,
+              overflow: "hidden",
+              opacity: pressed ? 0.7 : 1,
               alignItems: "center",
               justifyContent: "center",
               gap: 3,
-            }}
+            })}
           >
             <View
               style={{
                 width: 52,
                 height: 28,
-                borderRadius: 14,
                 justifyContent: "center",
                 alignItems: "center",
-                backgroundColor: selected ? colors.raised : "transparent",
               }}
             >
+              <View
+                pointerEvents="none"
+                style={{
+                  ...StyleSheet.absoluteFill,
+                  borderRadius: 14,
+                  borderWidth: StyleSheet.hairlineWidth,
+                  borderColor: "transparent",
+                  overflow: "hidden",
+                  backgroundColor: selected ? colors.raised : "transparent",
+                }}
+              />
               <Icon size={21} color={selected ? colors.accent : colors.muted} />
               {badge !== undefined && (
                 <View

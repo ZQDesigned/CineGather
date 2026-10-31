@@ -74,7 +74,7 @@
     },
     "apps/mobile": {
       "name": "@cinegather/mobile",
-      "version": "0.1.26",
+      "version": "0.1.0",
       "dependencies": {
         "@cinegather/api-client": "workspace:*",
         "@cinegather/client-core": "workspace:*",

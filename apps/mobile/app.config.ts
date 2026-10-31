@@ -1,6 +1,8 @@
 import type { ExpoConfig } from "expo/config";
 import { version } from "./package.json";
 import mobileRelease from "./mobile-release.json";
+if (version !== mobileRelease.version)
+  throw new Error("Mobile package and native release versions must match");
 const updateOrigin =
   process.env.CG_MOBILE_UPDATE_ORIGIN ?? "https://cgplat.zqdesigned.city";
 const updateChannel = process.env.CG_MOBILE_CHANNEL ?? "stable";
@@ -33,7 +35,7 @@ const config: ExpoConfig = {
   ios: {
     bundleIdentifier: "city.zqdesigned.cinegather.mobile",
     supportsTablet: false,
-    buildNumber: "2",
+    buildNumber: String(mobileRelease.nativeBuild),
     infoPlist: {
       UIBackgroundModes: ["audio"],
       NSMicrophoneUsageDescription:
@@ -42,7 +44,7 @@ const config: ExpoConfig = {
   },
   android: {
     package: "city.zqdesigned.cinegather.mobile",
-    versionCode: 2,
+    versionCode: mobileRelease.nativeBuild,
     permissions: [
       "RECORD_AUDIO",
       "MODIFY_AUDIO_SETTINGS",
