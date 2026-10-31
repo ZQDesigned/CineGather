@@ -1,4 +1,3 @@
-import { useState } from "react";
 import { Text, View } from "react-native";
 import { Film, Plus, LogIn, RefreshCw } from "lucide-react-native";
 import { Screen } from "../../components/Screen";
@@ -12,25 +11,14 @@ import {
   EmptyState,
   styles,
   Button,
-  Field,
-  Dialog,
   Label,
 } from "../../components/ui";
 import { runtime } from "../../runtime";
 export default function Lobby() {
   const state = useRuntime(),
     session = useSession();
-  const [dialog, setDialog] = useState<"create" | "join">(),
-    [name, setName] = useState("今晚一起看"),
-    [code, setCode] = useState(""),
-    [password, setPassword] = useState(""),
-    [max, setMax] = useState("5");
   const enter = async (input: string) => {
-    await runtime.join(input, password || undefined);
-    if (runtime.snapshot().roomState === "connected") {
-      setDialog(undefined);
-      router.push("/room");
-    }
+    if (await runtime.join(input)) router.push("/room");
   };
   return (
     <Screen
@@ -63,20 +51,14 @@ export default function Lobby() {
             primary
             icon={Plus}
             style={{ flex: 1 }}
-            onPress={() => {
-              setPassword("");
-              setDialog("create");
-            }}
+            onPress={() => router.push("/create-room")}
           >
             创建房间
           </Button>
           <Button
             icon={LogIn}
             style={{ flex: 1 }}
-            onPress={() => {
-              setPassword("");
-              setDialog("join");
-            }}
+            onPress={() => router.push("/join-room")}
           >
             加入房间
           </Button>
@@ -100,9 +82,10 @@ export default function Lobby() {
             onPress={action(async () => {
               if (state.room?.id === room.id) router.push("/room");
               else if (room.access === "password") {
-                setCode(room.code);
-                setPassword("");
-                setDialog("join");
+                router.push({
+                  pathname: "/join-room",
+                  params: { code: room.code },
+                });
               } else await enter(room.id);
             })}
           >
@@ -119,60 +102,6 @@ export default function Lobby() {
           />
         </View>
       )}
-      <Dialog
-        visible={!!dialog}
-        title={dialog === "create" ? "创建房间" : "加入房间"}
-        close={() => setDialog(undefined)}
-      >
-        {dialog === "create" ? (
-          <>
-            <Field
-              label="房间名称"
-              value={name}
-              onChangeText={setName}
-              maxLength={64}
-            />
-            <Field
-              label="人数上限（2–10）"
-              value={max}
-              onChangeText={setMax}
-              keyboardType="number-pad"
-            />
-          </>
-        ) : (
-          <Field
-            label="房间号或邀请链接"
-            testID="join-code"
-            value={code}
-            onChangeText={setCode}
-            autoCapitalize="none"
-          />
-        )}
-        <Field
-          label={
-            dialog === "create"
-              ? "房间密码（留空为普通房）"
-              : "房间密码（如需）"
-          }
-          value={password}
-          onChangeText={setPassword}
-          secureTextEntry
-        />
-        <Button
-          primary
-          onPress={action(async () => {
-            if (dialog === "create") {
-              await runtime.create(name, Number(max), password || undefined);
-              if (runtime.snapshot().roomState === "connected") {
-                setDialog(undefined);
-                router.push("/room");
-              }
-            } else await enter(code);
-          })}
-        >
-          {dialog === "create" ? "创建并加入" : "加入房间"}
-        </Button>
-      </Dialog>
     </Screen>
   );
 }

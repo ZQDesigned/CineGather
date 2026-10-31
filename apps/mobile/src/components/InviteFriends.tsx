@@ -40,7 +40,16 @@ export function InviteFriends() {
     );
   const full = !!state.room && media.members.length >= state.room.maxMembers;
   return (
-    <Sheet title="邀请好友">
+    <Sheet
+      title="邀请好友"
+      footer={
+        canShareLink ? (
+          <Button testID="share-room-link" icon={Link} onPress={share}>
+            分享邀请链接
+          </Button>
+        ) : undefined
+      }
+    >
       {friends.map((friend) => {
         const present = media.members.some((m) => m.id === friend.userId);
         const invited = sent.has(friend.userId);
@@ -94,19 +103,6 @@ export function InviteFriends() {
               : "可以通过用户名添加好友"
           }
         />
-      )}
-      {canShareLink && (
-        <View
-          style={{
-            borderTopWidth: 0.5,
-            borderTopColor: colors.border,
-            paddingTop: 14,
-          }}
-        >
-          <Button icon={Link} onPress={share}>
-            分享邀请链接
-          </Button>
-        </View>
       )}
     </Sheet>
   );

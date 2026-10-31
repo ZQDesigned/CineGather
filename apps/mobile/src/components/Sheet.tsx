@@ -35,43 +35,75 @@ export function useSheetRoom() {
 export function Sheet({
   title,
   children,
+  footer,
 }: {
   title: string;
   children: ReactNode;
+  footer?: ReactNode;
 }) {
   const insets = useSafeAreaInsets();
   const state = useRuntime();
   return (
-    <ScrollView
-      testID="native-sheet"
+    <View
+      testID="native-sheet-container"
+      collapsable={false}
       style={{ flex: 1, backgroundColor: colors.surface }}
-      contentInsetAdjustmentBehavior="never"
-      automaticallyAdjustContentInsets={false}
-      keyboardShouldPersistTaps="handled"
-      contentContainerStyle={{
-        paddingHorizontal: 18,
-        paddingTop: Platform.OS === "ios" ? 20 : 12,
-        paddingBottom: Math.max(insets.bottom, 16),
-        gap: 16,
-      }}
     >
-      <View style={styles.spread}>
-        <Text accessibilityRole="header" style={[styles.heading, { flex: 1 }]}>
-          {title}
-        </Text>
-        <IconButton icon={X} label="关闭面板" onPress={closeSheet} />
-      </View>
-      {state.error && (
-        <Pressable
-          accessibilityRole="alert"
-          onPress={() => runtime.clearError()}
-          style={{ backgroundColor: "#492735", padding: 12, borderRadius: 12 }}
+      <ScrollView
+        testID="native-sheet"
+        style={{ flex: 1, backgroundColor: colors.surface }}
+        contentInsetAdjustmentBehavior="never"
+        automaticallyAdjustContentInsets={false}
+        automaticallyAdjustKeyboardInsets
+        keyboardDismissMode={Platform.OS === "ios" ? "interactive" : "on-drag"}
+        keyboardShouldPersistTaps="handled"
+        contentContainerStyle={{
+          paddingHorizontal: 18,
+          paddingTop: Platform.OS === "ios" ? 20 : 12,
+          paddingBottom: footer ? 16 : Math.max(insets.bottom, 16),
+          gap: 16,
+        }}
+      >
+        <View style={styles.spread}>
+          <Text
+            accessibilityRole="header"
+            style={[styles.heading, { flex: 1 }]}
+          >
+            {title}
+          </Text>
+          <IconButton icon={X} label="关闭面板" onPress={closeSheet} />
+        </View>
+        {state.error && (
+          <Pressable
+            accessibilityRole="alert"
+            onPress={() => runtime.clearError()}
+            style={{
+              backgroundColor: "#492735",
+              padding: 12,
+              borderRadius: 12,
+            }}
+          >
+            <Text style={styles.text}>{state.error}</Text>
+          </Pressable>
+        )}
+        {children}
+      </ScrollView>
+      {footer && (
+        <View
+          testID="native-sheet-footer"
+          style={{
+            paddingHorizontal: 18,
+            paddingTop: 12,
+            paddingBottom: Math.max(insets.bottom, 16),
+            borderTopWidth: 0.5,
+            borderTopColor: colors.border,
+            backgroundColor: colors.surface,
+          }}
         >
-          <Text style={styles.text}>{state.error}</Text>
-        </Pressable>
+          {footer}
+        </View>
       )}
-      {children}
-    </ScrollView>
+    </View>
   );
 }
 

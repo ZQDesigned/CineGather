@@ -9,9 +9,7 @@ import {
   LogIn,
   Mail,
   Check,
-  Send,
 } from "lucide-react-native";
-import { friendSearchSchema } from "@cinegather/contracts";
 import { runtime } from "../../runtime";
 import { useRuntime, action } from "../../components/use-runtime";
 import { Screen } from "../../components/Screen";
@@ -30,10 +28,6 @@ import {
 } from "../../components/ui";
 export default function Friends() {
   const state = useRuntime();
-  const [adding, setAdding] = useState(false),
-    [username, setUsername] = useState("");
-  const [result, setResult] =
-    useState<ReturnType<typeof friendSearchSchema.parse>["user"]>();
   const [selected, setSelected] = useState<string>(),
     [remark, setRemark] = useState("");
   const run = (work: () => Promise<unknown>) =>
@@ -182,11 +176,7 @@ export default function Friends() {
         <IconButton
           icon={UserPlus}
           label="添加好友"
-          onPress={() => {
-            setResult(undefined);
-            setUsername("");
-            setAdding(true);
-          }}
+          onPress={() => router.push("/add-friend")}
         />
       }
     >
@@ -300,56 +290,6 @@ export default function Friends() {
           detail="点击右上角，通过用户名添加"
         />
       )}
-      <Dialog visible={adding} title="添加好友" close={() => setAdding(false)}>
-        <Field
-          label="用户名"
-          autoCapitalize="none"
-          autoCorrect={false}
-          value={username}
-          onChangeText={setUsername}
-        />
-        <Button
-          onPress={action(async () => {
-            setResult(
-              friendSearchSchema.parse(
-                await runtime.api.call("search-friend", (c) =>
-                  c.GET("/api/v1/friends/search", {
-                    params: { query: { username } },
-                  }),
-                ),
-              ).user,
-            );
-          })}
-        >
-          搜索
-        </Button>
-        {result === null && <Label>没有找到该用户</Label>}
-        {result && (
-          <>
-            <View style={styles.row}>
-              <Avatar name={result.displayName} />
-              <View style={{ flex: 1 }}>
-                <Text style={styles.heading}>{result.displayName}</Text>
-                <Label muted>{result.username}</Label>
-              </View>
-            </View>
-            <Button
-              primary
-              icon={Send}
-              onPress={run(async () => {
-                await runtime.api.call("add-friend", (c) =>
-                  c.POST("/api/v1/friends", {
-                    body: { userId: result.userId },
-                  }),
-                );
-                setAdding(false);
-              })}
-            >
-              发送好友申请
-            </Button>
-          </>
-        )}
-      </Dialog>
       <Dialog
         visible={!!selected}
         title="好友设置"

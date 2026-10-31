@@ -41,6 +41,9 @@ export default function Layout() {
                 headerBackTitle: "返回",
               }}
             />
+            <Stack.Screen name="create-room" options={nativeSheetOptions} />
+            <Stack.Screen name="join-room" options={nativeSheetOptions} />
+            <Stack.Screen name="add-friend" options={nativeSheetOptions} />
             <Stack.Screen name="audio-options" options={nativeSheetOptions} />
             <Stack.Screen name="member-options" options={nativeSheetOptions} />
             <Stack.Screen name="invite-friends" options={nativeSheetOptions} />
