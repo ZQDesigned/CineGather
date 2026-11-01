@@ -31,7 +31,12 @@ class HoldFile { static void Main(string[] args) { using(var held=new FileStream
   if (@($markers | Where-Object { !(Test-Path $_) }).Count) { throw 'Probe fixtures did not become ready' }
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $CleanupScript -InstallDirectory $root -CheckOnly
   $before=$LASTEXITCODE
-  if ($before -ne 10) { throw "Probe processes were not detected: $before" }
+  if ($before -ne 10) {
+    Write-Output "Fixture root: $root"
+    Get-CimInstance Win32_Process -Filter "Name='obs-amf-test.exe' OR Name='obs-nvenc-test.exe' OR Name='obs-qsv-test.exe'" | Select-Object Name,ExecutablePath,ProcessId | Format-List
+    Get-Content (Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics/installer-logs/process-cleanup.jsonl') -Tail 3
+    throw "Probe processes were not detected: $before"
+  }
   & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $CleanupScript -InstallDirectory $root
   if ($LASTEXITCODE -ne 0) { throw 'Probe process cleanup failed' }
   foreach($p in $inside) { if(!$p.WaitForExit(10000)) { throw 'An installed probe was left running' } }
