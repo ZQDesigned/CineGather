@@ -256,6 +256,7 @@ run(["cmake", "-S", vpl, "-B", vpl_build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Rel
 run(["cmake", "--build", vpl_build, "--parallel", "4"])
 vpl_libraries = list(vpl_build.rglob("vpl.lib"))
 assert len(vpl_libraries) == 1, "Expected one static Intel VPL dispatcher"
+pthread_lib = import_library("w32-pthreads", runtime / "bin/64bit/w32-pthreads.dll")
 qsv = build / "qsv"
 if qsv.exists():
     shutil.rmtree(qsv)
@@ -266,8 +267,8 @@ for name in ["common_directx11.cpp", "common_utils_windows.cpp", "common_utils.c
     obj = qsv / (name + ".obj")
     qsv_objects.append(obj)
     lang_flags = flags if name.endswith(".cpp") else [f for f in flags if not f.startswith("/std:") and f != "/EHsc"] + ["/std:c17"]
-    run(["cl", *lang_flags, "/I" + str(vpl / "api"), "/c", qsv / name, "/Fo:" + str(obj)])
-run(["link", "/nologo", "/DLL", "/OUT:" + str(runtime / "obs-plugins/64bit/obs-qsv11.dll"), *qsv_objects, obs_lib, vpl_libraries[0], "d3d11.lib", "dxgi.lib", "dxguid.lib", "advapi32.lib", "cfgmgr32.lib", "ole32.lib"])
+    run(["cl", *lang_flags, "/I" + str(vpl / "api"), "/I" + str(obs / "deps/w32-pthreads"), "/c", qsv / name, "/Fo:" + str(obj)])
+run(["link", "/nologo", "/DLL", "/OUT:" + str(runtime / "obs-plugins/64bit/obs-qsv11.dll"), *qsv_objects, obs_lib, pthread_lib, vpl_libraries[0], "d3d11.lib", "dxgi.lib", "dxguid.lib", "advapi32.lib", "cfgmgr32.lib", "ole32.lib"])
 
 if os.environ.get("CG_PROTOCOL_TEST") == "1":
     run(["cl", *flags, root / "native/capture/test/encoder-selection.cpp", "/Fe:" + str(build / "CGEncoderSelectionSmoke.exe"), "/Fo:" + str(build / "encoder-selection-smoke.obj")])
