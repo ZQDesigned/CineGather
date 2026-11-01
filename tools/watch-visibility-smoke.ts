@@ -7,6 +7,7 @@ await writeFile(
   entry,
   `
 import {app,BrowserWindow,screen} from 'electron';
+import {createRequire} from 'node:module';
 import {WindowVisibilityMonitor} from ${JSON.stringify(resolve("apps/desktop/src/main/watch-visibility.ts"))};
 import {nativeWindowVisibility} from ${JSON.stringify(resolve("apps/desktop/src/main/native-window-visibility.ts"))};
 app.whenReady().then(async()=>{
@@ -14,21 +15,36 @@ app.whenReady().then(async()=>{
  const bounds={x:area.x+40,y:area.y+40,width:800,height:560};
  const make=async(title,bg)=>{const w=new BrowserWindow({...bounds,show:false,frame:false,backgroundColor:bg,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});await w.loadURL('data:text/html,<title>'+title+'</title><body style="margin:0;background:'+bg+'">'+title);w.setTitle(title);return w};
  const main=await make('Visibility main','#102a50');main.show();main.focus();
- let child,blocked=false;const changes=[];
+ let child,hud,blocked=false;const changes=[];
+ const ffi=process.platform==='win32'?createRequire(__filename)('koffi'):undefined;
+ const user=ffi?.load('user32.dll');
+ const getStyle=user?.func('intptr_t __stdcall GetWindowLongPtrW(uintptr_t window,int index)');
+ const getAlpha=user?.func('int __stdcall GetLayeredWindowAttributes(uintptr_t window,void *key,void *alpha,void *flags)');
+ const hudDetails=()=>{
+  if(!hud||!getStyle)return undefined;
+  const handle=hud.getNativeWindowHandle().readBigUInt64LE(),alpha=Buffer.alloc(1),flags=Buffer.alloc(4);
+  return {extendedStyle:Number(getStyle(handle,-20)),layerAttributesAvailable:!!getAlpha(handle,null,alpha,flags),alpha:alpha[0],layerFlags:flags.readUInt32LE()};
+ };
  const probe=nativeWindowVisibility(process.platform);
  const monitor=new WindowVisibilityMonitor({windows:()=>[main,child].filter(Boolean),blocked:()=>blocked,probe,changed:value=>changes.push(value)});
  const cover=await make('Visibility opaque cover','#802030');
  cover.setAlwaysOnTop(true,'screen-saver');
  const second=await make('Visibility second cover','#206030');second.setAlwaysOnTop(true,'screen-saver');
  globalThis.visibilityFixture={
-  read(){return{visible:monitor.sync(),changes:[...changes],mainFocused:main.isFocused(),mainShown:main.isVisible(),mainMinimized:main.isMinimized()}},
+  read(){return{visible:monitor.sync(),changes:[...changes],mainFocused:main.isFocused(),mainShown:main.isVisible(),mainMinimized:main.isMinimized(),hud:hudDetails()}},
   watch(value){return monitor.watch(value)},
   async mode(mode){
    if(mode==='full'){cover.setOpacity(1);cover.setBounds({x:bounds.x-30,y:bounds.y-30,width:bounds.width+60,height:bounds.height+60});cover.show();cover.focus();}
    if(mode==='partial'){cover.setOpacity(1);cover.setBounds({x:bounds.x+bounds.width/2,y:bounds.y-30,width:bounds.width,height:bounds.height+60});cover.show();cover.focus();}
    if(mode==='transparent'){cover.setOpacity(0.35);}
    if(mode==='multiple'){cover.setOpacity(1);cover.setBounds({x:bounds.x-30,y:bounds.y-30,width:bounds.width/2+35,height:bounds.height+60});cover.show();second.setBounds({x:bounds.x+bounds.width/2,y:bounds.y-30,width:bounds.width/2+30,height:bounds.height+60});second.show();second.focus();}
-   if(mode==='uncover'){cover.hide();second.hide();main.restore();main.show();main.focus();}
+   if(mode==='uncover'){cover.hide();second.hide();hud?.hide();main.restore();main.show();main.focus();}
+   if(mode==='transparent-hud'){
+    cover.hide();second.hide();main.restore();main.show();main.focus();
+    hud=new BrowserWindow({...bounds,x:bounds.x-30,y:bounds.y-30,width:bounds.width+60,height:bounds.height+60,frame:false,transparent:true,backgroundColor:'#00000000',show:false,focusable:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
+    await hud.loadURL('data:text/html,<body style="margin:0;background:transparent"><span style="background:purple;color:white">Transparent HUD</span>');
+    hud.setAlwaysOnTop(true,'screen-saver');hud.setIgnoreMouseEvents(true);hud.setOpacity(0.99);hud.setOpacity(1);hud.showInactive();
+   }
    if(mode==='minimize'){main.minimize();}
    if(mode==='hide'){main.hide();}
    if(mode==='child'){child=await make('Visibility viewing child','#202080');child.setBounds({x:bounds.x+60,y:bounds.y+60,width:360,height:240});child.setAlwaysOnTop(true,'screen-saver');child.show();child.focus();}
@@ -38,7 +54,7 @@ app.whenReady().then(async()=>{
    if(mode==='unlock'){blocked=false;}
    monitor.sync();
   },
-  dispose(){monitor.dispose();cover.destroy();second.destroy();child?.destroy();main.destroy();},
+  dispose(){monitor.dispose();cover.destroy();second.destroy();hud?.destroy();child?.destroy();main.destroy();},
  };
  app.on('before-quit',()=>monitor.dispose());
 });
@@ -58,7 +74,17 @@ const app = await _electron.launch({
   args: [main, "--user-data-dir=" + join(directory, "profile"), "--mute-audio"],
 });
 interface Fixture {
-  read(): { visible: boolean; mainFocused: boolean; changes: boolean[] };
+  read(): {
+    visible: boolean;
+    mainFocused: boolean;
+    changes: boolean[];
+    hud?: {
+      extendedStyle: number;
+      alpha: number;
+      layerFlags: number;
+      layerAttributesAvailable: boolean;
+    };
+  };
   watch(value: boolean): boolean;
   mode(mode: string): Promise<void>;
   dispose(): void;
@@ -109,6 +135,18 @@ try {
   await visible(false);
   await mode("uncover");
   await visible(true);
+  if (process.platform === "win32") {
+    await mode("transparent-hud");
+    const observed = await read();
+    const output = resolve(".local/watch-visibility-verification");
+    await mkdir(output, { recursive: true });
+    await writeFile(
+      join(output, "win32-transparent-hud.json"),
+      JSON.stringify(observed),
+    );
+    await visible(true);
+    await mode("uncover");
+  }
   await mode("minimize");
   await visible(false);
   await mode("uncover");
