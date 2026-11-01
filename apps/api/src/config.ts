@@ -13,6 +13,8 @@ function required(name: string, min = 1) {
   return value;
 }
 export const config = {
+  maintenanceFile:
+    process.env.MAINTENANCE_FILE ?? "/etc/cinegather/maintenance.json",
   clientPolicy: readClientPolicy(process.env),
   updateDirectory:
     process.env.CLIENT_UPDATE_DIRECTORY ?? "/var/lib/cinegather/updates/stable",

@@ -26,6 +26,7 @@ import { reconcileAll } from "./rooms";
 import { Metrics } from "./metrics";
 import { UpdateEvents } from "./update-events";
 import { compatibilityFailure } from "./client-policy";
+import { maintenanceGate } from "./maintenance";
 import type { ClientPolicy } from "@cinegather/contracts";
 class Reconciler implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
@@ -59,11 +60,13 @@ export async function createApp({
   trustedCdns = config.trustedCdns,
   clientPolicy = config.clientPolicy,
   updateDirectory = config.updateDirectory,
+  maintenanceFile = config.maintenanceFile,
 }: {
   trustedProxies?: string[];
   trustedCdns?: string[];
   clientPolicy?: ClientPolicy;
   updateDirectory?: string;
+  maintenanceFile?: string;
 } = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false,
@@ -103,8 +106,14 @@ export async function createApp({
       "X-CineGather-Revision",
       "X-CineGather-Channel",
     ],
-    exposedHeaders: ["X-Request-Id", "X-CineGather-Min-Version"],
+    exposedHeaders: [
+      "X-Request-Id",
+      "X-CineGather-Min-Version",
+      "X-CineGather-Maintenance",
+      "Retry-After",
+    ],
   });
+  app.use(maintenanceGate(maintenanceFile));
   const mobileUpdates = new MobileUpdateStore(updateDirectory);
   const buckets = new Map<string, { count: number; reset: number }>();
   const metrics = app.get(Metrics);
