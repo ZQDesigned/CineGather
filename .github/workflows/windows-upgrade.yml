@@ -85,6 +85,8 @@ jobs:
           bunx electron-builder --win --x64 --publish never
       - name: Verify packaged offline speech enhancement
         run: bun tools/noise-package-smoke.ts
+      - name: Verify packaged native encoder inventory and real H264 packets
+        run: bun tools/windows-native-smoke.ts apps/desktop/release/win-unpacked/resources/capture/obs
       - name: Verify packaged Windows caption controls
         run: bun tools/window-chrome-smoke.ts
       - name: Verify packaged viewing window lifecycle
@@ -131,3 +133,4 @@ jobs:
           path: |
             apps/desktop/release/*.exe
             apps/desktop/release/*.blockmap
+            apps/desktop/release/*-native-source.zip
