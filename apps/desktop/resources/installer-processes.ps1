@@ -8,7 +8,10 @@ $root = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 $expected = @(
   "$root\CineGather.exe",
   "$root\resources\capture\CGProcessAudioHost.exe",
-  "$root\resources\capture\obs\bin\64bit\CGScreenCaptureHost.exe"
+  "$root\resources\capture\obs\bin\64bit\CGScreenCaptureHost.exe",
+  "$root\resources\capture\obs\bin\64bit\obs-amf-test.exe",
+  "$root\resources\capture\obs\bin\64bit\obs-nvenc-test.exe",
+  "$root\resources\capture\obs\bin\64bit\obs-qsv-test.exe"
 )
 $logDirectory = Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs'
 function Record([string]$action, [string]$image = '', [int]$TargetProcessId=0) {
@@ -25,7 +28,7 @@ try {
   $script:inaccessibleCount=0
   $script:lastCode = "process-query"
   Record 'query-started'
-  $known = @(Get-CimInstance Win32_Process -Filter "Name='CineGather.exe' OR Name='CGScreenCaptureHost.exe' OR Name='CGProcessAudioHost.exe'")
+  $known = @(Get-CimInstance Win32_Process -Filter "Name='CineGather.exe' OR Name='CGScreenCaptureHost.exe' OR Name='CGProcessAudioHost.exe' OR Name='obs-amf-test.exe' OR Name='obs-nvenc-test.exe' OR Name='obs-qsv-test.exe'")
   $script:inaccessibleCount=@($known | Where-Object {!$_.ExecutablePath}).Count
   $targets = @($known | Where-Object {
     $image = $_.ExecutablePath
