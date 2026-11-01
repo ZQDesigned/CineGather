@@ -31,7 +31,9 @@ try {
   $known = @(Get-CimInstance Win32_Process -Filter "Name='CineGather.exe' OR Name='CGScreenCaptureHost.exe' OR Name='CGProcessAudioHost.exe' OR Name='obs-amf-test.exe' OR Name='obs-nvenc-test.exe' OR Name='obs-qsv-test.exe'")
   $script:inaccessibleCount=@($known | Where-Object {!$_.ExecutablePath}).Count
   $targets = @($known | Where-Object {
-    $image = $_.ExecutablePath
+    # .NET Framework expands short (8.3) installation paths while CIM can
+    # retain them. Normalize both sides before the exact installation match.
+    $image = if ($_.ExecutablePath) { [IO.Path]::GetFullPath($_.ExecutablePath) } else { '' }
     $image -and @($expected | Where-Object { [string]::Equals($_, $image, [StringComparison]::OrdinalIgnoreCase) }).Count -gt 0
   })
   $script:matchedCount=$targets.Count
