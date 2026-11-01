@@ -49,21 +49,29 @@ jobs:
         run: |
           $ProgressPreference = 'SilentlyContinue'
           New-Item -ItemType Directory -Force .local/windows-upgrade | Out-Null
-          Invoke-WebRequest 'https://cgplat.zqdesigned.city/downloads/CineGather-0.1.14-win-x64-setup.exe' -OutFile .local/windows-upgrade/CineGather-0.1.14-setup.exe
-          & 7z x .local/windows-upgrade/CineGather-0.1.14-setup.exe '-o.local/upgrade-archive' -y | Out-Null
-          & 7z x '.local/upgrade-archive/$PLUGINSDIR/app-64.7z' '-o.local/upgrade-payload' -y | Out-Null
-          New-Item -ItemType Directory -Force .local/native-runtime/windows | Out-Null
-          Copy-Item .local/upgrade-payload/resources/capture/obs .local/native-runtime/windows/obs -Recurse
-          Copy-Item .local/upgrade-payload/resources/capture/CGProcessAudioHost.exe .local/native-runtime/windows/
-          $manifest = Get-Content .local/native-runtime/windows/obs/manifest.json | ConvertFrom-Json
-          $expected = python native/capture/runtime-fingerprint.py
-          if ($manifest.buildFingerprint -ne $expected) {
+          $reuse = $false
+          try {
+            bun tools/released-native-runtime.ts
+            if ($LASTEXITCODE -ne 0) { throw 'Released installer verification failed' }
+            & 7z x .local/windows-upgrade/released-setup.exe '-o.local/upgrade-archive' -y | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
+            & 7z x '.local/upgrade-archive/$PLUGINSDIR/app-64.7z' '-o.local/upgrade-payload' -y | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw 'Native runtime extraction failed' }
+            $manifest = Get-Content .local/upgrade-payload/resources/capture/obs/manifest.json | ConvertFrom-Json
+            $expected = python native/capture/runtime-fingerprint.py
+            if ($manifest.buildFingerprint -eq $expected) {
+              New-Item -ItemType Directory -Force .local/native-runtime/windows | Out-Null
+              Copy-Item .local/upgrade-payload/resources/capture/obs .local/native-runtime/windows/obs -Recurse
+              Copy-Item .local/upgrade-payload/resources/capture/CGProcessAudioHost.exe .local/native-runtime/windows/
+              $reuse = $true
+            }
+          } catch { Write-Host 'No matching released native runtime; building current sources.' }
+          if (-not $reuse) {
             bun tools/windows-audio-build.ts
             if ($LASTEXITCODE -ne 0) { throw 'Process audio host build failed' }
             python native/capture/build-windows.py
             if ($LASTEXITCODE -ne 0) { throw 'Native capture build failed' }
           }
-
       - name: Build installer and portable
         working-directory: apps/desktop
         env:

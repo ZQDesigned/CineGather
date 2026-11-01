@@ -15,15 +15,10 @@ export function automaticEncoderLabel(
       ? "自动选择（共享时确定）"
       : "自动选择（无可用编码器）";
   }
-  const type = inventory.adapters.find(
-    (a) => a.index === encoder.adapterIndex,
-  )?.gpuType;
-  const gpu = encoder.hardware
-    ? type === "integrated"
-      ? "，核显"
-      : type === "discrete"
-        ? "，独显"
-        : ""
-    : "";
+  const index = encoder.adapterIndex;
+  const type = inventory.adapters.find((a) => a.index === index)?.gpuType;
+  let gpu = "";
+  if (encoder.hardware && type === "integrated") gpu = "，核显";
+  if (encoder.hardware && type === "discrete") gpu = "，独显";
   return `自动选择（${sharing ? "当前" : "优先"}：${encoder.name}${gpu}）`;
 }
