@@ -19,6 +19,7 @@ app.whenReady().then(async()=>{
  const ffi=process.platform==='win32'?createRequire(__filename)('koffi'):undefined;
  const user=ffi?.load('user32.dll');
  const getStyle=user?.func('intptr_t __stdcall GetWindowLongPtrW(uintptr_t window,int index)');
+ const setStyle=user?.func('intptr_t __stdcall SetWindowLongPtrW(uintptr_t window,int index,intptr_t value)');
  const getAlpha=user?.func('int __stdcall GetLayeredWindowAttributes(uintptr_t window,void *key,void *alpha,void *flags)');
  const hudDetails=()=>{
   if(!hud||!getStyle)return undefined;
@@ -44,6 +45,11 @@ app.whenReady().then(async()=>{
     hud=new BrowserWindow({...bounds,x:bounds.x-30,y:bounds.y-30,width:bounds.width+60,height:bounds.height+60,frame:false,transparent:true,backgroundColor:'#00000000',show:false,focusable:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
     await hud.loadURL('data:text/html,<body style="margin:0;background:transparent"><span style="background:purple;color:white">Transparent HUD</span>');
     hud.setAlwaysOnTop(true,'screen-saver');hud.setIgnoreMouseEvents(true);hud.setOpacity(0.99);hud.setOpacity(1);hud.showInactive();
+   }
+   if(mode==='click-through-only'||mode==='tool-window-only'){
+    const handle=hud.getNativeWindowHandle().readBigUInt64LE();
+    const flags=Number(getStyle(handle,-20))&~(0x20|0x80);
+    setStyle(handle,-20,flags|(mode==='click-through-only'?0x20:0x80));
    }
    if(mode==='minimize'){main.minimize();}
    if(mode==='hide'){main.hide();}
@@ -95,17 +101,23 @@ const read = () =>
       globalThis as unknown as { visibilityFixture: Fixture }
     ).visibilityFixture.read(),
   );
-const mode = (value: string) =>
-  app.evaluate(
+let currentMode = "initial";
+const mode = (value: string) => {
+  currentMode = value;
+  return app.evaluate(
     (_, value) =>
       (
         globalThis as unknown as { visibilityFixture: Fixture }
       ).visibilityFixture.mode(value),
     value,
   );
+};
 const visible = (expected: boolean) =>
   expect
-    .poll(async () => (await read()).visible, { timeout: 10000 })
+    .poll(async () => (await read()).visible, {
+      timeout: 10000,
+      message: "Window visibility after " + currentMode,
+    })
     .toBe(expected);
 try {
   await expect
@@ -137,14 +149,24 @@ try {
   await visible(true);
   if (process.platform === "win32") {
     await mode("transparent-hud");
-    const observed = await read();
     const output = resolve(".local/watch-visibility-verification");
     await mkdir(output, { recursive: true });
-    await writeFile(
-      join(output, "win32-transparent-hud.json"),
-      JSON.stringify(observed),
-    );
-    await visible(true);
+    for (const variant of [
+      "transparent-hud",
+      "click-through-only",
+      "tool-window-only",
+    ]) {
+      if (variant !== "transparent-hud") await mode(variant);
+      const observed = await read();
+      await writeFile(
+        join(output, "win32-" + variant + ".json"),
+        JSON.stringify(observed),
+      );
+      const flags = observed.hud!.extendedStyle;
+      expect(Boolean(flags & 0x20)).toBe(variant !== "tool-window-only");
+      expect(Boolean(flags & 0x80)).toBe(variant !== "click-through-only");
+      await visible(true);
+    }
     await mode("uncover");
   }
   await mode("minimize");
@@ -172,6 +194,7 @@ try {
     focusIndependent: true,
     fullAndMultipleOcclusionPauses: true,
     transparentCoverKeepsVideo: true,
+    transparentHudKeepsVideo: process.platform === "win32" ? true : undefined,
     minimizeHideAndRestore: true,
     viewingChildKeepsVideo: true,
     lockAndChildCleanup: true,

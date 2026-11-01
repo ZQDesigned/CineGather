@@ -118,6 +118,9 @@ export function nativeWindowVisibility(
     const opaqueBounds = (hwnd: bigint) => {
       if (!shown(hwnd) || iconic(hwnd) || cloaked(hwnd) !== false) return;
       const flags = Number(style(hwnd, -20));
+      // Click-through and tool windows can have desktop-sized transparent bounds.
+      // Their rectangles are not evidence that the viewing window is covered.
+      if (flags & (0x20 | 0x80)) return; // WS_EX_TRANSPARENT | WS_EX_TOOLWINDOW
       if (flags & 0x80000) {
         const alpha = Buffer.alloc(1),
           layerFlags = Buffer.alloc(4);
