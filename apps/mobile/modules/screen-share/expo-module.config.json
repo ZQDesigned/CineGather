@@ -1,1 +1,7 @@
-{"platforms":["apple","android"],"apple":{"modules":["CineGatherScreenShareModule"]},"android":{"modules":["city.zqdesigned.cinegather.screenshare.ScreenShareModule"]}}
+{
+  "platforms": ["apple", "android"],
+  "apple": { "modules": ["CineGatherScreenShareModule"] },
+  "android": {
+    "modules": ["city.zqdesigned.cinegather.screenshare.ScreenShareModule"]
+  }
+}

@@ -15,4 +15,5 @@ packages/database/migrations/meta
 apps/mobile/android/
 apps/mobile/ios/
 apps/mobile/.expo/
+apps/mobile/expo-env.d.ts
 apps/mobile/modules/**/build/

@@ -4,21 +4,8 @@
     "strict": true,
     "noUncheckedIndexedAccess": true,
     "skipLibCheck": true,
-    "lib": [
-      "ES2022",
-      "DOM",
-      "DOM.Iterable"
-    ]
+    "lib": ["ES2022", "DOM", "DOM.Iterable"]
   },
-  "exclude": [
-    "node_modules",
-    "android",
-    "ios"
-  ],
-  "include": [
-    "**/*.ts",
-    "**/*.tsx",
-    ".expo/types/**/*.ts",
-    "expo-env.d.ts"
-  ]
+  "exclude": ["node_modules", "android", "ios"],
+  "include": ["**/*.ts", "**/*.tsx", ".expo/types/**/*.ts", "expo-env.d.ts"]
 }
