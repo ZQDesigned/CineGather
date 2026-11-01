@@ -4,6 +4,7 @@ struct Choice {
   std::string id, backend;
   int adapter;
   bool available;
+  std::string gpuType = "unknown";
 };
 int main() {
   assert(cinegather::retryEncoderFailure("encoder-initialization"));
@@ -38,4 +39,29 @@ int main() {
   assert(failed);
   assert(cinegather::encoderCandidates(unavailable, "auto")[0].backend ==
          "amf");
+
+  auto hybrid = choices;
+  hybrid[0].gpuType = "integrated";
+  hybrid[1].gpuType = "discrete";
+  const auto preferred = cinegather::encoderCandidates(hybrid, "auto");
+  assert(preferred[0].id == hybrid[0].id);
+  assert(preferred[1].id == hybrid[1].id);
+  assert(preferred[2].backend == "x264");
+  assert(cinegather::encoderCandidates(hybrid, hybrid[1].id)[0].id ==
+         hybrid[1].id);
+  hybrid[0].available = false;
+  assert(cinegather::encoderCandidates(hybrid, "auto")[0].id == hybrid[1].id);
+  hybrid[1].gpuType = "unknown";
+  assert(cinegather::encoderCandidates(hybrid, "auto")[0].id == hybrid[1].id);
+  hybrid[0].available = true;
+  hybrid.push_back({"qsv:32902:10:1:2", "qsv", 2, true, "integrated"});
+  hybrid[0].gpuType = "discrete";
+  assert(cinegather::encoderCandidates(hybrid, "auto")[0].backend == "qsv");
+  assert(cinegather::encoderCandidates(hybrid, hybrid.back().id)[0].adapter == 2);
+  hybrid.back().available = false;
+  assert(cinegather::encoderCandidates(hybrid, "auto")[0].backend == "nvenc");
+  auto equal = choices;
+  equal.insert(equal.begin(), {"nvenc:4318:3:3:2", "nvenc", 2, true});
+  const auto stable = cinegather::encoderCandidates(equal, "auto");
+  assert(stable[0].id == equal[0].id && stable[1].id == choices[1].id);
 }

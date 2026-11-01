@@ -137,6 +137,7 @@ export class ShareDebugMetrics {
             {
               nvenc: "NVENC",
               amf: "AMF",
+              qsv: "QSV",
               x264: "x264",
               videotoolbox: "VideoToolbox",
             } as const

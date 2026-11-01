@@ -213,7 +213,8 @@ export class NativeCapture {
       policy: {
         backend: "libobs",
         manualFallback: false,
-        automaticOrder: ["nvenc", "amf", "x264"],
+        automaticOrder: ["integrated-hardware", "other-hardware", "x264"],
+        hardwareBackendOrder: ["nvenc", "amf", "qsv"],
       },
     };
   }

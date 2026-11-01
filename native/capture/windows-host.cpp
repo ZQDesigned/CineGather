@@ -16,6 +16,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <d3d11.h>
+#include <dxcore.h>
 #include <dxgi1_2.h>
 #include <filesystem>
 #include <graphics/vec2.h>
@@ -99,19 +100,21 @@ static int configuredWidth = 0, configuredHeight = 0, configuredFps = 0;
 static uint64_t graphicsReinitializations = 0;
 static int graphicsAdapter = -1;
 static UINT graphicsVendor = 0, graphicsDevice = 0;
+static uint64_t graphicsLuid = 0;
 static bool engineReady = false, deviceFallback = false;
 static std::atomic<bool> quitting{false};
 static std::string requestedEncoder = "auto", selectedEncoder, selectedBackend,
                    lastFailure;
 struct Adapter {
   UINT index, vendor, device, subsys;
-  std::string name, key;
+  std::string name, key, gpuType;
 };
 static std::vector<Adapter> adapters;
 struct Choice {
   std::string id, backend, obsId, name;
   int adapter;
   bool available;
+  std::string gpuType = "unknown";
 };
 static std::vector<Choice> choices;
 struct Attempt {
@@ -222,6 +225,7 @@ static void logging(int level, const char *format, va_list args, void *) {
     return;
   std::string backend = lower.find("nvenc") != std::string::npos  ? "nvenc"
                         : lower.find("amf") != std::string::npos  ? "amf"
+                        : lower.find("qsv") != std::string::npos ? "qsv"
                         : lower.find("x264") != std::string::npos ? "x264"
                                                                   : "";
   if (backend.empty())
@@ -244,7 +248,7 @@ static void logging(int level, const char *format, va_list args, void *) {
           : "not-reported";
   if (std::regex_search(
           text, match,
-          std::regex("(?:NV_ENC_ERR_[A-Z_]+|AMF_[A-Z_]+|0[xX][0-9A-Fa-f]{8})")))
+          std::regex("(?:NV_ENC_ERR_[A-Z_]+|AMF_[A-Z_]+|MFX_ERR_[A-Z_]+|0[xX][0-9A-Fa-f]{8})")))
     code = match.str();
   int64_t at = std::chrono::duration_cast<std::chrono::milliseconds>(
                    std::chrono::system_clock::now().time_since_epoch())
@@ -274,6 +278,13 @@ static void enumerateAdapters() {
   ComPtr<IDXGIFactory1> factory;
   check(SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))),
         "dxgi-enumeration");
+  const auto core = LoadLibraryExW(L"dxcore.dll", nullptr, LOAD_LIBRARY_SEARCH_SYSTEM32);
+  ComPtr<IDXCoreAdapterFactory> coreFactory;
+  if (core) {
+    auto create = reinterpret_cast<HRESULT(WINAPI *)(REFIID, void **)>(
+        GetProcAddress(core, "DXCoreCreateAdapterFactory"));
+    if (create) create(IID_PPV_ARGS(&coreFactory));
+  }
   for (UINT i = 0;; i++) {
     ComPtr<IDXGIAdapter1> a;
     if (factory->EnumAdapters1(i, &a) == DXGI_ERROR_NOT_FOUND)
@@ -284,9 +295,21 @@ static void enumerateAdapters() {
     std::string key = std::to_string(d.VendorId) + ":" +
                       std::to_string(d.DeviceId) + ":" +
                       std::to_string(d.SubSysId) + ":" + std::to_string(i);
+    std::string gpuType = "unknown";
+    ComPtr<IDXCoreAdapter> card;
+    bool integrated = false, hardware = false;
+    if (coreFactory &&
+        SUCCEEDED(coreFactory->GetAdapterByLuid(d.AdapterLuid, IID_PPV_ARGS(&card))) &&
+        card->IsPropertySupported(DXCoreAdapterProperty::IsHardware) &&
+        SUCCEEDED(card->GetProperty(DXCoreAdapterProperty::IsHardware, sizeof(hardware), &hardware)) && hardware &&
+        card->IsPropertySupported(DXCoreAdapterProperty::IsIntegrated) &&
+        SUCCEEDED(card->GetProperty(DXCoreAdapterProperty::IsIntegrated, sizeof(integrated), &integrated)))
+      gpuType = integrated ? "integrated" : "discrete";
     adapters.push_back(
-        {i, d.VendorId, d.DeviceId, d.SubSysId, utf8(d.Description), key});
+        {i, d.VendorId, d.DeviceId, d.SubSysId, utf8(d.Description), key, gpuType});
   }
+  coreFactory.Reset();
+  if (core) FreeLibrary(core);
 }
 static bool encoderExists(const char *id) {
   const char *name;
@@ -301,11 +324,15 @@ static void refreshChoices() {
     if (a.vendor == 0x10de)
       choices.push_back({"nvenc:" + a.key, "nvenc", "obs_nvenc_h264_tex",
                          "NVIDIA NVENC (" + a.name + ")", int(a.index),
-                         encoderExists("obs_nvenc_h264_tex")});
+                         encoderExists("obs_nvenc_h264_tex"), a.gpuType});
     if (a.vendor == 0x1002)
       choices.push_back({"amf:" + a.key, "amf", "h264_texture_amf",
                          "AMD AMF (" + a.name + ")", int(a.index),
-                         encoderExists("h264_texture_amf")});
+                         encoderExists("h264_texture_amf"), a.gpuType});
+    if (a.vendor == 0x8086)
+      choices.push_back({"qsv:" + a.key, "qsv", "obs_qsv11_v2",
+                         "Intel QSV (" + a.name + ")", int(a.index),
+                         a.index < 10 && encoderExists("obs_qsv11_v2"), a.gpuType});
   }
   choices.push_back({"x264", "x264", "obs_x264", "软件编码 (x264)", 0,
                      encoderExists("obs_x264")});
@@ -324,6 +351,12 @@ static Data encoderList() {
     obs_data_array_push_back(list.get(), row.get());
   }
   obs_data_set_array(result.get(), "encoders", list.get());
+  if (std::any_of(choices.begin(), choices.end(), [](const Choice &c) { return c.available; })) {
+    const auto ordered = cinegather::encoderCandidates(choices, "auto");
+    obs_data_set_string(result.get(), "automaticEncoder", ordered.front().id.c_str());
+  }
+  if (output && obs_output_active(output) && !selectedEncoder.empty())
+    obs_data_set_string(result.get(), "activeEncoder", selectedEncoder.c_str());
   auto cards = array();
   for (const auto &a : adapters) {
     auto row = data();
@@ -331,6 +364,7 @@ static Data encoderList() {
     obs_data_set_int(row.get(), "vendorId", a.vendor);
     obs_data_set_int(row.get(), "deviceId", a.device);
     obs_data_set_string(row.get(), "name", a.name.c_str());
+    obs_data_set_string(row.get(), "gpuType", a.gpuType.c_str());
     obs_data_array_push_back(cards.get(), row.get());
   }
   obs_data_set_array(result.get(), "adapters", cards.get());
@@ -1077,6 +1111,7 @@ static void configureVideo(int adapter, int width, int height, int fps) {
   graphicsAdapter = adapter;
   graphicsVendor = actualDesc.VendorId;
   graphicsDevice = actualDesc.DeviceId;
+  graphicsLuid = (uint64_t(uint32_t(actualDesc.AdapterLuid.HighPart)) << 32) | actualDesc.AdapterLuid.LowPart;
 }
 static void init(int adapter = 0);
 static void restartEngine(int adapter) {
@@ -1119,6 +1154,10 @@ static void createVideoEncoder(const Choice &c, int bitrate) {
                       : c.backend == "amf" ? "balanced"
                                            : "p4");
   obs_data_set_bool(settings.get(), "pre_analysis", false);
+  if (c.backend == "qsv") {
+    obs_data_set_string(settings.get(), "latency", "ultra-low");
+    obs_data_set_string(settings.get(), "target_usage", "TU4");
+  }
   obs_data_set_string(settings.get(), "tune",
                       c.backend == "x264" ? "zerolatency" : "ll");
   videoEncoder = obs_video_encoder_create(c.obsId.c_str(), "CineGather H264",
@@ -1259,6 +1298,12 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       check(obs_output_initialize_encoders(output, 0),
             "encoder-initialization");
       check(c.backend != "nvenc" || !nvencRerouted, "encoder-adapter-reroute");
+      if (c.backend == "qsv") {
+        using ReadLuid = bool (*)(uint64_t *);
+        auto read = reinterpret_cast<ReadLuid>(GetProcAddress(GetModuleHandleW(L"obs-qsv11.dll"), "cg_qsv_adapter_luid"));
+        uint64_t actualLuid = 0;
+        check(read && read(&actualLuid) && actualLuid == graphicsLuid, "encoder-adapter-reroute");
+      }
       check(obs_output_start(output), "encoder-initialization");
       selectedEncoder = c.id;
       selectedBackend = c.backend;
@@ -1365,7 +1410,7 @@ static void init(int adapter) {
   audio.fixed_buffering = false;
   check(obs_reset_audio2(&audio), "audio-reset");
   for (const char *name :
-       {"win-capture", "obs-nvenc", "obs-ffmpeg", "obs-x264", "obs-webrtc"}) {
+       {"win-capture", "obs-nvenc", "obs-ffmpeg", "obs-qsv11", "obs-x264", "obs-webrtc"}) {
     obs_module_t *module = nullptr;
     std::string dll = (rootDir / "obs-plugins/64bit" /
                        (std::string(name) + ".dll"))

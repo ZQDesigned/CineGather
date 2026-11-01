@@ -1,5 +1,5 @@
 import { spawn } from "node:child_process";
-import { mkdtemp, rm } from "node:fs/promises";
+import { mkdtemp, rm, mkdir, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { expect } from "@playwright/test";
@@ -36,6 +36,15 @@ try {
     await pipe.call({ type: "encoders" }),
   );
   expect(inventory.encoders.find((e) => e.id === "x264")?.available).toBe(true);
+  expect(inventory.automaticEncoder).toBeTruthy();
+  expect(inventory.activeEncoder).toBeUndefined();
+  for (const adapter of inventory.adapters)
+    expect(["integrated", "discrete", "unknown"]).toContain(adapter.gpuType);
+  for (const encoder of inventory.encoders.filter((e) => e.backend === "qsv"))
+    expect(
+      inventory.adapters.find((a) => a.index === encoder.adapterIndex)
+        ?.vendorId,
+    ).toBe(0x8086);
   const probe = await pipe.call<{
     status: string;
     framesEncoded: number;
@@ -76,6 +85,21 @@ try {
   }>({ type: "status" });
   expect(stopped.sourcesActive).toBe(false);
   expect(stopped.outputActive).toBe(false);
+  const after = nativeEncoderInventorySchema.parse(
+    await pipe.call({ type: "encoders" }),
+  );
+  expect(after.activeEncoder).toBeUndefined();
+  expect(after.automaticEncoder).toBe(inventory.automaticEncoder);
+  const evidence = resolve(".local/encoder-verification");
+  await mkdir(evidence, { recursive: true });
+  await writeFile(
+    join(evidence, "win32.json"),
+    JSON.stringify(
+      { inventory, probe, missing, after, productionDataCreated: false },
+      null,
+      2,
+    ),
+  );
   console.log(
     "Native Windows OBS inventory/manual x264 real H264 packet probe/no-silent-fallback:",
     JSON.stringify({ inventory, probe, missing }),

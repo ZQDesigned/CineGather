@@ -1,4 +1,5 @@
 import { audioDeviceOptions, reconcileAudioDevices } from "../audio-devices";
+import { automaticEncoderLabel } from "../encoder-label";
 import {
   App,
   Select,
@@ -47,6 +48,7 @@ export function Settings() {
   const [encoderInventory, setEncoderInventory] =
     useState<NativeEncoderInventory>();
   const [encoderError, setEncoderError] = useState(false);
+  const shareState = useApp((s) => s.shareState);
   const sharing = useApp(
     (s) => s.shareState !== "idle" && s.shareState !== "failed",
   );
@@ -66,7 +68,7 @@ export function Settings() {
     return () => {
       current = false;
     };
-  }, [open]);
+  }, [open, shareState]);
   const { modal } = App.useApp();
   const serverRequest = useRef<AbortController | undefined>(undefined);
   const confirmation = useRef<ReturnType<typeof modal.confirm> | undefined>(
@@ -597,7 +599,14 @@ export function Settings() {
                         loading={!encoderInventory && !encoderError}
                         onChange={(value) => change("windowsEncoder", value)}
                         options={[
-                          { value: "auto", label: "自动选择" },
+                          {
+                            value: "auto",
+                            label: automaticEncoderLabel(
+                              encoderInventory,
+                              sharing,
+                              encoderError,
+                            ),
+                          },
                           ...(encoderInventory?.encoders ?? []).map(
                             (encoder) => ({
                               value: encoder.id,

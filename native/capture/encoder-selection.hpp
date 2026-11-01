@@ -25,8 +25,14 @@ std::vector<Choice> encoderCandidates(const std::vector<Choice> &choices,
     std::stable_sort(
         result.begin(), result.end(), [](const Choice &a, const Choice &b) {
           auto rank = [](const std::string &backend) {
-            return backend == "nvenc" ? 0 : backend == "amf" ? 1 : 2;
+            return backend == "nvenc" ? 0 : backend == "amf" ? 1
+                                        : backend == "qsv" ? 2 : 3;
           };
+          auto deviceRank = [](const Choice &c) {
+            return c.backend == "x264" ? 2 : c.gpuType == "integrated" ? 0 : 1;
+          };
+          if (deviceRank(a) != deviceRank(b))
+            return deviceRank(a) < deviceRank(b);
           return rank(a.backend) < rank(b.backend);
         });
   return result;

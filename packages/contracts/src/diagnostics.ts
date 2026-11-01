@@ -437,7 +437,7 @@ export const nativeDiagnosticSchema = z.object({
   encoderErrors: z
     .array(
       z.object({
-        backend: z.enum(["nvenc", "amf", "x264"]),
+        backend: z.enum(["nvenc", "amf", "qsv", "x264"]),
         stage: z.enum([
           "driver",
           "adapter",
@@ -450,7 +450,7 @@ export const nativeDiagnosticSchema = z.object({
           .string()
           .max(100)
           .regex(
-            /^(?:not-reported|CG_DRIVER_API_TOO_OLD|CG_RUNTIME_UNAVAILABLE|NV_ENC_ERR_[A-Z_]+|AMF_[A-Z_]+|0[xX][a-fA-F0-9]{8})$/,
+            /^(?:not-reported|CG_DRIVER_API_TOO_OLD|CG_RUNTIME_UNAVAILABLE|NV_ENC_ERR_[A-Z_]+|AMF_[A-Z_]+|MFX_ERR_[A-Z_]+|0[xX][a-fA-F0-9]{8})$/,
           ),
         at: z.number().finite(),
       }),
@@ -460,7 +460,7 @@ export const nativeDiagnosticSchema = z.object({
   requestedEncoder: nativeEncoderIdSchema.optional(),
   selectedEncoder: nativeEncoderIdSchema.or(z.literal("")).optional(),
   encoderBackend: z
-    .enum(["nvenc", "amf", "x264", "videotoolbox", ""])
+    .enum(["nvenc", "amf", "qsv", "x264", "videotoolbox", ""])
     .optional(),
   hardwareEncoder: z.boolean().optional(),
   deviceAudioFallback: z.boolean().optional(),
@@ -473,7 +473,7 @@ export const nativeDiagnosticSchema = z.object({
     .array(
       z.object({
         id: nativeEncoderIdSchema,
-        backend: z.enum(["nvenc", "amf", "x264"]),
+        backend: z.enum(["nvenc", "amf", "qsv", "x264"]),
         result: z
           .string()
           .max(80)
