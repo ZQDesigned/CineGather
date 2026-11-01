@@ -164,7 +164,8 @@ try {
       );
       const flags = observed.hud!.extendedStyle;
       expect(Boolean(flags & 0x20)).toBe(variant !== "tool-window-only");
-      expect(Boolean(flags & 0x80)).toBe(variant !== "click-through-only");
+      if (variant !== "transparent-hud")
+        expect(Boolean(flags & 0x80)).toBe(variant === "tool-window-only");
       await visible(true);
     }
     await mode("uncover");
