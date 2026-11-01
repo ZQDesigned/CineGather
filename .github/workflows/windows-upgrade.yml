@@ -44,7 +44,7 @@ jobs:
           node-version: 24.18.1
       - run: bun install --frozen-lockfile
       - run: bun run setup
-      - name: Reuse unchanged released capture runtime
+      - name: Reuse capture runtime only when native sources match
         shell: pwsh
         run: |
           $ProgressPreference = 'SilentlyContinue'
@@ -55,6 +55,15 @@ jobs:
           New-Item -ItemType Directory -Force .local/native-runtime/windows | Out-Null
           Copy-Item .local/upgrade-payload/resources/capture/obs .local/native-runtime/windows/obs -Recurse
           Copy-Item .local/upgrade-payload/resources/capture/CGProcessAudioHost.exe .local/native-runtime/windows/
+          $manifest = Get-Content .local/native-runtime/windows/obs/manifest.json | ConvertFrom-Json
+          $expected = python native/capture/runtime-fingerprint.py
+          if ($manifest.buildFingerprint -ne $expected) {
+            bun tools/windows-audio-build.ts
+            if ($LASTEXITCODE -ne 0) { throw 'Process audio host build failed' }
+            python native/capture/build-windows.py
+            if ($LASTEXITCODE -ne 0) { throw 'Native capture build failed' }
+          }
+
       - name: Build installer and portable
         working-directory: apps/desktop
         env:

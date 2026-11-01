@@ -436,6 +436,9 @@ spec = importlib.util.spec_from_file_location("source_package", root / "native/c
 source_package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(source_package)
 version = json.loads((root / "apps/desktop/package.json").read_text(encoding="utf-8"))["version"]
+fingerprint_spec = importlib.util.spec_from_file_location("runtime_fingerprint", root / "native/capture/runtime-fingerprint.py")
+fingerprint_module = importlib.util.module_from_spec(fingerprint_spec)
+fingerprint_spec.loader.exec_module(fingerprint_module)
 source_artifact = source_package.package_sources(
     source_dir, runtime,
     root / "apps/desktop/release" / ("CineGather-" + version + "-win-x64-native-source.zip"),
@@ -457,6 +460,7 @@ source_artifact = source_package.package_sources(
             ).hexdigest(),
             "sync": "absolute-rtp-and-capture-ntp-v1",
             "plugins": plugins,
+            "buildFingerprint": fingerprint_module.fingerprint(root),
             "intelVplSourceSha256": vpl_digest,
             "encoderSelectionSourceSha256": hashlib.sha256((root / "native/capture/encoder-selection.hpp").read_bytes()).hexdigest(),
             "hostSourceSha256": hashlib.sha256(
