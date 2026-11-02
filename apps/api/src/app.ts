@@ -31,7 +31,8 @@ import { reconcileAll } from "./rooms";
 import { Metrics } from "./metrics";
 import { UpdateEvents } from "./update-events";
 import { compatibilityFailure } from "./client-policy";
-import { maintenanceGate } from "./maintenance";
+import { attachEsportsGateway } from "./esports-gateway";
+import { readMaintenance, maintenanceGate } from "./maintenance";
 import type { ClientPolicy } from "@cinegather/contracts";
 class Reconciler implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
@@ -125,6 +126,13 @@ export async function createApp({
     ],
   });
   app.use(maintenanceGate(maintenanceFile));
+  const mediaGateway = attachEsportsGateway(
+    app.getHttpServer(),
+    config.livekitInternalUrl,
+    () => !!readMaintenance(maintenanceFile),
+  );
+  app.use(mediaGateway.middleware);
+  app.getHttpServer().once("close", () => mediaGateway.close());
   const mobileUpdates = new MobileUpdateStore(updateDirectory);
   const buckets = new Map<string, { count: number; reset: number }>();
   const metrics = app.get(Metrics);

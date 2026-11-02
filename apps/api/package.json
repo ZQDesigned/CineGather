@@ -3,16 +3,19 @@
   "dependencies": {
     "@cinegather/contracts": "workspace:*",
     "@cinegather/database": "workspace:*",
+    "@livekit/protocol": "1.51.0",
     "@nestjs/common": "catalog:",
     "@nestjs/core": "catalog:",
     "@nestjs/platform-express": "catalog:",
     "@nestjs/swagger": "catalog:",
+    "livekit-server-sdk": "2.19.1",
     "reflect-metadata": "0.2.2",
     "rxjs": "7.8.2",
-    "livekit-server-sdk": "2.19.1",
+    "ws": "8.22.0",
     "zod": "catalog:"
   },
   "devDependencies": {
+    "@types/ws": "8.18.1",
     "tsup": "9.0.0"
   },
   "scripts": {

@@ -16,7 +16,10 @@ export function admissionSecretValid(value: string | undefined) {
     b = Buffer.from(value);
   return a.length === b.length && timingSafeEqual(a, b);
 }
-export async function admitMediaToken(token: string) {
+export async function admitMediaToken(
+  token: string,
+  whileAdmitted: () => Promise<void> = async () => {},
+) {
   let claims;
   try {
     claims = await verifyEsportsToken(token);
@@ -35,7 +38,7 @@ export async function admitMediaToken(token: string) {
         .from(rooms)
         .where(eq(rooms.id, roomName))
         .for("share");
-      if (parent?.mode !== "esports") return;
+      if (parent?.mode !== "esports") return whileAdmitted();
     }
     let scope;
     try {
@@ -67,5 +70,6 @@ export async function admitMediaToken(token: string) {
       )
     )
       fail(403, "MEDIA_GRANT_STALE", "媒体权限已变更，请重新连接");
+    await whileAdmitted();
   });
 }

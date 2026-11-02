@@ -769,12 +769,23 @@ test("native publications are independent per player: stopping one leaves the ot
     const lease = (
       await req(`/rooms/${room.id}/esports/share-lease`, user.token, {})
     ).body;
+    const browser = (
+      await req(`/rooms/${room.id}/esports/connection`, user.token, {
+        channel: { kind: "video", publicationId: lease.publicationId },
+        seatRevision: 2,
+      })
+    ).body;
+    const { admitMediaToken } = await import(
+      "../../apps/api/src/esports-admission"
+    );
+    await expect(admitMediaToken(browser.token)).resolves.toBeUndefined();
     const native = await req(
       `/rooms/${room.id}/esports/share-lease/native`,
       user.token,
       { leaseId: lease.leaseId, revision: lease.revision, systemAudio: true },
     );
     expect(native.status).toBe(201);
+    await expect(admitMediaToken(browser.token)).rejects.toThrow();
     expect(native.body.streamKey.length).toBeGreaterThan(8);
     leases.push({ user, lease, native: native.body });
   }
@@ -803,4 +814,112 @@ test("native publications are independent per player: stopping one leaves the ot
     ingressId: remaining!.ingressId!,
   });
   expect(ingress!.streamKey).toBe(leases[1]!.native.streamKey);
+});
+
+test("admission lock lasts until the SFU join acknowledgment so seat revocation cannot race an accepted handshake", async () => {
+  const owner = await account();
+  await db
+    .update(users)
+    .set({ esportsRoomsEnabled: true })
+    .where(eq(users.id, owner.id));
+  const room = (
+    await req("/rooms", owner.token, { name: "信令并发闸门", mode: "esports" })
+  ).body;
+  await req(`/rooms/${room.id}/join`, owner.token, {});
+  const voice = (
+    await req(`/rooms/${room.id}/esports/connection`, owner.token, {
+      channel: { kind: "audience" },
+      seatRevision: 1,
+    })
+  ).body;
+  let release!: () => void,
+    entered = false,
+    changed = false;
+  const acknowledged = new Promise<void>((r) => (release = r));
+  const { admitMediaToken } = await import(
+    "../../apps/api/src/esports-admission"
+  );
+  const pending = admitMediaToken(voice.token, async () => {
+    entered = true;
+    await acknowledged;
+  });
+  try {
+    await Bun.sleep(20);
+    expect(entered).toBe(true);
+    const edit = req(
+      `/rooms/${room.id}/esports/members/${owner.id}/seat`,
+      owner.token,
+      { kind: "director" },
+    ).then((r) => {
+      changed = true;
+      return r;
+    });
+    await Bun.sleep(20);
+    expect(changed).toBe(false);
+    release();
+    await pending;
+    expect((await edit).status).toBe(201);
+    await expect(admitMediaToken(voice.token)).rejects.toThrow();
+  } finally {
+    release();
+    await pending.catch(() => {});
+  }
+});
+
+test("the production WebSocket relay receives a genuine SFU join response while preserving control-only permissions", async () => {
+  const owner = await account();
+  await db
+    .update(users)
+    .set({ esportsRoomsEnabled: true })
+    .where(eq(users.id, owner.id));
+  const room = (
+    await req("/rooms", owner.token, { name: "真实信令入场", mode: "esports" })
+  ).body;
+  const join = (await req(`/rooms/${room.id}/join`, owner.token, {})).body;
+  const { SignalResponse } = await import("@livekit/protocol");
+  const response = await new Promise<InstanceType<typeof SignalResponse>>(
+    (resolve, reject) => {
+      const ws = new WebSocket(
+        "ws://127.0.0.1:17882/rtc?protocol=15&sdk=js&version=2.23.0&auto_subscribe=0&access_token=" +
+          encodeURIComponent(join.token),
+      );
+      ws.binaryType = "arraybuffer";
+      const timeout = setTimeout(() => {
+        ws.close();
+        reject(new Error("SFU join not received"));
+      }, 4000);
+      ws.onmessage = (event) => {
+        try {
+          const message = SignalResponse.fromBinary(new Uint8Array(event.data));
+          if (message.message.case === "join") {
+            clearTimeout(timeout);
+            ws.close();
+            resolve(message);
+          }
+        } catch (error) {
+          clearTimeout(timeout);
+          ws.close();
+          reject(error);
+        }
+      };
+      ws.onerror = () => {
+        clearTimeout(timeout);
+        reject(new Error("Gateway signalling failed"));
+      };
+    },
+  );
+  const { admitMediaToken } = await import(
+    "../../apps/api/src/esports-admission"
+  );
+  await req(`/rooms/${room.id}/esports/members/${owner.id}/seat`, owner.token, {
+    kind: "director",
+  });
+  await expect(admitMediaToken(join.token)).resolves.toBeUndefined();
+  expect(response.message.case).toBe("join");
+  if (response.message.case !== "join") throw Error("Missing join response");
+  expect(response.message.value.room!.name).toBe(room.id);
+  expect(response.message.value.participant!.permission).toMatchObject({
+    canPublish: false,
+    canSubscribe: false,
+  });
 });

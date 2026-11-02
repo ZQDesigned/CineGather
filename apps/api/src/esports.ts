@@ -498,9 +498,12 @@ export async function scopeRights(
     scope.credentialId,
     false,
   );
+  // Control carries no media rights; a seat change must not invalidate the
+  // parent presence connection on its next automatic reconnect. Membership and
+  // credential admission above still fence leave, bans and device takeover.
+  if (!scope.channel) return controlRights;
   if (seat.revision !== scope.seatRevision)
     fail(409, "ESPORTS_SEAT_STALE", "席位已变更，请刷新房间");
-  if (!scope.channel) return controlRights;
   const channel = scope.channel;
   const [pub] = await tx
     .select()
@@ -523,6 +526,12 @@ export async function scopeRights(
   if (channel.kind === "video") {
     if (!pub) fail(403, "ESPORTS_STREAM_ENDED", "共享已结束");
     if (own) {
+      if (pub.ingressId)
+        fail(
+          403,
+          "ESPORTS_NATIVE_PUBLISHER_ACTIVE",
+          "本次共享已使用原生推流通道",
+        );
       if (!policy.sharingAllowed)
         fail(403, "SHARING_DISABLED", "房主已禁止你共享");
     } else {
@@ -549,6 +558,7 @@ export async function scopeRights(
       scope.grantId !== w.monitorGrantId
     )
       fail(403, "ESPORTS_MONITOR_DENIED", "该组选手语音未接入");
+    await publication(tx, scope.roomId, w.current!);
   }
   if (!rights.publish && !rights.subscribe)
     fail(403, "ESPORTS_CHANNEL_DENIED", "当前席位无法连接该媒体通道");
@@ -729,6 +739,11 @@ export async function esportsNative(
           publicationId: p.id,
         };
     }
+    await removeEsportsChannel(
+      roomId,
+      { kind: "video", publicationId: p.id },
+      user.id,
+    );
     const info = await createEsportsNative(roomId, p.id, user, p.leaseId);
     try {
       await tx
