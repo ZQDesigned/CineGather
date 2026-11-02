@@ -174,8 +174,25 @@ export class NativeCapture {
     return Boolean(this.context);
   }
   async encoders() {
+    const selection =
+      this.selection && this.selection.expiresAt > Date.now()
+        ? this.selection
+        : undefined;
     return nativeEncoderInventorySchema.parse(
-      await (await this.ensure()).call({ type: "encoders" }),
+      await (
+        await this.ensure()
+      ).call({
+        type: "encoders",
+        ...(this.windows
+          ? {
+              windowId: selection
+                ? selection.window?.windowId
+                : this.activeWindow?.windowId,
+              pid: selection ? selection.window?.pid : this.activeWindow?.pid,
+              displayId: selection ? selection.displayId : this.activeDisplayId,
+            }
+          : {}),
+      }),
     );
   }
   async encoderDiagnostics() {
@@ -213,7 +230,7 @@ export class NativeCapture {
       policy: {
         backend: "libobs",
         manualFallback: false,
-        automaticOrder: ["integrated-hardware", "other-hardware", "x264"],
+        automaticOrder: ["capture-adapter-hardware", "other-hardware", "x264"],
         hardwareBackendOrder: ["nvenc", "amf", "qsv"],
       },
     };

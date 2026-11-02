@@ -56,3 +56,21 @@ test("QSV startup evidence and driver failures remain exportable", () => {
   };
   expect(nativeDiagnosticSchema.parse(evidence)).toEqual(evidence);
 });
+
+test("capture adapter and cross-adapter fallback evidence survive diagnostic export", () => {
+  expect(
+    nativeDiagnosticSchema.parse({
+      captureAdapterIndex: 2,
+      graphicsAdapterIndex: 1,
+      crossAdapterCapture: true,
+      selectedEncoder: "nvenc:4318:2:0:1",
+    }),
+  ).toMatchObject({ captureAdapterIndex: 2, crossAdapterCapture: true });
+  expect(
+    nativeEncoderInventorySchema.parse({
+      encoders: [],
+      adapters: [],
+      captureAdapterIndex: 2,
+    }),
+  ).toMatchObject({ captureAdapterIndex: 2 });
+});

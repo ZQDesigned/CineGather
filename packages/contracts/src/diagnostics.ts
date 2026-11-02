@@ -372,6 +372,7 @@ export const nativeNumbers = [
   "transportErrorCode",
   "graphicsReinitializations",
   "graphicsAdapterIndex",
+  "captureAdapterIndex",
   "graphicsVendorId",
   "graphicsDeviceId",
   "captureArrivedFrames",
@@ -415,6 +416,7 @@ export const nativeDiagnosticSchema = z.object({
     .regex(/^[a-z-]+$/)
     .optional(),
   graphicsAdapterVerified: z.boolean().optional(),
+  crossAdapterCapture: z.boolean().optional(),
   captureCountersAvailable: z.boolean().optional(),
   transportDetail: z
     .enum(["none", "missing-location", "relative-base", "invalid-resource"])

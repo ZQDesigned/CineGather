@@ -4,6 +4,7 @@ export const nativeEncoderIdSchema = z
   .max(120)
   .regex(/^(?:auto|x264|(?:nvenc|amf|qsv):\d+:\d+:\d+:\d+)$/);
 export const nativeEncoderInventorySchema = z.object({
+  captureAdapterIndex: z.number().int().nonnegative().optional(),
   automaticEncoder: nativeEncoderIdSchema.optional(),
   activeEncoder: nativeEncoderIdSchema.optional(),
   encoders: z

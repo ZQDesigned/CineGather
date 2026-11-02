@@ -36,7 +36,7 @@ try {
     await pipe.call({ type: "encoders" }),
   );
   expect(inventory.encoders.find((e) => e.id === "x264")?.available).toBe(true);
-  expect(inventory.automaticEncoder).toBeTruthy();
+  expect(inventory.automaticEncoder).toBeUndefined();
   expect(inventory.activeEncoder).toBeUndefined();
   for (const adapter of inventory.adapters)
     expect(["integrated", "discrete", "unknown"]).toContain(adapter.gpuType);
@@ -45,6 +45,31 @@ try {
       inventory.adapters.find((a) => a.index === encoder.adapterIndex)
         ?.vendorId,
     ).toBe(0x8086);
+  const sources = await pipe.call<{ displays: { displayId: number }[] }>({
+    type: "windows",
+  });
+  const sourceInventories = [];
+  for (const display of sources.displays) {
+    const candidate = nativeEncoderInventorySchema.parse(
+      await pipe.call({ type: "encoders", displayId: display.displayId }),
+    );
+    expect(candidate.automaticEncoder).toBeTruthy();
+    const sameGpu = candidate.encoders.filter(
+      (e) =>
+        e.available &&
+        e.hardware &&
+        e.adapterIndex === candidate.captureAdapterIndex,
+    );
+    if (sameGpu.length)
+      expect(sameGpu.map((e) => e.id)).toContain(candidate.automaticEncoder);
+    sourceInventories.push(candidate);
+  }
+  await expect(pipe.call({ type: "encoders", displayId: -1 })).rejects.toThrow(
+    "display-unavailable",
+  );
+  await expect(
+    pipe.call({ type: "encoders", windowId: 0, pid: 0 }),
+  ).rejects.toThrow("window-unavailable");
   const probe = await pipe.call<{
     status: string;
     framesEncoded: number;
@@ -95,7 +120,14 @@ try {
   await writeFile(
     join(evidence, "win32.json"),
     JSON.stringify(
-      { inventory, probe, missing, after, productionDataCreated: false },
+      {
+        inventory,
+        sourceInventories,
+        probe,
+        missing,
+        after,
+        productionDataCreated: false,
+      },
       null,
       2,
     ),

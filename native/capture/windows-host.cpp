@@ -99,6 +99,7 @@ static bool captureStats(uint64_t &arrived, uint64_t &copied, uint64_t &stamp) {
 static int configuredWidth = 0, configuredHeight = 0, configuredFps = 0;
 static uint64_t graphicsReinitializations = 0;
 static int graphicsAdapter = -1;
+static int captureAdapter = -1;
 static UINT graphicsVendor = 0, graphicsDevice = 0;
 static uint64_t graphicsLuid = 0;
 static bool engineReady = false, deviceFallback = false;
@@ -337,7 +338,8 @@ static void refreshChoices() {
   choices.push_back({"x264", "x264", "obs_x264", "软件编码 (x264)", 0,
                      encoderExists("obs_x264")});
 }
-static Data encoderList() {
+static int captureAdapterForSource(obs_data_t *config);
+static Data encoderList(obs_data_t *config) {
   auto result = data();
   auto list = array();
   for (const auto &c : choices) {
@@ -351,8 +353,19 @@ static Data encoderList() {
     obs_data_array_push_back(list.get(), row.get());
   }
   obs_data_set_array(result.get(), "encoders", list.get());
-  if (std::any_of(choices.begin(), choices.end(), [](const Choice &c) { return c.available; })) {
-    const auto ordered = cinegather::encoderCandidates(choices, "auto");
+  const bool sourceSelected = obs_data_has_user_value(config, "displayId") ||
+                              obs_data_has_user_value(config, "windowId");
+  const bool active = output && obs_output_active(output);
+  const int sourceAdapter = sourceSelected ? captureAdapterForSource(config)
+                                          : (active ? captureAdapter : -1);
+  if (sourceAdapter >= 0)
+    obs_data_set_int(result.get(), "captureAdapterIndex", sourceAdapter);
+  // Without a source there is no meaningful preferred GPU to show in settings.
+  if ((sourceSelected || active) &&
+      std::any_of(choices.begin(), choices.end(),
+                  [](const Choice &c) { return c.available; })) {
+    const auto ordered =
+        cinegather::encoderCandidates(choices, "auto", sourceAdapter);
     obs_data_set_string(result.get(), "automaticEncoder", ordered.front().id.c_str());
   }
   if (output && obs_output_active(output) && !selectedEncoder.empty())
@@ -562,6 +575,52 @@ static HMONITOR monitorHandle(const std::string &key) {
       },
       reinterpret_cast<LPARAM>(&state));
   return state.found;
+}
+static int captureAdapterForSource(obs_data_t *config) {
+  HMONITOR monitor = nullptr;
+  if (obs_data_has_user_value(config, "displayId")) {
+    refreshMonitors();
+    const auto id = obs_data_get_int(config, "displayId");
+    const auto found = std::find_if(monitors.begin(), monitors.end(),
+                                   [&](const Monitor &m) { return m.id == id; });
+    check(found != monitors.end(), "display-unavailable");
+    monitor = monitorHandle(found->key);
+  } else if (obs_data_has_user_value(config, "windowId")) {
+    const auto hwnd = reinterpret_cast<HWND>(
+        uintptr_t(obs_data_get_int(config, "windowId")));
+    check(IsWindow(hwnd) &&
+              windowPid(hwnd) == DWORD(obs_data_get_int(config, "pid")) &&
+              !ownProcess(windowPid(hwnd)),
+          "window-unavailable");
+    // WGC captures the composed window. Prefer its display's adapter rather
+    // than guessing from the application's vendor or preferred rendering GPU.
+    monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONULL);
+  }
+  if (!monitor)
+    return -1;
+  ComPtr<IDXGIFactory1> factory;
+  if (FAILED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))))
+    return -1;
+  for (UINT i = 0;; ++i) {
+    ComPtr<IDXGIAdapter1> adapter;
+    if (FAILED(factory->EnumAdapters1(i, &adapter)))
+      break;
+    DXGI_ADAPTER_DESC1 adapterDesc{};
+    if (FAILED(adapter->GetDesc1(&adapterDesc)) ||
+        (adapterDesc.Flags & DXGI_ADAPTER_FLAG_SOFTWARE))
+      continue;
+    for (UINT j = 0;; ++j) {
+      ComPtr<IDXGIOutput> deviceOutput;
+      if (FAILED(adapter->EnumOutputs(j, &deviceOutput)))
+        break;
+      DXGI_OUTPUT_DESC desc{};
+      if (SUCCEEDED(deviceOutput->GetDesc(&desc)) &&
+          desc.AttachedToDesktop && desc.Monitor == monitor)
+        return int(i);
+    }
+  }
+  // Headless/remote/driver-specific output: never invent an integrated GPU.
+  return -1;
 }
 static std::string jpeg(HBITMAP bitmap, int width, int height) {
   ComPtr<IWICImagingFactory> factory;
@@ -976,6 +1035,12 @@ static Data status() {
     obs_data_set_int(d.get(), "graphicsVendorId", graphicsVendor);
     obs_data_set_int(d.get(), "graphicsDeviceId", graphicsDevice);
   }
+  if (captureAdapter >= 0) {
+    obs_data_set_int(d.get(), "captureAdapterIndex", captureAdapter);
+    if (graphicsAdapter >= 0)
+      obs_data_set_bool(d.get(), "crossAdapterCapture",
+                        captureAdapter != graphicsAdapter);
+  }
   uint64_t arrived = 0, copied = 0, stamp = 0;
   const bool counters = captureStats(arrived, copied, stamp);
   obs_data_set_bool(d.get(), "captureCountersAvailable", counters);
@@ -1221,7 +1286,9 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
   lastFailure.clear();
   selectedEncoder.clear();
   selectedBackend.clear();
-  auto options = cinegather::encoderCandidates(choices, requestedEncoder);
+  captureAdapter = synthetic ? -1 : captureAdapterForSource(config);
+  auto options =
+      cinegather::encoderCandidates(choices, requestedEncoder, captureAdapter);
   const std::string server = obs_data_get_string(config, "server");
   const bool localWhip = synthetic && server.rfind("http://127.0.0.1:", 0) == 0;
   check(!synthetic || server.empty() || localWhip, "probe-endpoint");
@@ -1477,12 +1544,15 @@ static void switchSource(obs_data_t *config) {
   check(output && obs_output_active(output) && deadlineNs > os_gettime_ns(), "lease-expired");
   check(obs_data_get_bool(config, "systemAudio") == bool(audioEncoder), "audio-mode-changed");
   const bool oldFallback = deviceFallback;
+  const int nextAdapter = captureAdapterForSource(config);
   deviceFallback = false;
   try {
     cinegather::CaptureScene next;
     prepareScene(config, next);
     next.warm(configuredWidth, configuredHeight, [] { return deadlineNs > os_gettime_ns(); });
     next.commit(scene, videoSource, audioSource);
+    // Keep the active encoder/WHIP publication stable during atomic swaps.
+    captureAdapter = nextAdapter;
   } catch (...) {
     deviceFallback = oldFallback;
     throw;
@@ -1510,7 +1580,7 @@ static Data handle(obs_data_t *command) {
     return windows();
   }
   if (type == "encoders")
-    return encoderList();
+    return encoderList(command);
   if (type == "thumbnails") {
     if (!engineReady)
       restartEngine(0);

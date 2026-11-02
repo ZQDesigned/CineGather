@@ -11,57 +11,55 @@ int main() {
   assert(!cinegather::retryEncoderFailure("audio-initialization"));
   assert(!cinegather::retryEncoderFailure("window-unavailable"));
 
-  const std::vector<Choice> choices = {{"amf:4098:1:1:0", "amf", 0, true},
-                                       {"nvenc:4318:2:2:1", "nvenc", 1, true},
-                                       {"x264", "x264", 0, true}};
-  const auto automatic = cinegather::encoderCandidates(choices, "auto");
-  assert(automatic.size() == 3 && automatic[0].backend == "nvenc" &&
-         automatic[0].adapter == 1 && automatic[1].backend == "amf");
-  const auto manual = cinegather::encoderCandidates(choices, "amf:4098:1:1:0");
-  assert(manual.size() == 1 && manual[0].adapter == 0);
-  for (const std::string missing : {"nvenc:4318:2:2:0", "not-valid"}) {
-    bool failed = false;
-    try {
-      cinegather::encoderCandidates(choices, missing);
-    } catch (...) {
-      failed = true;
-    }
-    assert(failed);
-  }
+  const std::vector<Choice> choices = {
+      {"amf:4098:1:1:0", "amf", 0, true, "integrated"},
+      {"nvenc:4318:2:2:1", "nvenc", 1, true, "discrete"},
+      {"qsv:32902:3:3:2", "qsv", 2, true, "discrete"},
+      {"x264", "x264", 0, true}};
+
+  // A screen attached to a discrete GPU must not prefer an integrated GPU.
+  const auto discrete = cinegather::encoderCandidates(choices, "auto", 1);
+  assert(discrete.size() == 4 && discrete[0].adapter == 1);
+  assert(discrete[1].adapter == 0 && discrete[2].adapter == 2);
+  assert(discrete.back().backend == "x264");
+  assert(cinegather::encoderCandidates(choices, "auto", 0)[0].backend == "amf");
+  // Intel Arc is treated like other capture GPUs, regardless of vendor ranking.
+  assert(cinegather::encoderCandidates(choices, "auto", 2)[0].backend == "qsv");
+  auto intelIntegrated = choices;
+  intelIntegrated[2].gpuType = "integrated";
+  assert(cinegather::encoderCandidates(intelIntegrated, "auto", 2)[0].backend == "qsv");
+
   auto unavailable = choices;
   unavailable[1].available = false;
-  bool failed = false;
-  try {
-    cinegather::encoderCandidates(unavailable, choices[1].id);
-  } catch (...) {
-    failed = true;
-  }
-  assert(failed);
-  assert(cinegather::encoderCandidates(unavailable, "auto")[0].backend ==
-         "amf");
+  const auto fallback = cinegather::encoderCandidates(unavailable, "auto", 1);
+  assert(fallback.size() == 3 && fallback[0].backend == "amf");
+  assert(fallback[1].backend == "qsv" && fallback[2].backend == "x264");
+  // Unknown source mappings use deterministic hardware order, not GPU type.
+  assert(cinegather::encoderCandidates(choices, "auto")[0].backend == "nvenc");
+  assert(cinegather::encoderCandidates(choices, "auto", 99)[0].backend == "nvenc");
 
-  auto hybrid = choices;
-  hybrid[0].gpuType = "integrated";
-  hybrid[1].gpuType = "discrete";
-  const auto preferred = cinegather::encoderCandidates(hybrid, "auto");
-  assert(preferred[0].id == hybrid[0].id);
-  assert(preferred[1].id == hybrid[1].id);
-  assert(preferred[2].backend == "x264");
-  assert(cinegather::encoderCandidates(hybrid, hybrid[1].id)[0].id ==
-         hybrid[1].id);
-  hybrid[0].available = false;
-  assert(cinegather::encoderCandidates(hybrid, "auto")[0].id == hybrid[1].id);
-  hybrid[1].gpuType = "unknown";
-  assert(cinegather::encoderCandidates(hybrid, "auto")[0].id == hybrid[1].id);
-  hybrid[0].available = true;
-  hybrid.push_back({"qsv:32902:10:1:2", "qsv", 2, true, "integrated"});
-  hybrid[0].gpuType = "discrete";
-  assert(cinegather::encoderCandidates(hybrid, "auto")[0].backend == "qsv");
-  assert(cinegather::encoderCandidates(hybrid, hybrid.back().id)[0].adapter == 2);
-  hybrid.back().available = false;
-  assert(cinegather::encoderCandidates(hybrid, "auto")[0].backend == "nvenc");
+  // A manual choice stays exclusive even when it is on a different GPU.
+  const auto manual = cinegather::encoderCandidates(choices, choices[0].id, 1);
+  assert(manual.size() == 1 && manual[0].adapter == 0);
+  for (const std::string missing : {choices[1].id, std::string("not-valid")}) {
+    bool failed = false;
+    try { cinegather::encoderCandidates(unavailable, missing, 0); }
+    catch (...) { failed = true; }
+    assert(failed);
+  }
+  assert(cinegather::encoderCandidates(choices, "x264", 2).size() == 1);
+  for (auto &c : unavailable) c.available = c.backend == "x264";
+  const auto software = cinegather::encoderCandidates(unavailable, "auto", 2);
+  assert(software.size() == 1 && software[0].backend == "x264");
+  assert(software[0].adapter == 2); // CPU encoding still captures on the source GPU.
+  for (auto &c : unavailable) c.available = false;
+  bool failed = false;
+  try { cinegather::encoderCandidates(unavailable, "auto", 2); }
+  catch (...) { failed = true; }
+  assert(failed);
+
   auto equal = choices;
-  equal.insert(equal.begin(), {"nvenc:4318:3:3:2", "nvenc", 2, true});
+  equal.insert(equal.begin(), {"nvenc:4318:4:4:3", "nvenc", 3, true});
   const auto stable = cinegather::encoderCandidates(equal, "auto");
-  assert(stable[0].id == equal[0].id && stable[1].id == choices[1].id);
+  assert(stable[0].adapter == 3 && stable[1].adapter == 1);
 }
