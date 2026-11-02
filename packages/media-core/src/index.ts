@@ -16,3 +16,6 @@ export {
   type MicrophoneMonitorStatus,
 } from "./microphone-monitor";
 export { VideoHealth, type VideoHealthStatus } from "./video-health";
+
+export { EsportsBrowserMedia } from "./esports";
+export type { EsportsBrowserHandle } from "./esports";

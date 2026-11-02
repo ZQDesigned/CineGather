@@ -6,7 +6,7 @@ export interface RoomDependencies {
     password?: string,
   ): Promise<{ room: RoomInfo; token: string; url: string }>;
   leave(roomId: string): Promise<void>;
-  connect(url: string, token: string): Promise<void>;
+  connect(url: string, token: string, room?: RoomInfo): Promise<void>;
   disconnect(): Promise<void>;
   stopShare(): Promise<void>;
   changed(state: RoomState, room: RoomInfo | undefined, revision: number): void;
@@ -43,7 +43,7 @@ export class RoomCoordinator {
       }
       this.roomId = admittedRoomId;
       this.entry = { roomId: admittedRoomId, inviteToken, password };
-      await this.deps.connect(result.url, result.token);
+      await this.deps.connect(result.url, result.token, result.room);
       if (revision !== this.revision) {
         await this.deps.disconnect();
         await this.safeLeave(admittedRoomId);
