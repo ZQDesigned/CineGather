@@ -1,3 +1,4 @@
+import { participantOwner } from "@cinegather/contracts";
 import * as announcements from "./announcements";
 import * as queue from "./share-requests";
 import { listSessions, revokeDevices } from "./account-sessions";
@@ -566,7 +567,7 @@ export class ApiController {
   @Endpoint(
     "inviteFriendToRoom",
     c.friendRoomInviteSentSchema,
-    c.friendInput,
+    c.esportsFriendInviteInput,
     ["roomId"],
     201,
   )
@@ -575,11 +576,8 @@ export class ApiController {
     @Param("roomId") roomId: string,
     @Body() body: unknown,
   ) {
-    return inviteFriendToRoom(
-      req.user,
-      roomId,
-      parse(c.friendInput, body).userId,
-    );
+    const input = parse(c.esportsFriendInviteInput, body);
+    return inviteFriendToRoom(req.user, roomId, input.userId, input.seat);
   }
   @Delete("room-invitations/:inviteId")
   @Endpoint("dismissRoomInvitation", c.okSchema, undefined, ["inviteId"])
@@ -683,7 +681,14 @@ export class ApiController {
     } catch {
       fail(401, "INVALID_WEBHOOK_SIGNATURE", "事件签名无效");
     }
-    if (event.room?.name) await r.reconcileRoom(event.room.name);
+    if (event.room?.name && /^[a-f0-9-]{36}$/i.test(event.room.name))
+      await r.reconcileRoom(
+        event.room.name,
+        event.event === "participant_left" && event.participant
+          ? (participantOwner(event.participant.identity) ??
+              event.participant.identity)
+          : undefined,
+      );
     res.json({ ok: true });
   }
 }

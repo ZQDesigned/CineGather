@@ -1,3 +1,4 @@
+import { stopAllEsportsShares } from "./esports";
 import { and, eq, ilike, isNotNull, isNull, or, sql, desc } from "drizzle-orm";
 import {
   users,
@@ -252,6 +253,7 @@ export async function manageRoom(
     if (!room) fail(404, "ROOM_NOT_FOUND", "房间不存在");
     if (room.status !== "active") return;
     if (action === "close") await closeRoom(tx, id);
+    else if (room.mode === "esports") await stopAllEsportsShares(tx, id);
     else {
       const [lease] = await tx
         .select()

@@ -1,3 +1,4 @@
+import { clearEsportsMember } from "./esports";
 import { revokeNative, settleRoom } from "./rooms";
 import { nativePublications, rooms, roomSessions } from "@cinegather/database";
 import { users, credentials, members, leases } from "@cinegather/database";
@@ -99,6 +100,7 @@ export async function clearUserMedia(userId: string) {
         .where(eq(rooms.id, roomId))
         .for("update");
       if (!room || room.status !== "active") return;
+      if (room.mode === "esports") await clearEsportsMember(tx, roomId, userId);
       await revokeNative(tx, roomId, userId);
       await media.remove(roomId, userId);
       await tx
@@ -155,6 +157,20 @@ export async function clearSessionMedia(userId: string, credentialId: string) {
         .where(eq(rooms.id, roomId))
         .for("update");
       if (!room || room.status !== "active") return;
+      if (room.mode === "esports") {
+        const { esportsSeats } = await import("@cinegather/database");
+        const [seat] = await tx
+          .select()
+          .from(esportsSeats)
+          .where(
+            and(
+              eq(esportsSeats.roomId, roomId),
+              eq(esportsSeats.userId, userId),
+            ),
+          );
+        if (seat?.credentialId === credentialId)
+          await clearEsportsMember(tx, roomId, userId);
+      }
       const [publication] = await tx
         .select()
         .from(nativePublications)

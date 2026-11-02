@@ -43,6 +43,7 @@ CREATE TABLE esports_watches (
  credential_id uuid NOT NULL REFERENCES user_credentials(id) ON DELETE CASCADE,
  revision integer NOT NULL DEFAULT 0 CHECK (revision>=0),
  current uuid, warming uuid, warm_deadline timestamptz,
+ current_grant_id uuid, warm_grant_id uuid, monitor_grant_id uuid,
  monitor_team text CHECK (monitor_team IN ('a','b')), auto_monitor boolean NOT NULL DEFAULT true,
  PRIMARY KEY(room_id,user_id),
  CONSTRAINT esports_warm_consistency CHECK ((warming IS NULL)=(warm_deadline IS NULL)),

@@ -22,7 +22,7 @@ import {
   type User,
   type AdminPermission,
 } from "@cinegather/contracts";
-import { bindSession } from "./session-context";
+import { bindSession, bindFeatures } from "./session-context";
 import { authenticate } from "./auth";
 import { fail } from "./errors";
 export type AuthRequest = Request & {
@@ -119,6 +119,7 @@ export class AuthGuard implements CanActivate {
       return true;
     if (
       [
+        "/api/v1/internal/esports-admission",
         "/api/v1/health",
         "/api/v1/client-policy",
         "/api/v1/client-events",
@@ -143,6 +144,7 @@ export class AuthGuard implements CanActivate {
     };
     req.sessionId = identity.credentialId;
     bindSession(req.user, identity.credentialId);
+    bindFeatures(req.user, req.get("X-CineGather-Features"));
     return true;
   }
 }

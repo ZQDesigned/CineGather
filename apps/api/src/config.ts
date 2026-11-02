@@ -24,6 +24,8 @@ export const config = {
   livekitKey: required("LIVEKIT_API_KEY"),
   livekitSecret: required("LIVEKIT_API_SECRET", 32),
   livekitUrl: required("LIVEKIT_URL"),
+  esportsGatewayUrl: process.env.ESPORTS_GATEWAY_URL,
+  esportsAdmissionSecret: process.env.ESPORTS_ADMISSION_SECRET,
   livekitInternalUrl: required("LIVEKIT_INTERNAL_URL"),
   port: Number(process.env.API_PORT ?? 14310),
   host: process.env.API_HOST ?? "127.0.0.1",

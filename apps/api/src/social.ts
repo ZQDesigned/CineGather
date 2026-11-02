@@ -1,3 +1,4 @@
+import { supportsEsports } from "./session-context";
 import { friendships, users, credentials } from "@cinegather/database";
 import { and, eq, ne, isNull, isNotNull, or, sql } from "drizzle-orm";
 import { db, audit } from "./context";
@@ -131,6 +132,7 @@ export async function listFriends(user: User) {
         JOIN rooms AS current_room ON current_room.id = location.room_id
         WHERE location.user_id = ${users.id} AND location.admitted_until > NOW()
           AND current_room.status = 'active'
+          AND (${supportsEsports(user)} OR current_room.mode = 'standard')
         ORDER BY location.joined_at DESC, current_room.id
         LIMIT 1
       ) ELSE NULL END`,

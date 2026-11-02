@@ -4,6 +4,7 @@ export * from "./client-policy";
 export * from "./esports";
 import { accountRoleSchema, adminPermissionSchema } from "./permissions";
 import { z } from "zod";
+import { esportsSeatSchema } from "./esports";
 
 export const usernameInput = z
   .string()
@@ -195,6 +196,7 @@ export const roomInvitationSchema = z.object({
   senderName: z.string(),
   token: z.string().min(32).max(128),
   expiresAt: z.iso.datetime({ offset: true }),
+  seat: esportsSeatSchema.optional(),
   requestApproved: z.boolean().optional(),
   requestId: z.uuid().optional(),
 });
@@ -214,7 +216,7 @@ export const friendRoomInviteSentSchema = z.object({
 });
 export const friendRoomPresenceSchema = z.object({
   memberCount: z.number().int().min(1),
-  maxMembers: z.number().int().min(2).max(MAX_ROOM_MEMBERS),
+  maxMembers: z.number().int().min(2).max(20),
 });
 export type FriendRoomPresence = z.infer<typeof friendRoomPresenceSchema>;
 export const friendsSchema = z.object({

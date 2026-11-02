@@ -1,7 +1,14 @@
-import { sessionCredential } from "./session-context";
+import * as esports from "./esports";
+import { esportsReady } from "./esports-media";
+import { sessionCredential, supportsEsports } from "./session-context";
 import { refreshSessionAdmission } from "./auth";
-import { memberIdentity, memberSession } from "@cinegather/contracts";
 import {
+  memberIdentity,
+  memberSession,
+  esportsSeatSchema,
+} from "@cinegather/contracts";
+import {
+  esportsSeats,
   nativePublications,
   roomMemberPermissions,
   rooms,
@@ -143,6 +150,9 @@ export async function createRoom(
     dedup(tx, user.id, key, "room.create", input, async () => {
       await requireActiveSession(tx, user.id, sessionCredential(user));
       if (input.mode === "esports") {
+        if (!supportsEsports(user))
+          fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后使用赛事房");
+        esportsReady();
         const [account] = await tx
           .select({ allowed: users.esportsRoomsEnabled })
           .from(users)
@@ -193,6 +203,8 @@ export async function createRoom(
 export async function getRoom(user: User, roomId: string) {
   return db.transaction(async (tx) => {
     const info = await requireMember(tx, roomId, user.id, false, true);
+    if (info.mode === "esports" && !supportsEsports(user))
+      fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后使用赛事房");
     const credentialId = sessionCredential(user);
     if (credentialId) {
       const [admission] = await tx
@@ -237,11 +249,18 @@ export async function listRooms(user: User) {
       name: rooms.name,
       ownerUserId: rooms.ownerUserId,
       maxMembers: rooms.maxMembers,
+      mode: rooms.mode,
       role: members.role,
     })
     .from(members)
     .innerJoin(rooms, eq(rooms.id, members.roomId))
-    .where(and(eq(members.userId, user.id), eq(rooms.status, "active")))
+    .where(
+      and(
+        eq(members.userId, user.id),
+        eq(rooms.status, "active"),
+        supportsEsports(user) ? undefined : eq(rooms.mode, "standard"),
+      ),
+    )
     .orderBy(desc(rooms.createdAt))
     .limit(50);
   return { items: rows };
@@ -275,6 +294,8 @@ export async function updateRoomSettings(
   return db.transaction(async (tx) => {
     const previous = await requireMember(tx, roomId, user.id, true, true);
     const maxMembers = input.maxMembers ?? previous.maxMembers;
+    if (previous.mode === "esports" && maxMembers !== 20)
+      fail(400, "ESPORTS_FIXED_CAPACITY", "赛事房使用固定席位容量");
     if (maxMembers !== previous.maxMembers) {
       const occupying = await occupiedUserIds(
         tx,
@@ -403,6 +424,8 @@ export async function joinRoom(
     if (!room || room.status !== "active")
       fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
     roomId = room.id;
+    if (room.mode === "esports" && !supportsEsports(user))
+      fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后使用赛事房");
     await requireActiveSession(tx, user.id, sessionCredential(user));
     const [ban] = await tx
       .select()
@@ -413,6 +436,7 @@ export async function joinRoom(
       .select()
       .from(members)
       .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
+    let directedSeat: import("@cinegather/contracts").EsportsSeat | undefined;
     if (input.inviteToken) {
       const [invite] = await tx
         .select()
@@ -426,14 +450,34 @@ export async function joinRoom(
           ),
         )
         .for("update");
-      if (!invite || (!member && invite.useCount >= invite.maxUses))
+      if (
+        !invite ||
+        ((!member || invite.esportsSeat) && invite.useCount >= invite.maxUses)
+      )
         fail(403, "INVITE_INVALID", "邀请无效、已用完或已过期");
+      if (invite.esportsSeat && invite.createdBy !== room.ownerUserId)
+        fail(403, "INVITE_INVALID", "定向席位邀请已失效，请联系当前房主");
       if (
         invite.recipientId &&
         (invite.recipientId !== user.id ||
-          !(await areAcceptedFriends(tx, invite.createdBy, user.id)))
+          (!(
+            room.mode === "esports" &&
+            invite.esportsSeat &&
+            invite.createdBy === room.ownerUserId
+          ) &&
+            !(await areAcceptedFriends(tx, invite.createdBy, user.id))))
       )
         fail(403, "INVITE_INVALID", "此好友邀请已失效或不属于你");
+      if (
+        room.mode === "esports" &&
+        invite.esportsSeat &&
+        invite.recipientId === user.id
+      )
+        directedSeat = esportsSeatSchema.parse(
+          invite.esportsSeat === "player"
+            ? { kind: invite.esportsSeat, team: invite.esportsTeam }
+            : { kind: invite.esportsSeat },
+        );
       if (!member || (invite.recipientId && invite.useCount === 0))
         await tx
           .update(invites)
@@ -464,6 +508,9 @@ export async function joinRoom(
       }
       passwordFailures.delete(key);
     }
+    let esportsSeat;
+    if (room.mode === "esports")
+      esportsSeat = await esports.admitEsports(tx, roomId, user, directedSeat);
     if (!member) {
       await tx
         .insert(members)
@@ -487,6 +534,12 @@ export async function joinRoom(
             roomId: prior.roomId,
           })
           .catch(() => {});
+        const [priorRoom] = await tx
+          .select()
+          .from(rooms)
+          .where(eq(rooms.id, prior.roomId));
+        if (priorRoom?.mode === "esports" && prior.roomId !== roomId)
+          await esports.clearEsportsMember(tx, prior.roomId, user.id);
         await media.remove(prior.roomId, identity);
         await tx
           .update(roomSessions)
@@ -551,12 +604,14 @@ export async function joinRoom(
     await audit(tx, user.id, "room.joined", roomId);
     return {
       room: await roomInfo(tx, room, user.id),
-      token: await media.issue(
-        roomId,
-        user,
-        (await memberPolicy(tx, roomId, user.id)).microphoneAllowed,
-      ),
-      url: config.livekitUrl,
+      token: esportsSeat
+        ? await esports.esportsControlToken(tx, roomId, user)
+        : await media.issue(
+            roomId,
+            user,
+            (await memberPolicy(tx, roomId, user.id)).microphoneAllowed,
+          ),
+      url: esportsSeat ? esportsReady() : config.livekitUrl,
     };
   });
 }
@@ -570,6 +625,19 @@ export async function leaveRoom(user: User, roomId: string) {
       .for("update");
     if (!room || room.status === "closed") return;
     await requireMember(tx, roomId, user.id, false, true);
+    if (room.mode === "esports") {
+      const [seat] = await tx
+        .select()
+        .from(esportsSeats)
+        .where(
+          and(
+            eq(esportsSeats.roomId, roomId),
+            eq(esportsSeats.userId, user.id),
+          ),
+        );
+      if (seat?.credentialId === sessionCredential(user))
+        await esports.clearEsportsMember(tx, roomId, user.id);
+    }
     const credentialId = sessionCredential(user);
     const [lease] = await tx
       .select()
@@ -709,6 +777,8 @@ export async function settleRoom(
 }
 // Caller holds the room row lock. Keep all room teardown paths identical.
 export async function closeRoom(tx: Transaction, roomId: string) {
+  const [closing] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
+  if (closing?.mode === "esports") await esports.closeEsports(tx, roomId);
   await revokeNative(tx, roomId);
   await media.deleteRoom(roomId);
   await tx.update(rooms).set({ status: "closed" }).where(eq(rooms.id, roomId));
@@ -748,6 +818,9 @@ export async function requireScreenShare(
   userId: string,
   roomId: string,
 ) {
+  const [parent] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
+  if (parent?.mode === "esports")
+    fail(403, "ESPORTS_SEPARATE_SHARE", "请使用赛事房选手推流通道");
   const policy = await memberPolicy(tx, roomId, userId);
   if (!policy.sharingAllowed)
     fail(403, "ROOM_SHARE_FORBIDDEN", "房主已禁止你在此房间共享");
@@ -1054,7 +1127,9 @@ export async function stopMemberShare(
   roomId = uuid(roomId);
   targetId = uuid(targetId);
   const stoppedLeaseId = await db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id, true, true);
+    const parent = await requireMember(tx, roomId, user.id, true, true);
+    if (parent.mode === "esports")
+      return esports.stopEsportsMemberShare(tx, roomId, targetId, user.id);
     await requirePresentMember(tx, roomId, targetId);
     const [lease] = await tx
       .select()
@@ -1091,7 +1166,10 @@ export async function muteMember(user: User, roomId: string, targetId: string) {
     if (targetId === user.id)
       fail(400, "CANNOT_MODERATE_SELF", "请使用自己的麦克风开关");
     const target = await requirePresentMember(tx, roomId, targetId);
-    await media.muteMicrophone(roomId, targetId, target.tracks ?? []);
+    const [parent] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
+    if (parent?.mode === "esports")
+      await esports.muteEsportsMember(tx, roomId, targetId);
+    else await media.muteMicrophone(roomId, targetId, target.tracks ?? []);
     await audit(tx, user.id, "member.microphone_muted", roomId, {
       userId: targetId,
     });
@@ -1106,7 +1184,9 @@ export async function stopMemberAccompaniment(
   roomId = uuid(roomId);
   targetId = uuid(targetId);
   await db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id, true, true);
+    const room = await requireMember(tx, roomId, user.id, true, true);
+    if (room.mode === "esports")
+      fail(403, "ESPORTS_ACCOMPANIMENT_DISABLED", "赛事房不支持伴奏");
     if (targetId === user.id)
       fail(400, "CANNOT_MODERATE_SELF", "请使用自己的伴奏开关");
     const target = await requirePresentMember(tx, roomId, targetId);
@@ -1136,6 +1216,17 @@ async function applyMemberPolicy(
   microphoneAllowed: boolean,
   sharingAllowed: boolean,
 ) {
+  const [parent] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
+  if (parent?.mode === "esports") {
+    await esports.applyEsportsPolicy(
+      tx,
+      roomId,
+      userId,
+      microphoneAllowed,
+      sharingAllowed,
+    );
+    return;
+  }
   const [lease] = await tx
     .select()
     .from(leases)
@@ -1273,6 +1364,9 @@ export async function moderate(
       .from(users)
       .where(eq(users.id, targetId));
     if (!target) fail(404, "USER_NOT_FOUND", "成员不存在");
+    const [parent] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
+    if (parent?.mode === "esports")
+      await esports.clearEsportsMember(tx, roomId, targetId);
     await revokeNative(tx, roomId, targetId);
     await media.remove(roomId, targetId);
     await tx
@@ -1385,7 +1479,9 @@ export async function getMessages(
   if (cursor && after) fail(400, "INVALID_CURSOR", "请勿同时指定两个消息游标");
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id);
+    const room = await requireMember(tx, roomId, user.id);
+    if (room.mode === "esports")
+      fail(403, "ESPORTS_CHAT_DISABLED", "赛事房不提供文字聊天");
     let before: typeof messages.$inferSelect | undefined;
     const anchor = cursor || after;
     if (anchor && !(after === "start" && !cursor)) {
@@ -1436,7 +1532,10 @@ export async function getMessages(
     };
   });
 }
-export async function reconcileRoom(roomId: string) {
+export async function reconcileRoom(
+  roomId: string,
+  disconnectedUserId?: string,
+) {
   roomId = uuid(roomId);
   await db.transaction(async (tx) => {
     const [room] = await tx
@@ -1445,6 +1544,15 @@ export async function reconcileRoom(roomId: string) {
       .where(eq(rooms.id, roomId))
       .for("update");
     if (!room || room.status !== "active") return;
+    if (room.mode === "esports") {
+      const live = await esports.reconcileEsportsParent(
+        tx,
+        roomId,
+        disconnectedUserId,
+      );
+      await settleRoom(tx, roomId, undefined, live);
+      return;
+    }
     const [lease] = await tx
       .select()
       .from(leases)
@@ -1673,6 +1781,7 @@ export async function reconcileAll() {
       });
     }
   }
+  await esports.reconcileEsportsOrphans();
 }
 
 export async function revokeNative(

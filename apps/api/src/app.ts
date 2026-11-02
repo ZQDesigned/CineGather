@@ -16,6 +16,11 @@ import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import type { Request, Response, NextFunction } from "express";
 import { randomUUID } from "node:crypto";
 import { AnnouncementScheduler } from "./announcement-scheduler";
+import {
+  EsportsController,
+  EsportsAdmissionController,
+} from "./esports-controller";
+import { admissionSecretValid } from "./esports-admission";
 import { AdminController } from "./admin-controller";
 import { ApiController } from "./controller";
 import { AuthGuard, ErrorFilter, type AuthRequest } from "./http";
@@ -51,7 +56,12 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
   }
 }
 @Module({
-  controllers: [ApiController, AdminController],
+  controllers: [
+    ApiController,
+    AdminController,
+    EsportsController,
+    EsportsAdmissionController,
+  ],
   providers: [Metrics, Reconciler, UpdateEvents, AnnouncementScheduler],
 })
 class AppModule {}
@@ -99,6 +109,7 @@ export async function createApp({
       "Authorization",
       "Content-Type",
       "Idempotency-Key",
+      "X-CineGather-Features",
       "X-CineGather-Version",
       "X-CineGather-Platform",
       "X-CineGather-Runtime",
@@ -146,6 +157,8 @@ export async function createApp({
           );
       });
       if (
+        (req.path === "/api/v1/internal/esports-admission" &&
+          admissionSecretValid(req.get("X-CineGather-Admission"))) ||
         req.path.endsWith("/health") ||
         req.path.endsWith("/livekit/webhook")
       ) {

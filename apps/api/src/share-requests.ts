@@ -90,7 +90,9 @@ export async function queueRows(tx: Transaction, roomId: string) {
 export async function readQueue(user: User, roomId: string) {
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id, false, true);
+    const room = await requireMember(tx, roomId, user.id, false, true);
+    if (room.mode === "esports")
+      fail(403, "ESPORTS_SHARE_QUEUE_DISABLED", "赛事房不支持普通共享申请");
     const { rows } = await queueRows(tx, roomId);
     return {
       items: rows.map(({ credentialId, ...r }) => ({
@@ -105,7 +107,9 @@ export async function readQueue(user: User, roomId: string) {
 export async function requestShare(user: User, roomId: string) {
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id, false, true);
+    const room = await requireMember(tx, roomId, user.id, false, true);
+    if (room.mode === "esports")
+      fail(403, "ESPORTS_SHARE_QUEUE_DISABLED", "赛事房不支持普通共享申请");
     await requireScreenShare(tx, user.id, roomId);
     const { lease, rows } = await queueRows(tx, roomId);
     if (
@@ -150,7 +154,9 @@ export async function requestShare(user: User, roomId: string) {
 export async function cancelShareRequest(user: User, roomId: string) {
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id, false, true);
+    const room = await requireMember(tx, roomId, user.id, false, true);
+    if (room.mode === "esports")
+      fail(403, "ESPORTS_SHARE_QUEUE_DISABLED", "赛事房不支持普通共享申请");
     await tx
       .delete(shareRequests)
       .where(
@@ -171,7 +177,9 @@ export async function decideShareRequest(
   roomId = uuid(roomId);
   requestId = uuid(requestId);
   return db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id, false, true);
+    const room = await requireMember(tx, roomId, user.id, false, true);
+    if (room.mode === "esports")
+      fail(403, "ESPORTS_SHARE_QUEUE_DISABLED", "赛事房不支持普通共享申请");
     const { lease, rows } = await queueRows(tx, roomId);
     if (
       lease?.holderUserId !== user.id ||

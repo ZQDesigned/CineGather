@@ -1,3 +1,6 @@
+import { supportsEsports } from "./session-context";
+import { esportsCapacity } from "./esports";
+import { esportsSeatSchema, type EsportsSeat } from "@cinegather/contracts";
 import {
   invites,
   rooms,
@@ -27,12 +30,17 @@ export async function inviteFriendToRoom(
   user: User,
   roomId: string,
   targetId: string,
+  seat?: EsportsSeat,
 ) {
   roomId = uuid(roomId);
   targetId = uuid(targetId);
   if (user.id === targetId) fail(400, "FRIEND_SELF", "不能邀请自己");
   return db.transaction(async (tx) => {
-    await requireMember(tx, roomId, user.id, false, true);
+    const parent = await requireMember(tx, roomId, user.id, false, true);
+    if (seat && (parent.mode !== "esports" || parent.ownerUserId !== user.id))
+      fail(403, "FORBIDDEN", "仅赛事房房主可定向邀请席位");
+    if (parent.mode === "esports")
+      await esportsCapacity(tx, roomId, targetId, seat ?? { kind: "audience" });
     const occupying = await occupiedUserIds(
       tx,
       roomId,
@@ -40,7 +48,12 @@ export async function inviteFriendToRoom(
     );
     if (!occupying.has(user.id))
       fail(403, "ROOM_MEMBERSHIP_REQUIRED", "请先进入房间再邀请好友");
-    if (!(await areAcceptedFriends(tx, user.id, targetId)))
+    const [target] = await tx
+      .select({ id: users.id })
+      .from(users)
+      .where(and(eq(users.id, targetId), isNull(users.disabledAt)));
+    if (!target) fail(404, "USER_NOT_FOUND", "账号不存在或不可用");
+    if (!seat && !(await areAcceptedFriends(tx, user.id, targetId)))
       fail(403, "FRIEND_REQUIRED", "只能邀请已成为好友的用户");
     if (occupying.has(targetId))
       fail(409, "ALREADY_IN_ROOM", "好友已在这个房间");
@@ -66,7 +79,9 @@ export async function inviteFriendToRoom(
       previous &&
       !previous.revokedAt &&
       previous.expiresAt.getTime() > now &&
-      previous.useCount < previous.maxUses
+      previous.useCount < previous.maxUses &&
+      previous.esportsSeat === (seat?.kind ?? null) &&
+      previous.esportsTeam === (seat?.kind === "player" ? seat.team : null)
     )
       return { id: previous.id, expiresAt: previous.expiresAt.toISOString() };
     if (previous && previous.createdAt.getTime() > now - 60_000)
@@ -77,6 +92,8 @@ export async function inviteFriendToRoom(
       id,
       roomId,
       recipientId: targetId,
+      esportsSeat: seat?.kind,
+      esportsTeam: seat?.kind === "player" ? seat.team : undefined,
       tokenHash: hash(friendRoomToken(id, roomId, targetId)),
       createdBy: user.id,
       expiresAt,
@@ -96,6 +113,8 @@ export async function listRoomInvitations(user: User) {
       id: invites.id,
       roomId: rooms.id,
       roomName: rooms.name,
+      esportsSeat: invites.esportsSeat,
+      esportsTeam: invites.esportsTeam,
       senderId: users.id,
       senderName: users.displayName,
       expiresAt: invites.expiresAt,
@@ -114,17 +133,28 @@ export async function listRoomInvitations(user: User) {
         gt(invites.expiresAt, new Date()),
         sql`${invites.useCount} < ${invites.maxUses}`,
         eq(rooms.status, "active"),
+        sql`(${invites.esportsSeat} IS NULL OR ${invites.createdBy} = ${rooms.ownerUserId})`,
+        supportsEsports(user) ? undefined : eq(rooms.mode, "standard"),
         isNull(users.disabledAt),
-        sql`EXISTS (SELECT 1 FROM ${friendships} WHERE ${friendships.status} = 'accepted' AND ((${friendships.requesterId} = ${user.id} AND ${friendships.recipientId} = ${invites.createdBy}) OR (${friendships.requesterId} = ${invites.createdBy} AND ${friendships.recipientId} = ${user.id})))`,
+        sql`((${invites.esportsSeat} IS NOT NULL AND ${invites.createdBy} = ${rooms.ownerUserId}) OR EXISTS (SELECT 1 FROM ${friendships} WHERE ${friendships.status} = 'accepted' AND ((${friendships.requesterId} = ${user.id} AND ${friendships.recipientId} = ${invites.createdBy}) OR (${friendships.requesterId} = ${invites.createdBy} AND ${friendships.recipientId} = ${user.id}))))`,
         sql`NOT EXISTS (SELECT 1 FROM ${bans} WHERE ${bans.roomId} = ${invites.roomId} AND ${bans.userId} = ${user.id})`,
         sql`NOT EXISTS (SELECT 1 FROM ${members} WHERE ${members.roomId} = ${invites.roomId} AND ${members.userId} = ${user.id} AND ${members.admittedUntil} > NOW())`,
       ),
     )
     .orderBy(desc(invites.createdAt))
     .limit(50);
-  return rows.map(({ requestId, ...row }) => ({
+  return rows.map(({ requestId, esportsSeat, esportsTeam, ...row }) => ({
     ...row,
     ...(requestId ? { requestId } : {}),
+    ...(esportsSeat
+      ? {
+          seat: esportsSeatSchema.parse(
+            esportsSeat === "player"
+              ? { kind: esportsSeat, team: esportsTeam }
+              : { kind: esportsSeat },
+          ),
+        }
+      : {}),
     expiresAt: row.expiresAt.toISOString(),
     token: friendRoomToken(row.id, row.roomId, user.id),
   }));

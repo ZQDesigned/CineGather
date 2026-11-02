@@ -1,3 +1,5 @@
+import { esportsCapacity } from "./esports";
+import { supportsEsports } from "./session-context";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import {
@@ -40,6 +42,8 @@ async function checkRoom(
   if (ban) fail(403, "ROOM_BANNED", "你已被此房间禁止加入");
   if (occupying.has(requesterId))
     fail(409, "ALREADY_IN_ROOM", "你已在这个房间");
+  if (room.mode === "esports")
+    await esportsCapacity(tx, roomId, requesterId, { kind: "audience" });
   if (occupying.size >= room.maxMembers)
     fail(409, "ROOM_FULL", "房间已满，无法加入");
 }
@@ -70,6 +74,7 @@ export async function requestFriendRoom(user: User, targetId: string) {
           eq(members.userId, targetId),
           gt(members.admittedUntil, new Date()),
           eq(rooms.status, "active"),
+          supportsEsports(user) ? undefined : eq(rooms.mode, "standard"),
         ),
       )
       .orderBy(desc(members.joinedAt), rooms.id)
@@ -198,6 +203,7 @@ export async function listRoomJoinRequests(user: User) {
         ),
         gt(r.expiresAt, new Date()),
         eq(rooms.status, "active"),
+        supportsEsports(user) ? undefined : eq(rooms.mode, "standard"),
         isNull(users.disabledAt),
         sql`EXISTS (SELECT 1 FROM room_members AS recipient WHERE recipient.room_id = ${r.roomId} AND recipient.user_id = ${r.recipientId} AND recipient.admitted_until > NOW())`,
         sql`NOT EXISTS (SELECT 1 FROM room_members AS applicant WHERE applicant.room_id = ${r.roomId} AND applicant.user_id = ${r.requesterId} AND applicant.admitted_until > NOW())`,

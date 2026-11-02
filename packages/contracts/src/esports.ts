@@ -133,3 +133,8 @@ export const esportsNativeInput = z.strictObject({
   revision: z.number().int().positive(),
   systemAudio: z.boolean().default(false),
 });
+
+export const esportsFriendInviteInput = z.strictObject({
+  userId: z.uuid().toLowerCase(),
+  seat: esportsSeatSchema.optional(),
+});

@@ -341,9 +341,13 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
   test("generated OpenAPI exposes defaulted request fields as optional", () => {
     const document = openapi(app);
     const body = document.paths["/api/v1/rooms"]!.post!.requestBody as {
-      content: Record<string, { schema: { required: string[] } }>;
+      content: Record<string, { schema: { oneOf: { required: string[] }[] } }>;
     };
-    expect(body.content["application/json"]!.schema.required).toEqual(["name"]);
+    expect(
+      body.content["application/json"]!.schema.oneOf.map(
+        (branch) => branch.required,
+      ),
+    ).toEqual([["name"], ["name", "mode"]]);
   });
   test("account identity and invite secrets are never stored in plaintext; private rooms do not leak", async () => {
     const a = await account();
