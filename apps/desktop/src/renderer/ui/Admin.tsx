@@ -441,6 +441,7 @@ function AdminPanel() {
           <Button
             size="small"
             type="link"
+            aria-label={`${u.esportsRoomsEnabled ? "关闭" : "开通"}${u.displayName}的赛事房创建能力`}
             onClick={() => confirm({ kind: "esports", user: u })}
           >
             {u.esportsRoomsEnabled ? "已开通" : "未开通"}

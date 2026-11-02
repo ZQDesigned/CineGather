@@ -13618,8 +13618,11 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** Format: uri */
                         url: string;
-                        streamKey: string;
+                        token: string;
+                        identity: string;
+                        expiresAt: string;
                         /** Format: uuid */
                         publicationId: string;
                     };

@@ -402,6 +402,14 @@ export async function changeWatch(
       fail(403, "ESPORTS_PLAYER_CANNOT_WATCH", "选手席不支持观看其他共享");
     await sweepEsports(tx, roomId);
     const w = await watchRow(tx, roomId, user.id);
+    // Expiry/reconciliation may already have removed this candidate. Cancelling
+    // that exact warming slot is idempotent and must return the fresh revision.
+    // It must never cancel a newer candidate selected by another pending action.
+    if (
+      input.action === "cancel" &&
+      (!w.warming || (input.publicationId && w.warming !== input.publicationId))
+    )
+      return;
     if (w.revision !== input.revision)
       fail(409, "ESPORTS_WATCH_STALE", "观看选择已变更，请刷新后重试");
     if (input.action === "select") {
@@ -428,7 +436,11 @@ export async function changeWatch(
         fail(409, "ESPORTS_WARM_EXPIRED", "画面预热已失效，请重新选择");
       const p = await publication(tx, roomId, w.warming);
       await closeVideo(roomId, user.id, w.current);
-      await setMonitor(tx, w, w.autoMonitor ? p.team : null);
+      await setMonitor(
+        tx,
+        w,
+        w.autoMonitor ? p.team : w.monitorTeam === p.team ? p.team : null,
+      );
       await tx
         .update(esportsWatches)
         .set({
@@ -735,7 +747,9 @@ export async function esportsNative(
       if (existing)
         return {
           url: existing.url,
-          streamKey: existing.streamKey,
+          token: existing.streamKey,
+          identity: existing.participantIdentity,
+          expiresAt: p.expiresAt.toISOString(),
           publicationId: p.id,
         };
     }
@@ -762,7 +776,13 @@ export async function esportsNative(
       );
       throw error;
     }
-    return { url: info.url, streamKey: info.streamKey, publicationId: p.id };
+    return {
+      url: info.url,
+      token: info.streamKey,
+      identity: info.participantIdentity,
+      expiresAt: p.expiresAt.toISOString(),
+      publicationId: p.id,
+    };
   });
 }
 export async function stopEsportsPublication(

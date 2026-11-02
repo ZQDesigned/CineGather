@@ -99,7 +99,12 @@ export function Member({
   onVolumeCommit?(value: number): void;
 }) {
   const { modal } = App.useApp();
-  const sharerId = useApp((s) => s.media.sharer?.id);
+  const sharerId = useApp((s) =>
+    s.room?.mode === "esports" &&
+    s.esports?.snapshot?.publications.some((pub) => pub.userId === p.id)
+      ? p.id
+      : s.media.sharer?.id,
+  );
   const selfId = useApp((s) => s.user?.id);
   const friendship = useApp((s) => s.friends.find((f) => f.userId === p.id));
   const friendAction = memberFriendAction(selfId, p.id, friendship);

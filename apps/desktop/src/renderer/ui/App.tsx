@@ -1,3 +1,4 @@
+import { EsportsRoom } from "./EsportsRoom";
 import { AnnouncementLayer } from "./Announcements";
 import { NotificationCenter } from "./NotificationCenter";
 import { DoNotDisturb } from "./DoNotDisturb";
@@ -464,7 +465,11 @@ export function App() {
           <>
             {app.room && (
               <div className="room-slot" hidden={home || secondary}>
-                <Room visible={!home && !secondary} />
+                {app.room.mode === "esports" ? (
+                  <EsportsRoom visible={!home && !secondary} />
+                ) : (
+                  <Room visible={!home && !secondary} />
+                )}
               </div>
             )}
             {admin ? (

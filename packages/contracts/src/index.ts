@@ -522,6 +522,7 @@ export interface NativeCaptureRequest {
   apiUrl: string;
   sessionToken: string;
   roomId: string;
+  roomMode?: "standard" | "esports";
   lease: ShareLease;
   quality: Quality;
 }

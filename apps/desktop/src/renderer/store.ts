@@ -19,6 +19,8 @@ import type { ChatMessage } from "@cinegather/contracts";
 import type { Friend } from "./friends";
 export type Modal =
   | "announcements"
+  | "esports-seats"
+  | "esports-invite"
   | "room-settings"
   | "create"
   | "join"
@@ -37,6 +39,7 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  esports?: import("@cinegather/client-core").EsportsClientState;
   announcements: import("./announcements").AnnouncementSnapshot;
   pendingAnnouncementIds: string[];
   announcementToastIds: string[];

@@ -45,6 +45,9 @@ export class EsportsBrowserMedia {
       disconnected?(kind: Kind, channel: string): void;
     },
   ) {}
+  get viewing() {
+    return this.selected?.session;
+  }
   get voice() {
     return [...this.handles].find((h) => h.kind === "voice")?.session;
   }
@@ -209,9 +212,9 @@ export class EsportsBrowserMedia {
     this.selected?.session.screenVolume(value);
     if (this.selected?.element) this.selected.element.volume = value;
   }
-  memberVolumes(value: Record<string, number>) {
+  memberVolumes(value: Record<string, number>, applyExisting = true) {
     this.levels.members = value;
-    for (const h of this.handles) h.session.memberVolumes(value);
+    for (const h of this.handles) h.session.memberVolumes(value, applyExisting);
   }
   memberVolume(userId: string, value: number) {
     this.levels.members[userId] = value;

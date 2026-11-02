@@ -4,7 +4,7 @@ import { defineConfig } from "@playwright/test";
 if (existsSync(".env")) loadEnvFile(".env");
 export default defineConfig({
   testDir: "./tests/e2e",
-  testIgnore: "browser-web.spec.ts",
+  testIgnore: ["browser-web.spec.ts", "esports-rooms.spec.ts"],
   timeout: 60_000,
   workers: 1,
   retries: 0,

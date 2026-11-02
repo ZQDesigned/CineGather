@@ -637,6 +637,7 @@ function registerIPC() {
         apiUrl: z.url().max(2048),
         sessionToken: z.string().min(32).max(128),
         roomId: z.uuid(),
+        roomMode: z.enum(["standard", "esports"]).optional(),
         lease: leaseSchema,
         quality: z.enum(["saver", "cinema", "game"]),
       })

@@ -1,3 +1,4 @@
+import { EsportsRuntime } from "./esports";
 import { AnnouncementClient, announcementNotification } from "./announcements";
 import { shouldAdvanceUpdateRequirement } from "../shared/update-requirement";
 import { reconcileAudioDevices } from "./audio-devices";
@@ -164,6 +165,13 @@ const friendVolumes = new FriendVolumes(
       ),
       !reset,
     );
+    if (esports.roomId)
+      esports.browser.memberVolumes(
+        Object.fromEntries(
+          Object.entries(memberVolumes).map(([id, level]) => [id, level / 100]),
+        ),
+        !reset,
+      );
   },
 );
 export function setMemberVolume(userId: string, volume: number) {
@@ -549,10 +557,10 @@ export function refreshAudioDevices(
         saved.outputDevice === checked.outputDevice;
       const results = await Promise.allSettled([
         inputChanged || forceInput
-          ? media.devices(saved.inputDevice, undefined)
+          ? applyAudioDevices(saved.inputDevice, undefined)
           : undefined,
         outputChanged
-          ? media.devices(undefined, saved.outputDevice)
+          ? applyAudioDevices(undefined, saved.outputDevice)
           : undefined,
       ]);
       if (results.some((r) => r.status === "rejected")) {
@@ -586,7 +594,7 @@ async function recoverMissingMicrophone(error: unknown) {
     return false;
   try {
     await persistSettings((current) => ({ ...current, inputDevice: "" }));
-    await media.devices("", undefined);
+    await applyAudioDevices("", undefined);
     update({ notice: "原麦克风不可用，已切换为系统默认麦克风" });
   } catch {
     update({
@@ -636,8 +644,14 @@ const roomCuePlayer = new RoomCuePlayer(
 const roomCues = new RoomPresenceCues((cue) => roomCuePlayer.play(cue));
 export const media = new MediaSession(
   (summary) => {
-    if (summary.state === "disconnected") void microphoneMonitor.stop();
     roomCues.observe(summary);
+    if (esports.roomId) {
+      esports.controlChanged(summary);
+      if (summary.state === "connected" && state().room)
+        update({ roomState: "connected" });
+      return;
+    }
+    if (summary.state === "disconnected") void microphoneMonitor.stop();
     if (summary.state === "connected" && state().media.state !== "connected")
       void chat.sync();
     const fallback = summary.microphoneNoise?.reason;
@@ -682,6 +696,7 @@ export const media = new MediaSession(
       void accompaniment.stop().catch(report);
       update({ warning: "房主已关闭你的伴奏" });
     } else if (command.action === "mute-microphone") {
+      void voiceMedia().microphone(false).catch(report);
       pttHolds.clear();
       update({ warning: "房主已关闭你的麦克风" });
     } else if (command.action === "session-replaced") {
@@ -705,6 +720,34 @@ export const media = new MediaSession(
   },
   (roomId, message) => chat.receive(roomId, message),
 );
+export const esports = new EsportsRuntime(api, {
+  error: report,
+  stopShare,
+  inputLost: () => {
+    void refreshAudioDevices(true).catch(report);
+  },
+});
+function voiceMedia() {
+  return esports.roomId ? (esports.browser.voice ?? media) : media;
+}
+function screenMedia() {
+  return esports.roomId ? (esports.publisher ?? media) : media;
+}
+async function applyAudioDevices(input?: string, output?: string) {
+  if (esports.roomId)
+    await esports.browser.setDevices(
+      input ?? state().settings.inputDevice,
+      output ?? state().settings.outputDevice,
+    );
+  else await media.devices(input, output);
+}
+export function browserShareAudioNotice() {
+  return screenMedia().browserAudioNotice;
+}
+export async function startRoomAudio() {
+  if (esports.roomId) await esports.browser.startAudio();
+  else await media.startAudio();
+}
 export const microphoneMonitor = new MicrophoneMonitor((status) => {
   const previous = state().microphoneMonitor;
   update({ microphoneMonitor: status });
@@ -828,36 +871,57 @@ const processAudio = new ProcessAudio((message) => {
   void shareSession.stop().catch(report);
 });
 export const shareSession: ShareCoordinator = new ShareCoordinator({
-  acquire: async (preempt) =>
-    unwrap(
+  acquire: async (preempt) => {
+    if (esports.roomId) {
+      const lease = unwrap(
+        await api.POST("/api/v1/rooms/{roomId}/esports/share-lease", {
+          params: { path: { roomId: esports.roomId } },
+        }),
+      );
+      if (!window.desktop?.nativeCapture)
+        await esports.preparePublisher(lease.publicationId);
+      return lease;
+    }
+    return unwrap(
       await api.POST(
         preempt
           ? "/api/v1/rooms/{roomId}/share-lease/preempt"
           : "/api/v1/rooms/{roomId}/share-lease",
-        {
-          params: { path: { roomId: state().room!.id } },
-        },
+        { params: { path: { roomId: state().room!.id } } },
       ),
-    ),
+    );
+  },
   renew: async (lease) =>
     window.desktop?.nativeCapture &&
     ["publishing", "active"].includes(shareSession.state)
       ? window.desktop.renewNativeCapture!(lease)
       : unwrap(
-          await api.POST("/api/v1/rooms/{roomId}/share-lease/renew", {
-            params: { path: { roomId: state().room!.id } },
-            body: { leaseId: lease.leaseId, revision: lease.revision },
-          }),
+          await api.POST(
+            esports.roomId
+              ? "/api/v1/rooms/{roomId}/esports/share-lease/renew"
+              : "/api/v1/rooms/{roomId}/share-lease/renew",
+            {
+              params: { path: { roomId: state().room!.id } },
+              body: { leaseId: lease.leaseId, revision: lease.revision },
+            },
+          ),
         ),
   release: async (lease) => {
     if (state().room) {
-      const result = await api.DELETE("/api/v1/rooms/{roomId}/share-lease", {
-        params: { path: { roomId: state().room!.id } },
-        body: { leaseId: lease.leaseId, revision: lease.revision },
-      });
+      const result = await api.DELETE(
+        esports.roomId
+          ? "/api/v1/rooms/{roomId}/esports/share-lease"
+          : "/api/v1/rooms/{roomId}/share-lease",
+        {
+          params: { path: { roomId: state().room!.id } },
+          body: { leaseId: lease.leaseId, revision: lease.revision },
+        },
+      );
       if (
         ![401, 403, 404].includes(result.response.status) &&
-        result.error?.code !== "LEASE_LOST"
+        !["LEASE_LOST", ...(esports.roomId ? ["LEASE_CONFLICT"] : [])].includes(
+          result.error?.code ?? "",
+        )
       )
         unwrap(result);
     }
@@ -889,7 +953,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
         await window.desktop.switchNativeSource!();
       else {
         if (capabilities().sourcePicker) {
-          const selected = await media.selectBrowserShare(
+          const selected = await screenMedia().selectBrowserShare(
             state().settings.quality,
             state().systemAudio,
             true,
@@ -901,7 +965,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
           )
             throw new Error("共享已取消");
         }
-        await media.replaceBrowserShare();
+        await screenMedia().replaceBrowserShare();
       }
     } finally {
       await window.desktop?.cancelCapture();
@@ -916,6 +980,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
           apiUrl: baseUrl,
           sessionToken,
           roomId: state().room!.id,
+          roomMode: state().room!.mode,
           lease,
           quality: state().settings.quality,
         });
@@ -923,7 +988,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
       }
       if (window.desktop?.processAudio) {
         const revision = state().shareRevision;
-        await media.share(state().settings.quality, false);
+        await screenMedia().share(state().settings.quality, false);
         if (
           shareSession.state !== "publishing" ||
           state().shareRevision !== revision
@@ -931,7 +996,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
           throw new Error("共享已取消");
         if (state().systemAudio) {
           const audio = await processAudio.start(window.desktop.processAudio);
-          await media.publishShareAudio(audio.track);
+          await screenMedia().publishShareAudio(audio.track);
           if (
             shareSession.state !== "publishing" ||
             state().shareRevision !== revision
@@ -945,8 +1010,11 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
             });
         }
       } else if (capabilities().sourcePicker)
-        await media.share(state().settings.quality, state().systemAudio);
-      else await media.publishBrowserShare(state().settings.quality);
+        await screenMedia().share(
+          state().settings.quality,
+          state().systemAudio,
+        );
+      else await screenMedia().publishBrowserShare(state().settings.quality);
     } finally {
       await window.desktop?.cancelCapture();
     }
@@ -956,7 +1024,8 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     update({ audioCompatibility: false });
     await processAudio.stop();
     await window.desktop?.stopNativeCapture?.();
-    await media.stopShare();
+    await screenMedia().stopShare();
+    if (esports.roomId) await esports.stopPublisher();
     await window.desktop?.cancelCapture();
   },
   changed: (shareState, revision) => {
@@ -987,21 +1056,26 @@ export const roomSession = new RoomCoordinator({
       }),
     );
   },
-  connect: async (url, token) => {
+  connect: async (url, token, room) => {
     await refreshFriends();
     await refreshAudioDevices().catch(report);
+    if (room?.mode === "esports") esports.roomId = room.id;
     await media.connect(url, token);
+    if (room?.mode === "esports") {
+      await esports.enter(room.id);
+      return;
+    }
     try {
-      await media.configureMicrophone(
+      await voiceMedia().configureMicrophone(
         state().settings.noiseReduction,
         state().settings.microphoneEffect ?? "none",
         state().settings.microphoneReverbStrength,
       );
-      await media.microphone(
+      await voiceMedia().microphone(
         !(capabilities().pushToTalk && state().settings.pushToTalk),
         state().settings.inputDevice,
       );
-      await media.devices(
+      await applyAudioDevices(
         state().settings.inputDevice,
         state().settings.outputDevice,
       );
@@ -1015,6 +1089,7 @@ export const roomSession = new RoomCoordinator({
       accompaniment.stop(),
       microphoneMonitor.stop(),
       media.disconnect(),
+      esports.disconnect(),
     ]).then(() => {});
   },
   stopShare,
@@ -1028,7 +1103,8 @@ export const roomSession = new RoomCoordinator({
     if (roomState === "idle") update({ shareRecovery: undefined });
     if (roomState === "connected") {
       roomCues.enter(state().media);
-      if (room && state().user) void chat.enter(room.id, state().user!.id);
+      if (room && state().user && room.mode !== "esports")
+        void chat.enter(room.id, state().user!.id);
     } else if (roomState === "leaving") roomCues.leave();
     else if (roomState === "failed") roomCues.reset();
     if (roomState === "idle" || (roomState === "failed" && !room))
@@ -1108,11 +1184,18 @@ export async function initialize() {
   const stopWatchVisibility = bindWatchVisibility({
     bridge: window.desktop?.watchVisibility,
     document,
-    setVideoVisible: (visible) => media.setVideoVisible(visible),
+    setVideoVisible: (visible) => {
+      if (esports.roomId) void esports.setVideoVisible(visible).catch(report);
+      else media.setVideoVisible(visible);
+    },
     subscribeWatching: (changed) => {
       const sync = () =>
         changed(
-          Boolean(state().media.watching && !state().media.sharer?.local),
+          Boolean(
+            (state().media.watching && !state().media.sharer?.local) ||
+              state().esports?.warming ||
+              state().esports?.busy,
+          ),
         );
       sync();
       return useApp.subscribe(sync);
@@ -1281,16 +1364,20 @@ export async function initialize() {
   const friendsTimer = setInterval(() => void syncFriends(), 5000);
   const presenceTimer = setInterval(() => void syncPresence(), 15000);
   const chatTimer = setInterval(() => {
-    if (state().room) void chat.sync();
+    if (state().room && state().room?.mode !== "esports") void chat.sync();
   }, 30_000);
   const focus = () => {
     void siteAnnouncements.refresh();
     void syncPresence();
     void syncFriends();
-    if (state().room) void chat.sync();
+    if (state().room && state().room?.mode !== "esports") void chat.sync();
   };
   const chatVisibility = () => {
-    if (document.visibilityState === "visible" && state().room)
+    if (
+      document.visibilityState === "visible" &&
+      state().room &&
+      state().room?.mode !== "esports"
+    )
       void chat.sync();
   };
   document.addEventListener("visibilitychange", chatVisibility);
@@ -1344,6 +1431,7 @@ async function syncRooms() {
       }),
     );
     if (state().room !== room || state().roomRevision !== roomRevision) return;
+    if (current.mode === "esports") await esports.poll();
     const promoted = current.role === "owner" && state().room?.role !== "owner";
     update({ room: current, ...(promoted ? { notice: "你已成为房主" } : {}) });
   } catch (error) {
@@ -1434,12 +1522,15 @@ export async function createRoom(
   maxMembers: number,
   access: "normal" | "password" = "normal",
   password?: string,
+  mode: "standard" | "esports" = "standard",
 ) {
   const room = unwrap(
     await api.POST("/api/v1/rooms", {
       body: {
         name,
-        maxMembers,
+        ...(mode === "esports"
+          ? { mode, maxMembers: 20 as const }
+          : { maxMembers }),
         access,
         ...(access === "password" ? { password } : {}),
       },
@@ -1494,7 +1585,7 @@ export async function updateRoomSettings(name: string, maxMembers: number) {
   const saved = unwrap(
     await api.POST("/api/v1/rooms/{roomId}/settings", {
       params: { path: { roomId: room.id } },
-      body: { name, maxMembers },
+      body: { name, ...(room.mode === "esports" ? {} : { maxMembers }) },
     }),
   );
   if (
@@ -1541,7 +1632,7 @@ export async function enterKnownRoom(room: RoomInfo): Promise<boolean> {
 }
 export async function toggleMicrophone() {
   try {
-    await media.microphone(
+    await voiceMedia().microphone(
       !state().media.participants.find((p) => p.local)?.microphone,
       state().settings.inputDevice,
     );
@@ -1567,7 +1658,10 @@ export async function ptt(
       (state().roomState === "reconnecting" && pttHolds.size === 0))
   )
     try {
-      await media.microphone(pttHolds.size > 0, state().settings.inputDevice);
+      await voiceMedia().microphone(
+        pttHolds.size > 0,
+        state().settings.inputDevice,
+      );
     } catch (error) {
       report(error);
     }
@@ -1586,7 +1680,7 @@ export async function chooseBrowserSource() {
   const switching = state().switchingSource;
   const revision = state().shareRevision;
   try {
-    const selected = await media.selectBrowserShare(
+    const selected = await screenMedia().selectBrowserShare(
       state().settings.quality,
       state().systemAudio,
       state().switchingSource,
@@ -1626,7 +1720,7 @@ export async function switchShareSource() {
   try {
     await shareSession.switchSource();
   } finally {
-    media.cancelBrowserSelection();
+    screenMedia().cancelBrowserSelection();
     await window.desktop?.cancelCapture();
     update({ switchingSource: false });
   }
@@ -1649,7 +1743,7 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
     (held || (settings.pushToTalk && !state().settings.pushToTalk)) &&
     ["connected", "reconnecting"].includes(state().roomState)
   )
-    await media.microphone(false);
+    await voiceMedia().microphone(false);
   const devices = await navigator.mediaDevices?.enumerateDevices();
   if (devices) {
     update({ audioDevices: devices });
@@ -1669,8 +1763,8 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
     },
   }));
   media.setWatchProfile(settings.watchProfile ?? "balanced");
-  await media.devices(settings.inputDevice, settings.outputDevice);
-  await media.configureMicrophone(
+  await applyAudioDevices(settings.inputDevice, settings.outputDevice);
+  await voiceMedia().configureMicrophone(
     settings.noiseReduction,
     settings.microphoneEffect ?? "none",
     settings.microphoneReverbStrength,
@@ -1698,12 +1792,12 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
       const before = state().settings;
       const apply = async (settings: DesktopSettings) => {
         await (key === "noiseReduction"
-          ? media.configureMicrophone(
+          ? voiceMedia().configureMicrophone(
               settings.noiseReduction,
               state().settings.microphoneEffect ?? "none",
               state().settings.microphoneReverbStrength,
             )
-          : media.devices(
+          : applyAudioDevices(
               key === "inputDevice" ? settings.inputDevice : undefined,
               key === "outputDevice" ? settings.outputDevice : undefined,
             ));
@@ -1742,7 +1836,7 @@ export async function setMicrophoneReverbStrength(value: number) {
   }));
 }
 export function previewMicrophoneReverbStrength(value: number) {
-  media.setMicrophoneReverbStrength(value);
+  voiceMedia().setMicrophoneReverbStrength(value);
   microphoneMonitor.strength(value);
 }
 export async function setMicrophoneEffect(effect: MicrophoneEffect) {
@@ -1750,7 +1844,7 @@ export async function setMicrophoneEffect(effect: MicrophoneEffect) {
     ...current,
     microphoneEffect: effect,
   }));
-  await media.configureMicrophone(
+  await voiceMedia().configureMicrophone(
     next.noiseReduction,
     effect,
     next.microphoneReverbStrength,
@@ -1765,6 +1859,7 @@ export async function setWatchProfile(
     watchProfile: profile,
   }));
   media.setWatchProfile(next.watchProfile ?? "balanced");
+  esports.browser.setWatchProfile(next.watchProfile ?? "balanced");
 }
 export async function createInvite() {
   const room = state().room;

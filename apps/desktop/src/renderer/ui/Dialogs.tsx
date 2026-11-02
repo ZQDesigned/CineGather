@@ -1,3 +1,4 @@
+import { EsportsSeatManager, EsportsSeatInvite } from "./EsportsRoom";
 import { AnnouncementDialog } from "./Announcements";
 import {
   Select,
@@ -80,6 +81,8 @@ function DialogContent({ modal }: { modal: Modal }) {
         <p>当前账号暂未开通屏幕共享能力。</p>
       </ModalShell>
     );
+  if (modal === "esports-seats") return <EsportsSeatManager />;
+  if (modal === "esports-invite") return <EsportsSeatInvite />;
   if (modal === "room-settings") return <RoomSettings />;
   if (modal === "create") return <CreateRoom />;
   if (modal === "join") return <JoinRoom />;
@@ -97,6 +100,8 @@ function CreateRoom() {
   const busy = useApp((s) => s.busy);
   const [form] = Form.useForm();
   const access = Form.useWatch("access", form);
+  const mode = Form.useWatch("mode", form);
+  const canCreateEsports = useApp((s) => s.user?.esportsRoomsEnabled);
   return (
     <ModalShell
       title="创建私人房间"
@@ -118,20 +123,27 @@ function CreateRoom() {
         id="create-room"
         form={form}
         layout="vertical"
-        initialValues={{ name: "今晚一起看", max: 5, access: "normal" }}
+        initialValues={{
+          name: "今晚一起看",
+          max: 5,
+          access: "normal",
+          mode: "standard",
+        }}
         onFinish={({
           name,
           max,
           access,
           password,
+          mode,
         }: {
           name: string;
           max: number;
           access: "normal" | "password";
           password?: string;
+          mode: "standard" | "esports";
         }) =>
           void actions.run(() =>
-            actions.createRoom(name.trim(), max, access, password),
+            actions.createRoom(name.trim(), max, access, password, mode),
           )
         }
       >
@@ -144,14 +156,26 @@ function CreateRoom() {
         >
           <Input autoFocus maxLength={64} showCount />
         </Form.Item>
-        <Form.Item name="max" label="房间人数">
-          <Select
-            options={Array.from({ length: 9 }, (_, i) => ({
-              value: i + 2,
-              label: `${i + 2} 人${i + 2 === 5 ? "（默认）" : ""}`,
-            }))}
-          />
-        </Form.Item>
+        {canCreateEsports && (
+          <Form.Item name="mode" label="房间分类">
+            <Radio.Group
+              options={[
+                { value: "standard", label: "普通放映房" },
+                { value: "esports", label: "电竞赛事房" },
+              ]}
+            />
+          </Form.Item>
+        )}
+        {mode !== "esports" && (
+          <Form.Item name="max" label="房间人数">
+            <Select
+              options={Array.from({ length: 9 }, (_, i) => ({
+                value: i + 2,
+                label: `${i + 2} 人${i + 2 === 5 ? "（默认）" : ""}`,
+              }))}
+            />
+          </Form.Item>
+        )}
         <Form.Item name="access" label="房间类型">
           <Radio.Group
             optionType="button"

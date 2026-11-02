@@ -457,20 +457,23 @@ export class NativeCapture {
     context: NativeCaptureRequest,
     suffix: string,
     method = "POST",
+    extra: Record<string, unknown> = {},
   ) {
     const response = await fetch(
-      `${context.apiUrl}/api/v1/rooms/${context.roomId}/share-lease${suffix}`,
+      `${context.apiUrl}/api/v1/rooms/${context.roomId}/${context.roomMode === "esports" ? "esports/" : ""}share-lease${suffix}`,
       {
         method,
         headers: {
           Authorization: `Bearer ${context.sessionToken}`,
           "Content-Type": "application/json",
+          "X-CineGather-Features": "esports-v1",
           "X-CineGather-Version": version,
           "X-CineGather-Platform": process.platform,
         },
         body: JSON.stringify({
           leaseId: context.lease.leaseId,
           revision: context.lease.revision,
+          ...extra,
         }),
         signal: AbortSignal.any([
           AbortSignal.timeout(8_000),
@@ -497,7 +500,14 @@ export class NativeCapture {
     this.abort = new AbortController();
     try {
       const publication = nativePublicationSchema.parse(
-        await this.request(context, "/native"),
+        await this.request(
+          context,
+          "/native",
+          "POST",
+          context.roomMode === "esports"
+            ? { systemAudio: selection.systemAudio }
+            : {},
+        ),
       );
       const endpoint = new URL(publication.url);
       if (

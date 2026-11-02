@@ -65,11 +65,16 @@ export function RoomSettings() {
           rules={[{ required: true, message: "请选择人数上限" }]}
         >
           <Select
-            options={Array.from({ length: MAX_ROOM_MEMBERS - 1 }, (_, i) => ({
-              value: i + 2,
-              label: `${i + 2} 人`,
-              disabled: i + 2 < members,
-            }))}
+            disabled={room?.mode === "esports"}
+            options={
+              room?.mode === "esports"
+                ? [{ value: 20, label: "20 席（按席位分配）", disabled: false }]
+                : Array.from({ length: MAX_ROOM_MEMBERS - 1 }, (_, i) => ({
+                    value: i + 2,
+                    label: `${i + 2} 人`,
+                    disabled: i + 2 < members,
+                  }))
+            }
           />
         </Form.Item>
       </Form>

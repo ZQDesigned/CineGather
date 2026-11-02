@@ -56,7 +56,14 @@ interface Slot {
   id: string;
   handle: EsportsMediaHandle;
 }
-const aborted = () => new DOMException("Cancelled", "AbortError");
+export class EsportsPrewarmTimeout extends Error {
+  constructor() {
+    super("画面预热超时，已保留原画面");
+    this.name = "EsportsPrewarmTimeout";
+  }
+}
+const aborted = () =>
+  Object.assign(new Error("Cancelled"), { name: "AbortError" });
 export class EsportsCoordinator {
   private snapshot?: EsportsSnapshot;
   private voice?: EsportsMediaHandle;
@@ -241,7 +248,7 @@ export class EsportsCoordinator {
           ),
         );
         timer = setTimeout(
-          () => controller.abort(new Error("画面预热超时，已保留原画面")),
+          () => controller.abort(new EsportsPrewarmTimeout()),
           remaining,
         );
         await Promise.race([
@@ -288,7 +295,12 @@ export class EsportsCoordinator {
         this.event("prewarm-cancelled", publicationId);
         if (
           generation === this.generation &&
-          !(error instanceof DOMException && error.name === "AbortError")
+          !(
+            typeof error === "object" &&
+            error !== null &&
+            "name" in error &&
+            error.name === "AbortError"
+          )
         )
           this.deps.error(error);
       } finally {
@@ -312,6 +324,7 @@ export class EsportsCoordinator {
     if (this.snapshot?.watch.warming)
       this.snapshot = await this.deps.api.watch({
         action: "cancel",
+        publicationId: this.snapshot.watch.warming,
         revision: this.snapshot.watch.revision,
       });
   }

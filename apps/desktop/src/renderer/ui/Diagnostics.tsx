@@ -396,7 +396,7 @@ export function Diagnostics() {
                     <Button
                       size="small"
                       onClick={() =>
-                        void actions.media.startAudio().catch(actions.report)
+                        void actions.startRoomAudio().catch(actions.report)
                       }
                     >
                       启用声音

@@ -17,6 +17,7 @@ import {
   esportsConnectionInput,
   esportsConnectionSchema,
   esportsNativeInput,
+  nativePublicationSchema,
   leaseSchema,
   leaseInput,
   okSchema,
@@ -125,11 +126,7 @@ export class EsportsController {
   @Post("share-lease/native")
   @Endpoint(
     "esportsNativePublication",
-    z.object({
-      url: z.string(),
-      streamKey: z.string(),
-      publicationId: z.uuid(),
-    }),
+    nativePublicationSchema.extend({ publicationId: z.uuid() }),
     esportsNativeInput,
     ["roomId"],
     201,

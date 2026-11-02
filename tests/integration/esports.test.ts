@@ -1,3 +1,4 @@
+import { config } from "../../apps/api/src/config";
 import { beforeAll, afterAll, expect, test } from "bun:test";
 import { createApp } from "../../apps/api/src/app";
 import {
@@ -15,7 +16,10 @@ import {
 } from "@cinegather/database";
 import { and, eq, inArray } from "drizzle-orm";
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
-if (!new URL(process.env.DATABASE_URL!).pathname.includes("esports"))
+if (
+  !new URL(process.env.DATABASE_URL!).pathname.includes("esports") &&
+  !process.env.CI
+)
   throw Error("Run esports integration against its isolated database");
 let app: Awaited<ReturnType<typeof createApp>>, origin: string;
 let gateway: ReturnType<
@@ -62,6 +66,8 @@ async function account(platform = "web") {
   return { id: r.body.user.id as string, token: r.body.sessionToken as string };
 }
 beforeAll(async () => {
+  config.esportsGatewayUrl ??= "ws://127.0.0.1:17882";
+  config.esportsAdmissionSecret ??= "fixture".repeat(12);
   app = await createApp();
   await app.listen(0, "127.0.0.1");
   origin = await app.getUrl();
@@ -71,7 +77,7 @@ beforeAll(async () => {
   gateway = startEsportsDevGateway({
     port: 17882,
     apiUrl: origin,
-    upstreamUrl: "http://127.0.0.1:17880",
+    upstreamUrl: config.livekitInternalUrl,
     secret: process.env.ESPORTS_ADMISSION_SECRET!,
   });
 });
@@ -526,6 +532,13 @@ test("warm timeout, device takeover and explicit leave revoke every child scope"
   ).toBe(409);
   const refreshed = (await req(`/rooms/${room.id}/esports`, viewer.token)).body;
   expect(refreshed.watch.warming).toBeNull();
+  const cancelled = await req(`/rooms/${room.id}/esports/watch`, viewer.token, {
+    action: "cancel",
+    publicationId: lease.publicationId,
+    revision: warm.watch.revision,
+  });
+  expect(cancelled.status).toBe(201);
+  expect(cancelled.body.watch.warming).toBeNull();
   const voice = (
     await req(`/rooms/${room.id}/esports/connection`, host.token, {
       channel: { kind: "team", team: "a" },
@@ -785,11 +798,13 @@ test("native publications are independent per player: stopping one leaves the ot
       { leaseId: lease.leaseId, revision: lease.revision, systemAudio: true },
     );
     expect(native.status).toBe(201);
+    const { nativePublicationSchema } = await import("@cinegather/contracts");
+    expect(nativePublicationSchema.safeParse(native.body).success).toBe(true);
     await expect(admitMediaToken(browser.token)).rejects.toThrow();
-    expect(native.body.streamKey.length).toBeGreaterThan(8);
+    expect(native.body.token.length).toBeGreaterThan(8);
     leases.push({ user, lease, native: native.body });
   }
-  expect(leases[0]!.native.streamKey).not.toBe(leases[1]!.native.streamKey);
+  expect(leases[0]!.native.token).not.toBe(leases[1]!.native.token);
   expect(
     (
       await req(
@@ -813,7 +828,7 @@ test("native publications are independent per player: stopping one leaves the ot
   const [ingress] = await media.ingress.listIngress({
     ingressId: remaining!.ingressId!,
   });
-  expect(ingress!.streamKey).toBe(leases[1]!.native.streamKey);
+  expect(ingress!.streamKey).toBe(leases[1]!.native.token);
 });
 
 test("admission lock lasts until the SFU join acknowledgment so seat revocation cannot race an accepted handshake", async () => {
