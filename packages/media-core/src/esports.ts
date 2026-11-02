@@ -18,6 +18,7 @@ export interface EsportsBrowserHandle {
   kind: Kind;
   channel: string;
   ready(signal: AbortSignal): Promise<void>;
+  connected(): boolean;
   close(): Promise<void>;
   video(enabled: boolean): void;
   audio(enabled: boolean): void;
@@ -98,6 +99,7 @@ export class EsportsBrowserMedia {
     if (element) session.setVideoElement(element);
     const handle: EsportsBrowserHandle = {
       session,
+      connected: () => !closed && session.isConnected(),
       element,
       kind,
       channel: connection.channel,
@@ -227,13 +229,15 @@ export class EsportsBrowserMedia {
   async startAudio() {
     await Promise.all([...this.handles].map((h) => h.session.startAudio()));
   }
-  async diagnostics() {
+  async diagnostics(exclude?: MediaSession) {
     return Promise.all(
-      [...this.handles].map(async (h) => ({
-        channel: h.channel,
-        kind: h.kind,
-        media: await h.session.detailedDiagnostics(),
-      })),
+      [...this.handles]
+        .filter((h) => h.session !== exclude)
+        .map(async (h) => ({
+          channel: h.channel,
+          kind: h.kind,
+          media: await h.session.detailedDiagnostics(),
+        })),
     );
   }
   async close() {

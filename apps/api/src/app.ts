@@ -23,7 +23,12 @@ import {
 import { admissionSecretValid } from "./esports-admission";
 import { AdminController } from "./admin-controller";
 import { ApiController } from "./controller";
-import { AuthGuard, ErrorFilter, type AuthRequest } from "./http";
+import {
+  AuthGuard,
+  ErrorFilter,
+  requestIdentity,
+  type AuthRequest,
+} from "./http";
 import { cdnClientIp } from "./client-ip";
 import { config } from "./config";
 import { database } from "./context";
@@ -135,9 +140,18 @@ export async function createApp({
   app.getHttpServer().once("close", () => mediaGateway.close());
   const mobileUpdates = new MobileUpdateStore(updateDirectory);
   const buckets = new Map<string, { count: number; reset: number }>();
+  function consume(key: string, limit: number, now: number) {
+    let bucket = buckets.get(key);
+    if (!bucket || bucket.reset <= now) {
+      if (buckets.size >= 20000 && !bucket) return now + 60000;
+      bucket = { count: 0, reset: now + 60000 };
+      buckets.set(key, bucket);
+    }
+    return ++bucket.count > limit ? bucket.reset : undefined;
+  }
   const metrics = app.get(Metrics);
   app.use(
-    (
+    async (
       req: Request & Partial<AuthRequest>,
       res: Response,
       next: NextFunction,
@@ -177,18 +191,24 @@ export async function createApp({
       if (buckets.size > 10000)
         for (const [key, b] of buckets) if (b.reset <= now) buckets.delete(key);
       const limited = req.path.startsWith("/api/v1/accounts/");
-      const key = `${req.ip}:${limited ? "auth" : "api"}`;
-      let bucket = buckets.get(key);
-      if (!bucket || bucket.reset <= now) {
-        bucket = { count: 0, reset: now + 60_000 };
-        buckets.set(key, bucket);
-      }
-      if (++bucket.count > (limited ? 60 : 600)) {
+      // Only a verified credential earns the shared-NAT allowance. Reuse this
+      // request's authentication in the guard; invalid bearer stays at 600/IP.
+      const identity =
+        !limited && req.headers.authorization
+          ? await requestIdentity(req).catch(() => undefined)
+          : undefined;
+      const reset =
+        consume(
+          `${req.ip}:${limited ? "auth" : identity ? "authenticated" : "api"}`,
+          limited ? 60 : identity ? 3600 : 600,
+          now,
+        ) ?? (identity ? consume(`user:${identity.id}`, 600, now) : undefined);
+      if (reset) {
         res
           .status(429)
           .setHeader(
             "Retry-After",
-            String(Math.ceil((bucket.reset - now) / 1000)),
+            String(Math.max(1, Math.ceil((reset - now) / 1000))),
           );
         res.json({
           code: "RATE_LIMITED",

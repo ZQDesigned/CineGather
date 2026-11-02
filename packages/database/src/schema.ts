@@ -412,6 +412,7 @@ export const esportsPublications = pgTable(
     revision: integer("revision").notNull(),
     seatRevision: integer("seat_revision").notNull(),
     expiresAt: time("expires_at").notNull(),
+    videoActive: boolean("video_active").notNull().default(false),
     systemAudio: boolean("system_audio").notNull().default(false),
     ingressId: text("ingress_id").unique(),
     identity: text("identity"),

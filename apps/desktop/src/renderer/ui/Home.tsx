@@ -83,7 +83,11 @@ export function Home({ onEnterRoom }: { onEnterRoom: () => void }) {
                       ) : undefined
                     }
                   >
-                    {room.access === "password" ? "加密房" : "普通房"}
+                    {room.mode === "esports"
+                      ? "电竞赛事房"
+                      : room.access === "password"
+                        ? "加密房"
+                        : "普通房"}
                   </Tag>
                   <span>{room.code}</span>
                 </div>

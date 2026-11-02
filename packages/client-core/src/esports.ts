@@ -133,6 +133,9 @@ export class EsportsCoordinator {
     return this.queue(async () => {
       this.snapshot = snapshot;
       await this.openVoice();
+      if (snapshot.watch.current)
+        await this.recoverVideo(snapshot.watch.current);
+      await this.syncMonitor();
       this.event("entered");
       this.emit();
     });
@@ -201,8 +204,11 @@ export class EsportsCoordinator {
           this.warmAbort?.abort();
           await this.closeWarm();
         }
-        if (this.current?.handle.connected?.() === false)
-          await this.recoverVideo();
+        if (
+          next.watch.current &&
+          (!this.current || this.current.handle.connected?.() === false)
+        )
+          await this.recoverVideo(next.watch.current);
         await this.syncMonitor();
       }
       this.emit();
@@ -318,10 +324,10 @@ export class EsportsCoordinator {
       }
     });
   }
-  private async recoverVideo() {
+  private async recoverVideo(publicationId: string) {
     const old = this.current,
       s = this.snapshot;
-    if (!old || !s) return;
+    if (!s) return;
     const controller = new AbortController(),
       generation = this.generation;
     this.warmAbort = controller;
@@ -332,7 +338,7 @@ export class EsportsCoordinator {
     let replacement: EsportsMediaHandle | undefined;
     try {
       const connection = await this.deps.api.connection(
-        { kind: "video", publicationId: old.id },
+        { kind: "video", publicationId },
         s.self.revision,
         s.watch.revision,
       );
@@ -361,13 +367,13 @@ export class EsportsCoordinator {
         generation !== this.generation
       )
         throw aborted();
-      old.handle.audio(false);
-      this.current = { id: old.id, handle: replacement };
+      old?.handle.audio(false);
+      this.current = { id: publicationId, handle: replacement };
       this.deps.media.show(replacement);
       replacement.audio(true);
       replacement = undefined;
-      await old.handle.close();
-      this.event("video-recovered", old.id);
+      await old?.handle.close();
+      this.event("video-recovered", publicationId);
     } finally {
       clearTimeout(timer);
       if (this.warmAbort === controller) this.warmAbort = undefined;

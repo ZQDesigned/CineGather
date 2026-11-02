@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { esportsSeatSchema } from "./esports";
 import { nativeEncoderIdSchema } from "./native-encoders";
 import { watchProfileSchema } from "./watch-profile";
 import {
@@ -492,7 +493,30 @@ export const nativeDiagnosticSchema = z.object({
   videoSourceActive: z.boolean().optional(),
   audioSourceActive: z.boolean().optional(),
 });
+export const esportsDiagnosticSchema = z.object({
+  seat: esportsSeatSchema.optional(),
+  seatRevision: number.int().nonnegative().optional(),
+  watchRevision: number.int().nonnegative().optional(),
+  current: z.uuid().optional(),
+  warming: z.uuid().optional(),
+  monitorTeam: z.enum(["a", "b"]).optional(),
+  visible: z.boolean(),
+  channel: text.optional(),
+  events: z
+    .array(
+      z.object({
+        at: z.iso.datetime(),
+        event: text,
+        publicationId: z.uuid().optional(),
+        seatRevision: number.int().nonnegative().optional(),
+        watchRevision: number.int().nonnegative().optional(),
+      }),
+    )
+    .max(64),
+});
+export type EsportsDiagnostic = z.infer<typeof esportsDiagnosticSchema>;
 export const diagnosticRecordSchema = z.object({
+  esports: esportsDiagnosticSchema.optional(),
   microphoneMonitor: microphoneMonitorSchema.optional(),
   gpu: gpuDiagnosticSchema.optional(),
   issues: diagnosticIssues,

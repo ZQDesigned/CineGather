@@ -94,6 +94,9 @@ export class MediaSession {
     this.diagnoseEvent("watch-profile-" + profile);
     this.emit();
   }
+  isConnected() {
+    return !!this.room && this.room.state !== ConnectionState.Disconnected;
+  }
   private room?: Room;
   private revision = 0;
   private video?: HTMLVideoElement;

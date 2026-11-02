@@ -770,10 +770,16 @@ export async function setMicrophoneMonitorVolume(value: number) {
     microphoneMonitorVolume: value,
   }));
 }
-export const diagnostics = new DiagnosticRecorder(media, state, async () =>
-  unwrap(
-    await api.GET("/api/v1/diagnostics", { signal: AbortSignal.timeout(8000) }),
-  ),
+export const diagnostics = new DiagnosticRecorder(
+  () => esports.diagnosticMedia ?? media,
+  state,
+  async () =>
+    unwrap(
+      await api.GET("/api/v1/diagnostics", {
+        signal: AbortSignal.timeout(8000),
+      }),
+    ),
+  () => esports.diagnostics(),
 );
 
 async function handleRemoteRemoval() {
@@ -878,8 +884,17 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
           params: { path: { roomId: esports.roomId } },
         }),
       );
-      if (!window.desktop?.nativeCapture)
-        await esports.preparePublisher(lease.publicationId);
+      try {
+        if (!window.desktop?.nativeCapture)
+          await esports.preparePublisher(lease.publicationId);
+      } catch (error) {
+        await esports.stopPublisher();
+        await api.DELETE("/api/v1/rooms/{roomId}/esports/share-lease", {
+          params: { path: { roomId: esports.roomId } },
+          body: lease,
+        });
+        throw error;
+      }
       return lease;
     }
     return unwrap(

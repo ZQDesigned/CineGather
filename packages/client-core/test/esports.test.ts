@@ -283,3 +283,26 @@ test("unchanged snapshots recover disconnected voice muted and replace a dead vi
   expect(h.coordinator.state.watching).toBe(id(3));
   await h.coordinator.stop();
 });
+
+test("a committed selection recovers when its response is lost, without selecting or committing again", async () => {
+  const h = harness(async () => {
+    throw new Error("commit response lost");
+  });
+  await h.coordinator.start(h.snapshot());
+  const select = h.coordinator.select(id(3));
+  await tick();
+  h.handles.get(id(3))!.frame();
+  await select;
+  expect(h.snapshot().watch.current).toBe(id(3));
+  const failed = h.handles.get(id(3));
+  const sync = h.coordinator.sync(h.snapshot());
+  await tick();
+  expect(h.handles.get(id(3))).not.toBe(failed);
+  h.handles.get(id(3))!.frame();
+  await sync;
+  expect(h.coordinator.state.watching).toBe(id(3));
+  expect(h.calls.filter((c) => c === "select")).toHaveLength(1);
+  expect(h.calls.filter((c) => c === "commit")).toHaveLength(1);
+  expect(h.calls).toContain("open:a");
+  await h.coordinator.stop();
+});

@@ -6,6 +6,7 @@ import {
   diagnosticSnapshotSchema,
   repairDiagnosticRecord,
   type DiagnosticIssue,
+  type EsportsDiagnostic,
   type MediaDiagnostic,
   type DiagnosticRecord,
   type DiagnosticHistoryStatus,
@@ -229,10 +230,20 @@ export class DiagnosticRecorder {
     count?: number;
   }[] = [];
   constructor(
-    private media: MediaSession,
+    private source: MediaSession | (() => MediaSession),
     private context: () => Context,
     private server: () => Promise<unknown>,
+    private arena?: () => Promise<
+      | {
+          context: EsportsDiagnostic;
+          channels: { channel: string; media: MediaDiagnostic }[];
+        }
+      | undefined
+    >,
   ) {}
+  private get media() {
+    return typeof this.source === "function" ? this.source() : this.source;
+  }
   private async record(
     value: Partial<DiagnosticRecord> & Pick<DiagnosticRecord, "kind">,
   ) {
@@ -460,6 +471,45 @@ export class DiagnosticRecorder {
             heapLimit: memory?.jsHeapSizeLimit,
           },
         });
+        if (this.arena) {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          try {
+            const arena = await Promise.race([
+              this.arena(),
+              new Promise<never>((_, reject) => {
+                timer = setTimeout(
+                  () => reject(new Error("arena-sampling-timeout")),
+                  2500,
+                );
+              }),
+            ]);
+            if (arena && this.context().room?.id === context.room?.id) {
+              await this.record({
+                kind: "event",
+                esports: arena.context,
+                event: { name: "esports-context" },
+              });
+              for (const channel of arena.channels.slice(0, 5))
+                await this.record({
+                  kind: "sample",
+                  esports: {
+                    ...arena.context,
+                    channel: channel.channel,
+                    events: [],
+                  },
+                  media: channel.media,
+                });
+            }
+          } catch {
+            this.issue({
+              stage: "media",
+              code: "sample-failed",
+              field: "esports",
+            });
+          } finally {
+            clearTimeout(timer);
+          }
+        }
         this.longTasks = 0;
         this.longTaskMs = 0;
       }

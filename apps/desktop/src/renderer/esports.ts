@@ -10,6 +10,7 @@ import {
 } from "@cinegather/media-core";
 import {
   esportsChannelName,
+  esportsDiagnosticSchema,
   type EsportsSeat,
   type EsportsSnapshot,
 } from "@cinegather/contracts";
@@ -284,6 +285,16 @@ export class EsportsRuntime {
   async setViewActive(visible: boolean) {
     this.viewVisible = visible;
     await this.coordinator.setVisible(visible && this.windowVisible);
+  }
+  async diagnostics() {
+    if (!this.roomId) return undefined;
+    return {
+      context: esportsDiagnosticSchema.parse(this.coordinator.diagnostics()),
+      channels: await this.browser.diagnostics(this.diagnosticMedia),
+    };
+  }
+  get diagnosticMedia() {
+    return this.publisher ?? this.browser.viewing ?? this.browser.voice;
   }
   get selectedMedia() {
     return this.browser.viewing;

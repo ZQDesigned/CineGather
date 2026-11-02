@@ -360,6 +360,10 @@ test("signed media admission rejects cross-seat and expired watch tokens; commit
     warming: lease.publicationId,
     monitorTeam: null,
   });
+  expect(
+    warm.publications.find((p: { id: string }) => p.id === lease.publicationId)
+      ?.status,
+  ).toBe("starting");
   const video = await conn(lease.publicationId, warm.watch.revision);
   expect(video.status).toBe(201);
   const { admitMediaToken } = await import(

@@ -112,6 +112,15 @@ export function Endpoint(
     ),
   );
 }
+const identities = new WeakMap<Request, ReturnType<typeof authenticate>>();
+export function requestIdentity(req: Request) {
+  let identity = identities.get(req);
+  if (!identity) {
+    identity = authenticate(req.headers.authorization);
+    identities.set(req, identity);
+  }
+  return identity;
+}
 export class AuthGuard implements CanActivate {
   async canActivate(context: ExecutionContext) {
     const req = context.switchToHttp().getRequest<AuthRequest>();
@@ -131,7 +140,7 @@ export class AuthGuard implements CanActivate {
       return true;
     if (req.path === "/api/v1/accounts/register" && !req.headers.authorization)
       return true;
-    const identity = await authenticate(req.headers.authorization);
+    const identity = await requestIdentity(req);
     req.user = {
       id: identity.id,
       displayName: identity.displayName,

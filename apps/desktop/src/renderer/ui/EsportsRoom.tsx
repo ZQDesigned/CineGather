@@ -567,7 +567,7 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
             {app.esports?.warming && (
               <div className="esports-warm">
                 <Spin size="small" />
-                正在预热新画面
+                正在切换画面
               </div>
             )}
             {!player && watching && (
@@ -646,11 +646,7 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                             <Avatar size={28}>{m.displayName[0]}</Avatar>
                             <span>{m.displayName}</span>
                             <small>
-                              {m.online
-                                ? p
-                                  ? "正在共享"
-                                  : "已入席"
-                                : "等待重连"}
+                              {m.online ? (p ? "正在共享" : "已入席") : "离线"}
                             </small>
                           </div>
                         ) : (
@@ -670,7 +666,7 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                             <span>{m.displayName}</span>
                             <small>
                               {!m.online
-                                ? "等待重连"
+                                ? "离线"
                                 : watching === p?.id
                                   ? "正在观看"
                                   : p
@@ -953,7 +949,7 @@ export function EsportsSeatManager() {
                 />
               ) : (
                 <span>
-                  {m.displayName} <Tag>等待重连</Tag>
+                  {m.displayName} <Tag>离线</Tag>
                 </span>
               )}
             </div>

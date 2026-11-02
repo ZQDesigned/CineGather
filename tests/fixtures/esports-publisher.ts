@@ -60,8 +60,12 @@ export async function startEsportsPublisher(
           source: Track.Source.ScreenShare,
           simulcast: false,
           videoCodec: "h264",
-          videoEncoding: { maxBitrate: 3_000_000, maxFramerate: 30 },
+          screenShareEncoding: { maxBitrate: 3_000_000, maxFramerate: 30 },
         },
+      );
+      await rooms[2]!.localParticipant.publishTrack(
+        new LocalAudioTrack(destination.stream.getAudioTracks()[0]!.clone()),
+        { name: "赛事测试共享声音", source: Track.Source.ScreenShareAudio },
       );
       draw();
       timer = setInterval(draw, 1000 / 30);
@@ -80,6 +84,25 @@ export async function startEsportsPublisher(
     },
     stats: async () => ({
       frames: frame,
+      outbound: [
+        ...((
+          await rooms[2]!.localParticipant
+            .getTrackPublication(Track.Source.ScreenShare)
+            ?.track?.getRTCStatsReport()
+        )?.values() ?? []),
+      ]
+        .filter((s) => s.type === "outbound-rtp")
+        .map((s) => ({
+          type: s.type,
+          kind: s.kind,
+          framesEncoded: s.framesEncoded,
+          framesSent: s.framesSent,
+          framesPerSecond: s.framesPerSecond,
+          frameWidth: s.frameWidth,
+          frameHeight: s.frameHeight,
+          bytesSent: s.bytesSent,
+          qualityLimitationReason: s.qualityLimitationReason,
+        })),
       rooms: rooms.map((r) => ({
         name: r.name,
         state: r.state,
@@ -92,5 +115,81 @@ export async function startEsportsPublisher(
         })),
       })),
     }),
+  };
+}
+
+export async function startEsportsViewer(
+  apiOrigin: string,
+  roomId: string,
+  token: string,
+  control: Connection,
+) {
+  const { EsportsCoordinator } = await import("@cinegather/client-core"),
+    { EsportsBrowserMedia } = await import("@cinegather/media-core");
+  const summaries = new Map<string, unknown>(),
+    errors: string[] = [];
+  const parent = new Room();
+  await parent.connect(control.url, control.token, { autoSubscribe: false });
+  const stage = document.createElement("div");
+  Object.assign(stage.style, { width: "640px", height: "360px" });
+  document.body.replaceChildren(stage);
+  const browser = new EsportsBrowserMedia({
+    changed: (value, _kind, channel) => summaries.set(channel, value),
+    error: (e) => errors.push(String(e)),
+  });
+  browser.bind(stage);
+  const call = async (path: string, body?: unknown) => {
+    const r = await fetch(
+      `${apiOrigin}/api/v1/rooms/${roomId}/esports${path}`,
+      {
+        method: body ? "POST" : "GET",
+        headers: {
+          Authorization: "Bearer " + token,
+          "Content-Type": "application/json",
+          "X-CineGather-Features": "esports-v1",
+        },
+        ...(body ? { body: JSON.stringify(body) } : {}),
+      },
+    );
+    const value = await r.json();
+    if (!r.ok) throw new Error(value.code);
+    return value;
+  };
+  const coordinator = new EsportsCoordinator({
+    api: {
+      connection: (channel, seatRevision, watchRevision) =>
+        call("/connection", { channel, seatRevision, watchRevision }),
+      watch: (body) => call("/watch", body),
+      monitor: (body) => call("/monitor", body),
+    },
+    media: {
+      open: (connection, kind, signal) =>
+        browser.open(connection, kind, signal),
+      show: (h) => browser.show(h),
+      muteMicrophone: () => browser.microphone(false),
+    },
+    changed: () => {},
+    error: (e) => errors.push(String(e)),
+  });
+  await coordinator.start(await call(""));
+  return {
+    select: (id: string) => coordinator.select(id),
+    visible: (value: boolean) => coordinator.setVisible(value),
+    stats: async () => ({
+      context: coordinator.diagnostics(),
+      channels: await browser.diagnostics(),
+      summaries: [...summaries.values()],
+      errors: [...errors],
+      video: [...stage.querySelectorAll("video")].map((v) => ({
+        width: v.videoWidth,
+        height: v.videoHeight,
+        frames: v.getVideoPlaybackQuality().totalVideoFrames,
+      })),
+    }),
+    close: async () => {
+      await coordinator.stop();
+      await browser.close();
+      await parent.disconnect();
+    },
   };
 }

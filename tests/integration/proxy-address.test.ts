@@ -74,3 +74,58 @@ test("CDN clients sharing one origin peer have independent login buckets", async
     await app.close();
   }
 });
+
+test("verified accounts behind one NAT have independent API quotas; invalid bearer remains unauthenticated", async () => {
+  const app = await createApp();
+  await app.listen(0, "127.0.0.1");
+  const origin = await app.getUrl(),
+    created: string[] = [];
+  try {
+    const tokens: string[] = [];
+    for (let n = 0; n < 2; n++) {
+      const r = await fetch(origin + "/api/v1/accounts/register", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          username:
+            "nat_" + crypto.randomUUID().replaceAll("-", "").slice(0, 16),
+          displayName: "同网测试",
+          password: "NAT test account 123!",
+        }),
+      });
+      expect(r.status).toBe(201);
+      const body = await r.json();
+      tokens.push(body.sessionToken);
+      created.push(body.user.id);
+    }
+    const get = async (token: string) => {
+      const r = await fetch(origin + "/api/v1/me", {
+        headers: { Authorization: "Bearer " + token },
+      });
+      await r.arrayBuffer();
+      return r;
+    };
+    for (let i = 0; i < 350; i++)
+      for (const token of tokens) expect((await get(token)).status).toBe(200);
+    for (let i = 350; i < 600; i++)
+      expect((await get(tokens[0]!)).status).toBe(200);
+    const blocked = await get(tokens[0]!);
+    expect(blocked.status).toBe(429);
+    expect(blocked.headers.get("Retry-After")).not.toBeNull();
+    expect((await get(tokens[1]!)).status).toBe(200);
+    expect((await get("not-a-credential")).status).toBe(401);
+  } finally {
+    await app.close();
+    const { db } = await import("../../apps/api/src/context"),
+      { users, credentials, auditLogs, idempotency } = await import(
+        "@cinegather/database"
+      ),
+      { inArray } = await import("drizzle-orm");
+    if (created.length) {
+      await db.delete(auditLogs).where(inArray(auditLogs.actorId, created));
+      await db.delete(idempotency).where(inArray(idempotency.userId, created));
+      await db.delete(credentials).where(inArray(credentials.userId, created));
+      await db.delete(users).where(inArray(users.id, created));
+    }
+  }
+}, 30_000);

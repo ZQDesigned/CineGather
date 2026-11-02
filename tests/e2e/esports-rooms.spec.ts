@@ -1,4 +1,12 @@
-import { fileURLToPath } from "node:url";
+type PublisherFixture = Awaited<
+  ReturnType<
+    typeof import("../fixtures/esports-publisher").startEsportsPublisher
+  >
+>;
+type ViewerFixture = Awaited<
+  ReturnType<typeof import("../fixtures/esports-publisher").startEsportsViewer>
+>;
+import { resolve } from "node:path";
 import { writeFile } from "node:fs/promises";
 import { test, expect } from "@playwright/test";
 import {
@@ -19,7 +27,7 @@ if (
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 const fixtureModule =
   "/@fs/" +
-  fileURLToPath(new URL("../fixtures/esports-publisher.ts", import.meta.url))
+  resolve("tests/fixtures/esports-publisher.ts")
     .replaceAll("\\", "/")
     .replace(/^\//, "");
 const accounts: { id: string; token: string }[] = [];
@@ -163,7 +171,11 @@ test("actual 1080p video prewarms to a decoded frame and a stalled replacement p
     }),
     room = (await list.json()).items[0];
   const contexts = [];
-  const sources = [];
+  const sources: {
+    source: import("@playwright/test").Page;
+    lease: { publicationId: string };
+    account: { id: string; token: string };
+  }[] = [];
   try {
     for (const [account, team] of [
       [a, "a"],
@@ -224,13 +236,25 @@ test("actual 1080p video prewarms to a decoded frame and a stalled replacement p
     await expect
       .poll(() => video.evaluate((v) => (v as HTMLVideoElement).videoWidth))
       .toBe(1920);
+    await expect
+      .poll(async () => {
+        const r = await request.get(
+          `http://127.0.0.1:17883/api/v1/rooms/${room.id}/esports`,
+          { headers: { Authorization: "Bearer " + owner.token } },
+        );
+        const value = await r.json();
+        return value.publications.find(
+          (p: { id: string }) => p.id === sources[0]!.lease.publicationId,
+        )?.systemAudio;
+      })
+      .toBe(true);
     const current = await video.getAttribute("data-esports-video");
     expect(current).toContain(sources[0]!.lease.publicationId);
     const warmStarted = Date.now();
     await page.getByRole("button", { name: "观看 选手B" }).click();
-    await expect(page.getByText("正在预热新画面")).toBeVisible();
+    await expect(page.getByText("正在切换画面")).toBeVisible();
     expect(await video.getAttribute("data-esports-video")).toBe(current);
-    await expect(page.getByText("正在预热新画面")).toHaveCount(0, {
+    await expect(page.getByText("正在切换画面")).toHaveCount(0, {
       timeout: 8000,
     });
     expect(Date.now() - warmStarted).toBeGreaterThan(4000);
@@ -306,5 +330,307 @@ test("actual 1080p video prewarms to a decoded frame and a stalled replacement p
     }
     for (const context of contexts) await context.close();
     await post(`/rooms/${room.id}/leave`, owner.token).catch(() => {});
+  }
+});
+
+test("capacity proof: ten isolated 1080p30 sources and five directors plus five audience decode and switch independently", async ({
+  browser,
+  request,
+}) => {
+  test.skip(
+    process.env.CG_ESPORTS_SCALE !== "1",
+    "Opt-in local media capacity proof",
+  );
+  test.setTimeout(240000);
+  const apiOrigin = "http://127.0.0.1:17883",
+    contexts: Awaited<ReturnType<typeof browser.newContext>>[] = [];
+  const actors: {
+    account: { id: string; token: string };
+    page: import("@playwright/test").Page;
+    kind: "player" | "director" | "audience";
+    publicationId?: string;
+    lease?: { leaseId: string; revision: number };
+  }[] = [];
+  const post = async (path: string, token: string, data: unknown = {}) => {
+    const r = await request.post(apiOrigin + "/api/v1" + path, {
+      data,
+      headers: {
+        Authorization: "Bearer " + token,
+        "X-CineGather-Features": "esports-v1",
+        "X-CineGather-Platform": "web",
+      },
+    });
+    const value = await r.json();
+    expect(r.ok(), JSON.stringify(value)).toBeTruthy();
+    return value;
+  };
+  const register = async (name: string) => {
+    const r = await request.post(apiOrigin + "/api/v1/accounts/register", {
+      data: {
+        username: "esports_scale_" + crypto.randomUUID().slice(0, 8),
+        displayName: name,
+        password: "Esports scale proof 123!",
+      },
+      headers: {
+        "X-CineGather-Features": "esports-v1",
+        "X-CineGather-Platform": "web",
+      },
+    });
+    expect(r.ok()).toBeTruthy();
+    const value = await r.json(),
+      account = { id: value.user.id, token: value.sessionToken };
+    accounts.push(account);
+    return account;
+  };
+  const owner = await register("导播1");
+  await db
+    .update(users)
+    .set({ esportsRoomsEnabled: true })
+    .where(eq(users.id, owner.id));
+  const room = await post("/rooms", owner.token, {
+    name: "20席媒体验证",
+    mode: "esports",
+  });
+  const renewalErrors: string[] = [];
+  const renewal = setInterval(() => {
+    for (const actor of actors)
+      if (actor.lease)
+        void post(
+          `/rooms/${room.id}/esports/share-lease/renew`,
+          actor.account.token,
+          actor.lease,
+        ).catch((e) => renewalErrors.push(String(e)));
+  }, 8000);
+  try {
+    for (const i of [
+      10,
+      ...Array.from({ length: 20 }, (_, i) => i).filter((i) => i !== 10),
+    ]) {
+      const kind = i < 10 ? "player" : i < 15 ? "director" : "audience",
+        account = i === 10 ? owner : await register(`${kind}${i}`);
+      const control = await post(`/rooms/${room.id}/join`, account.token);
+      let revision = 1;
+      if (kind !== "audience") {
+        await post(
+          `/rooms/${room.id}/esports/members/${account.id}/seat`,
+          owner.token,
+          kind === "player" ? { kind, team: i < 5 ? "a" : "b" } : { kind },
+        );
+        revision = 2;
+      }
+      const context = await browser.newContext();
+      contexts.push(context);
+      const page = await context.newPage();
+      await page.goto("/");
+      const actor: (typeof actors)[number] = {
+        account,
+        page,
+        kind,
+        publicationId: undefined as string | undefined,
+      };
+      actors.push(actor);
+      if (kind === "player") {
+        const lease = await post(
+          `/rooms/${room.id}/esports/share-lease`,
+          account.token,
+        );
+        actor.publicationId = lease.publicationId;
+        actor.lease = { leaseId: lease.leaseId, revision: lease.revision };
+        const voice = await post(
+            `/rooms/${room.id}/esports/connection`,
+            account.token,
+            {
+              channel: { kind: "team", team: i < 5 ? "a" : "b" },
+              seatRevision: revision,
+            },
+          ),
+          video = await post(
+            `/rooms/${room.id}/esports/connection`,
+            account.token,
+            {
+              channel: { kind: "video", publicationId: lease.publicationId },
+              seatRevision: revision,
+            },
+          );
+        await page.evaluate(
+          async (p) => {
+            const fixture = await import(p.modulePath);
+            (
+              window as unknown as {
+                capacity: PublisherFixture | ViewerFixture;
+              }
+            ).capacity = await fixture.startEsportsPublisher(
+              p.control,
+              p.voice,
+              p.video,
+              { label: p.label },
+            );
+          },
+          {
+            modulePath: fixtureModule,
+            control,
+            voice,
+            video,
+            label: `选手${i}`,
+          },
+        );
+      } else {
+        await page.evaluate(
+          async (p) => {
+            const fixture = await import(p.modulePath);
+            (
+              window as unknown as {
+                capacity: PublisherFixture | ViewerFixture;
+              }
+            ).capacity = await fixture.startEsportsViewer(
+              p.origin,
+              p.roomId,
+              p.token,
+              p.control,
+            );
+          },
+          {
+            modulePath: fixtureModule,
+            origin: apiOrigin,
+            roomId: room.id,
+            token: account.token,
+            control,
+          },
+        );
+      }
+    }
+    const players = actors.filter((a) => a.kind === "player"),
+      viewers = actors.filter((a) => a.kind !== "player");
+    // Ten source leases remain independent throughout the proof.
+    const renew = setInterval(() => {
+      for (const actor of players)
+        void actor.page
+          .evaluate(() =>
+            (window as unknown as { capacity: ViewerFixture }).capacity.stats(),
+          )
+          .catch(() => {});
+    }, 10000);
+    try {
+      // Renew via fresh lease acquisition (idempotent existing lease) then renewal.
+      const keepAlive = async () => {
+        for (const a of players) {
+          const lease = await post(
+            `/rooms/${room.id}/esports/share-lease`,
+            a.account.token,
+          );
+          await post(
+            `/rooms/${room.id}/esports/share-lease/renew`,
+            a.account.token,
+            { leaseId: lease.leaseId, revision: lease.revision },
+          );
+        }
+      };
+      await keepAlive();
+      await Promise.all(
+        viewers.map((a, i) =>
+          a.page.evaluate(
+            (id) =>
+              (
+                window as unknown as { capacity: ViewerFixture }
+              ).capacity.select(id),
+            players[i]!.publicationId!,
+          ),
+        ),
+      );
+      const before = await Promise.all(
+        viewers.map((a) =>
+          a.page.evaluate(() =>
+            (window as unknown as { capacity: ViewerFixture }).capacity.stats(),
+          ),
+        ),
+      );
+      for (const value of before) {
+        expect(value.errors).toEqual([]);
+        expect(value.video[0]?.width).toBe(1920);
+        expect(value.video[0]?.height).toBe(1080);
+      }
+      await keepAlive();
+      await new Promise((r) => setTimeout(r, 5000));
+      await Promise.all(
+        viewers.map((a, i) =>
+          a.page.evaluate(
+            (id) =>
+              (
+                window as unknown as { capacity: ViewerFixture }
+              ).capacity.select(id),
+            players[(i + 5) % 10]!.publicationId!,
+          ),
+        ),
+      );
+      const after = await Promise.all(
+        viewers.map((a) =>
+          a.page.evaluate(() =>
+            (window as unknown as { capacity: ViewerFixture }).capacity.stats(),
+          ),
+        ),
+      );
+      expect(renewalErrors).toEqual([]);
+      const sources = await Promise.all(
+        players.map((a) =>
+          a.page.evaluate(() =>
+            (
+              window as unknown as { capacity: PublisherFixture }
+            ).capacity.stats(),
+          ),
+        ),
+      );
+      for (const [i, value] of after.entries()) {
+        expect(value.errors).toEqual([]);
+        expect(value.video[0]?.frames).toBeGreaterThan(0);
+        expect(value.context.current).toBe(
+          players[(i + 5) % 10]!.publicationId,
+        );
+        expect(value.channels.filter((c) => c.kind === "video")).toHaveLength(
+          1,
+        );
+      }
+      for (const value of sources) {
+        const voice = value.rooms[1]!;
+        expect(
+          voice.peers.filter((p) =>
+            p.tracks.some((t) => t.source === "microphone" && t.subscribed),
+          ),
+        ).toHaveLength(4);
+        expect(
+          voice.peers
+            .filter((p) => !p.name?.startsWith("player"))
+            .every((p) => p.tracks.length === 0),
+        ).toBe(true);
+        expect(value.outbound[0]?.framesEncoded).toBeGreaterThan(10);
+        expect(value.outbound[0]?.framesPerSecond).toBeGreaterThanOrEqual(25);
+        expect(value.outbound[0]?.frameWidth).toBe(1920);
+      }
+      await writeFile(
+        ".local/esports-rooms/evidence/capacity-20.json",
+        JSON.stringify(
+          { at: new Date().toISOString(), before, after, sources },
+          null,
+          2,
+        ),
+      );
+    } finally {
+      clearInterval(renew);
+    }
+  } finally {
+    clearInterval(renewal);
+    await Promise.all(
+      actors.map((a) =>
+        a.page
+          .evaluate(() =>
+            (
+              window as unknown as {
+                capacity?: PublisherFixture | ViewerFixture;
+              }
+            ).capacity?.close(),
+          )
+          .catch(() => {}),
+      ),
+    );
+    await Promise.all(contexts.map((c) => c.close()));
   }
 });

@@ -85,7 +85,7 @@ export function EsportsRoom() {
         <View style={{ alignItems: "center", gap: 10, padding: 20 }}>
           <MonitorPlay color={colors.accent} size={32} />
           <Text style={styles.text}>
-            {arena?.busy ? "正在预热画面…" : "选择正在共享的选手画面"}
+            {arena?.busy ? "正在加载画面…" : "选择正在共享的选手画面"}
           </Text>
         </View>
       )}
@@ -136,7 +136,7 @@ export function EsportsRoom() {
             borderRadius: 8,
           }}
         >
-          正在预热新画面…
+          正在切换画面…
         </Text>
       )}
     </View>
@@ -259,7 +259,7 @@ export function EsportsRoom() {
                       </Text>
                       <Text style={styles.muted}>
                         {!member.online
-                          ? "暂时离线，席位保留中"
+                          ? "离线"
                           : !publication
                             ? "未共享"
                             : publication.status === "starting"
@@ -280,7 +280,7 @@ export function EsportsRoom() {
                         {selected
                           ? "正在观看"
                           : arena?.warming === publication.id
-                            ? "预热中"
+                            ? "切换中"
                             : "观看"}
                       </Button>
                     )}
@@ -318,7 +318,7 @@ export function EsportsRoom() {
                         ? "导播席"
                         : "观众席"}
                     {!member.online
-                      ? "，暂时离线"
+                      ? "，离线"
                       : sound?.speaking
                         ? "，正在说话"
                         : ""}

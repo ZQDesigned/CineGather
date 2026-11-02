@@ -33,6 +33,7 @@ CREATE TABLE esports_publications (
  credential_id uuid NOT NULL REFERENCES user_credentials(id) ON DELETE CASCADE,
  id uuid NOT NULL UNIQUE, lease_id uuid NOT NULL UNIQUE,
  revision integer NOT NULL CHECK (revision>0), seat_revision integer NOT NULL CHECK (seat_revision>0),
+ video_active boolean NOT NULL DEFAULT false,
  expires_at timestamptz NOT NULL, system_audio boolean NOT NULL DEFAULT false,
  ingress_id text UNIQUE, identity text,
  PRIMARY KEY(room_id,user_id)

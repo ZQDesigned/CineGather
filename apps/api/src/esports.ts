@@ -290,7 +290,7 @@ export async function snapshot(user: User, roomId: string) {
       publications: publications.map((p) => ({
         id: p.id,
         userId: p.userId,
-        status: "active" as const,
+        status: p.videoActive ? ("active" as const) : ("starting" as const),
         systemAudio: p.systemAudio,
       })),
       watch: publicWatch(await watchRow(tx, roomId, user.id)),
@@ -670,6 +670,7 @@ export async function acquireEsportsLease(user: User, roomId: string) {
     return leaseResult({
       ...p,
       systemAudio: false,
+      videoActive: false,
       ingressId: null,
       identity: null,
     });
@@ -998,6 +999,38 @@ export async function reconcileEsportsParent(
     if (!live.includes(peer.identity))
       await media.remove(roomId, peer.rawIdentity ?? peer.identity);
   await sweepEsports(tx, roomId);
+  const publications = await tx
+    .select()
+    .from(esportsPublications)
+    .where(eq(esportsPublications.roomId, roomId));
+  // Reconciliation samples each source once, rather than 20 viewers each
+  // probing all ten SFU rooms on every snapshot poll.
+  const statuses = await Promise.all(
+    publications.map(async (p) => {
+      const peers = await media.participants(
+        esportsChannelName(roomId, { kind: "video", publicationId: p.id }),
+      );
+      return {
+        p,
+        systemAudio: peers.some(
+          (peer) =>
+            peer.identity === p.userId &&
+            peer.tracks.some((t) => t.source === 4 && !t.muted),
+        ),
+        active: peers.some(
+          (peer) =>
+            peer.identity === p.userId &&
+            peer.tracks.some((t) => t.source === 3 && !t.muted),
+        ),
+      };
+    }),
+  );
+  for (const { p, active, systemAudio } of statuses)
+    if (active !== p.videoActive || systemAudio !== p.systemAudio)
+      await tx
+        .update(esportsPublications)
+        .set({ videoActive: active, systemAudio })
+        .where(eq(esportsPublications.id, p.id));
   return live;
 }
 export async function applyEsportsPolicy(

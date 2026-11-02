@@ -496,3 +496,27 @@ test("native pipeline uses observed output counters, separates restarts and neve
   expect(rows[3]?.encodedFps).toBe(30);
   expect(rows[1]).not.toHaveProperty("captureFps");
 });
+
+test("esports diagnostic context retains scoped revisions and strips credentials", () => {
+  const result = safeDiagnosticRecord({
+    ...entry(1000),
+    esports: {
+      seat: { kind: "player", team: "a" },
+      seatRevision: 3,
+      watchRevision: 8,
+      visible: true,
+      channel: "team/a",
+      token: "Bearer never-store",
+      events: [
+        {
+          at: "2026-11-02T06:00:00.000Z",
+          event: "seat-changed",
+          seatRevision: 3,
+        },
+      ],
+    },
+  });
+  expect(result.esports?.seat).toEqual({ kind: "player", team: "a" });
+  expect(result.esports?.watchRevision).toBe(8);
+  expect(JSON.stringify(result)).not.toContain("never-store");
+});
