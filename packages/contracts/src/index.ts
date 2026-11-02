@@ -1,6 +1,7 @@
 export * from "./admin";
 export * from "./permissions";
 export * from "./client-policy";
+export * from "./esports";
 import { accountRoleSchema, adminPermissionSchema } from "./permissions";
 import { z } from "zod";
 
@@ -47,13 +48,24 @@ export const roomSettingsInput = z
     (value) => value.name !== undefined || value.maxMembers !== undefined,
     "请修改房间名称或人数上限",
   );
+const roomInputBase = {
+  name: z.string().trim().min(1).max(64),
+  access: z.enum(["normal", "password"]).default("normal"),
+  password: z.string().min(4).max(64).optional(),
+};
 export const roomInput = z
-  .strictObject({
-    name: z.string().trim().min(1).max(64),
-    maxMembers: z.number().int().min(2).max(MAX_ROOM_MEMBERS).default(5),
-    access: z.enum(["normal", "password"]).default("normal"),
-    password: z.string().min(4).max(64).optional(),
-  })
+  .discriminatedUnion("mode", [
+    z.strictObject({
+      ...roomInputBase,
+      mode: z.literal("standard").default("standard"),
+      maxMembers: z.number().int().min(2).max(MAX_ROOM_MEMBERS).default(5),
+    }),
+    z.strictObject({
+      ...roomInputBase,
+      mode: z.literal("esports"),
+      maxMembers: z.literal(20).default(20),
+    }),
+  ])
   .superRefine((value, ctx) => {
     if (value.access === "password" && !value.password?.trim())
       ctx.addIssue({
@@ -105,6 +117,7 @@ export const userSchema = z.object({
   username: z.string().nullable().optional(),
   isSuperAdmin: z.boolean().optional(),
   screenShareEnabled: z.boolean().optional(),
+  esportsRoomsEnabled: z.boolean().optional(),
   roles: z.array(accountRoleSchema).optional(),
   permissions: z.array(adminPermissionSchema).optional(),
 });
@@ -127,6 +140,7 @@ export const roomSchema = z.object({
   ownerUserId: z.uuid(),
   name: z.string(),
   maxMembers: z.number(),
+  mode: z.enum(["standard", "esports"]).optional(),
   role: z.enum(["owner", "member"]),
   memberPermissions: z.array(memberPermissionSchema).optional(),
 });

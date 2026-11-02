@@ -21,6 +21,9 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   screenShareEnabled: boolean("screen_share_enabled").notNull().default(false),
+  esportsRoomsEnabled: boolean("esports_rooms_enabled")
+    .notNull()
+    .default(false),
   presenceVisibility: text("presence_visibility").notNull().default("online"),
   disabledAt: time("disabled_at"),
   createdAt: time("created_at").notNull().defaultNow(),
@@ -89,13 +92,18 @@ export const rooms = pgTable(
       .notNull()
       .references(() => users.id),
     name: text("name").notNull(),
+    mode: text("mode").notNull().default("standard"),
     maxMembers: integer("max_members").notNull(),
     status: text("status").notNull().default("active"),
     createdAt: time("created_at").notNull().defaultNow(),
   },
   (t) => [
     check("rooms_code_check", sql`${t.code} ~ '^[A-F0-9]{8}$'`),
-    check("rooms_capacity_check", sql`${t.maxMembers} BETWEEN 2 AND 10`),
+    check(
+      "rooms_capacity_check",
+      sql`(${t.mode} = 'standard' AND ${t.maxMembers} BETWEEN 2 AND 10) OR (${t.mode} = 'esports' AND ${t.maxMembers} = 20)`,
+    ),
+    check("rooms_mode_check", sql`${t.mode} IN ('standard', 'esports')`),
     check("rooms_status_check", sql`${t.status} IN ('active', 'closed')`),
   ],
 );
@@ -139,6 +147,8 @@ export const invites = pgTable(
     roomId: uuid("room_id")
       .notNull()
       .references(() => rooms.id, { onDelete: "cascade" }),
+    esportsSeat: text("esports_seat"),
+    esportsTeam: text("esports_team"),
     tokenHash: text("token_hash").notNull().unique(),
     createdBy: uuid("created_by")
       .notNull()
@@ -160,6 +170,10 @@ export const invites = pgTable(
     check(
       "invites_uses_check",
       sql`${t.maxUses} > 0 AND ${t.useCount} >= 0 AND ${t.useCount} <= ${t.maxUses}`,
+    ),
+    check(
+      "invites_esports_seat_check",
+      sql`CASE WHEN ${t.esportsSeat} IS NULL THEN ${t.esportsTeam} IS NULL ELSE ${t.recipientId} IS NOT NULL AND ((${t.esportsSeat}='player' AND ${t.esportsTeam} IS NOT NULL AND ${t.esportsTeam} IN ('a','b')) OR (${t.esportsSeat} IN ('director','audience') AND ${t.esportsTeam} IS NULL)) END`,
     ),
   ],
 );
@@ -353,6 +367,77 @@ export const roomSessions = pgTable(
     primaryKey({ columns: [t.roomId, t.credentialId] }),
     index("room_sessions_credential_idx").on(t.credentialId),
   ],
+);
+
+export const esportsSeats = pgTable(
+  "esports_seats",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    credentialId: uuid("credential_id")
+      .notNull()
+      .references(() => credentials.id, { onDelete: "cascade" }),
+    kind: text("kind").notNull().default("audience"),
+    team: text("team"),
+    revision: integer("revision").notNull().default(1),
+    reservedUntil: time("reserved_until"),
+  },
+  (t) => [
+    primaryKey({ columns: [t.roomId, t.userId] }),
+    index("esports_seat_capacity_idx").on(t.roomId, t.kind, t.team),
+    check(
+      "esports_seat_kind_check",
+      sql`(${t.kind}='player' AND ${t.team} IS NOT NULL AND ${t.team} IN ('a','b')) OR (${t.kind} IN ('director','audience') AND ${t.team} IS NULL)`,
+    ),
+  ],
+);
+export const esportsPublications = pgTable(
+  "esports_publications",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    credentialId: uuid("credential_id")
+      .notNull()
+      .references(() => credentials.id, { onDelete: "cascade" }),
+    id: uuid("id").notNull().unique(),
+    leaseId: uuid("lease_id").notNull().unique(),
+    revision: integer("revision").notNull(),
+    seatRevision: integer("seat_revision").notNull(),
+    expiresAt: time("expires_at").notNull(),
+    systemAudio: boolean("system_audio").notNull().default(false),
+    ingressId: text("ingress_id").unique(),
+    identity: text("identity"),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] })],
+);
+export const esportsWatches = pgTable(
+  "esports_watches",
+  {
+    roomId: uuid("room_id")
+      .notNull()
+      .references(() => rooms.id, { onDelete: "cascade" }),
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    credentialId: uuid("credential_id")
+      .notNull()
+      .references(() => credentials.id, { onDelete: "cascade" }),
+    revision: integer("revision").notNull().default(0),
+    current: uuid("current"),
+    warming: uuid("warming"),
+    warmDeadline: time("warm_deadline"),
+    monitorTeam: text("monitor_team"),
+    autoMonitor: boolean("auto_monitor").notNull().default(true),
+  },
+  (t) => [primaryKey({ columns: [t.roomId, t.userId] })],
 );
 
 export const shareRequests = pgTable(

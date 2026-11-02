@@ -148,6 +148,13 @@
       "when": 1793359279177,
       "tag": "0020_announcements",
       "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1793618343463,
+      "tag": "0021_esports_rooms",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@ export async function authenticate(
       username: users.username,
       isSuperAdmin: users.isSuperAdmin,
       screenShareEnabled: users.screenShareEnabled,
+      esportsRoomsEnabled: users.esportsRoomsEnabled,
       disabledAt: users.disabledAt,
       kind: credentials.kind,
       revokedAt: credentials.revokedAt,
@@ -56,6 +57,7 @@ export async function authenticate(
     displayName: user.displayName,
     username: user.username,
     screenShareEnabled: user.screenShareEnabled,
+    esportsRoomsEnabled: user.esportsRoomsEnabled,
     ...(await readAccess(db, user.id, user.isSuperAdmin)),
     credentialId: user.credentialId,
   };

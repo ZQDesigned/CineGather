@@ -59,6 +59,7 @@ async function roomInfo(
     name: room.name,
     ownerUserId: room.ownerUserId,
     maxMembers: room.maxMembers,
+    mode: room.mode as "standard" | "esports",
     role: room.ownerUserId === userId ? "owner" : "member",
     ...(policies.length ? { memberPermissions: policies } : {}),
   };
@@ -128,6 +129,7 @@ export async function createRoom(
   input: {
     name: string;
     maxMembers: number;
+    mode?: "standard" | "esports";
     access: "normal" | "password";
     password?: string;
   },
@@ -140,6 +142,19 @@ export async function createRoom(
   return db.transaction((tx) =>
     dedup(tx, user.id, key, "room.create", input, async () => {
       await requireActiveSession(tx, user.id, sessionCredential(user));
+      if (input.mode === "esports") {
+        const [account] = await tx
+          .select({ allowed: users.esportsRoomsEnabled })
+          .from(users)
+          .where(eq(users.id, user.id))
+          .for("share");
+        if (!account?.allowed)
+          fail(
+            403,
+            "ESPORTS_CREATION_DISABLED",
+            "此账号尚未开通创建赛事房能力",
+          );
+      }
       const id = randomUUID();
       let created: typeof rooms.$inferSelect | undefined;
       for (let attempt = 0; attempt < 10 && !created; attempt++) {
@@ -154,6 +169,7 @@ export async function createRoom(
             code,
             ownerUserId: user.id,
             name: input.name,
+            mode: input.mode ?? "standard",
             maxMembers: input.maxMembers,
             passwordHash,
           })

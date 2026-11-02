@@ -75,6 +75,7 @@ export async function listUsers(query: AdminQuery) {
         displayName: users.displayName,
         isSuperAdmin: users.isSuperAdmin,
         screenShareEnabled: users.screenShareEnabled,
+        esportsRoomsEnabled: users.esportsRoomsEnabled,
         disabledAt: users.disabledAt,
         createdAt: users.createdAt,
         activeSessions:
@@ -276,6 +277,33 @@ export async function manageRoom(
       id,
       { targetName: `${room.name} (${room.code})`, reason },
     );
+  });
+  return { ok: true as const };
+}
+
+export async function setEsportsRooms(
+  actor: User,
+  userId: string,
+  input: { enabled: boolean; reason: string },
+) {
+  userId = uuid(userId);
+  await db.transaction(async (tx) => {
+    await requireManagement(tx, actor.id, "users.esports");
+    const [target] = await tx
+      .select()
+      .from(users)
+      .where(eq(users.id, userId))
+      .for("update");
+    if (!target?.username) fail(404, "USER_NOT_FOUND", "账号不存在");
+    await tx
+      .update(users)
+      .set({ esportsRoomsEnabled: input.enabled })
+      .where(eq(users.id, userId));
+    await audit(tx, actor.id, "admin.esports_capability_updated", userId, {
+      previousEnabled: target.esportsRoomsEnabled,
+      enabled: input.enabled,
+      reason: input.reason,
+    });
   });
   return { ok: true as const };
 }

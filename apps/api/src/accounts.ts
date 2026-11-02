@@ -41,6 +41,7 @@ async function publicUser(
     displayName: user.displayName,
     username: user.username,
     screenShareEnabled: user.screenShareEnabled,
+    esportsRoomsEnabled: user.esportsRoomsEnabled,
     ...(await readAccess(tx, user.id, user.isSuperAdmin)),
   };
 }

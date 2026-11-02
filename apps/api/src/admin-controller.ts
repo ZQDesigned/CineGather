@@ -166,6 +166,26 @@ export class AdminController {
   audit(@Query() query: unknown) {
     return admin.listAudit(parse(c.adminQuery, query));
   }
+  @Post("users/:userId/esports")
+  @RequireAdminPermission("users.esports")
+  @Endpoint(
+    "adminSetEsports",
+    c.okSchema,
+    c.adminScreenShareInput,
+    ["userId"],
+    201,
+  )
+  setEsports(
+    @Req() req: AuthRequest,
+    @Param("userId") id: string,
+    @Body() body: unknown,
+  ) {
+    return admin.setEsportsRooms(
+      req.user,
+      id,
+      parse(c.adminScreenShareInput, body),
+    );
+  }
   @Post("users/:userId/screen-share")
   @RequireAdminPermission("users.screen-share")
   @Endpoint(

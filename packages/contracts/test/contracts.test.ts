@@ -35,6 +35,7 @@ describe("untrusted client input", () => {
       false,
     );
     expect(roomInput.parse({ name: "影院" })).toEqual({
+      mode: "standard",
       name: "影院",
       maxMembers: 5,
       access: "normal",

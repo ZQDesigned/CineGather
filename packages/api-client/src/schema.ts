@@ -1012,6 +1012,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users/{userId}/esports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminSetEsports"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/users/{userId}/screen-share": {
         parameters: {
             query?: never;
@@ -1329,12 +1345,13 @@ export interface operations {
                         username?: string | null;
                         isSuperAdmin?: boolean;
                         screenShareEnabled?: boolean;
+                        esportsRoomsEnabled?: boolean;
                         roles?: {
                             /** Format: uuid */
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -2832,12 +2849,13 @@ export interface operations {
                             username?: string | null;
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
+                            esportsRoomsEnabled?: boolean;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -2971,12 +2989,13 @@ export interface operations {
                             username?: string | null;
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
+                            esportsRoomsEnabled?: boolean;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -3110,12 +3129,13 @@ export interface operations {
                             username?: string | null;
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
+                            esportsRoomsEnabled?: boolean;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -3733,6 +3753,8 @@ export interface operations {
                             name: string;
                             maxMembers: number;
                             /** @enum {string} */
+                            mode?: "standard" | "esports";
+                            /** @enum {string} */
                             role: "owner" | "member";
                             memberPermissions?: {
                                 /** Format: uuid */
@@ -3855,14 +3877,34 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    /** @default 5 */
-                    maxMembers?: number;
                     /**
                      * @default normal
                      * @enum {string}
                      */
                     access?: "normal" | "password";
                     password?: string;
+                    /**
+                     * @default standard
+                     * @enum {string}
+                     */
+                    mode?: "standard";
+                    /** @default 5 */
+                    maxMembers?: number;
+                } | {
+                    name: string;
+                    /**
+                     * @default normal
+                     * @enum {string}
+                     */
+                    access?: "normal" | "password";
+                    password?: string;
+                    /** @enum {string} */
+                    mode: "esports";
+                    /**
+                     * @default 20
+                     * @enum {number}
+                     */
+                    maxMembers?: 20;
                 };
             };
         };
@@ -3882,6 +3924,8 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        /** @enum {string} */
+                        mode?: "standard" | "esports";
                         /** @enum {string} */
                         role: "owner" | "member";
                         memberPermissions?: {
@@ -4017,6 +4061,8 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        /** @enum {string} */
+                        mode?: "standard" | "esports";
                         /** @enum {string} */
                         role: "owner" | "member";
                         memberPermissions?: {
@@ -4159,6 +4205,8 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        /** @enum {string} */
+                        mode?: "standard" | "esports";
                         /** @enum {string} */
                         role: "owner" | "member";
                         memberPermissions?: {
@@ -4303,6 +4351,8 @@ export interface operations {
                             ownerUserId: string;
                             name: string;
                             maxMembers: number;
+                            /** @enum {string} */
+                            mode?: "standard" | "esports";
                             /** @enum {string} */
                             role: "owner" | "member";
                             memberPermissions?: {
@@ -5931,6 +5981,8 @@ export interface operations {
                         name: string;
                         maxMembers: number;
                         /** @enum {string} */
+                        mode?: "standard" | "esports";
+                        /** @enum {string} */
                         role: "owner" | "member";
                         memberPermissions?: {
                             /** Format: uuid */
@@ -6194,6 +6246,8 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        /** @enum {string} */
+                        mode?: "standard" | "esports";
                         /** @enum {string} */
                         role: "owner" | "member";
                         memberPermissions?: {
@@ -10141,6 +10195,8 @@ export interface operations {
                             displayName: string;
                             isSuperAdmin: boolean;
                             screenShareEnabled: boolean;
+                            /** @default false */
+                            esportsRoomsEnabled: boolean;
                             roles: {
                                 /** Format: uuid */
                                 id: string;
@@ -10417,6 +10473,133 @@ export interface operations {
                             createdAt: string;
                         }[];
                         total: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    adminSetEsports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
                     };
                 };
             };
@@ -11294,7 +11477,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             name: string;
-                            permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                             builtIn: boolean;
                             memberCount: number;
                             createdAt: string;
@@ -11411,7 +11594,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -11426,7 +11609,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
@@ -11544,7 +11727,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -11559,7 +11742,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;

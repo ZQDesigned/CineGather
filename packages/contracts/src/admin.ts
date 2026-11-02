@@ -18,6 +18,7 @@ export const adminUserSchema = z.object({
   displayName: z.string(),
   isSuperAdmin: z.boolean(),
   screenShareEnabled: z.boolean(),
+  esportsRoomsEnabled: z.boolean().default(false),
   roles: z.array(accountRoleSchema),
   disabledAt: z.string().nullable(),
   createdAt: z.string(),
@@ -92,6 +93,7 @@ export const adminRoleInput = z
     for (const [manage, read] of [
       ["users.manage", "users.read"],
       ["users.screen-share", "users.read"],
+      ["users.esports", "users.read"],
       ["rooms.manage", "rooms.read"],
       ["announcements.manage", "announcements.read"],
     ] as const)
