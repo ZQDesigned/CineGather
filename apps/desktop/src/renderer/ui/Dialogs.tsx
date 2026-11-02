@@ -1,4 +1,4 @@
-import { EsportsSeatManager, EsportsSeatInvite } from "./EsportsRoom";
+import { EsportsSeatInvite } from "./EsportsRoom";
 import { AnnouncementDialog } from "./Announcements";
 import {
   Select,
@@ -81,7 +81,6 @@ function DialogContent({ modal }: { modal: Modal }) {
         <p>当前账号暂未开通屏幕共享能力。</p>
       </ModalShell>
     );
-  if (modal === "esports-seats") return <EsportsSeatManager />;
   if (modal === "esports-invite") return <EsportsSeatInvite />;
   if (modal === "room-settings") return <RoomSettings />;
   if (modal === "create") return <CreateRoom />;

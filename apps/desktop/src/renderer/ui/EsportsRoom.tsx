@@ -1,5 +1,5 @@
 import { Avatar, Empty, Select, Switch, Tag, Spin, Slider, Form } from "antd";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import styled from "@emotion/styled";
 import {
   Trophy,
@@ -196,7 +196,8 @@ const Surface = styled.div`
     font-size: 11px;
     cursor: pointer;
   }
-  .esports-player:disabled {
+  .esports-player:disabled,
+  .esports-player[aria-disabled="true"] {
     cursor: default;
     opacity: 0.5;
   }
@@ -286,10 +287,6 @@ const Surface = styled.div`
     gap: 8px;
     margin-bottom: 12px;
   }
-  .esports-audio-action {
-    width: 100%;
-    margin-top: 10px;
-  }
   .esports-summary {
     padding: 0 6px;
     display: flex;
@@ -326,16 +323,41 @@ const Surface = styled.div`
     margin-bottom: 4px;
     font-size: 12px;
   }
-  .esports-monitor-level {
-    margin-top: 12px;
+  .esports-roster {
+    flex: 1;
+    min-height: 150px;
+    overflow-y: auto;
+  }
+  .esports-roster-empty {
+    padding: 28px 0;
+    text-align: center;
+    color: var(--muted);
+    font-size: 12px;
+  }
+  .esports-listening {
     display: flex;
     align-items: center;
-    gap: 8px;
+    flex-wrap: wrap;
+    gap: 8px 12px;
     color: var(--muted);
     font-size: 11px;
+    flex-shrink: 0;
   }
-  .esports-monitor-level .ant-slider {
+  .esports-listening .esports-auto {
+    margin: 0;
+  }
+  .esports-audio-level {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 110px;
     flex: 1;
+    max-width: 190px;
+  }
+  .esports-audio-level .ant-slider {
+    flex: 1;
+    min-width: 45px;
+    margin: 5px;
   }
   .esports-role-line {
     display: flex;
@@ -437,20 +459,11 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
   const seat = snapshot.self.seat,
     watch = snapshot.watch,
     watching = app.esports?.watching;
-  const own = snapshot.members.filter(
-    (m) =>
-      m.seat.kind === seat.kind &&
-      (seat.kind !== "player" ||
-        (m.seat.kind === "player" && m.seat.team === seat.team)),
-  );
   const watched = snapshot.publications.find((p) => p.id === watching),
     watchedPlayer = snapshot.members.find((m) => m.userId === watched?.userId);
   const watchedTeam =
     watchedPlayer?.seat.kind === "player" ? watchedPlayer.seat.team : undefined;
-  const monitored = snapshot.members.filter(
-    (m) => m.seat.kind === "player" && m.seat.team === watchedTeam,
-  );
-  const member = (m: typeof snapshot.self) => {
+  const member = (m: typeof snapshot.self, children?: ReactNode) => {
     const peer = app.media.participants.find((p) => p.id === m.userId) ?? {
       id: m.userId,
       name: m.displayName,
@@ -463,7 +476,22 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
       <Member
         key={m.userId}
         participant={peer}
+        statusText={
+          !m.online
+            ? "离线"
+            : !(
+                  (m.seat.kind === seat.kind &&
+                    (seat.kind !== "player" ||
+                      (m.seat.kind === "player" &&
+                        m.seat.team === seat.team))) ||
+                  (m.seat.kind === "player" &&
+                    m.seat.team === watch.monitorTeam)
+                )
+              ? "已入席"
+              : undefined
+        }
         room={app.room!}
+        children={children}
         volume={app.memberVolumes[m.userId] ?? 100}
         onVolumeChange={(v) => actions.setMemberVolume(m.userId, v)}
         onVolumeCommit={(v) =>
@@ -498,9 +526,9 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
             <>
               <Button
                 icon={<Settings2 size={15} />}
-                onClick={() => update({ modal: "esports-seats" })}
+                onClick={() => update({ modal: "esports-invite" })}
               >
-                席位管理
+                定向邀请
               </Button>
               <Button
                 aria-label="房间设置"
@@ -549,7 +577,9 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
               <div className="esports-stage-empty">
                 <MonitorUp size={38} />
                 <h2>准备你的比赛画面</h2>
-                <span>本组语音独立沟通，导播和观众可以观看你的共享。</span>
+                <span>
+                  你的画面对导播席和观众席可见，请注意不要展示隐私信息。
+                </span>
                 <Button
                   type="primary"
                   onClick={() => void actions.shareSession.start()}
@@ -609,40 +639,105 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
             )}
             {!player && <WatchProfileControl />}
           </div>
+          <div className="esports-listening">
+            {!player && (
+              <>
+                <span>
+                  {watchedTeam
+                    ? `${watchedTeam.toUpperCase()} 组语音`
+                    : "选手组语音"}
+                </span>
+                <Button
+                  size="small"
+                  disabled={!watching}
+                  icon={<Headphones size={14} />}
+                  onClick={() =>
+                    void actions.esports.coordinator
+                      .monitor({ enabled: !watch.monitorTeam })
+                      .catch(actions.report)
+                  }
+                >
+                  {watch.monitorTeam ? "断开收听" : "收听队伍"}
+                </Button>
+                <label className="esports-auto">
+                  自动收听
+                  <Switch
+                    size="small"
+                    checked={watch.autoMonitor}
+                    onChange={(autoMonitor) =>
+                      void actions.esports.coordinator
+                        .monitor({ autoMonitor })
+                        .catch(actions.report)
+                    }
+                  />
+                </label>
+              </>
+            )}
+            <label className="esports-audio-level">
+              <Volume2 size={14} />
+              语音
+              <Slider
+                aria-label="赛事房语音音量"
+                min={0}
+                max={100}
+                value={Math.round(app.voiceVolume * 100)}
+                tooltip={{ open: false }}
+                onChange={(v) => {
+                  update({ voiceVolume: v / 100 });
+                  actions.esports.browser.voiceVolume(v / 100);
+                }}
+              />
+            </label>
+            {!player && (
+              <label className="esports-audio-level">
+                <Volume2 size={14} />
+                共享
+                <Slider
+                  aria-label="赛事房共享音量"
+                  min={0}
+                  max={100}
+                  value={Math.round(app.screenVolume * 100)}
+                  tooltip={{ open: false }}
+                  onChange={(v) => {
+                    update({ screenVolume: v / 100 });
+                    actions.esports.browser.screenVolume(v / 100);
+                  }}
+                />
+              </label>
+            )}
+          </div>
           <div className="esports-teams">
-            {(["a", "b"] as const)
-              .filter(
-                (team) =>
-                  !player || (seat.kind === "player" && seat.team === team),
-              )
-              .map((team) => {
-                const players = snapshot.members.filter(
-                  (m) => m.seat.kind === "player" && m.seat.team === team,
-                );
-                return (
-                  <div
-                    className="esports-team"
-                    key={team}
-                    style={player ? { gridColumn: "1 / -1" } : undefined}
-                  >
-                    <div className="esports-team-title">
-                      <strong>{team.toUpperCase()} 组选手</strong>
-                      <span>{players.length} / 5</span>
-                    </div>
-                    <div className="esports-players">
-                      {Array.from({ length: 5 }, (_, i) => {
-                        const m = players[i];
-                        if (!m)
-                          return (
-                            <div className="esports-empty-seat" key={i}>
-                              <Users size={18} />
-                            </div>
-                          );
-                        const p = snapshot.publications.find(
-                          (p) => p.userId === m.userId,
+            {(["a", "b"] as const).map((team) => {
+              const players = snapshot.members.filter(
+                (m) => m.seat.kind === "player" && m.seat.team === team,
+              );
+              return (
+                <div className="esports-team" key={team}>
+                  <div className="esports-team-title">
+                    <strong>{team.toUpperCase()} 组选手</strong>
+                    <span>{players.length} / 5</span>
+                  </div>
+                  <div className="esports-players">
+                    {Array.from({ length: 5 }, (_, i) => {
+                      const m = players[i];
+                      if (!m)
+                        return (
+                          <div className="esports-empty-seat" key={i}>
+                            <Users size={18} />
+                          </div>
                         );
-                        return player ? (
-                          <div className="esports-player" key={m.userId}>
+                      const p = snapshot.publications.find(
+                        (p) => p.userId === m.userId,
+                      );
+                      return member(
+                        m,
+                        player ? (
+                          <div
+                            className="esports-player"
+                            key={m.userId}
+                            tabIndex={0}
+                            aria-label={`${m.displayName}的成员操作`}
+                          >
                             <Avatar size={28}>{m.displayName[0]}</Avatar>
                             <span>{m.displayName}</span>
                             <small>
@@ -654,13 +749,14 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                             key={m.userId}
                             data-testid="esports-watch-choice"
                             className={`esports-player ${watching === p?.id ? "selected" : ""} ${app.esports?.warming === p?.id ? "warming" : ""}`}
-                            disabled={!p || !m.online}
+                            aria-disabled={!p || !m.online}
                             aria-label={`观看 ${m.displayName}`}
-                            onClick={() =>
-                              void actions.esports.coordinator
-                                .select(p!.id)
-                                .catch(actions.report)
-                            }
+                            onClick={() => {
+                              if (p && m.online)
+                                void actions.esports.coordinator
+                                  .select(p.id)
+                                  .catch(actions.report);
+                            }}
                           >
                             <Avatar size={28}>{m.displayName[0]}</Avatar>
                             <span>{m.displayName}</span>
@@ -674,12 +770,13 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                                     : "未共享"}
                             </small>
                           </button>
-                        );
-                      })}
-                    </div>
+                        ),
+                      );
+                    })}
                   </div>
-                );
-              })}
+                </div>
+              );
+            })}
           </div>
           <footer className="esports-bottom">
             <div className="esports-microphone">
@@ -714,7 +811,6 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                     ? "导播席语音"
                     : "观众席语音"}
               </strong>
-              <small>只向本席位发送你的声音</small>
             </div>
             {player && (
               <Button
@@ -753,102 +849,30 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
               启用房间声音
             </Button>
           )}
-          {!player && (
-            <section className="esports-audio">
-              <div className="esports-audio-title">
-                <strong>
-                  <Headphones size={16} />
-                  {watchedTeam
-                    ? `${watchedTeam.toUpperCase()} 组选手语音`
-                    : "选手组语音"}
-                </strong>
-                <Tag color={watch.monitorTeam ? "purple" : undefined}>
-                  {watch.monitorTeam ? "收听中" : "未接入"}
-                </Tag>
-              </div>
-              <div className="esports-auto">
-                <span>切换画面时自动收听</span>
-                <Switch
-                  size="small"
-                  checked={watch.autoMonitor}
-                  onChange={(autoMonitor) =>
-                    void actions.esports.coordinator
-                      .monitor({ autoMonitor })
-                      .catch(actions.report)
-                  }
-                />
-              </div>
-              {watchedTeam ? (
-                monitored.map(member)
-              ) : (
-                <Empty
-                  image={Empty.PRESENTED_IMAGE_SIMPLE}
-                  description="选择画面后接入队伍语音"
-                />
-              )}
-              <Button
-                className="esports-audio-action"
-                disabled={!watching}
-                icon={<Headphones size={15} />}
-                onClick={() =>
-                  void actions.esports.coordinator
-                    .monitor({ enabled: !watch.monitorTeam })
-                    .catch(actions.report)
-                }
-              >
-                {watch.monitorTeam ? "断开收听" : "收听队伍语音"}
-              </Button>
-            </section>
-          )}
-          <section className="esports-audio">
-            <div className="esports-audio-title">
-              <strong>
-                <Mic size={16} />
-                {player
-                  ? `${seat.kind === "player" ? seat.team.toUpperCase() : ""} 组语音`
-                  : seat.kind === "director"
-                    ? "导播席语音"
-                    : "观众席语音"}
-              </strong>
-              <small>{own.length} / 5</small>
-            </div>
-            {own.map(member)}
-            <div className="esports-monitor-level">
-              <Volume2 size={14} />
-              语音
-              <Slider
-                min={0}
-                max={100}
-                value={Math.round(app.voiceVolume * 100)}
-                tooltip={{ open: false }}
-                onChange={(v) => {
-                  update({ voiceVolume: v / 100 });
-                  actions.esports.browser.voiceVolume(v / 100);
-                }}
-              />
-            </div>
-          </section>
-          {!player && (
-            <section className="esports-audio">
-              <div className="esports-audio-title">
-                <strong>
-                  <Volume2 size={16} />
-                  共享声音
-                </strong>
-                <small>{Math.round(app.screenVolume * 100)}%</small>
-              </div>
-              <Slider
-                min={0}
-                max={100}
-                value={Math.round(app.screenVolume * 100)}
-                tooltip={{ open: false }}
-                onChange={(v) => {
-                  update({ screenVolume: v / 100 });
-                  actions.esports.browser.screenVolume(v / 100);
-                }}
-              />
-            </section>
-          )}
+          {(["director", "audience"] as const).map((kind) => {
+            const occupants = snapshot.members.filter(
+              (m) => m.seat.kind === kind,
+            );
+            return (
+              <section className="esports-audio esports-roster" key={kind}>
+                <div className="esports-audio-title">
+                  <strong>
+                    {kind === "director" ? (
+                      <Headphones size={16} />
+                    ) : (
+                      <Users size={16} />
+                    )}
+                    {kind === "director" ? "导播席" : "观众席"}
+                  </strong>
+                  <small>{occupants.length} / 5</small>
+                </div>
+                {occupants.map((m) => member(m))}
+                {!occupants.length && (
+                  <div className="esports-roster-empty">暂无成员</div>
+                )}
+              </section>
+            );
+          })}
           <div className="esports-summary">
             <span>
               导播{" "}
@@ -885,97 +909,6 @@ const parseSeat = (value: string): EsportsSeat =>
     : value === "director"
       ? { kind: "director" }
       : { kind: "audience" };
-export function EsportsSeatManager() {
-  const s = useApp((a) => a.esports?.snapshot),
-    room = useApp((a) => a.room),
-    media = useApp((a) => a.media),
-    volumes = useApp((a) => a.memberVolumes),
-    [busy, setBusy] = useState<string>();
-  return (
-    <ModalShell
-      title="席位管理"
-      wide
-      footer={
-        <>
-          <Button
-            onClick={() => update({ modal: "esports-invite" })}
-            icon={<UserPlus size={15} />}
-          >
-            定向邀请
-          </Button>
-          <Button type="primary" onClick={() => update({ modal: null })}>
-            完成
-          </Button>
-        </>
-      }
-    >
-      {room?.role !== "owner" ? (
-        <Empty description="仅房主可以分配席位" />
-      ) : (
-        s?.members.map((m) => (
-          <div
-            key={m.userId}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 12,
-              padding: "10px 0",
-              borderBottom: "1px solid var(--line)",
-            }}
-          >
-            <div style={{ flex: 1, minWidth: 0 }}>
-              {m.online ? (
-                <Member
-                  room={room!}
-                  participant={
-                    media.participants.find((p) => p.id === m.userId) ?? {
-                      id: m.userId,
-                      name: m.displayName,
-                      local: m.userId === s.self.userId,
-                      microphone: false,
-                      speaking: false,
-                      quality: "unknown",
-                    }
-                  }
-                  volume={volumes[m.userId] ?? 100}
-                  onVolumeChange={(value) =>
-                    actions.setMemberVolume(m.userId, value)
-                  }
-                  onVolumeCommit={(value) =>
-                    void actions
-                      .commitMemberVolume(m.userId, value)
-                      .catch(actions.report)
-                  }
-                />
-              ) : (
-                <span>
-                  {m.displayName} <Tag>离线</Tag>
-                </span>
-              )}
-            </div>
-            <Select
-              aria-label={`分配 ${m.displayName} 的席位`}
-              style={{ width: 160 }}
-              value={
-                m.seat.kind === "player" ? `player-${m.seat.team}` : m.seat.kind
-              }
-              disabled={!!busy || !m.online}
-              loading={busy === m.userId}
-              options={seatOptions}
-              onChange={(value) => {
-                setBusy(m.userId);
-                void actions.esports
-                  .assign(m.userId, parseSeat(value))
-                  .catch(actions.report)
-                  .finally(() => setBusy(undefined));
-              }}
-            />
-          </div>
-        ))
-      )}
-    </ModalShell>
-  );
-}
 export function EsportsSeatInvite() {
   const [username, setUsername] = useState(""),
     [target, setTarget] = useState<{
@@ -989,9 +922,7 @@ export function EsportsSeatInvite() {
       title="定向邀请席位"
       footer={
         <>
-          <Button onClick={() => update({ modal: "esports-seats" })}>
-            返回
-          </Button>
+          <Button onClick={() => update({ modal: null })}>取消</Button>
           <Button
             type="primary"
             disabled={!target || busy}
@@ -1009,7 +940,7 @@ export function EsportsSeatInvite() {
                       },
                     ),
                   );
-                  update({ notice: "席位邀请已发送", modal: "esports-seats" });
+                  update({ notice: "席位邀请已发送", modal: null });
                 })
                 .finally(() => setBusy(false));
             }}

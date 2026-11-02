@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   nativeOwner,
+  type EsportsSnapshot,
   type MemberOverlayPosition,
   type MemberOverlaySnapshot,
 } from "@cinegather/contracts";
@@ -30,7 +31,14 @@ interface OverlayInput {
     id: string;
     name: string;
     ownerUserId: string;
+    mode?: "standard" | "esports";
     memberPermissions?: Array<{ userId: string; microphoneAllowed: boolean }>;
+  };
+  esports?: {
+    snapshot?: Pick<
+      EsportsSnapshot,
+      "roomId" | "self" | "members" | "publications"
+    >;
   };
   requiredUpdate?: unknown;
   roomState: string;
@@ -60,11 +68,29 @@ export function buildMemberOverlay(
     media.state !== "connected"
   )
     return null;
+  const esports = room.mode === "esports" ? state.esports?.snapshot : undefined;
+  if (
+    room.mode === "esports" &&
+    (!esports ||
+      esports.roomId !== room.id ||
+      esports.self.userId !== state.user.id)
+  )
+    return null;
+  const ownSeat = esports?.self.seat;
+  const seatMembers = esports?.members.filter(
+    (m) =>
+      m.seat.kind === ownSeat?.kind &&
+      (ownSeat.kind !== "player" ||
+        (m.seat.kind === "player" && m.seat.team === ownSeat.team)),
+  );
+  const visibleIds = seatMembers && new Set(seatMembers.map((m) => m.userId));
   return {
     roomId: room.id,
     roomName: room.name.slice(0, 128),
     members: media.participants
-      .filter((p) => !nativeOwner(p.id))
+      .filter(
+        (p) => !nativeOwner(p.id) && (!visibleIds || visibleIds.has(p.id)),
+      )
       .slice(0, 10)
       .map((p) => {
         const microphone =
@@ -80,7 +106,11 @@ export function buildMemberOverlay(
           microphone,
           ...(p.accompaniment ? { accompaniment: true } : {}),
           speaking: microphone && p.speaking,
-          sharing: media.sharer?.id === p.id,
+          sharing: esports
+            ? esports.publications.some(
+                (publication) => publication.userId === p.id,
+              )
+            : media.sharer?.id === p.id,
         };
       }),
   };

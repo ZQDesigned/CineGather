@@ -277,7 +277,7 @@ test("actual 1080p video prewarms to a decoded frame and a stalled replacement p
         ),
       )
       .toBeGreaterThan(5);
-    await expect(page.getByText("B 组选手语音", { exact: true })).toBeVisible();
+    await expect(page.getByText("B 组语音", { exact: true })).toBeVisible();
     await page.screenshot({ path: ".local/esports-rooms/actual-viewer.png" });
   } catch (error) {
     const diagnostic = await page
@@ -632,5 +632,139 @@ test("capacity proof: ten isolated 1080p30 sources and five directors plus five 
       ),
     );
     await Promise.all(contexts.map((c) => c.close()));
+  }
+});
+
+test("owner adjusts esports seats directly from roster and player context menus with capability-specific actions", async ({
+  page,
+  request,
+  browser,
+}) => {
+  test.setTimeout(60000);
+  const register = async (name: string) => {
+    const r = await request.post(
+      "http://127.0.0.1:17883/api/v1/accounts/register",
+      {
+        data: {
+          username: "seat_menu_" + crypto.randomUUID().slice(0, 8),
+          displayName: name,
+          password: "Esports menu verification 123!",
+        },
+        headers: {
+          "X-CineGather-Features": "esports-v1",
+          "X-CineGather-Platform": "web",
+        },
+      },
+    );
+    expect(r.ok()).toBeTruthy();
+    const result = await r.json();
+    const account = { id: result.user.id, token: result.sessionToken };
+    accounts.push(account);
+    return account;
+  };
+  const owner = await register("右键房主"),
+    target = await register("右键成员");
+  await db
+    .update(users)
+    .set({ esportsRoomsEnabled: true })
+    .where(eq(users.id, owner.id));
+  await page.addInitScript(
+    (token) => localStorage.setItem("cinegather.session", token),
+    owner.token,
+  );
+  await page.goto("/");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByRole("radio", { name: "电竞赛事房" }).check();
+  await page.getByRole("button", { name: "创建并进入" }).click();
+  await expect(page.getByTestId("esports-room")).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "席位管理", exact: true }),
+  ).toHaveCount(0);
+  const listed = await request.get("http://127.0.0.1:17883/api/v1/rooms", {
+    headers: {
+      Authorization: "Bearer " + owner.token,
+      "X-CineGather-Features": "esports-v1",
+    },
+  });
+  const room = (await listed.json()).items[0];
+  const context = await browser.newContext();
+  try {
+    await context.addInitScript(
+      (token) => localStorage.setItem("cinegather.session", token),
+      target.token,
+    );
+    const peer = await context.newPage();
+    await peer.goto("http://127.0.0.1:5181/");
+    await peer.getByRole("button", { name: "加入房间", exact: true }).click();
+    await peer
+      .getByPlaceholder("输入 8 位房间号或粘贴邀请链接")
+      .fill(room!.code);
+    await peer.getByRole("button", { name: "进入房间", exact: true }).click();
+    await expect(peer.getByTestId("esports-room")).toBeVisible();
+    const menu = page.locator(".member-context-popup");
+    await page
+      .getByRole("button", { name: "右键成员的成员操作", exact: true })
+      .click();
+    await expect(
+      menu.getByRole("menuitem", { name: "调整席位", exact: true }),
+    ).toBeVisible();
+    await expect(
+      menu.getByRole("menuitem", { name: "关闭伴奏", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      menu.getByRole("menuitemcheckbox", { name: "禁止共享", exact: true }),
+    ).toHaveCount(0);
+    await menu.getByRole("menuitem", { name: "调整席位", exact: true }).hover();
+    await page.getByRole("menuitem", { name: "A 组选手", exact: true }).click();
+    await expect(peer.getByTestId("esports-seat")).toHaveText("A 组选手");
+    // Unpublished player tiles must still accept right-clicks.
+    await page
+      .getByRole("button", { name: "观看 右键成员", exact: true })
+      .click({ button: "right", force: true });
+    await expect(
+      menu.getByRole("menuitemcheckbox", { name: "禁止共享", exact: true }),
+    ).toBeVisible();
+    await expect(
+      menu.getByRole("menuitem", { name: "停止共享", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      menu.getByRole("menuitem", { name: "关闭伴奏", exact: true }),
+    ).toHaveCount(0);
+    await menu.getByRole("menuitem", { name: "调整席位", exact: true }).hover();
+    await page.getByRole("menuitem", { name: "导播席", exact: true }).click();
+    await expect(peer.getByTestId("esports-seat")).toHaveText("导播");
+    await page
+      .getByRole("button", { name: "右键成员的成员操作", exact: true })
+      .click();
+    await expect(
+      menu.getByRole("menuitemcheckbox", { name: "禁止共享", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      menu.getByRole("menuitemcheckbox", { name: "禁止开麦", exact: true }),
+    ).toBeVisible();
+    await page.keyboard.press("Escape");
+    await page
+      .getByRole("button", { name: "右键房主的成员操作", exact: true })
+      .click();
+    await expect(
+      menu.getByRole("menuitem", { name: "转移房主", exact: true }),
+    ).toHaveCount(0);
+    await expect(
+      menu.getByRole("menuitem", { name: "移出房间", exact: true }),
+    ).toHaveCount(0);
+    await menu.getByRole("menuitem", { name: "调整席位", exact: true }).hover();
+    await page.getByRole("menuitem", { name: "B 组选手", exact: true }).click();
+    await expect(page.getByTestId("esports-seat")).toHaveText("B 组选手");
+    await page
+      .getByLabel("右键房主的成员操作", { exact: true })
+      .click({ button: "right" });
+    await expect(
+      menu.getByRole("menuitem", { name: "调整席位", exact: true }),
+    ).toBeVisible();
+    await expect(
+      menu.getByRole("menuitem", { name: "移出房间", exact: true }),
+    ).toHaveCount(0);
+  } finally {
+    await context.close();
   }
 });

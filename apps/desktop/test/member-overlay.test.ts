@@ -138,3 +138,110 @@ test("accompaniment has its own overlay status while the microphone stays closed
     speaking: false,
   });
 });
+
+const esportsMember = (
+  id: string,
+  seat: import("@cinegather/contracts").EsportsSeat,
+): import("@cinegather/contracts").EsportsSnapshot["self"] => ({
+  userId: id,
+  displayName: id,
+  seat,
+  revision: 1,
+  online: true,
+  reservedUntil: null,
+  microphoneAllowed: true,
+  sharingAllowed: true,
+});
+const esportsMembers = [
+  esportsMember("a1", { kind: "player", team: "a" }),
+  esportsMember("a2", { kind: "player", team: "a" }),
+  esportsMember("b1", { kind: "player", team: "b" }),
+  esportsMember("d1", { kind: "director" }),
+  esportsMember("d2", { kind: "director" }),
+  esportsMember("v1", { kind: "audience" }),
+  esportsMember("v2", { kind: "audience" }),
+];
+function esportsOverlay(selfId: string) {
+  return {
+    ...active,
+    user: { id: selfId },
+    room: { ...active.room, mode: "esports" as const },
+    esports: {
+      snapshot: {
+        roomId: active.room.id,
+        self: esportsMembers.find((m) => m.userId === selfId)!,
+        members: esportsMembers,
+        publications: [
+          {
+            id: "pub-a1",
+            userId: "a1",
+            status: "active" as const,
+            systemAudio: true,
+          },
+          {
+            id: "pub-a2",
+            userId: "a2",
+            status: "active" as const,
+            systemAudio: true,
+          },
+        ],
+      },
+    },
+    media: {
+      ...active.media,
+      participants: esportsMembers.map((m) => ({
+        id: m.userId,
+        name: m.displayName,
+        local: m.userId === selfId,
+        microphone: true,
+        speaking: true,
+      })),
+      sharer: { id: "a1" },
+    },
+  };
+}
+test("esports overlay shows only the viewer's own seat area even while monitoring a player team", () => {
+  for (const [selfId, expected] of [
+    ["a1", ["a1", "a2"]],
+    ["b1", ["b1"]],
+    ["d1", ["d1", "d2"]],
+    ["v1", ["v1", "v2"]],
+  ] as const) {
+    expect(
+      buildMemberOverlay(esportsOverlay(selfId))?.members.map((m) => m.id),
+    ).toEqual([...expected]);
+  }
+});
+test("esports overlay follows seat reassignment and reports concurrent teammate shares", () => {
+  const input = esportsOverlay("a1");
+  expect(buildMemberOverlay(input)?.members.map((m) => m.sharing)).toEqual([
+    true,
+    true,
+  ]);
+  const moved = esportsMember("a1", { kind: "director" });
+  input.esports.snapshot = {
+    ...input.esports.snapshot,
+    self: moved,
+    members: esportsMembers.map((m) => (m.userId === moved.userId ? moved : m)),
+  };
+  expect(buildMemberOverlay(input)?.members.map((m) => m.id)).toEqual([
+    "a1",
+    "d1",
+    "d2",
+  ]);
+});
+test("esports overlay waits for a matching seat snapshot instead of showing the whole room", () => {
+  const input = esportsOverlay("a1");
+  expect(buildMemberOverlay({ ...input, esports: undefined })).toBeNull();
+  expect(
+    buildMemberOverlay({
+      ...input,
+      esports: {
+        snapshot: { ...input.esports.snapshot, roomId: "previous-room" },
+      },
+    }),
+  ).toBeNull();
+  expect(
+    buildMemberOverlay({ ...input, user: { id: "another-account" } }),
+  ).toBeNull();
+});

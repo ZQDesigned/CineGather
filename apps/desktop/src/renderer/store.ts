@@ -19,7 +19,6 @@ import type { ChatMessage } from "@cinegather/contracts";
 import type { Friend } from "./friends";
 export type Modal =
   | "announcements"
-  | "esports-seats"
   | "esports-invite"
   | "room-settings"
   | "create"

@@ -9,10 +9,19 @@ import {
   Tag,
   type MenuProps,
 } from "antd";
-import { useRef, useState } from "react";
+import {
+  cloneElement,
+  isValidElement,
+  useRef,
+  useState,
+  type ReactNode,
+  type ReactElement,
+  type KeyboardEvent,
+} from "react";
 import styled from "@emotion/styled";
 import {
   Check,
+  ChevronRight,
   Clock3,
   Crown,
   MonitorOff,
@@ -23,12 +32,17 @@ import {
   Music2,
   Square,
   Signal,
+  Users,
   UserPlus,
   Volume2,
 } from "lucide-react";
 import type { ParticipantSummary } from "@cinegather/media-core";
-import type { RoomInfo } from "@cinegather/contracts";
+import type { EsportsSeat, RoomInfo } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
+import {
+  memberManagementActions,
+  type MemberManagementAction,
+} from "../../shared/member-actions";
 import { memberFriendAction } from "@cinegather/client-core";
 import * as actions from "../controller";
 import { state, update, useApp } from "../store";
@@ -69,6 +83,21 @@ const MemberPopup = styled.div`
   .ant-slider {
     margin: 16px 4px 6px;
   }
+  .ant-dropdown-menu-submenu-title {
+    display: flex;
+    align-items: center;
+  }
+  .ant-dropdown-menu-submenu-expand-icon {
+    position: absolute;
+    inset-inline-end: 12px;
+    top: 50%;
+    transform: translateY(-50%);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 14px;
+    line-height: 1;
+  }
   .ant-dropdown-menu {
     padding: 4px 0 0;
     background: transparent;
@@ -87,12 +116,16 @@ const MenuToggle = styled.span`
 `;
 export function Member({
   participant: p,
+  children,
+  statusText,
   room,
   volume,
   onVolumeChange,
   onVolumeCommit,
 }: {
   participant: ParticipantSummary;
+  children?: ReactNode;
+  statusText?: string;
   room: RoomInfo;
   volume: number;
   onVolumeChange(value: number): void;
@@ -110,9 +143,39 @@ export function Member({
   const friendAction = memberFriendAction(selfId, p.id, friendship);
   const [friendBusy, setFriendBusy] = useState(false);
   const friendFlight = useRef(false);
-  const permission = room.memberPermissions?.find((m) => m.userId === p.id);
+  const esports = useApp((s) => s.esports?.snapshot);
+  const esportsMember =
+    room.mode === "esports" && esports?.roomId === room.id
+      ? esports.members.find((m) => m.userId === p.id)
+      : undefined;
+  const permission =
+    esportsMember ?? room.memberPermissions?.find((m) => m.userId === p.id);
   const microphoneAllowed = permission?.microphoneAllowed !== false;
   const sharingAllowed = permission?.sharingAllowed !== false;
+  const management = memberManagementActions({
+    owner: room.role === "owner",
+    self: p.id === selfId,
+    mode: room.mode,
+    seat: esportsMember?.seat,
+    sharing: sharerId === p.id,
+  });
+  const seatChoices: { key: string; label: string; seat: EsportsSeat }[] = [
+    {
+      key: "seat-player-a",
+      label: "A 组选手",
+      seat: { kind: "player", team: "a" },
+    },
+    {
+      key: "seat-player-b",
+      label: "B 组选手",
+      seat: { kind: "player", team: "b" },
+    },
+    { key: "seat-director", label: "导播席", seat: { kind: "director" } },
+    { key: "seat-audience", label: "观众席", seat: { kind: "audience" } },
+  ];
+  const sameSeat = (a: EsportsSeat, b: EsportsSeat) =>
+    a.kind === b.kind &&
+    (a.kind !== "player" || (b.kind === "player" && a.team === b.team));
   const [open, setOpen] = useState(false);
   const [focusVolume, setFocusVolume] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -142,11 +205,28 @@ export function Member({
               ),
           },
         ]),
-    ...(room.role === "owner"
+    ...(management.length
       ? [
           ...(["accepted", "unavailable"].includes(friendAction)
             ? []
             : [{ type: "divider" as const }]),
+          {
+            key: "seat",
+            label: "调整席位",
+            icon: <Users size={15} />,
+            children: seatChoices.map((choice) => {
+              const current =
+                !!esportsMember && sameSeat(esportsMember.seat, choice.seat);
+              const full =
+                (esports?.members.filter((m) => sameSeat(m.seat, choice.seat))
+                  .length ?? 0) >= 5;
+              return {
+                key: choice.key,
+                label: `${choice.label}${current ? "（当前）" : full ? "（已满）" : ""}`,
+                disabled: current || full || !esportsMember?.online,
+              };
+            }),
+          },
           { key: "transfer", label: "转移房主", icon: <Crown size={15} /> },
           {
             key: "mute",
@@ -191,7 +271,7 @@ export function Member({
               </MenuToggle>
             ),
           },
-          ...(sharerId === p.id
+          ...(management.includes("stop-share")
             ? [
                 {
                   key: "stop-share",
@@ -206,7 +286,13 @@ export function Member({
             danger: true,
             icon: <LogOut size={15} />,
           },
-        ]
+        ].filter(
+          (item) =>
+            ("type" in item && item.type === "divider") ||
+            management.includes(
+              ("key" in item ? item.key : undefined) as MemberManagementAction,
+            ),
+        )
       : []),
   ];
   const select: MenuProps["onClick"] = ({ key }) => {
@@ -229,7 +315,11 @@ export function Member({
       return;
     }
     void actions.run(async () => {
-      if (key === "friend" || key === "accept-friend") {
+      const seatChoice = seatChoices.find((choice) => choice.key === key);
+      if (seatChoice && management.includes("seat")) {
+        await actions.esports.assign(p.id, seatChoice.seat);
+        update({ notice: "席位已调整" });
+      } else if (key === "friend" || key === "accept-friend") {
         if (friendFlight.current || state().user?.id !== selfId) return;
         const latest = memberFriendAction(
           selfId,
@@ -332,7 +422,7 @@ export function Member({
       className={`member ${p.speaking ? "speaking" : ""}`}
       onKeyDown={(event) => {
         if (
-          !p.local &&
+          (!p.local || management.length > 0) &&
           (event.key === "ContextMenu" ||
             (event.shiftKey && event.key === "F10"))
         ) {
@@ -352,13 +442,14 @@ export function Member({
           {p.id === room.ownerUserId && <Tag color="purple">房主</Tag>}
         </strong>
         <small>
-          {!microphoneAllowed
-            ? "已被禁止开麦"
-            : p.speaking
-              ? "正在说话"
-              : p.microphone
-                ? "语音已就绪"
-                : "麦克风已关闭"}
+          {statusText ??
+            (!microphoneAllowed
+              ? "已被禁止开麦"
+              : p.speaking
+                ? "正在说话"
+                : p.microphone
+                  ? "语音已就绪"
+                  : "麦克风已关闭")}
           {!sharingAllowed && " / 禁止共享"}
         </small>
       </div>
@@ -378,16 +469,20 @@ export function Member({
             </span>
           </Tooltip>
         )}
-        <span
-          className={`member-quality ${p.quality === "poor" || p.quality === "lost" ? "poor" : ""}`}
-          title={`网络质量：${p.quality === "excellent" ? "优秀" : p.quality === "good" ? "良好" : p.quality === "poor" ? "较差" : p.quality === "lost" ? "已丢失" : "测量中"}`}
-        >
-          <Signal size={12} />
-        </span>
-        <span className={`member-mic ${p.microphone ? "" : "off"}`}>
-          {p.microphone ? <Mic size={14} /> : <MicOff size={14} />}
-        </span>
-        {!p.local && (
+        {!statusText && (
+          <>
+            <span
+              className={`member-quality ${p.quality === "poor" || p.quality === "lost" ? "poor" : ""}`}
+              title={`网络质量：${p.quality === "excellent" ? "优秀" : p.quality === "good" ? "良好" : p.quality === "poor" ? "较差" : p.quality === "lost" ? "已丢失" : "测量中"}`}
+            >
+              <Signal size={12} />
+            </span>
+            <span className={`member-mic ${p.microphone ? "" : "off"}`}>
+              {p.microphone ? <Mic size={14} /> : <MicOff size={14} />}
+            </span>
+          </>
+        )}
+        {(!p.local || management.length > 0) && (
           <Button
             ref={menuButton}
             type="text"
@@ -406,7 +501,7 @@ export function Member({
       </div>
     </div>
   );
-  if (p.local) return row;
+  if (p.local && !management.length) return children ?? row;
   return (
     <Dropdown
       trigger={["contextMenu"]}
@@ -422,7 +517,11 @@ export function Member({
         setOpen(nextOpen);
       }}
       destroyOnHidden
-      menu={{ items, onClick: select }}
+      menu={{
+        items,
+        onClick: select,
+        expandIcon: <ChevronRight size={14} aria-hidden="true" />,
+      }}
       popupRender={(menu) => (
         <MemberPopup
           className="member-context-popup"
@@ -451,30 +550,55 @@ export function Member({
           }}
         >
           <div className="member-menu-heading">{p.name}</div>
-          <div className="member-menu-volume">
-            <div className="member-menu-volume-label">
-              <Volume2 size={15} />
-              <span>用户音量</span>
-              <span className="member-volume-value" aria-hidden>
-                {volume}%
-              </span>
+          {!p.local && (
+            <div className="member-menu-volume">
+              <div className="member-menu-volume-label">
+                <Volume2 size={15} />
+                <span>用户音量</span>
+                <span className="member-volume-value" aria-hidden>
+                  {volume}%
+                </span>
+              </div>
+              <Slider
+                autoFocus={focusVolume}
+                ariaLabelForHandle={`${p.name}的音量`}
+                min={0}
+                max={200}
+                value={volume}
+                tooltip={{ formatter: (value) => `${value}%` }}
+                onChange={onVolumeChange}
+                onChangeComplete={onVolumeCommit}
+              />
             </div>
-            <Slider
-              autoFocus={focusVolume}
-              ariaLabelForHandle={`${p.name}的音量`}
-              min={0}
-              max={200}
-              value={volume}
-              tooltip={{ formatter: (value) => `${value}%` }}
-              onChange={onVolumeChange}
-              onChangeComplete={onVolumeCommit}
-            />
-          </div>
+          )}
           {menu}
         </MemberPopup>
       )}
     >
-      {row}
+      {isValidElement(children)
+        ? cloneElement(
+            children as ReactElement<{
+              onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
+            }>,
+            {
+              onKeyDown(event: KeyboardEvent<HTMLElement>) {
+                (
+                  children.props as {
+                    onKeyDown?: (event: KeyboardEvent<HTMLElement>) => void;
+                  }
+                ).onKeyDown?.(event);
+                if (
+                  event.key === "ContextMenu" ||
+                  (event.shiftKey && event.key === "F10")
+                ) {
+                  event.preventDefault();
+                  setFocusVolume(true);
+                  setOpen(true);
+                }
+              },
+            },
+          )
+        : (children ?? row)}
     </Dropdown>
   );
 }
