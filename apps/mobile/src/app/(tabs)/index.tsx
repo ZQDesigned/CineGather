@@ -72,7 +72,13 @@ export default function Lobby() {
           </Text>
           <View style={styles.spread}>
             <View style={styles.row}>
-              <Badge>{room.access === "password" ? "加密房" : "普通房"}</Badge>
+              <Badge>
+                {room.mode === "esports"
+                  ? "电竞赛事房"
+                  : room.access === "password"
+                    ? "加密房"
+                    : "普通房"}
+              </Badge>
               <Label muted>{room.code}</Label>
             </View>
             <Label muted>最多 {room.maxMembers} 人</Label>

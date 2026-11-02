@@ -43,3 +43,5 @@ export * from "./mobile-video-viewport";
 export * from "./member-friend";
 
 export * from "./esports";
+
+export * from "./first-frame";

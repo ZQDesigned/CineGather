@@ -32,6 +32,11 @@ export interface MediaMember {
   microphone: boolean;
   accompaniment: boolean;
 }
+export interface MediaVideo {
+  participant: RemoteParticipant;
+  publication: RemoteTrackPublication;
+  source: Track.Source;
+}
 export interface MediaSnapshot {
   connected: boolean;
   reconnecting: boolean;
@@ -41,15 +46,15 @@ export interface MediaSnapshot {
   foreground: boolean;
   members: MediaMember[];
   sharer?: string;
-  video?: {
-    participant: RemoteParticipant;
-    publication: RemoteTrackPublication;
-    source: Track.Source;
-  };
+  video?: MediaVideo;
+  warmingVideo?: MediaVideo;
   error?: string;
 }
 
 export class NativeMedia {
+  isConnected() {
+    return !!this.room && this.room.state !== "disconnected";
+  }
   room?: Room;
   private revision = 0;
   private listeners = new Set<() => void>();
@@ -60,6 +65,7 @@ export class NativeMedia {
   private shareGain = 1;
   private gains = new Map<string, number>();
   private foreground = AppState.currentState === "active";
+  private audioSessionOwned = false;
   private current: MediaSnapshot = {
     connected: false,
     reconnecting: false,
@@ -73,12 +79,17 @@ export class NativeMedia {
     private readonly events: {
       message(message: ChatMessage): void;
       roomChanged?(): void;
+      microphoneMuted?(): void;
       stopShare?(leaseId: string): void;
       disconnected(reason: string): void;
       error(error: unknown): void;
       foregroundService?(microphone: boolean): Promise<void>;
       stopService?(): Promise<void>;
     },
+    private readonly options: {
+      manageAudioSession?: boolean;
+      adaptiveStream?: boolean;
+    } = {},
   ) {}
   snapshot = () => this.current;
   subscribe = (listener: () => void) => {
@@ -173,19 +184,23 @@ export class NativeMedia {
   async connect(url: string, token: string) {
     await this.disconnect();
     const revision = ++this.revision;
-    await AudioSession.configureAudio({
-      android: {
-        audioTypeOptions: {
-          ...AndroidAudioTypePresets.communication,
-          manageAudioFocus: false,
+    if (this.options.manageAudioSession !== false)
+      await AudioSession.configureAudio({
+        android: {
+          audioTypeOptions: {
+            ...AndroidAudioTypePresets.communication,
+            manageAudioFocus: false,
+          },
+          preferredOutputList: ["bluetooth", "headset", "earpiece", "speaker"],
         },
-        preferredOutputList: ["bluetooth", "headset", "earpiece", "speaker"],
-      },
-      ios: { defaultOutput: "earpiece" },
-    });
-    await AudioSession.startAudioSession();
+        ios: { defaultOutput: "earpiece" },
+      });
+    if (this.options.manageAudioSession !== false) {
+      await AudioSession.startAudioSession();
+      this.audioSessionOwned = true;
+    }
     const room = new Room({
-      adaptiveStream: true,
+      adaptiveStream: this.options.adaptiveStream ?? true,
       audioCaptureDefaults: {
         echoCancellation: true,
         noiseSuppression: true,
@@ -255,6 +270,7 @@ export class NativeMedia {
           return;
         }
         if (control?.action === "mute-microphone") {
+          this.events.microphoneMuted?.();
           this.microphone.setWanted(false);
           void this.reconcileMic();
         }
@@ -305,7 +321,10 @@ export class NativeMedia {
     }
     await this.micQueue.catch(() => {});
     await this.events.stopService?.().catch(() => {});
-    await AudioSession.stopAudioSession().catch(() => {});
+    if (this.audioSessionOwned) {
+      this.audioSessionOwned = false;
+      await AudioSession.stopAudioSession().catch(() => {});
+    }
     this.current = {
       connected: false,
       reconnecting: false,

@@ -7,6 +7,7 @@ import {
 export interface EsportsMediaHandle {
   /** Resolves only after an actual decoded frame, never merely on subscription. */
   ready(signal: AbortSignal): Promise<void>;
+  connected?(): boolean;
   close(): Promise<void>;
   video(enabled: boolean): void;
   audio(enabled: boolean): void;
@@ -188,6 +189,10 @@ export class EsportsCoordinator {
         await this.openVoice();
         this.event("seat-changed");
       } else {
+        if (!this.voice || this.voice.connected?.() === false) {
+          await this.openVoice();
+          this.event("voice-recovered-muted");
+        }
         if (this.current && next.watch.current !== this.current.id) {
           await this.closeCurrent();
           await this.closeMonitor();
@@ -196,6 +201,8 @@ export class EsportsCoordinator {
           this.warmAbort?.abort();
           await this.closeWarm();
         }
+        if (this.current?.handle.connected?.() === false)
+          await this.recoverVideo();
         await this.syncMonitor();
       }
       this.emit();
@@ -311,6 +318,62 @@ export class EsportsCoordinator {
       }
     });
   }
+  private async recoverVideo() {
+    const old = this.current,
+      s = this.snapshot;
+    if (!old || !s) return;
+    const controller = new AbortController(),
+      generation = this.generation;
+    this.warmAbort = controller;
+    const timer = setTimeout(
+      () => controller.abort(new EsportsPrewarmTimeout()),
+      this.options.prewarmMs ?? ESPORTS_PREWARM_MS,
+    );
+    let replacement: EsportsMediaHandle | undefined;
+    try {
+      const connection = await this.deps.api.connection(
+        { kind: "video", publicationId: old.id },
+        s.self.revision,
+        s.watch.revision,
+      );
+      replacement = await this.deps.media.open(
+        connection,
+        "video",
+        controller.signal,
+      );
+      replacement.audio(false);
+      replacement.video(this.visible);
+      if (this.visible)
+        await Promise.race([
+          replacement.ready(controller.signal),
+          new Promise<never>((_, reject) => {
+            const cancel = () => reject(controller.signal.reason ?? aborted());
+            if (controller.signal.aborted) cancel();
+            else
+              controller.signal.addEventListener("abort", cancel, {
+                once: true,
+              });
+          }),
+        ]);
+      if (
+        this.lifetime.signal.aborted ||
+        controller.signal.aborted ||
+        generation !== this.generation
+      )
+        throw aborted();
+      old.handle.audio(false);
+      this.current = { id: old.id, handle: replacement };
+      this.deps.media.show(replacement);
+      replacement.audio(true);
+      replacement = undefined;
+      await old.handle.close();
+      this.event("video-recovered", old.id);
+    } finally {
+      clearTimeout(timer);
+      if (this.warmAbort === controller) this.warmAbort = undefined;
+      await replacement?.close();
+    }
+  }
   private async closeWarm() {
     const slot = this.warming;
     this.warming = undefined;
@@ -348,7 +411,11 @@ export class EsportsCoordinator {
   private async syncMonitor() {
     const s = this.snapshot,
       team = this.current ? s?.watch.monitorTeam : null;
-    if (team === this.monitorSlot?.id) return;
+    if (
+      team === this.monitorSlot?.id &&
+      this.monitorSlot?.handle.connected?.() !== false
+    )
+      return;
     await this.closeMonitor();
     if (!team || !s) return;
     const connection = await this.deps.api.connection(

@@ -35,7 +35,7 @@ import {
 import { ApiError } from "@cinegather/api-client";
 import { CriticalTimers } from "livekit-client";
 import { screenShare } from "./platform/screen-share";
-import { NativeMedia } from "./media/NativeMedia";
+import { MobileMedia } from "./media/MobileMedia";
 import { appendDiagnostic } from "./platform/journal";
 import { localNotice } from "./platform/notifications";
 import { roomAudio } from "./platform/room-audio";
@@ -52,6 +52,7 @@ export interface Notice {
   time: number;
 }
 export interface RuntimeSnapshot {
+  esports?: import("@cinegather/client-core").EsportsClientState;
   roomState: RoomState;
   shareState: ShareState;
   room?: RoomInfo;
@@ -73,7 +74,7 @@ export class MobileRuntime {
   readonly updates: MobileUpdateService;
   readonly session: MobileSession;
   readonly api: MobileApi;
-  readonly media: NativeMedia;
+  readonly media: MobileMedia;
   readonly coordinator: RoomCoordinator;
   readonly chat: RoomChat;
   readonly sharing: MobileShare;
@@ -186,31 +187,35 @@ export class MobileRuntime {
         if (promoted) this.notice("你已成为房主", "现在可以管理房间和成员");
       },
     });
-    this.media = new NativeMedia({
-      stopShare: (leaseId) => {
-        void this.sharing.revoke(leaseId).catch((e) => this.fail(e));
+    this.media = new MobileMedia(
+      this.api,
+      {
+        stopShare: (leaseId) => {
+          void this.sharing.revoke(leaseId).catch((e) => this.fail(e));
+        },
+        roomChanged: () => {
+          void this.refreshRoom().catch((e) => this.fail(e));
+        },
+        message: (message) => {
+          const room = this.current.room;
+          if (room) this.chat.receive(room.id, message);
+        },
+        disconnected: (reason) => {
+          void this.handleRoomDisconnect(reason).catch((e) => this.fail(e));
+        },
+        error: (e) => this.fail(e),
+        foregroundService: async (microphone) => {
+          await roomAudio.start(
+            this.current.room?.name ?? "映聚房间",
+            microphone,
+          );
+        },
+        stopService: async () => {
+          await roomAudio.stop();
+        },
       },
-      roomChanged: () => {
-        void this.refreshRoom().catch((e) => this.fail(e));
-      },
-      message: (message) => {
-        const room = this.current.room;
-        if (room) this.chat.receive(room.id, message);
-      },
-      disconnected: (reason) => {
-        void this.handleRoomDisconnect(reason).catch((e) => this.fail(e));
-      },
-      error: (e) => this.fail(e),
-      foregroundService: async (microphone) => {
-        await roomAudio.start(
-          this.current.room?.name ?? "映聚房间",
-          microphone,
-        );
-      },
-      stopService: async () => {
-        await roomAudio.stop();
-      },
-    });
+      (esports) => this.patch({ esports }),
+    );
     const context = (scope: string) => {
       const value = this.shareContexts.get(scope);
       if (!value) throw new Error("共享会话已失效");
@@ -376,10 +381,10 @@ export class MobileRuntime {
           }),
         );
       },
-      connect: async (url, token) => {
+      connect: async (url, token, room) => {
         if (this.updates.updater.snapshot().required)
           throw new Error("请先完成应用更新");
-        await this.media.connect(url, token);
+        await this.media.connect(url, token, room);
       },
       disconnect: () => this.media.disconnect(),
       stopShare: () => this.sharing.stop(),
@@ -389,7 +394,8 @@ export class MobileRuntime {
         this.patch({ roomState, room });
         if (roomState === "connected" && room) {
           const id = this.session.snapshot().user?.id;
-          if (id && previous !== room.id) void this.chat.enter(room.id, id);
+          if (id && previous !== room.id && room.mode !== "esports")
+            void this.chat.enter(room.id, id);
           this.applyPermissions(room);
           void this.refreshRoom().catch((e) => this.fail(e));
           void roomAudio
@@ -723,6 +729,8 @@ export class MobileRuntime {
     const room = this.current.room;
     try {
       await this.roomSync.refresh();
+      if (this.current.room?.mode === "esports")
+        await this.media.refreshEsports();
     } catch (error) {
       if (
         error instanceof ApiError &&
@@ -743,6 +751,7 @@ export class MobileRuntime {
     const user = this.session.snapshot().user;
     return (
       !!user?.screenShareEnabled &&
+      this.current.room?.mode !== "esports" &&
       this.current.roomState === "connected" &&
       this.current.room?.memberPermissions?.find((m) => m.userId === user.id)
         ?.sharingAllowed !== false

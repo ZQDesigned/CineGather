@@ -61,6 +61,7 @@ import {
   EmptyState,
 } from "../components/ui";
 import { Screen } from "../components/Screen";
+import { EsportsRoom } from "../components/EsportsRoom";
 export default function RoomScreen() {
   const state = useRuntime(),
     media = useMedia(),
@@ -139,6 +140,7 @@ export default function RoomScreen() {
         <Button onPress={() => router.replace("/")}>返回放映厅</Button>
       </Screen>
     );
+  if (room.mode === "esports") return <EsportsRoom />;
   const owner = room.ownerUserId === session.user?.id;
   const work = (operation: () => Promise<unknown>) =>
     action(async () => {

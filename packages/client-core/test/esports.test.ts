@@ -5,7 +5,10 @@ const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
 function harness(pauseCommit?: () => Promise<void>) {
   const calls: string[] = [],
-    handles = new Map<string, EsportsMediaHandle & { frame: () => void }>();
+    handles = new Map<
+      string,
+      EsportsMediaHandle & { frame: () => void; drop: () => void }
+    >();
   const snapshot: EsportsSnapshot = {
     roomId: id(1),
     ownerUserId: id(2),
@@ -94,10 +97,16 @@ function harness(pauseCommit?: () => Promise<void>) {
         open: async (connection, kind) => {
           calls.push("open:" + connection.channel);
           let frame!: () => void;
+          let connected = true;
           const ready = new Promise<void>((r) => (frame = r));
           const h = {
             ready: () => ready,
+            connected: () => connected,
+            drop: () => {
+              connected = false;
+            },
             close: async () => {
+              connected = false;
               calls.push("close:" + connection.channel);
             },
             video: (v: boolean) => {
@@ -245,5 +254,32 @@ test("a selection queued during an already-started commit warms from the committ
   h.handles.get(id(4))!.frame();
   await next;
   expect(h.coordinator.state.watching).toBe(id(4));
+  await h.coordinator.stop();
+});
+
+test("unchanged snapshots recover disconnected voice muted and replace a dead video only after decoded frame", async () => {
+  const h = harness();
+  await h.coordinator.start(h.snapshot());
+  const first = h.coordinator.select(id(3));
+  await tick();
+  h.handles.get(id(3))!.frame();
+  await first;
+  const oldVoice = h.handles.get("audience")!,
+    oldVideo = h.handles.get(id(3))!;
+  oldVoice.drop();
+  oldVideo.drop();
+  h.handles.get("a")!.drop();
+  const at = h.calls.length;
+  const sync = h.coordinator.sync(h.snapshot());
+  await tick();
+  expect(h.handles.get("audience")).not.toBe(oldVoice);
+  expect(h.calls.slice(at)).toContain("mute");
+  expect(h.calls.slice(at)).not.toContain("close:" + id(3));
+  h.handles.get(id(3))!.frame();
+  await sync;
+  expect(h.calls.slice(at)).toContain("close:" + id(3));
+  expect(h.calls.slice(at)).toContain("open:a");
+  expect(h.calls.slice(at)).not.toContain("select");
+  expect(h.coordinator.state.watching).toBe(id(3));
   await h.coordinator.stop();
 });
