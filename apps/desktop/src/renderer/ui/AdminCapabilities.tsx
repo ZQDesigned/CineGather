@@ -118,7 +118,7 @@ export function AdminCapabilities({
       }
     >
       <p>
-        {target.displayName} · {target.username}
+        {target.displayName}（{target.username}）
       </p>
       <Form
         form={form}
@@ -171,7 +171,11 @@ export function AdminCapabilities({
         <Form.Item
           name="standardRoomMaxMembers"
           label="普通房创建人数上限"
-          extra="仅影响之后创建的房间，已有房间的授权上限保持不变。"
+          layout="horizontal"
+          labelAlign="left"
+          labelCol={{ flex: "auto" }}
+          wrapperCol={{ flex: "0 0 90px" }}
+          colon={false}
           rules={[
             {
               required: true,
@@ -184,6 +188,7 @@ export function AdminCapabilities({
         >
           <InputNumber
             aria-label="普通房创建人数上限"
+            style={{ width: "100%" }}
             min={10}
             max={25}
             precision={0}
