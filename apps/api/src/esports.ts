@@ -1,4 +1,10 @@
 import {
+  readEsportsConfiguration,
+  roomCoachVoiceAllowed,
+  expireTacticalPause,
+} from "./esports-configuration";
+import { supportsDynamicEsports } from "./session-context";
+import {
   requireShareQuality,
   validatePublicationQuality,
 } from "./capabilities";
@@ -20,6 +26,7 @@ import {
   type Transaction,
 } from "@cinegather/database";
 import {
+  isTeamSeat,
   memberIdentity,
   esportsSeatSchema,
   esportsSeatLimit,
@@ -63,7 +70,7 @@ const wherePub = (roomId: string, userId: string) =>
   );
 export const seatValue = (seat: Pick<SeatRow, "kind" | "team">): EsportsSeat =>
   esportsSeatSchema.parse(
-    seat.kind === "player"
+    seat.kind === "player" || seat.kind === "coach"
       ? { kind: seat.kind, team: seat.team }
       : { kind: seat.kind },
   );
@@ -125,6 +132,8 @@ export async function esportsActor(
     .select()
     .from(esportsSeats)
     .where(whereMember(roomId, userId));
+  if (room.esportsAdvanced && seat && seat.featureVersion < 2)
+    fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后使用此赛事房");
   if (!seat || seat.credentialId !== credentialId || seat.reservedUntil)
     fail(403, "ESPORTS_SEAT_EXPIRED", "席位已变更，请重新加入房间");
   const [policy] = await tx
@@ -159,9 +168,16 @@ export async function esportsCapacity(
     (s) =>
       s.userId !== userId &&
       s.kind === seat.kind &&
-      (seat.kind !== "player" || s.team === seat.team),
+      (!isTeamSeat(seat) || s.team === seat.team),
   );
-  if (used.length >= esportsSeatLimit(seat))
+  const [parent] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
+  if (
+    !parent ||
+    (isTeamSeat(seat) &&
+      !readEsportsConfiguration(parent).groups.some((g) => g.id === seat.team))
+  )
+    fail(404, "ESPORTS_GROUP_MISSING", "该分组已调整，请重新选择");
+  if (used.length >= esportsSeatLimit(seat, readEsportsConfiguration(parent)))
     fail(409, "ESPORTS_SEAT_FULL", "该席位已满，请选择其他席位");
 }
 export async function admitEsports(
@@ -193,7 +209,8 @@ export async function admitEsports(
       userId: user.id,
       credentialId,
       kind: seat.kind,
-      team: seat.kind === "player" ? seat.team : null,
+      team: isTeamSeat(seat) ? seat.team : null,
+      featureVersion: supportsDynamicEsports(user) ? 2 : 1,
       revision,
     })
     .onConflictDoUpdate({
@@ -201,7 +218,8 @@ export async function admitEsports(
       set: {
         credentialId,
         kind: seat.kind,
-        team: seat.kind === "player" ? seat.team : null,
+        team: isTeamSeat(seat) ? seat.team : null,
+        featureVersion: supportsDynamicEsports(user) ? 2 : 1,
         revision,
         reservedUntil: null,
       },
@@ -247,7 +265,10 @@ export async function esportsControlToken(
 }
 export async function snapshot(user: User, roomId: string) {
   return db.transaction(async (tx) => {
-    const { room } = await esportsActor(tx, roomId, user.id, credential(user));
+    let { room } = await esportsActor(tx, roomId, user.id, credential(user));
+    if (room.esportsAdvanced && !supportsDynamicEsports(user))
+      fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后使用此赛事房");
+    room = await expireTacticalPause(tx, room);
     await sweepEsports(tx, roomId);
     const seats = await tx
       .select({
@@ -279,7 +300,9 @@ export async function snapshot(user: User, roomId: string) {
         online:
           !seat.reservedUntil && !!admitted && admitted.getTime() > Date.now(),
         reservedUntil: seat.reservedUntil?.toISOString() ?? null,
-        microphoneAllowed: p?.microphoneAllowed ?? true,
+        microphoneAllowed:
+          (p?.microphoneAllowed ?? true) &&
+          (seat.kind !== "coach" || roomCoachVoiceAllowed(room)),
         sharingAllowed: p?.sharingAllowed ?? true,
       };
     });
@@ -289,6 +312,11 @@ export async function snapshot(user: User, roomId: string) {
       .where(eq(esportsPublications.roomId, roomId));
     return {
       roomId,
+      configuration: readEsportsConfiguration(room),
+      configurationRevision: room.esportsRevision,
+      coachVoiceMode: room.coachVoiceMode as "auto" | "open" | "closed",
+      tacticalPauseUntil: room.tacticalPauseUntil?.toISOString() ?? null,
+      serverTime: new Date().toISOString(),
       ownerUserId: room.ownerUserId,
       members: roster,
       self: roster.find((s) => s.userId === user.id)!,
@@ -327,7 +355,8 @@ export async function assignSeat(
       .update(esportsSeats)
       .set({
         kind: seat.kind,
-        team: seat.kind === "player" ? seat.team : null,
+        team: isTeamSeat(seat) ? seat.team : null,
+
         revision: target.revision + 1,
       })
       .where(whereMember(roomId, userId));
@@ -351,7 +380,7 @@ const publicWatch = (w: WatchRow) => ({
   current: w.current,
   warming: w.warming,
   warmDeadline: w.warmDeadline?.toISOString() ?? null,
-  monitorTeam: w.monitorTeam as "a" | "b" | null,
+  monitorTeam: w.monitorTeam,
   autoMonitor: w.autoMonitor,
 });
 async function publication(tx: Transaction, roomId: string, id: string) {
@@ -388,7 +417,7 @@ async function setMonitor(tx: Transaction, w: WatchRow, team: string | null) {
   if (w.monitorTeam)
     await removeEsportsChannel(
       w.roomId,
-      { kind: "team", team: w.monitorTeam as "a" | "b" },
+      { kind: "team", team: w.monitorTeam },
       w.userId,
     );
   await tx
@@ -419,7 +448,9 @@ export async function changeWatch(
       fail(409, "ESPORTS_WATCH_STALE", "观看选择已变更，请刷新后重试");
     if (input.action === "select") {
       const id = uuid(input.publicationId!);
-      await publication(tx, roomId, id);
+      const selected = await publication(tx, roomId, id);
+      if (seat.kind === "coach" && selected.team !== seat.team)
+        fail(403, "ESPORTS_COACH_TEAM_ONLY", "教练只能观看本组选手的画面");
       if (w.current === id || w.warming === id) return;
       await closeVideo(roomId, user.id, w.warming);
       await tx
@@ -440,11 +471,19 @@ export async function changeWatch(
       )
         fail(409, "ESPORTS_WARM_EXPIRED", "画面预热已失效，请重新选择");
       const p = await publication(tx, roomId, w.warming);
+      if (seat.kind === "coach" && p.team !== seat.team)
+        fail(403, "ESPORTS_COACH_TEAM_ONLY", "教练只能观看本组选手的画面");
       await closeVideo(roomId, user.id, w.current);
       await setMonitor(
         tx,
         w,
-        w.autoMonitor ? p.team : w.monitorTeam === p.team ? p.team : null,
+        seat.kind === "coach"
+          ? null
+          : w.autoMonitor
+            ? p.team
+            : w.monitorTeam === p.team
+              ? p.team
+              : null,
       );
       await tx
         .update(esportsWatches)
@@ -490,7 +529,8 @@ export async function changeMonitor(
 ) {
   await db.transaction(async (tx) => {
     const { seat } = await esportsActor(tx, roomId, user.id, credential(user));
-    if (seat.kind === "player") fail(403, "FORBIDDEN", "选手只能收听本组语音");
+    if (seat.kind === "player" || seat.kind === "coach")
+      fail(403, "FORBIDDEN", "只能收听本组语音");
     const w = await watchRow(tx, roomId, user.id),
       auto = input.autoMonitor ?? w.autoMonitor;
     const enabled =
@@ -508,7 +548,7 @@ export async function scopeRights(
   tx: Transaction,
   scope: EsportsScope,
 ): Promise<EsportsRights> {
-  const { seat, policy } = await esportsActor(
+  const { room, seat, policy } = await esportsActor(
     tx,
     scope.roomId,
     scope.userId,
@@ -539,7 +579,31 @@ export async function scopeRights(
     pub.userId === scope.userId &&
     pub.credentialId === scope.credentialId &&
     pub.seatRevision === seat.revision;
-  const rights = esportsMediaRights(seatValue(seat), channel, own);
+  const [publisherSeat] = pub
+    ? await tx
+        .select()
+        .from(esportsSeats)
+        .where(whereMember(scope.roomId, pub.userId))
+    : [];
+  if (
+    seat.kind === "coach" &&
+    channel.kind === "video" &&
+    publisherSeat?.team !== seat.team
+  )
+    fail(403, "ESPORTS_COACH_TEAM_ONLY", "教练只能观看本组选手的画面");
+  if (
+    seat.kind === "coach" &&
+    channel.kind === "team" &&
+    scope.coachVoiceRevision !== room.coachVoiceRevision
+  )
+    fail(403, "ESPORTS_COACH_VOICE_STALE", "教练发言权限已变化，请重新连接");
+  const rights = esportsMediaRights(
+    seatValue(seat),
+    channel,
+    own,
+    publisherSeat?.team ?? undefined,
+    roomCoachVoiceAllowed(room),
+  );
   if (channel.kind === "video") {
     if (!pub) fail(403, "ESPORTS_STREAM_ENDED", "共享已结束");
     if (own) {
@@ -566,7 +630,7 @@ export async function scopeRights(
       )
         fail(403, "ESPORTS_WATCH_DENIED", "该观看授权已失效");
     }
-  } else if (channel.kind === "team" && seat.kind !== "player") {
+  } else if (channel.kind === "team" && !isTeamSeat(seatValue(seat))) {
     const w = await watchRow(tx, scope.roomId, scope.userId);
     if (
       !w.current ||
@@ -614,7 +678,7 @@ export async function connection(
           : w.warming === c.publicationId
             ? w.warmGrantId
             : null
-        : c.kind === "team" && seat.kind !== "player"
+        : c.kind === "team" && !isTeamSeat(seatValue(seat))
           ? w.monitorGrantId
           : null;
     const scope: EsportsScope = {
@@ -624,6 +688,13 @@ export async function connection(
       credentialId: credential(user),
       seatRevision: seat.revision,
       channel: c,
+      ...(seat.kind === "coach"
+        ? {
+            coachVoiceRevision: (
+              await tx.select().from(rooms).where(eq(rooms.id, roomId))
+            )[0]!.coachVoiceRevision,
+          }
+        : {}),
       ...(grantId ? { grantId } : {}),
     };
     const rights = await scopeRights(tx, scope),
@@ -1071,6 +1142,11 @@ export async function applyEsportsPolicy(
       .from(esportsPublications)
       .where(wherePub(roomId, userId));
     if (p) await stopEsportsPublication(tx, p);
+  }
+  if (s.kind === "coach") {
+    const [parent] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
+    microphoneAllowed =
+      microphoneAllowed && !!parent && roomCoachVoiceAllowed(parent);
   }
   // Update the own voice connection without touching receive-only monitoring.
   const channel = esportsChannelName(roomId, esportsOwnVoice(seatValue(s)));

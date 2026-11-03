@@ -1,5 +1,6 @@
 import {
   esportsOwnVoice,
+  isTeamSeat,
   ESPORTS_PREWARM_MS,
   type EsportsSnapshot,
   type EsportsChannel,
@@ -102,6 +103,9 @@ export class EsportsCoordinator {
       seat: this.snapshot?.self.seat,
       seatRevision: this.snapshot?.self.revision,
       watchRevision: this.snapshot?.watch.revision,
+      configuration: this.snapshot?.configuration,
+      coachVoiceMode: this.snapshot?.coachVoiceMode,
+      tacticalPauseUntil: this.snapshot?.tacticalPauseUntil,
       current: this.current?.id,
       warming: this.warming?.id,
       monitorTeam: this.monitorSlot?.id,
@@ -181,10 +185,20 @@ export class EsportsCoordinator {
         !previous ||
         next.roomId !== previous.roomId ||
         next.self.revision < previous.self.revision ||
+        (next.configurationRevision ?? 1) <
+          (previous.configurationRevision ?? 1) ||
+        (next.serverTime &&
+          previous.serverTime &&
+          next.serverTime < previous.serverTime) ||
         (next.self.revision === previous.self.revision &&
           next.watch.revision < previous.watch.revision)
       )
         return;
+      if (
+        next.self.microphoneAllowed === false &&
+        previous.self.microphoneAllowed !== false
+      )
+        await this.deps.media.muteMicrophone();
       this.snapshot = next;
       if (next.self.revision !== previous.self.revision) {
         await this.deps.media.muteMicrophone();
@@ -416,7 +430,10 @@ export class EsportsCoordinator {
   }
   private async syncMonitor() {
     const s = this.snapshot,
-      team = this.current ? s?.watch.monitorTeam : null;
+      team =
+        this.current && s && !isTeamSeat(s.self.seat)
+          ? s.watch.monitorTeam
+          : null;
     if (
       team === this.monitorSlot?.id &&
       this.monitorSlot?.handle.connected?.() !== false

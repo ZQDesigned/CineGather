@@ -37,7 +37,14 @@ import {
   Volume2,
 } from "lucide-react";
 import type { ParticipantSummary } from "@cinegather/media-core";
-import type { EsportsSeat, RoomInfo } from "@cinegather/contracts";
+import {
+  esportsSeatChoices,
+  esportsSeatLimit,
+  defaultEsportsConfiguration,
+  isTeamSeat,
+  type EsportsSeat,
+  type RoomInfo,
+} from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import {
   memberManagementActions,
@@ -149,7 +156,7 @@ export function Member({
       ? esports.members.find((m) => m.userId === p.id)
       : undefined;
   const permission =
-    esportsMember ?? room.memberPermissions?.find((m) => m.userId === p.id);
+    room.memberPermissions?.find((m) => m.userId === p.id) ?? esportsMember;
   const microphoneAllowed = permission?.microphoneAllowed !== false;
   const sharingAllowed = permission?.sharingAllowed !== false;
   const management = memberManagementActions({
@@ -159,23 +166,14 @@ export function Member({
     seat: esportsMember?.seat,
     sharing: sharerId === p.id,
   });
-  const seatChoices: { key: string; label: string; seat: EsportsSeat }[] = [
-    {
-      key: "seat-player-a",
-      label: "A 组选手",
-      seat: { kind: "player", team: "a" },
-    },
-    {
-      key: "seat-player-b",
-      label: "B 组选手",
-      seat: { kind: "player", team: "b" },
-    },
-    { key: "seat-director", label: "导播席", seat: { kind: "director" } },
-    { key: "seat-audience", label: "观众席", seat: { kind: "audience" } },
-  ];
+  const configuration = esports?.configuration ?? defaultEsportsConfiguration;
+  const seatChoices = esportsSeatChoices(configuration).map((c) => ({
+    ...c,
+    key: `seat-${c.key}`,
+  }));
   const sameSeat = (a: EsportsSeat, b: EsportsSeat) =>
     a.kind === b.kind &&
-    (a.kind !== "player" || (b.kind === "player" && a.team === b.team));
+    (!isTeamSeat(a) || (isTeamSeat(b) && a.team === b.team));
   const [open, setOpen] = useState(false);
   const [focusVolume, setFocusVolume] = useState(false);
   const menuButton = useRef<HTMLButtonElement>(null);
@@ -219,7 +217,7 @@ export function Member({
                 !!esportsMember && sameSeat(esportsMember.seat, choice.seat);
               const full =
                 (esports?.members.filter((m) => sameSeat(m.seat, choice.seat))
-                  .length ?? 0) >= 5;
+                  .length ?? 0) >= esportsSeatLimit(choice.seat, configuration);
               return {
                 key: choice.key,
                 label: `${choice.label}${current ? "（当前）" : full ? "（已满）" : ""}`,

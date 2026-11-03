@@ -101,6 +101,17 @@ export const rooms = pgTable(
     mode: text("mode").notNull().default("standard"),
     maxMembers: integer("max_members").notNull(),
     capacityLimit: integer("capacity_limit").notNull().default(10),
+    esportsConfiguration: jsonb("esports_configuration")
+      .$type<import("@cinegather/contracts").EsportsConfiguration>()
+      .notNull()
+      .default(
+        sql`'{"groups":[{"id":"a","name":"A 组","playerSeats":5,"coachSeats":0},{"id":"b","name":"B 组","playerSeats":5,"coachSeats":0}],"tacticalPauseSeconds":60}'::jsonb`,
+      ),
+    esportsRevision: integer("esports_revision").notNull().default(1),
+    esportsAdvanced: boolean("esports_advanced").notNull().default(false),
+    tacticalPauseUntil: time("tactical_pause_until"),
+    coachVoiceMode: text("coach_voice_mode").notNull().default("auto"),
+    coachVoiceRevision: integer("coach_voice_revision").notNull().default(1),
     status: text("status").notNull().default("active"),
     createdAt: time("created_at").notNull().defaultNow(),
   },
@@ -108,7 +119,7 @@ export const rooms = pgTable(
     check("rooms_code_check", sql`${t.code} ~ '^[A-F0-9]{8}$'`),
     check(
       "rooms_capacity_check",
-      sql`(${t.mode} = 'standard' AND ${t.maxMembers} BETWEEN 2 AND ${t.capacityLimit} AND ${t.capacityLimit} BETWEEN 10 AND 25) OR (${t.mode} = 'esports' AND ${t.maxMembers} = 20)`,
+      sql`(${t.mode} = 'standard' AND ${t.maxMembers} BETWEEN 2 AND ${t.capacityLimit} AND ${t.capacityLimit} BETWEEN 10 AND 25) OR (${t.mode} = 'esports' AND ${t.maxMembers} BETWEEN 11 AND 52)`,
     ),
     check("rooms_mode_check", sql`${t.mode} IN ('standard', 'esports')`),
     check("rooms_status_check", sql`${t.status} IN ('active', 'closed')`),
@@ -180,7 +191,7 @@ export const invites = pgTable(
     ),
     check(
       "invites_esports_seat_check",
-      sql`CASE WHEN ${t.esportsSeat} IS NULL THEN ${t.esportsTeam} IS NULL ELSE ${t.recipientId} IS NOT NULL AND ((${t.esportsSeat}='player' AND ${t.esportsTeam} IS NOT NULL AND ${t.esportsTeam} IN ('a','b')) OR (${t.esportsSeat} IN ('director','audience') AND ${t.esportsTeam} IS NULL)) END`,
+      sql`CASE WHEN ${t.esportsSeat} IS NULL THEN ${t.esportsTeam} IS NULL ELSE ${t.recipientId} IS NOT NULL AND ((${t.esportsSeat} IN ('player','coach') AND ${t.esportsTeam} IS NOT NULL AND ${t.esportsTeam} ~ '^[a-z0-9][a-z0-9-]{0,35}$') OR (${t.esportsSeat} IN ('director','audience') AND ${t.esportsTeam} IS NULL)) END`,
     ),
   ],
 );
@@ -390,6 +401,7 @@ export const esportsSeats = pgTable(
       .notNull()
       .references(() => credentials.id, { onDelete: "cascade" }),
     kind: text("kind").notNull().default("audience"),
+    featureVersion: integer("feature_version").notNull().default(1),
     team: text("team"),
     revision: integer("revision").notNull().default(1),
     reservedUntil: time("reserved_until"),
@@ -399,7 +411,7 @@ export const esportsSeats = pgTable(
     index("esports_seat_capacity_idx").on(t.roomId, t.kind, t.team),
     check(
       "esports_seat_kind_check",
-      sql`(${t.kind}='player' AND ${t.team} IS NOT NULL AND ${t.team} IN ('a','b')) OR (${t.kind} IN ('director','audience') AND ${t.team} IS NULL)`,
+      sql`(${t.kind} IN ('player','coach') AND ${t.team} IS NOT NULL AND ${t.team} ~ '^[a-z0-9][a-z0-9-]{0,35}$') OR (${t.kind} IN ('director','audience') AND ${t.team} IS NULL)`,
     ),
   ],
 );

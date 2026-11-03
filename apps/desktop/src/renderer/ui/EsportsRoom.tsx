@@ -17,7 +17,17 @@ import {
   Volume2,
   Search,
 } from "lucide-react";
-import { type EsportsSeat, qualityLabel } from "@cinegather/contracts";
+import {
+  type EsportsSeat,
+  type EsportsConfiguration,
+  type CoachVoiceMode,
+  defaultEsportsConfiguration,
+  esportsCapacityTotal,
+  esportsTeamName,
+  esportsSeatChoices,
+  isTeamSeat,
+  qualityLabel,
+} from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -159,7 +169,10 @@ const Surface = styled.div`
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 12px;
-    flex-shrink: 0;
+    flex-shrink: 1;
+    max-height: 38%;
+    overflow-y: auto;
+    min-height: 90px;
   }
   .esports-team {
     border: 1px solid var(--line);
@@ -415,12 +428,100 @@ const Surface = styled.div`
     }
   }
 `;
-export const esportsSeatLabel = (seat: EsportsSeat) =>
-  seat.kind === "player"
-    ? `${seat.team.toUpperCase()} 组选手`
+export const esportsSeatLabel = (
+  seat: EsportsSeat,
+  config: EsportsConfiguration = defaultEsportsConfiguration,
+) =>
+  isTeamSeat(seat)
+    ? `${esportsTeamName(config, seat.team)}${seat.kind === "coach" ? "教练" : "选手"}`
     : seat.kind === "director"
       ? "导播"
       : "观众";
+function TacticalControl() {
+  const snapshot = useApp((s) => s.esports?.snapshot),
+    owner = useApp((s) => s.room?.role === "owner");
+  const [now, setNow] = useState(Date.now()),
+    [busy, setBusy] = useState(false);
+  const received = useRef<{ server?: string; offset: number }>({ offset: 0 });
+  if (received.current.server !== snapshot?.serverTime)
+    received.current = {
+      server: snapshot?.serverTime,
+      offset: snapshot?.serverTime
+        ? new Date(snapshot.serverTime).getTime() - Date.now()
+        : 0,
+    };
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+  if (!snapshot) return null;
+  const remaining = Math.max(
+    0,
+    Math.ceil(
+      ((snapshot.tacticalPauseUntil
+        ? new Date(snapshot.tacticalPauseUntil).getTime()
+        : 0) -
+        now -
+        received.current.offset) /
+        1000,
+    ),
+  );
+  const run = (task: () => Promise<void>) => {
+    setBusy(true);
+    void actions.run(task).finally(() => setBusy(false));
+  };
+  return (
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 10,
+        flexWrap: "wrap",
+      }}
+    >
+      {remaining > 0 && (
+        <Tag color="gold">
+          战术暂停 {Math.floor(remaining / 60)}:
+          {String(remaining % 60).padStart(2, "0")}
+        </Tag>
+      )}
+      {owner && (
+        <>
+          <Button
+            size="small"
+            disabled={busy}
+            onClick={() => run(() => actions.esports.tacticalPause(!remaining))}
+          >
+            {remaining ? "结束暂停" : "战术暂停"}
+          </Button>
+          <span style={{ fontSize: 12, color: "var(--muted)" }}>教练发言</span>
+          <Select
+            size="small"
+            aria-label="教练发言权限"
+            style={{ width: 130 }}
+            disabled={busy}
+            value={snapshot.coachVoiceMode ?? "auto"}
+            onChange={(mode: CoachVoiceMode) =>
+              run(() => actions.esports.coachVoice(mode))
+            }
+            options={[
+              { value: "auto", label: "跟随战术暂停" },
+              { value: "open", label: "始终允许" },
+              { value: "closed", label: "始终禁止" },
+            ]}
+          />
+        </>
+      )}
+      {!owner && snapshot.self.seat.kind === "coach" && (
+        <span style={{ fontSize: 12, color: "var(--muted)" }}>
+          {snapshot.self.microphoneAllowed
+            ? "当前可向队伍发言"
+            : "当前仅收听队伍"}
+        </span>
+      )}
+    </div>
+  );
+}
 export function EsportsRoom({ visible = true }: { visible?: boolean }) {
   const app = useApp(),
     snapshot = app.esports?.snapshot;
@@ -456,6 +557,7 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
         <Spin style={{ margin: "auto" }} description="正在连接赛事房" />
       </Surface>
     );
+  const configuration = snapshot.configuration ?? defaultEsportsConfiguration;
   const seat = snapshot.self.seat,
     watch = snapshot.watch,
     watching = app.esports?.watching;
@@ -479,16 +581,19 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
         statusText={
           !m.online
             ? "离线"
-            : !(
-                  (m.seat.kind === seat.kind &&
-                    (seat.kind !== "player" ||
-                      (m.seat.kind === "player" &&
-                        m.seat.team === seat.team))) ||
-                  (m.seat.kind === "player" &&
-                    m.seat.team === watch.monitorTeam)
-                )
-              ? "已入席"
-              : undefined
+            : m.seat.kind === "coach" &&
+                !m.microphoneAllowed &&
+                app.room?.memberPermissions?.find((p) => p.userId === m.userId)
+                  ?.microphoneAllowed !== false
+              ? "仅收听队伍"
+              : !(
+                    (isTeamSeat(seat)
+                      ? isTeamSeat(m.seat) && m.seat.team === seat.team
+                      : m.seat.kind === seat.kind) ||
+                    (isTeamSeat(m.seat) && m.seat.team === watch.monitorTeam)
+                  )
+                ? "已入席"
+                : undefined
         }
         room={app.room!}
         children={children}
@@ -545,12 +650,15 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
           </Button>
         </div>
       </header>
+      <TacticalControl />
       <div className="esports-workspace">
         <section className="esports-view">
           <div className="esports-stage" ref={stage}>
             <div className="esports-stage-note">
               <Trophy size={13} />
-              <span data-testid="esports-seat">{esportsSeatLabel(seat)}</span>
+              <span data-testid="esports-seat">
+                {esportsSeatLabel(seat, configuration)}
+              </span>
               {player && sharing && <Tag color="purple">你正在共享</Tag>}
               {!player && watching && <span>{watchedPlayer?.displayName}</span>}
             </div>
@@ -578,7 +686,13 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                 <MonitorUp size={38} />
                 <h2>准备你的比赛画面</h2>
                 <span>
-                  你的画面对导播席和观众席可见，请注意不要展示隐私信息。
+                  {configuration.groups.some(
+                    (g) =>
+                      g.id === (seat.kind === "player" ? seat.team : "") &&
+                      g.coachSeats > 0,
+                  )
+                    ? "你的画面对本组教练、导播席和观众席可见，请注意不要展示隐私信息。"
+                    : "你的画面对导播席和观众席可见，请注意不要展示隐私信息。"}
                 </span>
                 <Button
                   type="primary"
@@ -640,11 +754,11 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
             {!player && <WatchProfileControl />}
           </div>
           <div className="esports-listening">
-            {!player && (
+            {!isTeamSeat(seat) && (
               <>
                 <span>
                   {watchedTeam
-                    ? `${watchedTeam.toUpperCase()} 组语音`
+                    ? `${esportsTeamName(configuration, watchedTeam)}语音`
                     : "选手组语音"}
                 </span>
                 <Button
@@ -707,18 +821,26 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
             )}
           </div>
           <div className="esports-teams">
-            {(["a", "b"] as const).map((team) => {
+            {configuration.groups.map((group) => {
+              const team = group.id;
               const players = snapshot.members.filter(
                 (m) => m.seat.kind === "player" && m.seat.team === team,
               );
               return (
                 <div className="esports-team" key={team}>
                   <div className="esports-team-title">
-                    <strong>{team.toUpperCase()} 组选手</strong>
-                    <span>{players.length} / 5</span>
+                    <strong>{group.name}选手</strong>
+                    <span>
+                      {players.length} / {group.playerSeats}
+                    </span>
                   </div>
-                  <div className="esports-players">
-                    {Array.from({ length: 5 }, (_, i) => {
+                  <div
+                    className="esports-players"
+                    style={{
+                      gridTemplateColumns: `repeat(${group.playerSeats}, minmax(0, 1fr))`,
+                    }}
+                  >
+                    {Array.from({ length: group.playerSeats }, (_, i) => {
                       const m = players[i];
                       if (!m)
                         return (
@@ -731,7 +853,8 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                       );
                       return member(
                         m,
-                        player ? (
+                        player ||
+                          (seat.kind === "coach" && seat.team !== team) ? (
                           <div
                             className="esports-player"
                             key={m.userId}
@@ -748,7 +871,7 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                           <button
                             key={m.userId}
                             data-testid="esports-watch-choice"
-                            className={`esports-player ${watching === p?.id ? "selected" : ""} ${app.esports?.warming === p?.id ? "warming" : ""}`}
+                            className={`esports-player ${!!p && watching === p.id ? "selected" : ""} ${!!p && app.esports?.warming === p.id ? "warming" : ""}`}
                             aria-disabled={!p || !m.online}
                             aria-label={`观看 ${m.displayName}`}
                             onClick={() => {
@@ -763,7 +886,7 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                             <small>
                               {!m.online
                                 ? "离线"
-                                : watching === p?.id
+                                : !!p && watching === p.id
                                   ? "正在观看"
                                   : p
                                     ? "共享中"
@@ -774,6 +897,35 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                       );
                     })}
                   </div>
+                  {group.coachSeats > 0 && (
+                    <>
+                      <div
+                        className="esports-team-title"
+                        style={{ marginTop: 12 }}
+                      >
+                        <strong>教练席</strong>
+                        <span>
+                          {
+                            snapshot.members.filter(
+                              (m) =>
+                                m.seat.kind === "coach" && m.seat.team === team,
+                            ).length
+                          }{" "}
+                          / {group.coachSeats}
+                        </span>
+                      </div>
+                      <div
+                        style={{ display: "flex", gap: 8, flexWrap: "wrap" }}
+                      >
+                        {snapshot.members
+                          .filter(
+                            (m) =>
+                              m.seat.kind === "coach" && m.seat.team === team,
+                          )
+                          .map((m) => member(m))}
+                      </div>
+                    </>
+                  )}
                 </div>
               );
             })}
@@ -805,8 +957,8 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
             <MicrophoneEffectControl disabled={app.roomState !== "connected"} />
             <div className="esports-channel">
               <strong>
-                {player
-                  ? `${seat.kind === "player" ? seat.team.toUpperCase() : ""} 组语音`
+                {isTeamSeat(seat)
+                  ? `${esportsTeamName(configuration, seat.team)}语音`
                   : seat.kind === "director"
                     ? "导播席语音"
                     : "观众席语音"}
@@ -890,26 +1042,21 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
               }
               /5
             </span>
-            <span>{snapshot.members.length}/20</span>
+            <span>
+              {snapshot.members.length}/{esportsCapacityTotal(configuration)}
+            </span>
           </div>
         </aside>
       </div>
     </Surface>
   );
 }
-const seatOptions = [
-  { value: "audience", label: "观众席" },
-  { value: "director", label: "导播席" },
-  { value: "player-a", label: "A 组选手" },
-  { value: "player-b", label: "B 组选手" },
-];
-const parseSeat = (value: string): EsportsSeat =>
-  value.startsWith("player-")
-    ? { kind: "player", team: value.endsWith("a") ? "a" : "b" }
-    : value === "director"
-      ? { kind: "director" }
-      : { kind: "audience" };
 export function EsportsSeatInvite() {
+  const configuration =
+    useApp((s) => s.esports?.snapshot?.configuration) ??
+    defaultEsportsConfiguration;
+  const choices = esportsSeatChoices(configuration);
+  const seatOptions = choices.map((c) => ({ value: c.key, label: c.label }));
   const [username, setUsername] = useState(""),
     [target, setTarget] = useState<{
       userId: string;
@@ -936,7 +1083,10 @@ export function EsportsSeatInvite() {
                       "/api/v1/rooms/{roomId}/friend-invitations",
                       {
                         params: { path: { roomId: actions.esports.roomId! } },
-                        body: { userId: target!.userId, seat: parseSeat(seat) },
+                        body: {
+                          userId: target!.userId,
+                          seat: choices.find((c) => c.key === seat)!.seat,
+                        },
                       },
                     ),
                   );

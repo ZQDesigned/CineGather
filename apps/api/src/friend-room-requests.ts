@@ -1,5 +1,5 @@
+import { esportsVisibility } from "./session-context";
 import { esportsCapacity } from "./esports";
-import { supportsEsports } from "./session-context";
 import { randomUUID } from "node:crypto";
 import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import {
@@ -74,7 +74,7 @@ export async function requestFriendRoom(user: User, targetId: string) {
           eq(members.userId, targetId),
           gt(members.admittedUntil, new Date()),
           eq(rooms.status, "active"),
-          supportsEsports(user) ? undefined : eq(rooms.mode, "standard"),
+          esportsVisibility(user),
         ),
       )
       .orderBy(desc(members.joinedAt), rooms.id)
@@ -203,7 +203,7 @@ export async function listRoomJoinRequests(user: User) {
         ),
         gt(r.expiresAt, new Date()),
         eq(rooms.status, "active"),
-        supportsEsports(user) ? undefined : eq(rooms.mode, "standard"),
+        esportsVisibility(user),
         isNull(users.disabledAt),
         sql`EXISTS (SELECT 1 FROM room_members AS recipient WHERE recipient.room_id = ${r.roomId} AND recipient.user_id = ${r.recipientId} AND recipient.admitted_until > NOW())`,
         sql`NOT EXISTS (SELECT 1 FROM room_members AS applicant WHERE applicant.room_id = ${r.roomId} AND applicant.user_id = ${r.requesterId} AND applicant.admitted_until > NOW())`,

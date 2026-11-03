@@ -10,6 +10,9 @@ import {
 } from "@cinegather/media-core";
 import {
   esportsChannelName,
+  esportsOwnVoice,
+  type EsportsConfiguration,
+  type CoachVoiceMode,
   esportsDiagnosticSchema,
   type EsportsSeat,
   type EsportsSnapshot,
@@ -104,12 +107,7 @@ export class EsportsRuntime {
       if (this.control) update({ media: this.control });
       return;
     }
-    const own = esportsChannelName(
-      s.roomId,
-      s.self.seat.kind === "player"
-        ? { kind: "team", team: s.self.seat.team }
-        : { kind: s.self.seat.kind },
-    );
+    const own = esportsChannelName(s.roomId, esportsOwnVoice(s.self.seat));
     const voice = this.summaries.get(own);
     const monitor = s.watch.monitorTeam
       ? this.summaries.get(
@@ -225,7 +223,42 @@ export class EsportsRuntime {
     );
     await this.apply(next);
   }
+  async settings(
+    name: string,
+    configuration: EsportsConfiguration,
+    revision: number,
+  ) {
+    await this.apply(
+      unwrap(
+        await this.api.PATCH("/api/v1/rooms/{roomId}/esports/settings", {
+          params: { path: { roomId: this.roomId! } },
+          body: { name, configuration, revision },
+        }),
+      ),
+    );
+  }
+  async tacticalPause(active: boolean) {
+    await this.apply(
+      unwrap(
+        await this.api.POST("/api/v1/rooms/{roomId}/esports/tactical-pause", {
+          params: { path: { roomId: this.roomId! } },
+          body: { active },
+        }),
+      ),
+    );
+  }
+  async coachVoice(mode: CoachVoiceMode) {
+    await this.apply(
+      unwrap(
+        await this.api.POST("/api/v1/rooms/{roomId}/esports/coach-voice", {
+          params: { path: { roomId: this.roomId! } },
+          body: { mode },
+        }),
+      ),
+    );
+  }
   private async apply(next: EsportsSnapshot) {
+    if (next.roomId !== this.roomId) return;
     const changed =
       next.self.revision !== this.coordinator.state.snapshot?.self.revision;
     if (changed) {

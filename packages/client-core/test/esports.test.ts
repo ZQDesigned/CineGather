@@ -3,7 +3,10 @@ import type { EsportsSnapshot, EsportsChannel } from "@cinegather/contracts";
 import { EsportsCoordinator, type EsportsMediaHandle } from "../src/esports";
 const id = (n: number) =>
   `00000000-0000-4000-8000-${String(n).padStart(12, "0")}`;
-function harness(pauseCommit?: () => Promise<void>) {
+function harness(
+  pauseCommit?: () => Promise<void>,
+  seat?: EsportsSnapshot["self"]["seat"],
+) {
   const calls: string[] = [],
     handles = new Map<
       string,
@@ -22,7 +25,7 @@ function harness(pauseCommit?: () => Promise<void>) {
     self: {
       userId: id(9),
       displayName: "观众",
-      seat: { kind: "audience" },
+      seat: seat ?? { kind: "audience" },
       revision: 1,
       online: true,
       reservedUntil: null,
@@ -304,5 +307,40 @@ test("a committed selection recovers when its response is lost, without selectin
   expect(h.calls.filter((c) => c === "select")).toHaveLength(1);
   expect(h.calls.filter((c) => c === "commit")).toHaveLength(1);
   expect(h.calls).toContain("open:a");
+  await h.coordinator.stop();
+});
+
+test("coach viewing retains own-team voice and revocation leaves video intact", async () => {
+  const h = harness(undefined, { kind: "coach", team: "a" });
+  await h.coordinator.start(h.snapshot());
+  const selected = h.coordinator.select(id(3));
+  await tick();
+  h.handles.get(id(3))!.frame();
+  await selected;
+  expect(h.calls.filter((c) => c === "open:a")).toHaveLength(1);
+  const before = h.calls.filter((c) => c === "mute").length;
+  const next = h.snapshot();
+  next.self.microphoneAllowed = false;
+  await h.coordinator.sync(next);
+  expect(h.coordinator.state.watching).toBe(id(3));
+  expect(h.calls.filter((c) => c === "mute").length).toBe(before + 1);
+  await h.coordinator.stop();
+});
+
+test("a delayed snapshot cannot revert configuration or coach speech permission", async () => {
+  const h = harness(undefined, { kind: "coach", team: "a" });
+  const old = h.snapshot();
+  old.configurationRevision = 1;
+  old.serverTime = "2026-11-04T00:00:00.000Z";
+  await h.coordinator.start(old);
+  const next = h.snapshot();
+  next.configurationRevision = 2;
+  next.serverTime = "2026-11-04T00:00:01.000Z";
+  next.coachVoiceMode = "closed";
+  next.self.microphoneAllowed = false;
+  await h.coordinator.sync(next);
+  await h.coordinator.sync(old);
+  expect(h.coordinator.state.snapshot?.configurationRevision).toBe(2);
+  expect(h.coordinator.state.snapshot?.self.microphoneAllowed).toBe(false);
   await h.coordinator.stop();
 });

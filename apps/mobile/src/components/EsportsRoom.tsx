@@ -1,4 +1,12 @@
-import { useCallback, useState } from "react";
+import {
+  defaultEsportsConfiguration,
+  esportsConfigurationSchema,
+  esportsTeamName,
+  isTeamSeat,
+  type EsportsConfiguration,
+  type CoachVoiceMode,
+} from "@cinegather/contracts";
+import { useCallback, useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -47,6 +55,22 @@ export function EsportsRoom() {
   const [fullscreen, setFullscreen] = useState(false),
     [editing, setEditing] = useState(false),
     [name, setName] = useState("");
+  const [draft, setDraft] = useState<EsportsConfiguration>(
+      defaultEsportsConfiguration,
+    ),
+    [revision, setRevision] = useState(1);
+  const [now, setNow] = useState(Date.now());
+  const clock = useRef({ server: "", offset: 0 });
+  const serverTime = state.esports?.snapshot?.serverTime;
+  if (serverTime && clock.current.server !== serverTime)
+    clock.current = {
+      server: serverTime,
+      offset: new Date(serverTime).getTime() - Date.now(),
+    };
+  useEffect(() => {
+    const timer = setInterval(() => setNow(Date.now()), 1000);
+    return () => clearInterval(timer);
+  }, []);
   const { width, height } = useWindowDimensions();
   useFocusEffect(
     useCallback(() => {
@@ -59,6 +83,36 @@ export function EsportsRoom() {
     snapshot = arena?.snapshot;
   if (!room) return null;
   const owner = room.ownerUserId === session.user?.id;
+  const configuration = snapshot?.configuration ?? defaultEsportsConfiguration;
+  const remaining = Math.max(
+    0,
+    Math.ceil(
+      ((snapshot?.tacticalPauseUntil
+        ? new Date(snapshot.tacticalPauseUntil).getTime()
+        : 0) -
+        now -
+        clock.current.offset) /
+        1000,
+    ),
+  );
+  const policy = (mode: CoachVoiceMode) =>
+    action(async () => {
+      await runtime.api.call("coach-voice", (c) =>
+        c.POST("/api/v1/rooms/{roomId}/esports/coach-voice", {
+          params: { path: { roomId: room.id } },
+          body: { mode },
+        }),
+      );
+      await runtime.media.refreshEsports();
+    });
+  const patchGroup = (
+    id: string,
+    patch: Partial<EsportsConfiguration["groups"][number]>,
+  ) =>
+    setDraft((c) => ({
+      ...c,
+      groups: c.groups.map((g) => (g.id === id ? { ...g, ...patch } : g)),
+    }));
   const source = snapshot?.publications.find((p) => p.id === arena?.watching);
   const player = snapshot?.members.find((m) => m.userId === source?.userId);
   const warm = media.warmingVideo;
@@ -170,6 +224,8 @@ export function EsportsRoom() {
               label="房间设置"
               onPress={() => {
                 setName(room.name);
+                setDraft(structuredClone(configuration));
+                setRevision(snapshot?.configurationRevision ?? 1);
                 setEditing(true);
               }}
             />
@@ -200,6 +256,48 @@ export function EsportsRoom() {
             /5
           </Text>
         </View>
+        {remaining > 0 && (
+          <Badge tone="accent">
+            战术暂停 {Math.floor(remaining / 60)}:
+            {String(remaining % 60).padStart(2, "0")}
+          </Badge>
+        )}
+        {owner && (
+          <View style={[styles.card, { gap: 10 }]}>
+            <Button
+              quiet
+              onPress={action(async () => {
+                await runtime.api.call("tactical-pause", (c) =>
+                  c.POST("/api/v1/rooms/{roomId}/esports/tactical-pause", {
+                    params: { path: { roomId: room.id } },
+                    body: { active: !remaining },
+                  }),
+                );
+                await runtime.media.refreshEsports();
+              })}
+            >
+              {remaining ? "结束暂停" : "战术暂停"}
+            </Button>
+            <Text style={styles.text}>教练发言权限</Text>
+            <View style={[styles.row, { flexWrap: "wrap" }]}>
+              {(
+                [
+                  { value: "auto", label: "跟随暂停" },
+                  { value: "open", label: "始终允许" },
+                  { value: "closed", label: "始终禁止" },
+                ] as const
+              ).map((p) => (
+                <Button
+                  key={p.value}
+                  quiet={(snapshot?.coachVoiceMode ?? "auto") !== p.value}
+                  onPress={policy(p.value)}
+                >
+                  {p.label}
+                </Button>
+              ))}
+            </View>
+          </View>
+        )}
         {video}
         {!!source && (
           <View style={[styles.card, { gap: 12 }]}>
@@ -235,16 +333,18 @@ export function EsportsRoom() {
               )}
             >
               {snapshot?.watch.monitorTeam
-                ? `断开 ${snapshot.watch.monitorTeam.toUpperCase()} 组语音`
+                ? `断开 ${esportsTeamName(configuration, snapshot.watch.monitorTeam)}语音`
                 : "收听选手组语音"}
             </Button>
           </View>
         )}
-        {(["a", "b"] as const).map((team) => (
-          <View key={team} style={[styles.card, { gap: 10 }]}>
-            <Text style={styles.heading}>{team.toUpperCase()} 组</Text>
+        {configuration.groups.map((group) => (
+          <View key={group.id} style={[styles.card, { gap: 10 }]}>
+            <Text style={styles.heading}>{group.name}</Text>
             {snapshot?.members
-              .filter((m) => m.seat.kind === "player" && m.seat.team === team)
+              .filter(
+                (m) => m.seat.kind === "player" && m.seat.team === group.id,
+              )
               .map((member) => {
                 const publication = snapshot.publications.find(
                     (p) => p.userId === member.userId,
@@ -288,13 +388,32 @@ export function EsportsRoom() {
                 );
               })}
             {!snapshot?.members.some(
-              (m) => m.seat.kind === "player" && m.seat.team === team,
+              (m) => m.seat.kind === "player" && m.seat.team === group.id,
             ) && <Text style={styles.muted}>暂无选手</Text>}
+            {group.coachSeats > 0 && (
+              <>
+                <Text style={styles.muted}>教练席</Text>
+                {snapshot?.members
+                  .filter(
+                    (m) => m.seat.kind === "coach" && m.seat.team === group.id,
+                  )
+                  .map((m) => (
+                    <View key={m.userId} style={styles.row}>
+                      <Avatar name={m.displayName} size={28} />
+                      <Text style={styles.text}>
+                        {m.displayName}
+                        {!m.online ? "（离线）" : ""}
+                      </Text>
+                    </View>
+                  ))}
+              </>
+            )}
           </View>
         ))}
         <View style={[styles.card, { gap: 12 }]}>
           <Text style={styles.heading}>
-            房间成员 {snapshot?.members.filter((m) => m.online).length ?? 0}/20
+            房间成员 {snapshot?.members.filter((m) => m.online).length ?? 0}/
+            {room.maxMembers}
           </Text>
           {snapshot?.members.map((member) => {
             const sound = media.members.find((m) => m.id === member.userId);
@@ -312,8 +431,8 @@ export function EsportsRoom() {
                       sound?.speaking && { color: colors.green },
                     ]}
                   >
-                    {member.seat.kind === "player"
-                      ? `${member.seat.team.toUpperCase()} 组选手`
+                    {isTeamSeat(member.seat)
+                      ? `${esportsTeamName(configuration, member.seat.team)}${member.seat.kind === "coach" ? "教练" : "选手"}`
                       : member.seat.kind === "director"
                         ? "导播席"
                         : "观众席"}
@@ -388,15 +507,117 @@ export function EsportsRoom() {
         close={() => setEditing(false)}
       >
         <Field label="房间名称" value={name} onChangeText={setName} />
+        {draft.groups.map((g) => (
+          <View key={g.id} style={[styles.card, { gap: 8 }]}>
+            <Field
+              label="分组名称"
+              value={g.name}
+              maxLength={24}
+              onChangeText={(value) => patchGroup(g.id, { name: value })}
+            />
+            <View style={styles.row}>
+              <Text style={[styles.text, { flex: 1 }]}>
+                选手席 {g.playerSeats}
+              </Text>
+              <Button
+                quiet
+                disabled={g.playerSeats <= 1}
+                onPress={() =>
+                  patchGroup(g.id, { playerSeats: g.playerSeats - 1 })
+                }
+              >
+                −
+              </Button>
+              <Button
+                quiet
+                disabled={g.playerSeats >= 5}
+                onPress={() =>
+                  patchGroup(g.id, { playerSeats: g.playerSeats + 1 })
+                }
+              >
+                ＋
+              </Button>
+            </View>
+            <View style={styles.row}>
+              <Text style={[styles.text, { flex: 1 }]}>
+                教练席 {g.coachSeats}
+              </Text>
+              <Button
+                quiet
+                disabled={g.coachSeats <= 0}
+                onPress={() =>
+                  patchGroup(g.id, { coachSeats: g.coachSeats - 1 })
+                }
+              >
+                −
+              </Button>
+              <Button
+                quiet
+                disabled={g.coachSeats >= 2}
+                onPress={() =>
+                  patchGroup(g.id, { coachSeats: g.coachSeats + 1 })
+                }
+              >
+                ＋
+              </Button>
+            </View>
+            <Button
+              quiet
+              disabled={draft.groups.length <= 1}
+              onPress={() =>
+                setDraft((c) => ({
+                  ...c,
+                  groups: c.groups.filter((n) => n.id !== g.id),
+                }))
+              }
+            >
+              删除分组
+            </Button>
+          </View>
+        ))}
+        <Button
+          quiet
+          disabled={draft.groups.length >= 6}
+          onPress={() =>
+            setDraft((c) => ({
+              ...c,
+              groups: [
+                ...c.groups,
+                {
+                  id: `team-${Date.now()}`,
+                  name: `分组 ${c.groups.length + 1}`,
+                  playerSeats: 5,
+                  coachSeats: 0,
+                },
+              ],
+            }))
+          }
+        >
+          添加分组
+        </Button>
+        <Field
+          label="战术暂停时长（秒）"
+          keyboardType="number-pad"
+          value={String(draft.tacticalPauseSeconds)}
+          onChangeText={(v) =>
+            setDraft((c) => ({ ...c, tacticalPauseSeconds: Number(v) }))
+          }
+        />
         <Button
           primary
           onPress={action(async () => {
+            const parsed = esportsConfigurationSchema.safeParse(draft);
+            if (!parsed.success)
+              throw new Error(
+                parsed.error.issues[0]?.message ?? "请检查分组设置",
+              );
             await runtime.api.call("room-settings", (c) =>
-              c.POST("/api/v1/rooms/{roomId}/settings", {
+              c.PATCH("/api/v1/rooms/{roomId}/esports/settings", {
                 params: { path: { roomId: room.id } },
-                body: { name },
+                body: { name, configuration: parsed.data, revision },
               }),
             );
+            await runtime.media.refreshEsports();
             await runtime.refresh();
             setEditing(false);
           })}

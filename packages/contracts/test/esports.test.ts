@@ -7,7 +7,7 @@ import {
 } from "../src/esports";
 import { roomInput, MAX_ROOM_MEMBERS, DEFAULT_ROOM_MEMBER_LIMIT } from "../src";
 
-test("esports seats have two bounded teams and distinct director/audience seats", () => {
+test("esports seats carry stable group ids and distinct director/audience seats", () => {
   expect(esportsSeatSchema.parse({ kind: "player", team: "a" })).toEqual({
     kind: "player",
     team: "a",
@@ -15,7 +15,8 @@ test("esports seats have two bounded teams and distinct director/audience seats"
   expect(esportsSeatSchema.safeParse({ kind: "player" }).success).toBe(false);
   expect(
     esportsSeatSchema.safeParse({ kind: "player", team: "c" }).success,
-  ).toBe(false);
+  ).toBe(true);
+  expect(esportsSeatLimit({ kind: "player", team: "c" })).toBe(0);
   expect(
     esportsSeatSchema.safeParse({ kind: "director", team: "a" }).success,
   ).toBe(false);

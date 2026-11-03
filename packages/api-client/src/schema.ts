@@ -1220,6 +1220,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/rooms/{roomId}/esports/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["esportsSettings"];
+        trace?: never;
+    };
+    "/api/v1/rooms/{roomId}/esports/tactical-pause": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["esportsTacticalPause"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rooms/{roomId}/esports/coach-voice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["esportsCoachVoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rooms/{roomId}/esports": {
         parameters: {
             query?: never;
@@ -7884,8 +7932,11 @@ export interface operations {
                     seat?: {
                         /** @enum {string} */
                         kind: "player";
+                        team: string;
+                    } | {
                         /** @enum {string} */
-                        team: "a" | "b";
+                        kind: "coach";
+                        team: string;
                     } | {
                         /** @enum {string} */
                         kind: "director";
@@ -8645,8 +8696,11 @@ export interface operations {
                             seat?: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -12618,7 +12672,7 @@ export interface operations {
             };
         };
     };
-    esportsSnapshot: {
+    esportsSettings: {
         parameters: {
             query?: never;
             header?: never;
@@ -12627,7 +12681,23 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    name?: string;
+                    configuration: {
+                        groups: {
+                            id: string;
+                            name: string;
+                            playerSeats: number;
+                            coachSeats: number;
+                        }[];
+                        tacticalPauseSeconds: number;
+                    };
+                };
+            };
+        };
         responses: {
             200: {
                 headers: {
@@ -12639,6 +12709,22 @@ export interface operations {
                         roomId: string;
                         /** Format: uuid */
                         ownerUserId: string;
+                        configuration?: {
+                            groups: {
+                                id: string;
+                                name: string;
+                                playerSeats: number;
+                                coachSeats: number;
+                            }[];
+                            tacticalPauseSeconds: number;
+                        };
+                        configurationRevision?: number;
+                        /** @enum {string} */
+                        coachVoiceMode?: "auto" | "open" | "closed";
+                        /** Format: date-time */
+                        tacticalPauseUntil?: string | null;
+                        /** Format: date-time */
+                        serverTime?: string;
                         members: {
                             /** Format: uuid */
                             userId: string;
@@ -12646,8 +12732,11 @@ export interface operations {
                             seat: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -12678,8 +12767,11 @@ export interface operations {
                             seat: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -12702,8 +12794,650 @@ export interface operations {
                             warming: string | null;
                             /** Format: date-time */
                             warmDeadline: string | null;
-                            /** @enum {string|null} */
-                            monitorTeam: "a" | "b" | null;
+                            monitorTeam: string | null;
+                            autoMonitor: boolean;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    esportsTacticalPause: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    active: boolean;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        roomId: string;
+                        /** Format: uuid */
+                        ownerUserId: string;
+                        configuration?: {
+                            groups: {
+                                id: string;
+                                name: string;
+                                playerSeats: number;
+                                coachSeats: number;
+                            }[];
+                            tacticalPauseSeconds: number;
+                        };
+                        configurationRevision?: number;
+                        /** @enum {string} */
+                        coachVoiceMode?: "auto" | "open" | "closed";
+                        /** Format: date-time */
+                        tacticalPauseUntil?: string | null;
+                        /** Format: date-time */
+                        serverTime?: string;
+                        members: {
+                            /** Format: uuid */
+                            userId: string;
+                            displayName: string;
+                            seat: {
+                                /** @enum {string} */
+                                kind: "player";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "coach";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "director";
+                            } | {
+                                /** @enum {string} */
+                                kind: "audience";
+                            };
+                            revision: number;
+                            online: boolean;
+                            /** Format: date-time */
+                            reservedUntil: string | null;
+                            microphoneAllowed: boolean;
+                            sharingAllowed: boolean;
+                        }[];
+                        publications: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            userId: string;
+                            /** @enum {string} */
+                            status: "starting" | "active";
+                            systemAudio: boolean;
+                        }[];
+                        self: {
+                            /** Format: uuid */
+                            userId: string;
+                            displayName: string;
+                            seat: {
+                                /** @enum {string} */
+                                kind: "player";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "coach";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "director";
+                            } | {
+                                /** @enum {string} */
+                                kind: "audience";
+                            };
+                            revision: number;
+                            online: boolean;
+                            /** Format: date-time */
+                            reservedUntil: string | null;
+                            microphoneAllowed: boolean;
+                            sharingAllowed: boolean;
+                        };
+                        watch: {
+                            revision: number;
+                            /** Format: uuid */
+                            current: string | null;
+                            /** Format: uuid */
+                            warming: string | null;
+                            /** Format: date-time */
+                            warmDeadline: string | null;
+                            monitorTeam: string | null;
+                            autoMonitor: boolean;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    esportsCoachVoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    mode: "auto" | "open" | "closed";
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        roomId: string;
+                        /** Format: uuid */
+                        ownerUserId: string;
+                        configuration?: {
+                            groups: {
+                                id: string;
+                                name: string;
+                                playerSeats: number;
+                                coachSeats: number;
+                            }[];
+                            tacticalPauseSeconds: number;
+                        };
+                        configurationRevision?: number;
+                        /** @enum {string} */
+                        coachVoiceMode?: "auto" | "open" | "closed";
+                        /** Format: date-time */
+                        tacticalPauseUntil?: string | null;
+                        /** Format: date-time */
+                        serverTime?: string;
+                        members: {
+                            /** Format: uuid */
+                            userId: string;
+                            displayName: string;
+                            seat: {
+                                /** @enum {string} */
+                                kind: "player";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "coach";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "director";
+                            } | {
+                                /** @enum {string} */
+                                kind: "audience";
+                            };
+                            revision: number;
+                            online: boolean;
+                            /** Format: date-time */
+                            reservedUntil: string | null;
+                            microphoneAllowed: boolean;
+                            sharingAllowed: boolean;
+                        }[];
+                        publications: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            userId: string;
+                            /** @enum {string} */
+                            status: "starting" | "active";
+                            systemAudio: boolean;
+                        }[];
+                        self: {
+                            /** Format: uuid */
+                            userId: string;
+                            displayName: string;
+                            seat: {
+                                /** @enum {string} */
+                                kind: "player";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "coach";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "director";
+                            } | {
+                                /** @enum {string} */
+                                kind: "audience";
+                            };
+                            revision: number;
+                            online: boolean;
+                            /** Format: date-time */
+                            reservedUntil: string | null;
+                            microphoneAllowed: boolean;
+                            sharingAllowed: boolean;
+                        };
+                        watch: {
+                            revision: number;
+                            /** Format: uuid */
+                            current: string | null;
+                            /** Format: uuid */
+                            warming: string | null;
+                            /** Format: date-time */
+                            warmDeadline: string | null;
+                            monitorTeam: string | null;
+                            autoMonitor: boolean;
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    esportsSnapshot: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        roomId: string;
+                        /** Format: uuid */
+                        ownerUserId: string;
+                        configuration?: {
+                            groups: {
+                                id: string;
+                                name: string;
+                                playerSeats: number;
+                                coachSeats: number;
+                            }[];
+                            tacticalPauseSeconds: number;
+                        };
+                        configurationRevision?: number;
+                        /** @enum {string} */
+                        coachVoiceMode?: "auto" | "open" | "closed";
+                        /** Format: date-time */
+                        tacticalPauseUntil?: string | null;
+                        /** Format: date-time */
+                        serverTime?: string;
+                        members: {
+                            /** Format: uuid */
+                            userId: string;
+                            displayName: string;
+                            seat: {
+                                /** @enum {string} */
+                                kind: "player";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "coach";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "director";
+                            } | {
+                                /** @enum {string} */
+                                kind: "audience";
+                            };
+                            revision: number;
+                            online: boolean;
+                            /** Format: date-time */
+                            reservedUntil: string | null;
+                            microphoneAllowed: boolean;
+                            sharingAllowed: boolean;
+                        }[];
+                        publications: {
+                            /** Format: uuid */
+                            id: string;
+                            /** Format: uuid */
+                            userId: string;
+                            /** @enum {string} */
+                            status: "starting" | "active";
+                            systemAudio: boolean;
+                        }[];
+                        self: {
+                            /** Format: uuid */
+                            userId: string;
+                            displayName: string;
+                            seat: {
+                                /** @enum {string} */
+                                kind: "player";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "coach";
+                                team: string;
+                            } | {
+                                /** @enum {string} */
+                                kind: "director";
+                            } | {
+                                /** @enum {string} */
+                                kind: "audience";
+                            };
+                            revision: number;
+                            online: boolean;
+                            /** Format: date-time */
+                            reservedUntil: string | null;
+                            microphoneAllowed: boolean;
+                            sharingAllowed: boolean;
+                        };
+                        watch: {
+                            revision: number;
+                            /** Format: uuid */
+                            current: string | null;
+                            /** Format: uuid */
+                            warming: string | null;
+                            /** Format: date-time */
+                            warmDeadline: string | null;
+                            monitorTeam: string | null;
                             autoMonitor: boolean;
                         };
                     };
@@ -12822,8 +13556,11 @@ export interface operations {
                 "application/json": {
                     /** @enum {string} */
                     kind: "player";
+                    team: string;
+                } | {
                     /** @enum {string} */
-                    team: "a" | "b";
+                    kind: "coach";
+                    team: string;
                 } | {
                     /** @enum {string} */
                     kind: "director";
@@ -12844,6 +13581,22 @@ export interface operations {
                         roomId: string;
                         /** Format: uuid */
                         ownerUserId: string;
+                        configuration?: {
+                            groups: {
+                                id: string;
+                                name: string;
+                                playerSeats: number;
+                                coachSeats: number;
+                            }[];
+                            tacticalPauseSeconds: number;
+                        };
+                        configurationRevision?: number;
+                        /** @enum {string} */
+                        coachVoiceMode?: "auto" | "open" | "closed";
+                        /** Format: date-time */
+                        tacticalPauseUntil?: string | null;
+                        /** Format: date-time */
+                        serverTime?: string;
                         members: {
                             /** Format: uuid */
                             userId: string;
@@ -12851,8 +13604,11 @@ export interface operations {
                             seat: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -12883,8 +13639,11 @@ export interface operations {
                             seat: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -12907,8 +13666,7 @@ export interface operations {
                             warming: string | null;
                             /** Format: date-time */
                             warmDeadline: string | null;
-                            /** @enum {string|null} */
-                            monitorTeam: "a" | "b" | null;
+                            monitorTeam: string | null;
                             autoMonitor: boolean;
                         };
                     };
@@ -13043,6 +13801,22 @@ export interface operations {
                         roomId: string;
                         /** Format: uuid */
                         ownerUserId: string;
+                        configuration?: {
+                            groups: {
+                                id: string;
+                                name: string;
+                                playerSeats: number;
+                                coachSeats: number;
+                            }[];
+                            tacticalPauseSeconds: number;
+                        };
+                        configurationRevision?: number;
+                        /** @enum {string} */
+                        coachVoiceMode?: "auto" | "open" | "closed";
+                        /** Format: date-time */
+                        tacticalPauseUntil?: string | null;
+                        /** Format: date-time */
+                        serverTime?: string;
                         members: {
                             /** Format: uuid */
                             userId: string;
@@ -13050,8 +13824,11 @@ export interface operations {
                             seat: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -13082,8 +13859,11 @@ export interface operations {
                             seat: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -13106,8 +13886,7 @@ export interface operations {
                             warming: string | null;
                             /** Format: date-time */
                             warmDeadline: string | null;
-                            /** @enum {string|null} */
-                            monitorTeam: "a" | "b" | null;
+                            monitorTeam: string | null;
                             autoMonitor: boolean;
                         };
                     };
@@ -13239,6 +14018,22 @@ export interface operations {
                         roomId: string;
                         /** Format: uuid */
                         ownerUserId: string;
+                        configuration?: {
+                            groups: {
+                                id: string;
+                                name: string;
+                                playerSeats: number;
+                                coachSeats: number;
+                            }[];
+                            tacticalPauseSeconds: number;
+                        };
+                        configurationRevision?: number;
+                        /** @enum {string} */
+                        coachVoiceMode?: "auto" | "open" | "closed";
+                        /** Format: date-time */
+                        tacticalPauseUntil?: string | null;
+                        /** Format: date-time */
+                        serverTime?: string;
                         members: {
                             /** Format: uuid */
                             userId: string;
@@ -13246,8 +14041,11 @@ export interface operations {
                             seat: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -13278,8 +14076,11 @@ export interface operations {
                             seat: {
                                 /** @enum {string} */
                                 kind: "player";
+                                team: string;
+                            } | {
                                 /** @enum {string} */
-                                team: "a" | "b";
+                                kind: "coach";
+                                team: string;
                             } | {
                                 /** @enum {string} */
                                 kind: "director";
@@ -13302,8 +14103,7 @@ export interface operations {
                             warming: string | null;
                             /** Format: date-time */
                             warmDeadline: string | null;
-                            /** @enum {string|null} */
-                            monitorTeam: "a" | "b" | null;
+                            monitorTeam: string | null;
                             autoMonitor: boolean;
                         };
                     };
@@ -13422,8 +14222,7 @@ export interface operations {
                     channel: {
                         /** @enum {string} */
                         kind: "team";
-                        /** @enum {string} */
-                        team: "a" | "b";
+                        team: string;
                     } | {
                         /** @enum {string} */
                         kind: "director";

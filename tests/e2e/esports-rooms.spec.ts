@@ -717,6 +717,9 @@ test("owner adjusts esports seats directly from roster and player context menus 
     await menu.getByRole("menuitem", { name: "调整席位", exact: true }).hover();
     await page.getByRole("menuitem", { name: "A 组选手", exact: true }).click();
     await expect(peer.getByTestId("esports-seat")).toHaveText("A 组选手");
+    await expect(
+      page.getByRole("button", { name: "观看 右键成员", exact: true }),
+    ).toContainText("未共享");
     // Unpublished player tiles must still accept right-clicks.
     await page
       .getByRole("button", { name: "观看 右键成员", exact: true })
@@ -764,6 +767,58 @@ test("owner adjusts esports seats directly from roster and player context menus 
     await expect(
       menu.getByRole("menuitem", { name: "移出房间", exact: true }),
     ).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await page.getByRole("button", { name: "房间设置", exact: true }).click();
+    await page
+      .getByRole("spinbutton", { name: "A 组教练席数", exact: true })
+      .fill("1");
+    await page.getByRole("button", { name: "保存修改", exact: true }).click();
+    await expect(page.getByRole("dialog")).toHaveCount(0);
+    await page
+      .getByRole("button", { name: "右键成员的成员操作", exact: true })
+      .click();
+    await menu.getByRole("menuitem", { name: "调整席位", exact: true }).hover();
+    await page.getByRole("menuitem", { name: "A 组教练", exact: true }).click();
+    await expect(peer.getByTestId("esports-seat")).toHaveText("A 组教练");
+    await expect(
+      peer.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeDisabled();
+    await peer.evaluate(async () => {
+      const url = performance
+        .getEntriesByType("resource")
+        .find((e) => new URL(e.name).pathname === "/controller.ts")!.name;
+      const { esports } = await import(url);
+      await esports.browser.configureMicrophone({
+        noiseReduction: "off",
+        microphoneEffect: "ktv",
+        microphoneReverbStrength: 75,
+      });
+    });
+    await page.getByRole("combobox", { name: "教练发言权限" }).click();
+    await page.getByText("始终允许", { exact: true }).last().click();
+    await expect(
+      peer.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeEnabled();
+    expect(
+      await peer.evaluate(async () => {
+        const url = performance
+          .getEntriesByType("resource")
+          .find((e) => new URL(e.name).pathname === "/controller.ts")!.name;
+        const { esports } = await import(url),
+          voice = esports.browser.voice;
+        return {
+          noise: voice.noiseMode,
+          effect: voice.effectMode,
+          strength: voice.effectStrength,
+        };
+      }),
+    ).toEqual({ noise: "off", effect: "ktv", strength: 75 });
+    await page.getByRole("combobox", { name: "教练发言权限" }).click();
+    await page.getByText("始终禁止", { exact: true }).last().click();
+    await expect(
+      peer.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeDisabled();
+    await expect(peer.getByText("仅收听队伍", { exact: true })).toBeVisible();
   } finally {
     await context.close();
   }

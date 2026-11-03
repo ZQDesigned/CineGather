@@ -1,6 +1,7 @@
 import { z } from "zod";
 import {
   nativeOwner,
+  isTeamSeat,
   type EsportsSnapshot,
   type MemberOverlayPosition,
   type MemberOverlaySnapshot,
@@ -79,9 +80,10 @@ export function buildMemberOverlay(
   const ownSeat = esports?.self.seat;
   const seatMembers = esports?.members.filter(
     (m) =>
-      m.seat.kind === ownSeat?.kind &&
-      (ownSeat.kind !== "player" ||
-        (m.seat.kind === "player" && m.seat.team === ownSeat.team)),
+      ownSeat &&
+      (isTeamSeat(ownSeat)
+        ? isTeamSeat(m.seat) && m.seat.team === ownSeat.team
+        : m.seat.kind === ownSeat.kind),
   );
   const visibleIds = seatMembers && new Set(seatMembers.map((m) => m.userId));
   return {

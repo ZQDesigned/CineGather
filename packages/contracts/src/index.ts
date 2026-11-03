@@ -157,7 +157,7 @@ export const roomSchema = z.object({
   ownerUserId: z.uuid(),
   name: z.string(),
   maxMembers: z.number(),
-  capacityLimit: z.number().int().min(10).max(25).optional(),
+  capacityLimit: z.number().int().min(10).max(52).optional(),
   mode: z.enum(["standard", "esports"]).optional(),
   role: z.enum(["owner", "member"]),
   memberPermissions: z.array(memberPermissionSchema).optional(),
@@ -233,7 +233,7 @@ export const friendRoomInviteSentSchema = z.object({
 });
 export const friendRoomPresenceSchema = z.object({
   memberCount: z.number().int().min(1),
-  maxMembers: z.number().int().min(2).max(MAX_ROOM_MEMBERS),
+  maxMembers: z.number().int().min(2).max(52),
 });
 export type FriendRoomPresence = z.infer<typeof friendRoomPresenceSchema>;
 export const friendsSchema = z.object({

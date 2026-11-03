@@ -30,7 +30,7 @@ export function createApi(
   const client = createClient<paths>({ baseUrl });
   client.use({
     onRequest({ request }) {
-      request.headers.set("X-CineGather-Features", "esports-v1");
+      request.headers.set("X-CineGather-Features", "esports-v1,esports-v2");
       if (options.identity) {
         request.headers.set("X-CineGather-Version", options.identity.version);
         request.headers.set("X-CineGather-Platform", options.identity.platform);

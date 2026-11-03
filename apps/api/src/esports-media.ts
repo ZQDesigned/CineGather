@@ -26,6 +26,7 @@ export const esportsScopeSchema = z.object({
   userId: z.uuid(),
   credentialId: z.uuid(),
   seatRevision: z.number().int().positive(),
+  coachVoiceRevision: z.number().int().positive().optional(),
   channel: esportsChannelSchema.optional(),
   grantId: z.uuid().optional(),
 });

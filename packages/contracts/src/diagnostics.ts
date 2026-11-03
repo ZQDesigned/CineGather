@@ -1,5 +1,10 @@
 import { z } from "zod";
-import { esportsSeatSchema } from "./esports";
+import {
+  esportsSeatSchema,
+  esportsTeamSchema,
+  esportsConfigurationSchema,
+  coachVoiceModeSchema,
+} from "./esports";
 import { nativeEncoderIdSchema } from "./native-encoders";
 import { watchProfileSchema } from "./watch-profile";
 import {
@@ -499,7 +504,10 @@ export const esportsDiagnosticSchema = z.object({
   watchRevision: number.int().nonnegative().optional(),
   current: z.uuid().optional(),
   warming: z.uuid().optional(),
-  monitorTeam: z.enum(["a", "b"]).optional(),
+  monitorTeam: esportsTeamSchema.optional(),
+  configuration: esportsConfigurationSchema.optional(),
+  coachVoiceMode: coachVoiceModeSchema.optional(),
+  tacticalPauseUntil: z.iso.datetime({ offset: true }).nullable().optional(),
   visible: z.boolean(),
   channel: text.optional(),
   events: z

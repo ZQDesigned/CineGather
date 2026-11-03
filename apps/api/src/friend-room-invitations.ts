@@ -1,4 +1,4 @@
-import { supportsEsports } from "./session-context";
+import { esportsVisibility } from "./session-context";
 import { esportsCapacity } from "./esports";
 import { esportsSeatSchema, type EsportsSeat } from "@cinegather/contracts";
 import {
@@ -81,7 +81,8 @@ export async function inviteFriendToRoom(
       previous.expiresAt.getTime() > now &&
       previous.useCount < previous.maxUses &&
       previous.esportsSeat === (seat?.kind ?? null) &&
-      previous.esportsTeam === (seat?.kind === "player" ? seat.team : null)
+      previous.esportsTeam ===
+        (seat?.kind === "player" || seat?.kind === "coach" ? seat.team : null)
     )
       return { id: previous.id, expiresAt: previous.expiresAt.toISOString() };
     if (previous && previous.createdAt.getTime() > now - 60_000)
@@ -93,7 +94,10 @@ export async function inviteFriendToRoom(
       roomId,
       recipientId: targetId,
       esportsSeat: seat?.kind,
-      esportsTeam: seat?.kind === "player" ? seat.team : undefined,
+      esportsTeam:
+        seat?.kind === "player" || seat?.kind === "coach"
+          ? seat.team
+          : undefined,
       tokenHash: hash(friendRoomToken(id, roomId, targetId)),
       createdBy: user.id,
       expiresAt,
@@ -134,7 +138,7 @@ export async function listRoomInvitations(user: User) {
         sql`${invites.useCount} < ${invites.maxUses}`,
         eq(rooms.status, "active"),
         sql`(${invites.esportsSeat} IS NULL OR ${invites.createdBy} = ${rooms.ownerUserId})`,
-        supportsEsports(user) ? undefined : eq(rooms.mode, "standard"),
+        esportsVisibility(user),
         isNull(users.disabledAt),
         sql`((${invites.esportsSeat} IS NOT NULL AND ${invites.createdBy} = ${rooms.ownerUserId}) OR EXISTS (SELECT 1 FROM ${friendships} WHERE ${friendships.status} = 'accepted' AND ((${friendships.requesterId} = ${user.id} AND ${friendships.recipientId} = ${invites.createdBy}) OR (${friendships.requesterId} = ${invites.createdBy} AND ${friendships.recipientId} = ${user.id}))))`,
         sql`NOT EXISTS (SELECT 1 FROM ${bans} WHERE ${bans.roomId} = ${invites.roomId} AND ${bans.userId} = ${user.id})`,
@@ -149,7 +153,7 @@ export async function listRoomInvitations(user: User) {
     ...(esportsSeat
       ? {
           seat: esportsSeatSchema.parse(
-            esportsSeat === "player"
+            esportsSeat === "player" || esportsSeat === "coach"
               ? { kind: esportsSeat, team: esportsTeam }
               : { kind: esportsSeat },
           ),

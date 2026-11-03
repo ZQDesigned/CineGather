@@ -5,6 +5,10 @@ import type {
 } from "@cinegather/contracts";
 import { MediaSession, type MediaSummary } from "./session";
 import { waitForEsportsFrame } from "./esports-frame";
+type VoiceSettings = Pick<
+  DesktopSettings,
+  "noiseReduction" | "microphoneEffect" | "microphoneReverbStrength"
+>;
 type Kind = "voice" | "video" | "monitor";
 interface Connection {
   channel: string;
@@ -37,6 +41,7 @@ export class EsportsBrowserMedia {
   };
   private devices: { input?: string; output?: string } = {};
   private profile: WatchProfile = "balanced";
+  private voiceSettings?: VoiceSettings;
   constructor(
     private readonly callbacks: {
       changed(summary: MediaSummary, kind: Kind, channel: string): void;
@@ -137,6 +142,14 @@ export class EsportsBrowserMedia {
         kind === "voice" ? this.devices.input : undefined,
         this.devices.output,
       );
+      if (kind === "voice" && this.voiceSettings) {
+        const settings = this.voiceSettings;
+        await session.configureMicrophone(
+          settings.noiseReduction,
+          settings.microphoneEffect ?? "none",
+          settings.microphoneReverbStrength,
+        );
+      }
       return handle;
     } catch (error) {
       await handle.close();
@@ -184,12 +197,8 @@ export class EsportsBrowserMedia {
     if (enabled && !voice) throw new Error("请先连接席位语音");
     await voice?.microphone(enabled, deviceId);
   }
-  async configureMicrophone(
-    settings: Pick<
-      DesktopSettings,
-      "noiseReduction" | "microphoneEffect" | "microphoneReverbStrength"
-    >,
-  ) {
+  async configureMicrophone(settings: VoiceSettings) {
+    this.voiceSettings = { ...settings };
     await this.voice?.configureMicrophone(
       settings.noiseReduction,
       settings.microphoneEffect ?? "none",

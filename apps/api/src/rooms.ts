@@ -1,3 +1,4 @@
+import { esportsVisibility, supportsDynamicEsports } from "./session-context";
 import {
   requireShareQuality,
   validatePublicationQuality,
@@ -71,7 +72,8 @@ async function roomInfo(
     name: room.name,
     ownerUserId: room.ownerUserId,
     maxMembers: room.maxMembers,
-    capacityLimit: room.mode === "esports" ? 20 : room.capacityLimit,
+    capacityLimit:
+      room.mode === "esports" ? room.maxMembers : room.capacityLimit,
     mode: room.mode as "standard" | "esports",
     role: room.ownerUserId === userId ? "owner" : "member",
     ...(policies.length ? { memberPermissions: policies } : {}),
@@ -223,7 +225,13 @@ export async function createRoom(
 export async function getRoom(user: User, roomId: string) {
   return db.transaction(async (tx) => {
     const info = await requireMember(tx, roomId, user.id, false, true);
-    if (info.mode === "esports" && !supportsEsports(user))
+    if (
+      info.mode === "esports" &&
+      (!supportsEsports(user) ||
+        (!supportsDynamicEsports(user) &&
+          (await tx.select().from(rooms).where(eq(rooms.id, info.id)))[0]
+            ?.esportsAdvanced))
+    )
       fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后使用赛事房");
     const credentialId = sessionCredential(user);
     if (credentialId) {
@@ -279,7 +287,7 @@ export async function listRooms(user: User) {
       and(
         eq(members.userId, user.id),
         eq(rooms.status, "active"),
-        supportsEsports(user) ? undefined : eq(rooms.mode, "standard"),
+        esportsVisibility(user),
       ),
     )
     .orderBy(desc(rooms.createdAt))
@@ -315,8 +323,8 @@ export async function updateRoomSettings(
   return db.transaction(async (tx) => {
     const previous = await requireMember(tx, roomId, user.id, true, true);
     const maxMembers = input.maxMembers ?? previous.maxMembers;
-    if (previous.mode === "esports" && maxMembers !== 20)
-      fail(400, "ESPORTS_FIXED_CAPACITY", "赛事房使用固定席位容量");
+    if (previous.mode === "esports" && maxMembers !== previous.maxMembers)
+      fail(400, "ESPORTS_FIXED_CAPACITY", "请通过分组配置调整赛事房席位");
     if (
       previous.mode !== "esports" &&
       maxMembers > (previous.capacityLimit ?? 10)
@@ -454,7 +462,11 @@ export async function joinRoom(
     if (!room || room.status !== "active")
       fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
     roomId = room.id;
-    if (room.mode === "esports" && !supportsEsports(user))
+    if (
+      room.mode === "esports" &&
+      (!supportsEsports(user) ||
+        (room.esportsAdvanced && !supportsDynamicEsports(user)))
+    )
       fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后使用赛事房");
     await requireActiveSession(tx, user.id, sessionCredential(user));
     const [ban] = await tx
@@ -504,7 +516,7 @@ export async function joinRoom(
         invite.recipientId === user.id
       )
         directedSeat = esportsSeatSchema.parse(
-          invite.esportsSeat === "player"
+          invite.esportsSeat === "player" || invite.esportsSeat === "coach"
             ? { kind: invite.esportsSeat, team: invite.esportsTeam }
             : { kind: invite.esportsSeat },
         );

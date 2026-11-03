@@ -3,7 +3,12 @@ import { useEffect, useState } from "react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { ModalShell, useDialogOpen } from "./Modal";
+import { EsportsRoomSettings } from "./EsportsRoomSettings";
 export function RoomSettings() {
+  const esports = useApp((s) => s.room?.mode === "esports");
+  return esports ? <EsportsRoomSettings /> : <StandardRoomSettings />;
+}
+function StandardRoomSettings() {
   const room = useApp((s) => s.room);
   const busy = useApp((s) => s.busy);
   const members = useApp((s) => s.media.participants.length);

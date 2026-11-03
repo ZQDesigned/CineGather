@@ -245,3 +245,37 @@ test("esports overlay waits for a matching seat snapshot instead of showing the 
     buildMemberOverlay({ ...input, user: { id: "another-account" } }),
   ).toBeNull();
 });
+test("coaches and players share only their own team's overlay roster", () => {
+  const input = esportsOverlay("a1"),
+    coach = esportsMember("coach-a", { kind: "coach", team: "a" }),
+    other = esportsMember("coach-b", { kind: "coach", team: "b" });
+  input.user = { id: coach.userId };
+  input.esports.snapshot = {
+    ...input.esports.snapshot,
+    self: coach,
+    members: [...input.esports.snapshot.members, coach, other],
+  };
+  input.media.participants.push(
+    ...[coach, other].map((m) => ({
+      id: m.userId,
+      name: m.displayName,
+      local: m.userId === coach.userId,
+      microphone: true,
+      speaking: false,
+    })),
+  );
+  expect(buildMemberOverlay(input)?.members.map((m) => m.id)).toEqual([
+    "a1",
+    "a2",
+    "coach-a",
+  ]);
+  input.user = { id: "a1" };
+  input.esports.snapshot.self = input.esports.snapshot.members.find(
+    (m) => m.userId === "a1",
+  )!;
+  expect(buildMemberOverlay(input)?.members.map((m) => m.id)).toEqual([
+    "a1",
+    "a2",
+    "coach-a",
+  ]);
+});

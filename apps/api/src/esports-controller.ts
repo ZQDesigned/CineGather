@@ -8,6 +8,7 @@ import {
   Req,
   Body,
   HttpCode,
+  Patch,
 } from "@nestjs/common";
 import { z } from "zod";
 import {
@@ -22,14 +23,70 @@ import {
   leaseSchema,
   leaseInput,
   okSchema,
+  esportsSettingsInput,
+  coachVoiceModeSchema,
 } from "@cinegather/contracts";
 import { Endpoint, parse, type AuthRequest } from "./http";
 import * as e from "./esports";
+import * as settings from "./esports-configuration";
 import { admissionSecretValid, admitMediaToken } from "./esports-admission";
 import { fail } from "./errors";
 const esportsLease = leaseSchema.extend({ publicationId: z.uuid() });
 @Controller("api/v1/rooms/:roomId/esports")
 export class EsportsController {
+  @Patch("settings")
+  @Endpoint("esportsSettings", esportsSnapshotSchema, esportsSettingsInput, [
+    "roomId",
+  ])
+  settings(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return settings.updateEsportsConfiguration(
+      req.user,
+      roomId,
+      parse(esportsSettingsInput, body),
+    );
+  }
+  @Post("tactical-pause")
+  @Endpoint(
+    "esportsTacticalPause",
+    esportsSnapshotSchema,
+    z.strictObject({ active: z.boolean() }),
+    ["roomId"],
+    201,
+  )
+  pause(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return settings.setTacticalPause(
+      req.user,
+      roomId,
+      parse(z.strictObject({ active: z.boolean() }), body).active,
+    );
+  }
+  @Post("coach-voice")
+  @Endpoint(
+    "esportsCoachVoice",
+    esportsSnapshotSchema,
+    z.strictObject({ mode: coachVoiceModeSchema }),
+    ["roomId"],
+    201,
+  )
+  coachVoice(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return settings.setCoachVoiceMode(
+      req.user,
+      roomId,
+      parse(z.strictObject({ mode: coachVoiceModeSchema }), body).mode,
+    );
+  }
   @Get()
   @Endpoint("esportsSnapshot", esportsSnapshotSchema, undefined, ["roomId"])
   snapshot(@Req() req: AuthRequest, @Param("roomId") roomId: string) {

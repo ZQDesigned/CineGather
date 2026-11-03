@@ -1,3 +1,4 @@
+import { reconcileTacticalPauses } from "./esports-configuration";
 import { MobileUpdateStore } from "./mobile-update-store";
 import { serveMobileUpdate } from "./mobile-update-http";
 import {
@@ -61,6 +62,31 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
     clearInterval(this.timer);
   }
 }
+class TacticalPauses implements OnModuleInit, OnModuleDestroy {
+  private timer?: ReturnType<typeof setInterval>;
+  private running = false;
+  async onModuleInit() {
+    await this.run();
+    this.timer = setInterval(() => void this.run(), 1000);
+    this.timer.unref();
+  }
+  private async run() {
+    if (this.running) return;
+    this.running = true;
+    try {
+      await reconcileTacticalPauses();
+    } catch {
+      console.error(
+        JSON.stringify({ event: "esports.pause_reconcile_failed" }),
+      );
+    } finally {
+      this.running = false;
+    }
+  }
+  onModuleDestroy() {
+    clearInterval(this.timer);
+  }
+}
 @Module({
   controllers: [
     ApiController,
@@ -68,7 +94,13 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
     EsportsController,
     EsportsAdmissionController,
   ],
-  providers: [Metrics, Reconciler, UpdateEvents, AnnouncementScheduler],
+  providers: [
+    Metrics,
+    Reconciler,
+    TacticalPauses,
+    UpdateEvents,
+    AnnouncementScheduler,
+  ],
 })
 class AppModule {}
 export async function createApp({
