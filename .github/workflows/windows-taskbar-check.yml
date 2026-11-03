@@ -58,6 +58,11 @@ jobs:
           if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
           & 7z x '.local/taskbar-archive/$PLUGINSDIR/app-64.7z' '-oapps/desktop/release/win-unpacked' -y | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'Payload extraction failed' }
+      - name: Verify released baseline and locked-helper upgrade on a clean worker
+        shell: pwsh
+        run: |
+          $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
+          ./tools/windows-upgrade-smoke.ps1 -UpgradeInstaller "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - name: Verify actual viewing window controls with the reused build
         run: bun tools/viewing-window-controls-smoke.ts apps/desktop/release/win-unpacked/CineGather.exe
       - name: Verify actual in-app upgrade and uninstall
@@ -70,6 +75,20 @@ jobs:
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
           ./tools/windows-installer-diagnostics-smoke.ps1 -Installer "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+      - name: Collect installer evidence even when baseline installation fails
+        if: always()
+        shell: pwsh
+        run: |
+          $target = '.local/installer-diagnostics-windows/worker'
+          New-Item -ItemType Directory -Force $target | Out-Null
+          foreach ($folder in @('CGInstallDiagnostics/installer-logs', 'CineGather/installer-logs')) {
+            $source = Join-Path $env:LOCALAPPDATA $folder
+            if (Test-Path $source) {
+              Copy-Item $source (Join-Path $target ($folder.Split('/')[0])) -Recurse -Force
+            }
+          }
+          Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, Name, ExecutablePath | ConvertTo-Json | Set-Content "$target/processes.json"
+          Get-PSDrive -PSProvider FileSystem | Select-Object Name, Used, Free | ConvertTo-Json | Set-Content "$target/disks.json"
       - uses: actions/upload-artifact@v4
         if: always()
         with:
