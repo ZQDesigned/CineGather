@@ -27,8 +27,8 @@ describe("untrusted client input", () => {
       registerInput.parse({ ...valid, displayName: "  小映  " }).displayName,
     ).toBe("小映");
   });
-  test("enforces private room capacity between two and ten", () => {
-    expect(roomInput.safeParse({ name: "影院", maxMembers: 11 }).success).toBe(
+  test("enforces ordinary room protocol capacity between two and twenty-five", () => {
+    expect(roomInput.safeParse({ name: "影院", maxMembers: 26 }).success).toBe(
       false,
     );
     expect(roomInput.safeParse({ name: "影院", maxMembers: 1 }).success).toBe(

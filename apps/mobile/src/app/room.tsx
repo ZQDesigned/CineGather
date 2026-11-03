@@ -686,7 +686,7 @@ export default function RoomScreen() {
       >
         <Field label="房间名称" value={name} onChangeText={setName} />
         <Field
-          label="人数上限（2–10）"
+          label={`人数上限（2–${room.capacityLimit ?? 10}）`}
           value={max}
           onChangeText={setMax}
           keyboardType="number-pad"
@@ -694,6 +694,14 @@ export default function RoomScreen() {
         <Button
           primary
           onPress={work(async () => {
+            if (
+              !Number.isInteger(Number(max)) ||
+              Number(max) < 2 ||
+              Number(max) > (room.capacityLimit ?? 10)
+            )
+              throw new Error(
+                `人数上限应为 2–${room.capacityLimit ?? 10} 的整数`,
+              );
             await runtime.api.call("room-settings", (c) =>
               c.POST("/api/v1/rooms/{roomId}/settings", {
                 params: { path: { roomId: room.id } },

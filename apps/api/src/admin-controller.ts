@@ -1,3 +1,4 @@
+import { setCapabilities } from "./capabilities";
 import * as announcements from "./announcements";
 import {
   Body,
@@ -165,6 +166,22 @@ export class AdminController {
   @Endpoint("adminAudit", c.adminAuditsSchema)
   audit(@Query() query: unknown) {
     return admin.listAudit(parse(c.adminQuery, query));
+  }
+  @Patch("users/:userId/capabilities")
+  @RequireAdminPermission("users.read")
+  @Endpoint("adminSetCapabilities", c.okSchema, c.adminCapabilitiesInput, [
+    "userId",
+  ])
+  capabilities(
+    @Req() req: AuthRequest,
+    @Param("userId") userId: string,
+    @Body() body: unknown,
+  ) {
+    return setCapabilities(
+      req.user,
+      userId,
+      parse(c.adminCapabilitiesInput, body),
+    );
   }
   @Post("users/:userId/esports")
   @RequireAdminPermission("users.esports")

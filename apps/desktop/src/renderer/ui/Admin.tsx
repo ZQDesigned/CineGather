@@ -1,3 +1,4 @@
+import { AdminCapabilities } from "./AdminCapabilities";
 import { AdminAnnouncements } from "./AdminAnnouncements";
 import {
   Alert,
@@ -129,6 +130,7 @@ const actionNames: Record<string, string> = {
   "admin.announcement_publish": "发布公告",
   "admin.announcement_withdraw": "撤回公告",
   "admin.screen_share_updated": "修改屏幕共享能力",
+  "admin.capabilities_updated": "修改账号能力",
   "admin.esports_capability_updated": "修改赛事房创建能力",
   "admin.registration_updated": "更新注册设置",
   "admin.user_disable": "停用账号",
@@ -147,25 +149,12 @@ const actionNames: Record<string, string> = {
 };
 type Operation =
   | {
-      kind:
-        | "disable"
-        | "enable"
-        | "revoke-sessions"
-        | "screen-share"
-        | "esports";
+      kind: "disable" | "enable" | "revoke-sessions";
       user: AdminUser;
     }
   | { kind: "close" | "revoke-share"; room: AdminRoom };
 const operationName = (op: Operation) =>
   ({
-    esports:
-      "user" in op && op.user.esportsRoomsEnabled
-        ? "关闭赛事房创建"
-        : "开通赛事房创建",
-    "screen-share":
-      "user" in op && op.user.screenShareEnabled
-        ? "关闭屏幕共享"
-        : "允许屏幕共享",
     disable: "停用账号",
     enable: "启用账号",
     "revoke-sessions": "撤销登录",
@@ -193,8 +182,7 @@ function AdminPanel() {
   const canOverview = hasAdminPermission(user, "overview.read");
   const canUsers = hasAdminPermission(user, "users.read"),
     canManageUsers = hasAdminPermission(user, "users.manage");
-  const canManageScreenShare = hasAdminPermission(user, "users.screen-share");
-  const canManageEsports = hasAdminPermission(user, "users.esports");
+  const [capabilityTarget, setCapabilityTarget] = useState<AdminUser>();
   const canRooms = hasAdminPermission(user, "rooms.read"),
     canManageRooms = hasAdminPermission(user, "rooms.manage");
   const canAudit = hasAdminPermission(user, "audit.read"),
@@ -298,21 +286,7 @@ function AdminPanel() {
     if (!operation) return;
     setSaving(true);
     try {
-      if (operation.kind === "esports") {
-        unwrap(
-          await api.POST("/api/v1/admin/users/{userId}/esports", {
-            params: { path: { userId: operation.user.id } },
-            body: { enabled: !operation.user.esportsRoomsEnabled, reason },
-          }),
-        );
-      } else if (operation.kind === "screen-share") {
-        unwrap(
-          await api.POST("/api/v1/admin/users/{userId}/screen-share", {
-            params: { path: { userId: operation.user.id } },
-            body: { enabled: !operation.user.screenShareEnabled, reason },
-          }),
-        );
-      } else if ("user" in operation) {
+      if ("user" in operation) {
         const options = {
           params: { path: { userId: operation.user.id } },
           body: { reason },
@@ -414,43 +388,14 @@ function AdminPanel() {
         ),
     },
     {
-      title: "屏幕共享",
-      key: "screen-share",
-      width: 130,
-      render: (_, u) =>
-        canManageScreenShare ? (
-          <Button
-            size="small"
-            type="link"
-            onClick={() => confirm({ kind: "screen-share", user: u })}
-          >
-            {u.screenShareEnabled ? "已允许" : "未开通"}
-          </Button>
-        ) : (
-          <Tag color={u.screenShareEnabled ? "success" : "default"}>
-            {u.screenShareEnabled ? "已允许" : "未开通"}
-          </Tag>
-        ),
-    },
-    {
-      title: "赛事房",
-      key: "esports",
+      title: "账号能力",
+      key: "capabilities",
       width: 110,
-      render: (_, u) =>
-        canManageEsports ? (
-          <Button
-            size="small"
-            type="link"
-            aria-label={`${u.esportsRoomsEnabled ? "关闭" : "开通"}${u.displayName}的赛事房创建能力`}
-            onClick={() => confirm({ kind: "esports", user: u })}
-          >
-            {u.esportsRoomsEnabled ? "已开通" : "未开通"}
-          </Button>
-        ) : (
-          <Tag color={u.esportsRoomsEnabled ? "success" : "default"}>
-            {u.esportsRoomsEnabled ? "已开通" : "未开通"}
-          </Tag>
-        ),
+      render: (_, u) => (
+        <Button size="small" type="link" onClick={() => setCapabilityTarget(u)}>
+          能力配置
+        </Button>
+      ),
     },
     { title: "有效登录", dataIndex: "activeSessions", width: 90 },
     { title: "注册时间", dataIndex: "createdAt", width: 175, render: date },
@@ -731,7 +676,7 @@ function AdminPanel() {
             loading={loading}
             pagination={pagination}
             size="small"
-            scroll={{ x: isSuper ? 1160 : 1080, y: tableHeight }}
+            scroll={{ x: isSuper ? 1030 : 950, y: tableHeight }}
           />
         ) : activeTab === "rooms" ? (
           <Table<AdminRoom>
@@ -755,6 +700,14 @@ function AdminPanel() {
           />
         )}
       </div>
+      {capabilityTarget && (
+        <AdminCapabilities
+          key={capabilityTarget.id}
+          target={capabilityTarget}
+          close={() => setCapabilityTarget(undefined)}
+          saved={() => setRevision((r) => r + 1)}
+        />
+      )}
       <UserRolesDialog
         user={roleTarget}
         open={rolesOpen && isSuper}
@@ -769,16 +722,7 @@ function AdminPanel() {
         cancelText="取消"
         confirmLoading={saving}
         okButtonProps={{
-          danger:
-            operation?.kind !== "enable" &&
-            !(
-              operation?.kind === "esports" &&
-              !operation.user.esportsRoomsEnabled
-            ) &&
-            !(
-              operation?.kind === "screen-share" &&
-              !operation.user.screenShareEnabled
-            ),
+          danger: operation?.kind !== "enable",
         }}
         cancelButtonProps={{ disabled: saving }}
         closable={!saving}
@@ -796,23 +740,15 @@ function AdminPanel() {
                 : `房间：${operation.room.name} (${operation.room.code})`}
             </p>
             <p>
-              {operation.kind === "esports"
-                ? operation.user.esportsRoomsEnabled
-                  ? "关闭后将无法新建赛事房，已经创建的房间继续保留。"
-                  : "允许此账号创建电竞赛事房，房主可为选手分配共享资格。"
-                : operation.kind === "screen-share"
-                  ? operation.user.screenShareEnabled
-                    ? "关闭后将立即停止该账号的共享，语音保持可用。"
-                    : "允许该账号在房间内共享屏幕。"
-                  : operation.kind === "disable"
-                    ? "停用后将退出所有设备，并停止该账号的语音和共享。"
-                    : operation.kind === "enable"
-                      ? "启用后可重新登录，之前的登录会话不会恢复。"
-                      : operation.kind === "revoke-sessions"
-                        ? "所有设备将退出登录，可以使用原密码重新登录。"
-                        : operation.kind === "close"
-                          ? "所有成员将离开房间，邀请和共享将同时失效。"
-                          : "当前共享将停止，房间内的语音保持可用。"}
+              {operation.kind === "disable"
+                ? "停用后将退出所有设备，并停止该账号的语音和共享。"
+                : operation.kind === "enable"
+                  ? "启用后可重新登录，之前的登录会话不会恢复。"
+                  : operation.kind === "revoke-sessions"
+                    ? "所有设备将退出登录，可以使用原密码重新登录。"
+                    : operation.kind === "close"
+                      ? "所有成员将离开房间，邀请和共享将同时失效。"
+                      : "当前共享将停止，房间内的语音保持可用。"}
             </p>
           </>
         )}

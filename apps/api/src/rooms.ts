@@ -1,3 +1,8 @@
+import {
+  requireShareQuality,
+  validatePublicationQuality,
+} from "./capabilities";
+import type { Quality } from "@cinegather/contracts";
 import * as esports from "./esports";
 import { esportsReady } from "./esports-media";
 import { sessionCredential, supportsEsports } from "./session-context";
@@ -66,6 +71,7 @@ async function roomInfo(
     name: room.name,
     ownerUserId: room.ownerUserId,
     maxMembers: room.maxMembers,
+    capacityLimit: room.mode === "esports" ? 20 : room.capacityLimit,
     mode: room.mode as "standard" | "esports",
     role: room.ownerUserId === userId ? "owner" : "member",
     ...(policies.length ? { memberPermissions: policies } : {}),
@@ -149,6 +155,19 @@ export async function createRoom(
   return db.transaction((tx) =>
     dedup(tx, user.id, key, "room.create", input, async () => {
       await requireActiveSession(tx, user.id, sessionCredential(user));
+      const [creator] = await tx
+        .select({ limit: users.standardRoomMaxMembers })
+        .from(users)
+        .where(eq(users.id, user.id))
+        .for("share");
+      const capacityLimit =
+        input.mode === "esports" ? 20 : (creator?.limit ?? 10);
+      if (input.mode !== "esports" && input.maxMembers > capacityLimit)
+        fail(
+          403,
+          "ROOM_CAPACITY_UNAVAILABLE",
+          `当前账号最多可创建 ${capacityLimit} 人的普通放映房`,
+        );
       if (input.mode === "esports") {
         if (!supportsEsports(user))
           fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后使用赛事房");
@@ -181,6 +200,7 @@ export async function createRoom(
             name: input.name,
             mode: input.mode ?? "standard",
             maxMembers: input.maxMembers,
+            capacityLimit,
             passwordHash,
           })
           .onConflictDoNothing({ target: rooms.code })
@@ -249,6 +269,7 @@ export async function listRooms(user: User) {
       name: rooms.name,
       ownerUserId: rooms.ownerUserId,
       maxMembers: rooms.maxMembers,
+      capacityLimit: rooms.capacityLimit,
       mode: rooms.mode,
       role: members.role,
     })
@@ -296,6 +317,15 @@ export async function updateRoomSettings(
     const maxMembers = input.maxMembers ?? previous.maxMembers;
     if (previous.mode === "esports" && maxMembers !== 20)
       fail(400, "ESPORTS_FIXED_CAPACITY", "赛事房使用固定席位容量");
+    if (
+      previous.mode !== "esports" &&
+      maxMembers > (previous.capacityLimit ?? 10)
+    )
+      fail(
+        403,
+        "ROOM_CAPACITY_UNAVAILABLE",
+        `此房间最多允许 ${previous.capacityLimit ?? 10} 人，请重新创建已获授权的房间`,
+      );
     if (maxMembers !== previous.maxMembers) {
       const occupying = await occupiedUserIds(
         tx,
@@ -838,6 +868,7 @@ export async function acquireLease(
   roomId: string,
   preempt = false,
   handoffId?: string,
+  quality: Quality = "cinema",
 ) {
   roomId = uuid(roomId);
   let grantedIdentity: string | undefined;
@@ -847,6 +878,7 @@ export async function acquireLease(
       await requireMember(tx, roomId, user.id, preempt, true);
       await requireActiveSession(tx, user.id, sessionCredential(user));
       const policy = await requireScreenShare(tx, user.id, roomId);
+      await requireShareQuality(tx, user.id, quality);
       if (handoffId) {
         const [request] = await tx
           .select()
@@ -899,8 +931,10 @@ export async function acquireLease(
         if (
           lease.holderUserId === user.id &&
           lease.credentialId === (sessionCredential(user) ?? null)
-        )
+        ) {
+          await validatePublicationQuality(tx, user.id, lease.quality, quality);
           return leaseResult(lease);
+        }
         if (!preempt && !handoffId) fail(409, "SHARE_BUSY", "已有成员正在共享");
       }
       if (lease.holderUserId && lease.leaseId)
@@ -920,6 +954,7 @@ export async function acquireLease(
       await media.setShare(roomId, identity, true, policy.microphoneAllowed);
       grantedIdentity = identity;
       const next = {
+        quality,
         leaseId: randomUUID(),
         holderUserId: user.id,
         credentialId: sessionCredential(user) ?? null,
@@ -1002,6 +1037,7 @@ export async function renewLease(
       lease.expiresAt.getTime() <= Date.now()
     )
       fail(409, "LEASE_LOST", "共享授权已失效，请重新共享");
+    await requireShareQuality(tx, user.id, lease.quality);
     if (!(await media.participants(roomId)).some((p) => p.identity === user.id))
       fail(409, "MEDIA_NOT_CONNECTED", "媒体连接已断开");
     const expiresAt = new Date(Date.now() + 30_000);
@@ -1806,7 +1842,7 @@ export async function revokeNative(
 export async function nativePublication(
   user: User,
   roomId: string,
-  input: { leaseId: string; revision: number },
+  input: { leaseId: string; revision: number; quality?: Quality },
 ) {
   roomId = uuid(roomId);
   let created: { ingressId: string; participantIdentity: string } | undefined;
@@ -1826,6 +1862,12 @@ export async function nativePublication(
         user.id,
         input,
         (await media.participants(roomId)).some((p) => p.identity === user.id),
+      );
+      await validatePublicationQuality(
+        tx,
+        user.id,
+        lease!.quality,
+        input.quality,
       );
       const [existing] = await tx
         .select()

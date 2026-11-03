@@ -1,3 +1,8 @@
+import {
+  requireShareQuality,
+  validatePublicationQuality,
+} from "./capabilities";
+import type { Quality } from "@cinegather/contracts";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, isNull, sql } from "drizzle-orm";
 import { z } from "zod";
@@ -632,7 +637,11 @@ export async function connection(
     };
   });
 }
-export async function acquireEsportsLease(user: User, roomId: string) {
+export async function acquireEsportsLease(
+  user: User,
+  roomId: string,
+  quality: Quality = "cinema",
+) {
   return db.transaction(async (tx) => {
     const { seat, policy } = await esportsActor(
       tx,
@@ -642,6 +651,7 @@ export async function acquireEsportsLease(user: User, roomId: string) {
     );
     if (seat.kind !== "player" || !policy.sharingAllowed)
       fail(403, "ESPORTS_PUBLISH_DENIED", "仅允许有共享权限的选手推流");
+    await requireShareQuality(tx, user.id, quality);
     const [old] = await tx
       .select()
       .from(esportsPublications)
@@ -650,10 +660,13 @@ export async function acquireEsportsLease(user: User, roomId: string) {
       old &&
       old.expiresAt.getTime() > Date.now() &&
       old.credentialId === credential(user)
-    )
+    ) {
+      await validatePublicationQuality(tx, user.id, old.quality, quality);
       return leaseResult(old);
+    }
     if (old) await stopEsportsPublication(tx, old);
     const p = {
+      quality,
       roomId,
       userId: user.id,
       credentialId: credential(user),
@@ -708,6 +721,7 @@ export async function renewEsportsLease(
       await stopEsportsPublication(tx, p);
       return { ok: true as const };
     }
+    await requireShareQuality(tx, user.id, p.quality);
     const expiresAt = new Date(Date.now() + 30_000);
     await tx
       .update(esportsPublications)
@@ -719,7 +733,12 @@ export async function renewEsportsLease(
 export async function esportsNative(
   user: User,
   roomId: string,
-  input: { leaseId: string; revision: number; systemAudio: boolean },
+  input: {
+    leaseId: string;
+    revision: number;
+    systemAudio: boolean;
+    quality?: Quality;
+  },
 ) {
   return db.transaction(async (tx) => {
     const { seat, policy } = await esportsActor(
@@ -742,6 +761,7 @@ export async function esportsNative(
       p.expiresAt.getTime() <= Date.now()
     )
       fail(409, "LEASE_CONFLICT", "共享授权已失效");
+    await validatePublicationQuality(tx, user.id, p.quality, input.quality);
     if (p.ingressId) {
       const info = await media.ingress.listIngress({ ingressId: p.ingressId });
       const existing = info[0];

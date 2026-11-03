@@ -19,6 +19,8 @@ export const adminUserSchema = z.object({
   isSuperAdmin: z.boolean(),
   screenShareEnabled: z.boolean(),
   esportsRoomsEnabled: z.boolean().default(false),
+  highFrameRateEnabled: z.boolean().default(false),
+  standardRoomMaxMembers: z.number().int().min(10).max(25).default(10),
   roles: z.array(accountRoleSchema),
   disabledAt: z.string().nullable(),
   createdAt: z.string(),
@@ -94,6 +96,8 @@ export const adminRoleInput = z
       ["users.manage", "users.read"],
       ["users.screen-share", "users.read"],
       ["users.esports", "users.read"],
+      ["users.high-frame-rate", "users.read"],
+      ["users.room-capacity", "users.read"],
       ["rooms.manage", "rooms.read"],
       ["announcements.manage", "announcements.read"],
     ] as const)
@@ -119,3 +123,16 @@ export type AdminRole = z.infer<typeof adminRoleSchema>;
 export const adminScreenShareInput = adminReason.extend({
   enabled: z.boolean(),
 });
+
+export const adminCapabilitiesInput = adminReason
+  .extend({
+    screenShareEnabled: z.boolean().optional(),
+    esportsRoomsEnabled: z.boolean().optional(),
+    highFrameRateEnabled: z.boolean().optional(),
+    standardRoomMaxMembers: z.number().int().min(10).max(25).optional(),
+  })
+  .refine(
+    (v) => Object.keys(v).some((k) => k !== "reason"),
+    "请选择需要修改的能力",
+  );
+export type AdminCapabilitiesInput = z.infer<typeof adminCapabilitiesInput>;

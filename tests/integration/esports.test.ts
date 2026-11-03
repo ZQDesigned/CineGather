@@ -151,7 +151,7 @@ test("only an explicitly authorized account creates esports rooms; superadmin gr
   expect(
     (await req("/rooms", host.token, { name: "普通房", maxMembers: 11 }))
       .status,
-  ).toBe(400);
+  ).toBe(403);
   expect(
     (
       await req(`/admin/users/${host.id}/esports`, root.token, {
@@ -301,6 +301,53 @@ test("esports joins are control-only, seat-scoped connections reject stale and c
   expect((await connection({ kind: "team", team: "a" }, 1)).status).toBe(409);
   const voice = await connection({ kind: "team", team: "a" });
   expect(voice.status).toBe(201);
+  expect(
+    (
+      await req(`/rooms/${room.id}/esports/share-lease`, host.token, {
+        quality: "game",
+      })
+    ).status,
+  ).toBe(403);
+  await db
+    .update(users)
+    .set({ highFrameRateEnabled: true })
+    .where(eq(users.id, host.id));
+  const game = await req(`/rooms/${room.id}/esports/share-lease`, host.token, {
+    quality: "game",
+  });
+  expect(game.status).toBe(201);
+  await db
+    .update(users)
+    .set({ highFrameRateEnabled: false })
+    .where(eq(users.id, host.id));
+  const gameRef = { leaseId: game.body.leaseId, revision: game.body.revision };
+  expect(
+    (
+      await req(
+        `/rooms/${room.id}/esports/share-lease/renew`,
+        host.token,
+        gameRef,
+      )
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await req(`/rooms/${room.id}/esports/share-lease/native`, host.token, {
+        ...gameRef,
+        quality: "game",
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await req(
+        `/rooms/${room.id}/esports/share-lease`,
+        host.token,
+        gameRef,
+        "DELETE",
+      )
+    ).status,
+  ).toBe(200);
   expect(
     (await req(`/rooms/${room.id}/esports/share-lease`, host.token, {})).status,
   ).toBe(201);

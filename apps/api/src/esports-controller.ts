@@ -1,3 +1,4 @@
+import { shareQualityInput } from "@cinegather/contracts";
 import {
   Controller,
   Get,
@@ -101,9 +102,23 @@ export class EsportsController {
     return e.connection(req.user, roomId, parse(esportsConnectionInput, body));
   }
   @Post("share-lease")
-  @Endpoint("esportsAcquireLease", esportsLease, undefined, ["roomId"], 201)
-  lease(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
-    return e.acquireEsportsLease(req.user, roomId);
+  @Endpoint(
+    "esportsAcquireLease",
+    esportsLease,
+    shareQualityInput,
+    ["roomId"],
+    201,
+  )
+  lease(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return e.acquireEsportsLease(
+      req.user,
+      roomId,
+      parse(shareQualityInput, body ?? {}).quality,
+    );
   }
   @Post("share-lease/renew")
   @Endpoint("esportsRenewLease", esportsLease, leaseInput, ["roomId"], 201)

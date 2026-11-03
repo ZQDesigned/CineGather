@@ -9,7 +9,12 @@ import { MonitorUp } from "lucide-react";
 import type { ShareRequest } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import { useApp } from "../store";
-import { api, report, shareSession } from "../controller";
+import {
+  api,
+  report,
+  shareSession,
+  prepareSharingQuality,
+} from "../controller";
 import { Button } from "./Controls";
 
 export function ShareQueue() {
@@ -84,18 +89,28 @@ export function ShareQueue() {
   );
   const start = useCallback(
     (requestId: string) => {
-      if (useApp.getState().room?.id !== roomId) return;
+      if (
+        useApp.getState().room?.id !== roomId ||
+        !["idle", "failed"].includes(shareSession.state)
+      )
+        return;
       // Keep the notification available after the source picker is cancelled.
-      void shareSession.startHandoff(async () =>
-        unwrap(
-          await api.POST(
-            "/api/v1/rooms/{roomId}/share-requests/{requestId}/acquire",
-            {
-              params: { path: { roomId: roomId!, requestId } },
-            },
-          ),
-        ),
-      );
+      void prepareSharingQuality()
+        .then((quality) => {
+          if (useApp.getState().room?.id !== roomId) return;
+          return shareSession.startHandoff(async () =>
+            unwrap(
+              await api.POST(
+                "/api/v1/rooms/{roomId}/share-requests/{requestId}/acquire",
+                {
+                  params: { path: { roomId: roomId!, requestId } },
+                  body: { quality },
+                },
+              ),
+            ),
+          );
+        })
+        .catch(report);
     },
     [roomId],
   );

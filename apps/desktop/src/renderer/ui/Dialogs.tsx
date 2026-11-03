@@ -101,6 +101,7 @@ function CreateRoom() {
   const access = Form.useWatch("access", form);
   const mode = Form.useWatch("mode", form);
   const canCreateEsports = useApp((s) => s.user?.esportsRoomsEnabled);
+  const roomLimit = useApp((s) => s.user?.standardRoomMaxMembers ?? 10);
   return (
     <ModalShell
       title="创建私人房间"
@@ -168,7 +169,7 @@ function CreateRoom() {
         {mode !== "esports" && (
           <Form.Item name="max" label="房间人数">
             <Select
-              options={Array.from({ length: 9 }, (_, i) => ({
+              options={Array.from({ length: roomLimit - 1 }, (_, i) => ({
                 value: i + 2,
                 label: `${i + 2} 人${i + 2 === 5 ? "（默认）" : ""}`,
               }))}

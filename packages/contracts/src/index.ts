@@ -39,7 +39,11 @@ export const passwordInput = z.strictObject({
   currentPassword: z.string().min(1).max(128),
   password: accountPassword,
 });
-export const MAX_ROOM_MEMBERS = 10;
+export const DEFAULT_ROOM_MEMBER_LIMIT = 10;
+export const MAX_ROOM_MEMBERS = 25;
+export const shareQualityInput = z.strictObject({
+  quality: z.enum(["saver", "cinema", "game"]).default("cinema"),
+});
 export const roomSettingsInput = z
   .strictObject({
     name: z.string().trim().min(1).max(64).optional(),
@@ -93,6 +97,9 @@ export const leaseInput = z.strictObject({
   leaseId: z.uuid().toLowerCase(),
   revision: z.number().int().positive(),
 });
+export const nativeShareInput = leaseInput.extend({
+  quality: z.enum(["saver", "cinema", "game"]).optional(),
+});
 export const messageInput = z.strictObject({
   body: z.string().trim().min(1).max(2000),
 });
@@ -119,6 +126,8 @@ export const userSchema = z.object({
   isSuperAdmin: z.boolean().optional(),
   screenShareEnabled: z.boolean().optional(),
   esportsRoomsEnabled: z.boolean().optional(),
+  highFrameRateEnabled: z.boolean().optional(),
+  standardRoomMaxMembers: z.number().int().min(10).max(25).optional(),
   roles: z.array(accountRoleSchema).optional(),
   permissions: z.array(adminPermissionSchema).optional(),
 });
@@ -141,6 +150,7 @@ export const roomSchema = z.object({
   ownerUserId: z.uuid(),
   name: z.string(),
   maxMembers: z.number(),
+  capacityLimit: z.number().int().min(10).max(25).optional(),
   mode: z.enum(["standard", "esports"]).optional(),
   role: z.enum(["owner", "member"]),
   memberPermissions: z.array(memberPermissionSchema).optional(),
@@ -216,7 +226,7 @@ export const friendRoomInviteSentSchema = z.object({
 });
 export const friendRoomPresenceSchema = z.object({
   memberCount: z.number().int().min(1),
-  maxMembers: z.number().int().min(2).max(20),
+  maxMembers: z.number().int().min(2).max(MAX_ROOM_MEMBERS),
 });
 export type FriendRoomPresence = z.infer<typeof friendRoomPresenceSchema>;
 export const friendsSchema = z.object({
@@ -264,6 +274,12 @@ export const qualityPresets = {
   },
 } as const;
 export type Quality = keyof typeof qualityPresets;
+export function allowedShareQuality(
+  quality: Quality,
+  user?: { highFrameRateEnabled?: boolean },
+): Quality {
+  return quality === "game" && !user?.highFrameRateEnabled ? "cinema" : quality;
+}
 export function qualityLabel(quality: Quality): string {
   const preset = qualityPresets[quality];
   return `${preset.label}（${preset.height}p/${preset.frameRate}fps）`;

@@ -1,3 +1,4 @@
+import { allowedShareQuality } from "@cinegather/contracts";
 import { AppState, Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
 import Constants from "expo-constants";
@@ -247,6 +248,7 @@ export class MobileRuntime {
               (c) =>
                 c.POST("/api/v1/rooms/{roomId}/share-lease", {
                   params: { path: { roomId: value.roomId } },
+                  body: { quality: this.shareQuality },
                 }),
               { token: value.token },
             ),
@@ -305,7 +307,11 @@ export class MobileRuntime {
             (c) =>
               c.POST("/api/v1/rooms/{roomId}/share-lease/native", {
                 params: { path: { roomId: value.roomId } },
-                body: { leaseId: lease.leaseId, revision: lease.revision },
+                body: {
+                  leaseId: lease.leaseId,
+                  revision: lease.revision,
+                  quality: this.shareQuality,
+                },
               }),
             { token: value.token },
           ),
@@ -624,9 +630,27 @@ export class MobileRuntime {
         this.api.call("friends", (c) => c.GET("/api/v1/friends")),
         this.api.call("presence", (c) => c.POST("/api/v1/presence/heartbeat")),
         this.api.call("presence-settings", (c) => c.GET("/api/v1/presence")),
+        this.api.call("me", (c) => c.GET("/api/v1/me")),
       ]);
       if (!current()) return;
-      const [rooms, friends, , visibility] = results;
+      const [rooms, friends, , visibility, profile] = results;
+      if (profile?.status === "fulfilled") {
+        const user = userSchema.parse(profile.value);
+        this.session.updateProfile(token, user);
+        if (
+          this.shareQuality === "game" &&
+          !user.highFrameRateEnabled &&
+          !["idle", "failed"].includes(this.sharing.state)
+        ) {
+          await this.sharing.stop();
+          if (!current()) return;
+          this.shareQuality = "cinema";
+          this.notice(
+            "共享已停止",
+            "1080p60 共享授权已关闭，请选择其他画质后重新共享",
+          );
+        }
+      }
       if (visibility?.status === "fulfilled")
         this.patch({ visibility: visibility.value.visibility });
       if (rooms?.status === "fulfilled")
@@ -767,7 +791,15 @@ export class MobileRuntime {
       parseInt(String(Platform.Version)),
     );
     this.shareAudio = audio && capability.audio;
-    this.shareQuality = quality;
+    this.shareQuality = allowedShareQuality(
+      quality,
+      this.session.snapshot().user,
+    );
+    if (this.shareQuality !== quality)
+      this.notice(
+        "已切换共享画质",
+        "当前账号尚未开通 1080p60 共享，已使用影院画质",
+      );
     if (this.shareAudio && Platform.OS === "android") {
       const { PermissionsAndroid } = await import("react-native");
       const result = await PermissionsAndroid.request(

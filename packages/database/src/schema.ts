@@ -24,6 +24,12 @@ export const users = pgTable("users", {
   esportsRoomsEnabled: boolean("esports_rooms_enabled")
     .notNull()
     .default(false),
+  highFrameRateEnabled: boolean("high_frame_rate_enabled")
+    .notNull()
+    .default(false),
+  standardRoomMaxMembers: integer("standard_room_max_members")
+    .notNull()
+    .default(10),
   presenceVisibility: text("presence_visibility").notNull().default("online"),
   disabledAt: time("disabled_at"),
   createdAt: time("created_at").notNull().defaultNow(),
@@ -94,6 +100,7 @@ export const rooms = pgTable(
     name: text("name").notNull(),
     mode: text("mode").notNull().default("standard"),
     maxMembers: integer("max_members").notNull(),
+    capacityLimit: integer("capacity_limit").notNull().default(10),
     status: text("status").notNull().default("active"),
     createdAt: time("created_at").notNull().defaultNow(),
   },
@@ -101,7 +108,7 @@ export const rooms = pgTable(
     check("rooms_code_check", sql`${t.code} ~ '^[A-F0-9]{8}$'`),
     check(
       "rooms_capacity_check",
-      sql`(${t.mode} = 'standard' AND ${t.maxMembers} BETWEEN 2 AND 10) OR (${t.mode} = 'esports' AND ${t.maxMembers} = 20)`,
+      sql`(${t.mode} = 'standard' AND ${t.maxMembers} BETWEEN 2 AND ${t.capacityLimit} AND ${t.capacityLimit} BETWEEN 10 AND 25) OR (${t.mode} = 'esports' AND ${t.maxMembers} = 20)`,
     ),
     check("rooms_mode_check", sql`${t.mode} IN ('standard', 'esports')`),
     check("rooms_status_check", sql`${t.status} IN ('active', 'closed')`),
@@ -215,6 +222,7 @@ export const leases = pgTable(
       .references(() => rooms.id, { onDelete: "cascade" }),
     holderUserId: uuid("holder_user_id").references(() => users.id),
     credentialId: uuid("credential_id").references(() => credentials.id),
+    quality: text("quality").notNull().default("cinema"),
     leaseId: uuid("lease_id"),
     expiresAt: time("expires_at"),
     revision: integer("revision").notNull().default(0),
@@ -412,6 +420,7 @@ export const esportsPublications = pgTable(
     revision: integer("revision").notNull(),
     seatRevision: integer("seat_revision").notNull(),
     expiresAt: time("expires_at").notNull(),
+    quality: text("quality").notNull().default("cinema"),
     videoActive: boolean("video_active").notNull().default(false),
     systemAudio: boolean("system_audio").notNull().default(false),
     ingressId: text("ingress_id").unique(),

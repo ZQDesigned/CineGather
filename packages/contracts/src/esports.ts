@@ -129,6 +129,7 @@ export const esportsConnectionSchema = z.object({
   seatRevision: z.number().int().positive(),
 });
 export const esportsNativeInput = z.strictObject({
+  quality: z.enum(["saver", "cinema", "game"]).optional(),
   leaseId: z.uuid(),
   revision: z.number().int().positive(),
   systemAudio: z.boolean().default(false),

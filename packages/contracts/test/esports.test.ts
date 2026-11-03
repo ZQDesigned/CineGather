@@ -5,7 +5,7 @@ import {
   esportsMediaRights,
   esportsSeatLimit,
 } from "../src/esports";
-import { roomInput, MAX_ROOM_MEMBERS } from "../src";
+import { roomInput, MAX_ROOM_MEMBERS, DEFAULT_ROOM_MEMBER_LIMIT } from "../src";
 
 test("esports seats have two bounded teams and distinct director/audience seats", () => {
   expect(esportsSeatSchema.parse({ kind: "player", team: "a" })).toEqual({
@@ -24,11 +24,12 @@ test("esports seats have two bounded teams and distinct director/audience seats"
   expect(esportsSeatLimit({ kind: "audience" })).toBe(5);
 });
 
-test("twenty-seat esports creation never widens ordinary rooms", () => {
-  expect(MAX_ROOM_MEMBERS).toBe(10);
+test("esports uses fixed seats independently of the ordinary room entitlement ceiling", () => {
+  expect(MAX_ROOM_MEMBERS).toBe(25);
+  expect(DEFAULT_ROOM_MEMBER_LIMIT).toBe(10);
   expect(roomInput.parse({ name: "ordinary" }).maxMembers).toBe(5);
   expect(
-    roomInput.safeParse({ name: "ordinary", maxMembers: 11 }).success,
+    roomInput.safeParse({ name: "ordinary", maxMembers: 26 }).success,
   ).toBe(false);
   expect(roomInput.parse({ name: "match", mode: "esports" }).maxMembers).toBe(
     20,

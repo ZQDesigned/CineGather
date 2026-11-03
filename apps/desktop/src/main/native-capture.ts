@@ -505,8 +505,8 @@ export class NativeCapture {
           "/native",
           "POST",
           context.roomMode === "esports"
-            ? { systemAudio: selection.systemAudio }
-            : {},
+            ? { systemAudio: selection.systemAudio, quality: context.quality }
+            : { quality: context.quality },
         ),
       );
       const endpoint = new URL(publication.url);

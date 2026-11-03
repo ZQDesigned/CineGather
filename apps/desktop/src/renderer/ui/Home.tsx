@@ -62,7 +62,9 @@ export function Home({ onEnterRoom }: { onEnterRoom: () => void }) {
         <h2>
           你的房间 <span>{app.rooms.length}</span>
         </h2>
-        <span>凭房间号加入，每间最多 10 位朋友</span>
+        <span>
+          凭房间号加入，普通房最多 {app.user?.standardRoomMaxMembers ?? 10} 人
+        </span>
       </div>
       <div className="room-grid">
         {app.rooms.map((room) => (

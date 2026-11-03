@@ -5,11 +5,12 @@ import { MonitorUp } from "lucide-react-native";
 import { mobileShareCapability } from "@cinegather/client-core";
 import {
   qualityPresets,
+  allowedShareQuality,
   qualityLabel,
   type Quality,
 } from "@cinegather/contracts";
 import { runtime } from "../runtime";
-import { useRuntime, action } from "../components/use-runtime";
+import { useRuntime, useSession, action } from "../components/use-runtime";
 import { Sheet, UnavailableSheet, useSheetRoom } from "../components/Sheet";
 import { Button, Label, styles, colors } from "../components/ui";
 export default function ShareScreen() {
@@ -19,6 +20,7 @@ export default function ShareScreen() {
     Platform.OS,
     parseInt(String(Platform.Version)),
   );
+  const user = useSession().user;
   const [audio, setAudio] = useState(capability.audio);
   const [quality, setQuality] = useState<Quality>("cinema");
   const [starting, setStarting] = useState(false);
@@ -39,7 +41,10 @@ export default function ShareScreen() {
               // Close our sheet before the OS consent UI; capture continues when the
               // person switches to the app they intend to share.
               if (router.canGoBack()) router.back();
-              await runtime.startSharing(audio, quality);
+              await runtime.startSharing(
+                audio,
+                allowedShareQuality(quality, user),
+              );
             } finally {
               setStarting(false);
             }
@@ -56,10 +61,12 @@ export default function ShareScreen() {
       {(Object.keys(qualityPresets) as Quality[]).map((value) => (
         <Button
           key={value}
-          primary={quality === value}
+          primary={allowedShareQuality(quality, user) === value}
+          disabled={value === "game" && !user?.highFrameRateEnabled}
           onPress={() => setQuality(value)}
         >
           {qualityLabel(value)}
+          {value === "game" && !user?.highFrameRateEnabled ? " · 需授权" : ""}
         </Button>
       ))}
       <View style={styles.spread}>

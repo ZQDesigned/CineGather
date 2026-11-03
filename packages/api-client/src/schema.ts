@@ -1012,6 +1012,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/users/{userId}/capabilities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["adminSetCapabilities"];
+        trace?: never;
+    };
     "/api/v1/admin/users/{userId}/esports": {
         parameters: {
             query?: never;
@@ -1490,12 +1506,14 @@ export interface operations {
                         isSuperAdmin?: boolean;
                         screenShareEnabled?: boolean;
                         esportsRoomsEnabled?: boolean;
+                        highFrameRateEnabled?: boolean;
+                        standardRoomMaxMembers?: number;
                         roles?: {
                             /** Format: uuid */
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -2994,12 +3012,14 @@ export interface operations {
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
                             esportsRoomsEnabled?: boolean;
+                            highFrameRateEnabled?: boolean;
+                            standardRoomMaxMembers?: number;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -3134,12 +3154,14 @@ export interface operations {
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
                             esportsRoomsEnabled?: boolean;
+                            highFrameRateEnabled?: boolean;
+                            standardRoomMaxMembers?: number;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -3274,12 +3296,14 @@ export interface operations {
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
                             esportsRoomsEnabled?: boolean;
+                            highFrameRateEnabled?: boolean;
+                            standardRoomMaxMembers?: number;
                             roles?: {
                                 /** Format: uuid */
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -3896,6 +3920,7 @@ export interface operations {
                             ownerUserId: string;
                             name: string;
                             maxMembers: number;
+                            capacityLimit?: number;
                             /** @enum {string} */
                             mode?: "standard" | "esports";
                             /** @enum {string} */
@@ -4068,6 +4093,7 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        capacityLimit?: number;
                         /** @enum {string} */
                         mode?: "standard" | "esports";
                         /** @enum {string} */
@@ -4205,6 +4231,7 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        capacityLimit?: number;
                         /** @enum {string} */
                         mode?: "standard" | "esports";
                         /** @enum {string} */
@@ -4349,6 +4376,7 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        capacityLimit?: number;
                         /** @enum {string} */
                         mode?: "standard" | "esports";
                         /** @enum {string} */
@@ -4495,6 +4523,7 @@ export interface operations {
                             ownerUserId: string;
                             name: string;
                             maxMembers: number;
+                            capacityLimit?: number;
                             /** @enum {string} */
                             mode?: "standard" | "esports";
                             /** @enum {string} */
@@ -5606,7 +5635,17 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @default cinema
+                     * @enum {string}
+                     */
+                    quality?: "saver" | "cinema" | "game";
+                };
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -5730,7 +5769,17 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @default cinema
+                     * @enum {string}
+                     */
+                    quality?: "saver" | "cinema" | "game";
+                };
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -5982,7 +6031,17 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @default cinema
+                     * @enum {string}
+                     */
+                    quality?: "saver" | "cinema" | "game";
+                };
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -6124,6 +6183,7 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        capacityLimit?: number;
                         /** @enum {string} */
                         mode?: "standard" | "esports";
                         /** @enum {string} */
@@ -6390,6 +6450,7 @@ export interface operations {
                         ownerUserId: string;
                         name: string;
                         maxMembers: number;
+                        capacityLimit?: number;
                         /** @enum {string} */
                         mode?: "standard" | "esports";
                         /** @enum {string} */
@@ -6898,6 +6959,8 @@ export interface operations {
                     /** Format: uuid */
                     leaseId: string;
                     revision: number;
+                    /** @enum {string} */
+                    quality?: "saver" | "cinema" | "game";
                 };
             };
         };
@@ -10365,6 +10428,10 @@ export interface operations {
                             screenShareEnabled: boolean;
                             /** @default false */
                             esportsRoomsEnabled: boolean;
+                            /** @default false */
+                            highFrameRateEnabled: boolean;
+                            /** @default 10 */
+                            standardRoomMaxMembers: number;
                             roles: {
                                 /** Format: uuid */
                                 id: string;
@@ -10641,6 +10708,136 @@ export interface operations {
                             createdAt: string;
                         }[];
                         total: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    adminSetCapabilities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    reason: string;
+                    screenShareEnabled?: boolean;
+                    esportsRoomsEnabled?: boolean;
+                    highFrameRateEnabled?: boolean;
+                    standardRoomMaxMembers?: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
                     };
                 };
             };
@@ -11645,7 +11842,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             name: string;
-                            permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                             builtIn: boolean;
                             memberCount: number;
                             createdAt: string;
@@ -11762,7 +11959,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -11777,7 +11974,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
@@ -11895,7 +12092,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -11910,7 +12107,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
@@ -13212,7 +13409,17 @@ export interface operations {
             };
             cookie?: never;
         };
-        requestBody?: never;
+        requestBody: {
+            content: {
+                "application/json": {
+                    /**
+                     * @default cinema
+                     * @enum {string}
+                     */
+                    quality?: "saver" | "cinema" | "game";
+                };
+            };
+        };
         responses: {
             201: {
                 headers: {
@@ -13603,6 +13810,8 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": {
+                    /** @enum {string} */
+                    quality?: "saver" | "cinema" | "game";
                     /** Format: uuid */
                     leaseId: string;
                     revision: number;

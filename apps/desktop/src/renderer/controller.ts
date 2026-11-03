@@ -1,3 +1,4 @@
+import { allowedShareQuality, type Quality } from "@cinegather/contracts";
 import { EsportsRuntime } from "./esports";
 import { AnnouncementClient, announcementNotification } from "./announcements";
 import { shouldAdvanceUpdateRequirement } from "../shared/update-requirement";
@@ -876,12 +877,41 @@ const processAudio = new ProcessAudio((message) => {
   report(new Error(message));
   void shareSession.stop().catch(report);
 });
+let publishingQuality: Quality = "cinema";
+export async function prepareSharingQuality() {
+  const quality = allowedShareQuality(state().settings.quality, state().user);
+  if (quality !== state().settings.quality) {
+    await persistSettings((current) => ({ ...current, quality }));
+    update({ notice: "当前账号尚未开通 1080p60 共享，已切换为影院画质" });
+  }
+  publishingQuality = quality;
+  return quality;
+}
+async function applyAccount(user: User) {
+  update({ user });
+  if (
+    allowedShareQuality(state().settings.quality, user) !==
+      state().settings.quality ||
+    (publishingQuality === "game" &&
+      !user.highFrameRateEnabled &&
+      !["idle", "failed"].includes(shareSession.state))
+  ) {
+    await shareSession.stop();
+    await persistSettings((current) => ({
+      ...current,
+      quality: allowedShareQuality(current.quality, user),
+    }));
+    update({ notice: "当前账号尚未开通 1080p60 共享，已切换为影院画质" });
+  }
+}
 export const shareSession: ShareCoordinator = new ShareCoordinator({
   acquire: async (preempt) => {
+    const quality = await prepareSharingQuality();
     if (esports.roomId) {
       const lease = unwrap(
         await api.POST("/api/v1/rooms/{roomId}/esports/share-lease", {
           params: { path: { roomId: esports.roomId } },
+          body: { quality },
         }),
       );
       try {
@@ -902,7 +932,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
         preempt
           ? "/api/v1/rooms/{roomId}/share-lease/preempt"
           : "/api/v1/rooms/{roomId}/share-lease",
-        { params: { path: { roomId: state().room!.id } } },
+        { params: { path: { roomId: state().room!.id } }, body: { quality } },
       ),
     );
   },
@@ -969,7 +999,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
       else {
         if (capabilities().sourcePicker) {
           const selected = await screenMedia().selectBrowserShare(
-            state().settings.quality,
+            publishingQuality,
             state().systemAudio,
             true,
           );
@@ -997,13 +1027,13 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
           roomId: state().room!.id,
           roomMode: state().room!.mode,
           lease,
-          quality: state().settings.quality,
+          quality: publishingQuality,
         });
         return;
       }
       if (window.desktop?.processAudio) {
         const revision = state().shareRevision;
-        await screenMedia().share(state().settings.quality, false);
+        await screenMedia().share(publishingQuality, false);
         if (
           shareSession.state !== "publishing" ||
           state().shareRevision !== revision
@@ -1025,11 +1055,8 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
             });
         }
       } else if (capabilities().sourcePicker)
-        await screenMedia().share(
-          state().settings.quality,
-          state().systemAudio,
-        );
-      else await screenMedia().publishBrowserShare(state().settings.quality);
+        await screenMedia().share(publishingQuality, state().systemAudio);
+      else await screenMedia().publishBrowserShare(publishingQuality);
     } finally {
       await window.desktop?.cancelCapture();
     }
@@ -1248,7 +1275,7 @@ export async function initialize() {
   navigator.mediaDevices?.addEventListener("devicechange", deviceChanged);
   if (sessionToken)
     await run(async () => {
-      update({ user: unwrap(await api.GET("/api/v1/me")) });
+      await applyAccount(unwrap(await api.GET("/api/v1/me")));
       await syncPresence();
       await refreshRooms();
       await refreshFriends();
@@ -1437,7 +1464,7 @@ async function syncRooms() {
     await refreshRooms();
     const user = unwrap(await api.GET("/api/v1/me"));
     if (identity !== sessionToken) return;
-    update({ user });
+    await applyAccount(user);
     if (!room || !["connected", "reconnecting"].includes(state().roomState))
       return;
     const current = unwrap(
@@ -1469,7 +1496,8 @@ async function acceptSession(data: { user: User; sessionToken: string }) {
   friendRequests.clear();
   sessionToken = data.sessionToken;
   localStorage.setItem("cinegather.session", data.sessionToken);
-  update({ user: data.user, modal: null, error: undefined });
+  update({ modal: null, error: undefined });
+  await applyAccount(data.user);
   update({ presenceVisibility: undefined });
   await syncPresence(true);
   await refreshRooms();
@@ -1696,7 +1724,7 @@ export async function chooseBrowserSource() {
   const revision = state().shareRevision;
   try {
     const selected = await screenMedia().selectBrowserShare(
-      state().settings.quality,
+      publishingQuality,
       state().systemAudio,
       state().switchingSource,
     );
@@ -1751,6 +1779,10 @@ export async function stopShare() {
 }
 export async function saveSettings(settings: DesktopSettings, close = true) {
   settings = platformSettings(settings, capabilities().desktop);
+  settings = {
+    ...settings,
+    quality: allowedShareQuality(settings.quality, state().user),
+  };
   if (settings.roomSounds === false) roomCuePlayer.stop();
   const held = pttHolds.size > 0;
   pttHolds.clear();

@@ -657,7 +657,12 @@ export function Settings() {
                     onChange={(v) => change("quality", v)}
                     options={Object.entries(qualityPresets).map(([value]) => ({
                       value: value as DesktopSettings["quality"],
-                      label: qualityLabel(value as DesktopSettings["quality"]),
+                      label:
+                        qualityLabel(value as DesktopSettings["quality"]) +
+                        (value === "game" && !user?.highFrameRateEnabled
+                          ? " · 需授权"
+                          : ""),
+                      disabled: value === "game" && !user?.highFrameRateEnabled,
                     }))}
                   />
                 </Form.Item>

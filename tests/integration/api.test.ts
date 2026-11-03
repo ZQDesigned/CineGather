@@ -800,7 +800,7 @@ describe("owner room settings", () => {
     const { media } = await import("../../apps/api/src/media");
     expect(
       (await media.client.listRooms([created.id]))[0]!.maxParticipants,
-    ).toBe(51);
+    ).toBe(126);
   });
   test("strict settings validation and occupied admission seats prevent invalid or destructive edits", async () => {
     const a = await account(),
@@ -813,7 +813,7 @@ describe("owner room settings", () => {
       { name: " " },
       { name: "x".repeat(65) },
       { maxMembers: 1 },
-      { maxMembers: 11 },
+      { maxMembers: 26 },
       { maxMembers: 2.5 },
       { name: "越权", ownerUserId: b.id },
       { access: "normal" },

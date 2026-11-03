@@ -77,6 +77,8 @@ export async function listUsers(query: AdminQuery) {
         isSuperAdmin: users.isSuperAdmin,
         screenShareEnabled: users.screenShareEnabled,
         esportsRoomsEnabled: users.esportsRoomsEnabled,
+        highFrameRateEnabled: users.highFrameRateEnabled,
+        standardRoomMaxMembers: users.standardRoomMaxMembers,
         disabledAt: users.disabledAt,
         createdAt: users.createdAt,
         activeSessions:

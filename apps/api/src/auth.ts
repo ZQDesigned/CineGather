@@ -22,6 +22,8 @@ export async function authenticate(
       isSuperAdmin: users.isSuperAdmin,
       screenShareEnabled: users.screenShareEnabled,
       esportsRoomsEnabled: users.esportsRoomsEnabled,
+      highFrameRateEnabled: users.highFrameRateEnabled,
+      standardRoomMaxMembers: users.standardRoomMaxMembers,
       disabledAt: users.disabledAt,
       kind: credentials.kind,
       revokedAt: credentials.revokedAt,
@@ -59,6 +61,8 @@ export async function authenticate(
     username: user.username,
     screenShareEnabled: user.screenShareEnabled,
     esportsRoomsEnabled: user.esportsRoomsEnabled,
+    highFrameRateEnabled: user.highFrameRateEnabled,
+    standardRoomMaxMembers: user.standardRoomMaxMembers,
     ...(await readAccess(db, user.id, user.isSuperAdmin)),
     credentialId: user.credentialId,
   };

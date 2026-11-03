@@ -11,6 +11,32 @@ const credential = (token: string) => ({
   sessionToken: token,
   expiresAt: "2030-01-01T00:00:00.000Z",
 });
+test("profile refresh applies only to the matching mobile session and avoids redundant notifications", async () => {
+  const session = new MobileSession({
+    storage: {
+      read: async () => undefined,
+      write: async () => {},
+      clear: async () => {},
+    },
+    profile: async () => user("unused"),
+    revoke: async () => {},
+  });
+  await session.authenticate(async () => credential("current"));
+  let updates = 0;
+  session.subscribe(() => updates++);
+  const next = {
+    ...session.snapshot().user!,
+    highFrameRateEnabled: true,
+    standardRoomMaxMembers: 25,
+  };
+  expect(session.updateProfile("old", next)).toBe(false);
+  expect(session.updateProfile("current", next)).toBe(true);
+  expect(session.snapshot().user?.standardRoomMaxMembers).toBe(25);
+  expect(session.updateProfile("current", next)).toBe(false);
+  expect(updates).toBe(1);
+  await session.signOut();
+  expect(session.updateProfile("current", next)).toBe(false);
+});
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((r) => {

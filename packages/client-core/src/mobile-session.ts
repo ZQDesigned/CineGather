@@ -43,6 +43,17 @@ export class MobileSession {
   getToken() {
     return this.#token;
   }
+  updateProfile(token: string, user: User) {
+    if (
+      token !== this.#token ||
+      this.current.status !== "signed-in" ||
+      this.current.user?.id !== user.id ||
+      JSON.stringify(this.current.user) === JSON.stringify(user)
+    )
+      return false;
+    this.publish({ ...this.current, user });
+    return true;
+  }
   private publish(next: MobileSessionSnapshot) {
     this.current = next;
     for (const listener of this.listeners) listener();

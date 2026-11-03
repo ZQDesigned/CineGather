@@ -147,6 +147,8 @@ export class AuthGuard implements CanActivate {
       username: identity.username,
       screenShareEnabled: identity.screenShareEnabled,
       esportsRoomsEnabled: identity.esportsRoomsEnabled,
+      highFrameRateEnabled: identity.highFrameRateEnabled,
+      standardRoomMaxMembers: identity.standardRoomMaxMembers,
       isSuperAdmin: identity.isSuperAdmin,
       roles: identity.roles,
       permissions: identity.permissions,

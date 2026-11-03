@@ -366,7 +366,7 @@ export class ApiController {
   @Endpoint(
     "acceptShareHandoff",
     c.leaseSchema,
-    undefined,
+    c.shareQualityInput,
     ["roomId", "requestId"],
     201,
   )
@@ -374,18 +374,45 @@ export class ApiController {
     @Req() req: AuthRequest,
     @Param("roomId") id: string,
     @Param("requestId") rid: string,
+    @Body() body: unknown,
   ) {
-    return r.acquireLease(req.user, id, false, rid);
+    return r.acquireLease(
+      req.user,
+      id,
+      false,
+      rid,
+      parse(c.shareQualityInput, body ?? {}).quality,
+    );
   }
   @Post("rooms/:roomId/share-lease")
-  @Endpoint("acquireLease", c.leaseSchema, undefined, ["roomId"], 201)
-  lease(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
-    return r.acquireLease(req.user, roomId);
+  @Endpoint("acquireLease", c.leaseSchema, c.shareQualityInput, ["roomId"], 201)
+  lease(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return r.acquireLease(
+      req.user,
+      roomId,
+      false,
+      undefined,
+      parse(c.shareQualityInput, body ?? {}).quality,
+    );
   }
   @Post("rooms/:roomId/share-lease/preempt")
-  @Endpoint("preemptShare", c.leaseSchema, undefined, ["roomId"], 201)
-  preemptShare(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
-    return r.acquireLease(req.user, roomId, true);
+  @Endpoint("preemptShare", c.leaseSchema, c.shareQualityInput, ["roomId"], 201)
+  preemptShare(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return r.acquireLease(
+      req.user,
+      roomId,
+      true,
+      undefined,
+      parse(c.shareQualityInput, body ?? {}).quality,
+    );
   }
   @Post("rooms/:roomId/members/:userId/owner")
   @Endpoint("transferOwner", c.roomSchema, undefined, ["roomId", "userId"], 201)
@@ -473,7 +500,7 @@ export class ApiController {
   @Endpoint(
     "nativePublication",
     c.nativePublicationSchema,
-    c.leaseInput,
+    c.nativeShareInput,
     ["roomId"],
     201,
   )
@@ -482,7 +509,11 @@ export class ApiController {
     @Param("roomId") roomId: string,
     @Body() body: unknown,
   ) {
-    return r.nativePublication(req.user, roomId, parse(c.leaseInput, body));
+    return r.nativePublication(
+      req.user,
+      roomId,
+      parse(c.nativeShareInput, body),
+    );
   }
   @Delete("rooms/:roomId/share-lease")
   @Endpoint("releaseLease", c.okSchema, c.leaseInput, ["roomId"])

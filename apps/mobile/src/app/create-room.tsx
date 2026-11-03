@@ -2,12 +2,13 @@ import { useState } from "react";
 import { Keyboard } from "react-native";
 import { router, useNavigation } from "expo-router";
 import { runtime } from "../runtime";
-import { action } from "../components/use-runtime";
+import { action, useSession } from "../components/use-runtime";
 import { Sheet } from "../components/Sheet";
 import { Button, Field } from "../components/ui";
 
 export default function CreateRoom() {
   const navigation = useNavigation();
+  const limit = useSession().user?.standardRoomMaxMembers ?? 10;
   const [name, setName] = useState("今晚一起看");
   const [max, setMax] = useState("5");
   const [password, setPassword] = useState("");
@@ -21,7 +22,7 @@ export default function CreateRoom() {
         maxLength={64}
       />
       <Field
-        label="人数上限（2–10）"
+        label={`人数上限（2–${limit}）`}
         testID="create-max"
         value={max}
         onChangeText={setMax}
@@ -39,6 +40,12 @@ export default function CreateRoom() {
         primary
         testID="create-submit"
         onPress={action(async () => {
+          if (
+            !Number.isInteger(Number(max)) ||
+            Number(max) < 2 ||
+            Number(max) > limit
+          )
+            throw new Error(`人数上限应为 2–${limit} 的整数`);
           await runtime.create(name, Number(max), password || undefined);
           if (
             navigation.isFocused() &&

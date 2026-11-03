@@ -1,6 +1,5 @@
 import { Form, Input, Select, Button } from "antd";
 import { useEffect, useState } from "react";
-import { MAX_ROOM_MEMBERS } from "@cinegather/contracts";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { ModalShell, useDialogOpen } from "./Modal";
@@ -69,11 +68,14 @@ export function RoomSettings() {
             options={
               room?.mode === "esports"
                 ? [{ value: 20, label: "20 席（按席位分配）", disabled: false }]
-                : Array.from({ length: MAX_ROOM_MEMBERS - 1 }, (_, i) => ({
-                    value: i + 2,
-                    label: `${i + 2} 人`,
-                    disabled: i + 2 < members,
-                  }))
+                : Array.from(
+                    { length: (room?.capacityLimit ?? 10) - 1 },
+                    (_, i) => ({
+                      value: i + 2,
+                      label: `${i + 2} 人`,
+                      disabled: i + 2 < members,
+                    }),
+                  )
             }
           />
         </Form.Item>

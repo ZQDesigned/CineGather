@@ -421,10 +421,13 @@ const fs=require('node:fs');let selected='',active=false;const status=()=>({scre
   );
   let revoked = 0;
   const expiresAt = new Date(Date.now() + 25000).toISOString();
+  const authorizationQualities: unknown[] = [];
   const server = Bun.serve({
     hostname: "127.0.0.1",
     port: 0,
-    fetch(request) {
+    async fetch(request) {
+      if (new URL(request.url).pathname.endsWith("/native"))
+        authorizationQualities.push((await request.json()).quality);
       if (request.method === "DELETE") {
         revoked++;
         return Response.json({ ok: true });
@@ -445,7 +448,7 @@ const fs=require('node:fs');let selected='',active=false;const status=()=>({scre
     apiUrl: `http://127.0.0.1:${server.port}`,
     sessionToken: "secret",
     roomId: crypto.randomUUID(),
-    quality: "cinema" as const,
+    quality: "game" as const,
     lease: {
       leaseId: crypto.randomUUID(),
       holderUserId: crypto.randomUUID(),
@@ -456,6 +459,10 @@ const fs=require('node:fs');let selected='',active=false;const status=()=>({scre
   try {
     await capture.select({ sourceId: "native-screen:1", systemAudio: false });
     await capture.start(context);
+    expect(authorizationQualities).toEqual(["game"]);
+    expect(
+      JSON.parse(await readFile(join(work, "start"), "utf8")).quality,
+    ).toBe("game");
     expect(
       JSON.parse(await readFile(join(work, "start"), "utf8")).encoder,
     ).toBe(hardware);
