@@ -608,6 +608,54 @@ test("media token issuance failures are observable without counting rejected inv
   }
 });
 
+test("nickname synchronization failure does not block expired sharing permission revocation", async () => {
+  const { media } = await import("../../apps/api/src/media");
+  const { reconcileRoom } = await import("../../apps/api/src/rooms");
+  const { leases } = await import("@cinegather/database");
+  const user = await account("昵称失败权限回收"),
+    created = await room(user.token);
+  await db
+    .update(leases)
+    .set({
+      holderUserId: user.id,
+      leaseId: crypto.randomUUID(),
+      revision: 1,
+      expiresAt: new Date(Date.now() - 1000),
+    })
+    .where(eq(leases.roomId, created.id));
+  const list = media.participants,
+    set = media.setPermissions,
+    update = media.client.updateParticipant;
+  const revoked: boolean[] = [];
+  try {
+    media.participants = async () =>
+      [
+        {
+          identity: user.id,
+          name: "旧昵称",
+          permission: { canPublishSources: [2, 3, 4] },
+        },
+      ] as Awaited<ReturnType<typeof list>>;
+    media.client.updateParticipant = async () => {
+      throw new Error("non-critical nickname sync unavailable");
+    };
+    media.setPermissions = async (_roomId, _userId, _mic, allow) => {
+      revoked.push(allow);
+    };
+    await reconcileRoom(created.id);
+    expect(revoked).toEqual([false]);
+    const [stored] = await db
+      .select()
+      .from(leases)
+      .where(eq(leases.roomId, created.id));
+    expect(stored!.holderUserId).toBeNull();
+  } finally {
+    media.participants = list;
+    media.setPermissions = set;
+    media.client.updateParticipant = update;
+  }
+});
+
 test("an unavailable ingress registry cannot prevent expired browser permission revocation", async () => {
   const { media } = await import("../../apps/api/src/media");
   const { reconcileRoom } = await import("../../apps/api/src/rooms");

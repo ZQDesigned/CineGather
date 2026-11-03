@@ -1722,12 +1722,21 @@ export async function reconcileRoom(
       const displayName = validSessions.find(
         (session) => session.userId === participant.identity,
       )?.displayName;
-      if (displayName !== undefined && participant.name !== displayName)
-        await media.client.updateParticipant(
-          roomId,
-          participant.rawIdentity ?? participant.identity,
-          { name: displayName },
-        );
+      if (displayName !== undefined && participant.name !== displayName) {
+        try {
+          await media.client.updateParticipant(
+            roomId,
+            participant.rawIdentity ?? participant.identity,
+            { name: displayName },
+          );
+        } catch {
+          // Cosmetic synchronization must never abort permission/lease cleanup.
+          // A departed participant or temporary RPC failure is retried next tick.
+          console.error(
+            JSON.stringify({ event: "room.profile_sync_failed", roomId }),
+          );
+        }
+      }
       const allowsScreen =
         participant.permission?.canPublishSources.includes(3) ||
         participant.permission?.canPublishSources.includes(4);

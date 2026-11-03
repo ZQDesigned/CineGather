@@ -208,7 +208,9 @@ try {
         .click();
       await page
         .locator(".ant-select-dropdown:visible")
-        .getByText(label!, { exact: true })
+        .getByText(id === "auto" ? /^自动选择(?:（.*）)?$/ : label!, {
+          exact: true,
+        })
         .click();
       await page.getByRole("button", { name: "保存设置", exact: true }).click();
       await expect(page.getByRole("dialog")).toHaveCount(0);
