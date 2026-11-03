@@ -27,10 +27,19 @@ const powershell = (script: string) =>
     ],
     { encoding: "utf8", timeout: 150_000 },
   ).trim();
-const publicInstaller = join(directory, "CineGather-0.1.20-public-setup.exe");
-console.log("Downloading the released 0.1.20 baseline");
-powershell(
-  `$ErrorActionPreference='Stop'; $ProgressPreference='SilentlyContinue'; Invoke-WebRequest 'https://cgplat.zqdesigned.city/downloads/CineGather-0.1.20-win-x64-setup.exe' -TimeoutSec 90 -OutFile '${publicInstaller}'; @{ stage='downloaded'; bytes=(Get-Item '${publicInstaller}').Length } | ConvertTo-Json | Set-Content '${join(directory, "baseline-download.json")}'`,
+const publicInstaller = join(directory, "released-setup.exe");
+console.log("Verifying the currently released baseline");
+const baseline = Bun.spawn(
+  ["bun", resolve("tools/released-native-runtime.ts"), "--cached"],
+  { stdout: "inherit", stderr: "inherit" },
+);
+if (await baseline.exited) throw Error("Released baseline verification failed");
+await writeFile(
+  join(directory, "baseline-download.json"),
+  JSON.stringify({
+    stage: "verified",
+    bytes: (await readFile(publicInstaller)).length,
+  }),
 );
 console.log("Installing the released baseline");
 powershell(

@@ -4,8 +4,10 @@ $ProgressPreference = 'SilentlyContinue'
 $evidence = Join-Path $PSScriptRoot '../.local/windows-upgrade'
 New-Item -ItemType Directory -Force $evidence | Out-Null
 $evidence = (Resolve-Path $evidence).Path
-$installer = Join-Path $evidence 'CineGather-0.1.14-setup.exe'
-Invoke-WebRequest 'https://cgplat.zqdesigned.city/downloads/CineGather-0.1.14-win-x64-setup.exe' -OutFile $installer
+& bun (Join-Path $PSScriptRoot 'released-native-runtime.ts') --cached
+if ($LASTEXITCODE -ne 0) { throw 'Cannot verify the released baseline installer' }
+$installer = Join-Path $evidence 'released-setup.exe'
+
 
 # Exercise the released installer itself, with TEMP and the installation on
 # different volumes, before attributing the failure to a process/file lock.
