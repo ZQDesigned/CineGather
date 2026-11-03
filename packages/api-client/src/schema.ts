@@ -244,6 +244,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/accounts/profile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["changeAccountProfile"];
+        trace?: never;
+    };
     "/api/v1/accounts/sessions": {
         parameters: {
             query?: never;
@@ -3307,6 +3323,143 @@ export interface operations {
                         };
                         sessionToken: string;
                         expiresAt: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                    };
+                };
+            };
+        };
+    };
+    changeAccountProfile: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    displayName: string;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        displayName: string;
+                        username?: string | null;
+                        isSuperAdmin?: boolean;
+                        screenShareEnabled?: boolean;
+                        esportsRoomsEnabled?: boolean;
+                        highFrameRateEnabled?: boolean;
+                        standardRoomMaxMembers?: number;
+                        roles?: {
+                            /** Format: uuid */
+                            id: string;
+                            name: string;
+                        }[];
+                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };

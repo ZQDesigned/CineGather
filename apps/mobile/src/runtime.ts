@@ -614,6 +614,39 @@ export class MobileRuntime {
       ),
     );
   }
+  async changeNickname(displayName: string) {
+    const token = this.session.getToken();
+    if (!token) return false;
+    const user = userSchema.parse(
+      await this.api.call(
+        "change-profile",
+        (c) => c.PATCH("/api/v1/accounts/profile", { body: { displayName } }),
+        { token },
+      ),
+    );
+    // A response for a previous login must never overwrite the new account.
+    if (token !== this.session.getToken()) return false;
+    this.session.updateProfile(token, user);
+    return true;
+  }
+  async changePassword(currentPassword: string, password: string) {
+    const token = this.session.getToken();
+    if (!token) return false;
+    const credentials = sessionSchema.parse(
+      await this.api.call(
+        "change-password",
+        (c) =>
+          c.POST("/api/v1/accounts/password", {
+            body: { currentPassword, password },
+          }),
+        { token },
+      ),
+    );
+    if (token !== this.session.getToken()) return false;
+    // Password changes revoke the old token, including on this device. Accept
+    // the replacement instead of leaving the successful save with a dead login.
+    return this.session.authenticate(async () => credentials);
+  }
   async refresh() {
     if (this.updates.updater.snapshot().required) return;
     if (this.refreshing) return this.refreshing;

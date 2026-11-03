@@ -39,6 +39,13 @@ export const passwordInput = z.strictObject({
   currentPassword: z.string().min(1).max(128),
   password: accountPassword,
 });
+export const profileInput = z.strictObject({
+  displayName: z
+    .string()
+    .trim()
+    .min(1, "请输入昵称")
+    .max(32, "昵称最多 32 个字符"),
+});
 export const DEFAULT_ROOM_MEMBER_LIMIT = 10;
 export const MAX_ROOM_MEMBERS = 25;
 export const shareQualityInput = z.strictObject({

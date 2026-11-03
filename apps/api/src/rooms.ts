@@ -1611,6 +1611,7 @@ export async function reconcileRoom(
             userId: credentials.userId,
             credentialId: credentials.id,
             screenShareEnabled: users.screenShareEnabled,
+            displayName: users.displayName,
           })
           .from(credentials)
           .innerJoin(users, eq(users.id, credentials.userId))
@@ -1718,6 +1719,15 @@ export async function reconcileRoom(
               eq(roomSessions.credentialId, sid),
             ),
           );
+      const displayName = validSessions.find(
+        (session) => session.userId === participant.identity,
+      )?.displayName;
+      if (displayName !== undefined && participant.name !== displayName)
+        await media.client.updateParticipant(
+          roomId,
+          participant.rawIdentity ?? participant.identity,
+          { name: displayName },
+        );
       const allowsScreen =
         participant.permission?.canPublishSources.includes(3) ||
         participant.permission?.canPublishSources.includes(4);

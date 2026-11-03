@@ -62,6 +62,18 @@ export default function Layout() {
                   options={nativeSheetOptions}
                 />
                 <Stack.Screen name="devices" options={{ title: "登录设备" }} />
+                <Stack.Screen
+                  name="account"
+                  options={{ title: "账号与安全" }}
+                />
+                <Stack.Screen
+                  name="edit-nickname"
+                  options={{ title: "修改昵称" }}
+                />
+                <Stack.Screen
+                  name="change-password"
+                  options={{ title: "修改密码" }}
+                />
               </Stack>
               <Dialog
                 visible={!!state.popup}

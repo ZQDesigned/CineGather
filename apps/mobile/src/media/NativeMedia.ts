@@ -212,6 +212,7 @@ export class NativeMedia {
     const syncEvents = [
       RoomEvent.ParticipantConnected,
       RoomEvent.ParticipantDisconnected,
+      RoomEvent.ParticipantNameChanged,
       RoomEvent.TrackPublished,
       RoomEvent.TrackUnpublished,
       RoomEvent.TrackSubscribed,

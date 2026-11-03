@@ -41,6 +41,7 @@ import {
   registerAccount,
   loginAccount,
   changeAccountPassword,
+  changeAccountProfile,
 } from "./accounts";
 import { db } from "./context";
 import { media } from "./media";
@@ -213,6 +214,11 @@ export class ApiController {
       parse(c.passwordInput, body),
       device(req),
     );
+  }
+  @Patch("accounts/profile")
+  @Endpoint("changeAccountProfile", c.userSchema, c.profileInput)
+  profile(@Req() req: AuthRequest, @Body() body: unknown) {
+    return changeAccountProfile(req.user, parse(c.profileInput, body));
   }
   @Get("accounts/sessions")
   @Endpoint("listDeviceSessions", c.deviceSessionsSchema)

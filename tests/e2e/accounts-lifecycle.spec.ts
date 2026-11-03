@@ -84,6 +84,7 @@ test("registered accounts support password changes in the shared settings UI", a
   await expect(page.locator(".connection")).toContainText("已连接");
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "账号与安全", exact: true }).click();
+  await page.getByRole("button", { name: "修改密码", exact: true }).click();
   await page
     .getByLabel("当前密码", { exact: true })
     .fill("Incorrect current password!");

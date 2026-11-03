@@ -30,7 +30,7 @@ import { serverOrigin, verifyServer } from "../server-address";
 import { defaultOverlayPreferences } from "../../shared/settings";
 import { capabilities } from "../platform";
 import { DeviceSessions } from "./DeviceSessions";
-import { AccountForm } from "./AccountForm";
+import { AccountSettings } from "./AccountSettings";
 import { UpdatePanel } from "./Updates";
 import { NotificationSettings } from "./NotificationSettings";
 import {
@@ -466,14 +466,7 @@ export function Settings() {
                 {
                   key: "account",
                   label: "账号与安全",
-                  children: (
-                    <>
-                      <p className="account-identity">
-                        用户名：{user.username}
-                      </p>
-                      <AccountForm mode="password" />
-                    </>
-                  ),
+                  children: <AccountSettings />,
                 },
                 {
                   key: "devices",

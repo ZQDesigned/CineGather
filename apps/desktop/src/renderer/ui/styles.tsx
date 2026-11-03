@@ -1610,6 +1610,40 @@ export const AppSurface = styled.div`
     color: #9298a9;
     font-size: 12px;
   }
+  .account-overview {
+    display: grid;
+    gap: 12px;
+  }
+  .account-entry.ant-btn {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    gap: 12px;
+    height: 56px;
+    padding: 0 16px;
+    text-align: left;
+    min-width: 0;
+  }
+  .account-entry-value {
+    margin-left: auto;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: #9298a9;
+  }
+  .account-entry > svg {
+    flex-shrink: 0;
+  }
+  .account-entry-arrow {
+    margin-left: auto;
+  }
+  .account-back.ant-btn {
+    margin-left: -12px;
+  }
+  .account-subpage h5 {
+    margin: 16px 0 20px;
+  }
   .welcome-card .ant-btn-link {
     margin: 15px auto 0;
     display: flex;

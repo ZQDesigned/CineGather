@@ -227,6 +227,7 @@ export class MediaSession {
     for (const event of [
       RoomEvent.ParticipantConnected,
       RoomEvent.ParticipantDisconnected,
+      RoomEvent.ParticipantNameChanged,
       RoomEvent.TrackUnpublished,
       RoomEvent.TrackMuted,
       RoomEvent.TrackUnmuted,

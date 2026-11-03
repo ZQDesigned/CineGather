@@ -1554,6 +1554,18 @@ export async function changePassword(
     changingCredentials = false;
   }
 }
+export async function changeNickname(displayName: string) {
+  const identity = sessionToken;
+  const userId = state().user?.id;
+  const user = unwrap(
+    await api.PATCH("/api/v1/accounts/profile", {
+      body: { displayName },
+    }),
+  );
+  if (identity !== sessionToken || user.id !== userId) return;
+  await applyAccount(user);
+  update({ notice: "昵称已修改" });
+}
 export async function refreshRooms() {
   const identity = sessionToken;
   const result = unwrap(await api.GET("/api/v1/rooms"));

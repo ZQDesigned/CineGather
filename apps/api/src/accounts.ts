@@ -1,6 +1,12 @@
 import { randomUUID } from "node:crypto";
 import { and, eq, isNull, sql } from "drizzle-orm";
-import { users, credentials, type Transaction } from "@cinegather/database";
+import {
+  users,
+  credentials,
+  members,
+  rooms,
+  type Transaction,
+} from "@cinegather/database";
 import type { User } from "@cinegather/contracts";
 import { db, hash, token, audit } from "./context";
 import { fail } from "./errors";
@@ -13,6 +19,7 @@ import {
 import { readRegistrationPolicy, registrationLock } from "./registration";
 import { readAccess } from "./access";
 import { sessionDevice } from "./session-device";
+import { media } from "./media";
 const failures = new Map<string, { count: number; until: number }>();
 async function session(
   tx: Transaction,
@@ -138,6 +145,65 @@ export async function loginAccount(
     await audit(tx, current.id, "account.logged_in", current.id);
     return result;
   });
+}
+export async function changeAccountProfile(
+  user: User,
+  input: { displayName: string },
+) {
+  const result = await db.transaction(async (tx) => {
+    const [current] = await tx
+      .select()
+      .from(users)
+      .where(eq(users.id, user.id))
+      .for("update");
+    if (!current?.username || current.disabledAt)
+      fail(401, "ACCOUNT_REQUIRED", "请重新登录账号");
+    if (current.displayName !== input.displayName) {
+      await tx
+        .update(users)
+        .set({ displayName: input.displayName })
+        .where(eq(users.id, user.id));
+      await audit(tx, user.id, "account.profile_updated", user.id, {
+        displayName: { before: current.displayName, after: input.displayName },
+      });
+    }
+    return publicUser(tx, { ...current, displayName: input.displayName });
+  });
+  // Persisted profile is authoritative. A temporarily unavailable media service
+  // must not turn a successful save into a failure; reconciliation retries it.
+  try {
+    const active = await db
+      .select({ id: rooms.id })
+      .from(members)
+      .innerJoin(rooms, eq(rooms.id, members.roomId))
+      .where(
+        and(
+          eq(members.userId, user.id),
+          eq(rooms.status, "active"),
+          eq(rooms.mode, "standard"),
+        ),
+      );
+    for (const room of active) {
+      const [current] = await db
+        .select({ name: users.displayName })
+        .from(users)
+        .where(eq(users.id, user.id));
+      if (!current) break;
+      for (const peer of await media.participants(room.id))
+        if (peer.identity === user.id && peer.name !== current.name)
+          await media.client.updateParticipant(room.id, peer.rawIdentity, {
+            name: current.name,
+          });
+    }
+  } catch {
+    console.error(
+      JSON.stringify({
+        event: "account.profile_media_sync_failed",
+        userId: user.id,
+      }),
+    );
+  }
+  return result;
 }
 export async function changeAccountPassword(
   user: User,

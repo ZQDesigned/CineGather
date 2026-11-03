@@ -142,6 +142,133 @@ test("accounts have normalized unique usernames, hashed secrets and stable ident
   ).toBe(200);
   expect((await request("/me", login.body.sessionToken)).status).toBe(200);
 });
+test("profile edits preserve identity and sessions while friends see the trimmed new nickname", async () => {
+  const a = await account("原来的昵称"),
+    friend = await account("好友昵称");
+  const second = await request("/accounts/login", undefined, {
+    username: a.user.username,
+    password,
+  });
+  await request("/friends", a.sessionToken, { userId: friend.user.id });
+  await request(`/friends/${a.user.id}/accept`, friend.sessionToken, {});
+  const changed = await request(
+    "/accounts/profile",
+    a.sessionToken,
+    { displayName: "  新昵称 🎬  " },
+    "PATCH",
+  );
+  expect(changed.status).toBe(200);
+  expect(changed.body.displayName).toBe("新昵称 🎬");
+  expect(changed.body.id).toBe(a.user.id);
+  expect(changed.body.username).toBe(a.user.username);
+  expect(changed.body.screenShareEnabled).toBe(a.user.screenShareEnabled);
+  expect(
+    (await request("/me", second.body.sessionToken)).body.displayName,
+  ).toBe("新昵称 🎬");
+  const friends = await request("/friends", friend.sessionToken);
+  expect(
+    friends.body.items.find((f: { userId: string }) => f.userId === a.user.id)
+      ?.displayName,
+  ).toBe("新昵称 🎬");
+  expect((await request("/me", friend.sessionToken)).body.displayName).toBe(
+    "好友昵称",
+  );
+  await request(
+    "/accounts/profile",
+    a.sessionToken,
+    { displayName: "新昵称 🎬" },
+    "PATCH",
+  );
+  const audits = await db
+    .select()
+    .from(auditLogs)
+    .where(eq(auditLogs.actorId, a.user.id));
+  const edits = audits.filter((a) => a.action === "account.profile_updated");
+  expect(edits).toHaveLength(1);
+  expect(edits[0]!.details).toEqual({
+    displayName: { before: "原来的昵称", after: "新昵称 🎬" },
+  });
+  const login = await request("/accounts/login", undefined, {
+    username: a.user.username,
+    password,
+  });
+  expect(login.body.user.displayName).toBe("新昵称 🎬");
+});
+test("profile edits require authentication and reject invalid names or non-profile fields atomically", async () => {
+  const a = await account("校验昵称");
+  expect(
+    (
+      await request(
+        "/accounts/profile",
+        undefined,
+        { displayName: "未登录" },
+        "PATCH",
+      )
+    ).status,
+  ).toBe(401);
+  for (const body of [
+    { displayName: "" },
+    { displayName: "   " },
+    { displayName: "长".repeat(33) },
+    {},
+    { displayName: "新名", userId: a.user.id },
+    { displayName: "新名", username: "renamed" },
+    { displayName: "新名", isSuperAdmin: true },
+  ]) {
+    expect(
+      (await request("/accounts/profile", a.sessionToken, body, "PATCH"))
+        .status,
+    ).toBe(400);
+    expect((await request("/me", a.sessionToken)).body.displayName).toBe(
+      "校验昵称",
+    );
+  }
+  expect(
+    (
+      await request(
+        "/accounts/profile",
+        a.sessionToken,
+        { displayName: "长".repeat(32) },
+        "PATCH",
+      )
+    ).status,
+  ).toBe(200);
+  // Display names are deliberately not unique login identifiers.
+  const other = await account("另一个昵称");
+  expect(
+    (
+      await request(
+        "/accounts/profile",
+        other.sessionToken,
+        { displayName: "长".repeat(32) },
+        "PATCH",
+      )
+    ).status,
+  ).toBe(200);
+});
+test("a media outage does not report an already committed nickname save as failed", async () => {
+  const a = await account("离线媒体旧名");
+  await create(a.sessionToken);
+  const original = media.participants.bind(media);
+  media.participants = async () => {
+    throw new Error("temporary media outage");
+  };
+  try {
+    const result = await request(
+      "/accounts/profile",
+      a.sessionToken,
+      { displayName: "已保存的新名" },
+      "PATCH",
+    );
+    expect(result.status).toBe(200);
+    expect(result.body.displayName).toBe("已保存的新名");
+    expect((await request("/me", a.sessionToken)).body.displayName).toBe(
+      "已保存的新名",
+    );
+  } finally {
+    media.participants = original;
+  }
+});
 test("password changes revoke previous sessions and preserve account friendships", async () => {
   const a = await account(),
     friend = await account();
