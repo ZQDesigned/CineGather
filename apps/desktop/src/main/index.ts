@@ -936,7 +936,12 @@ else {
           join(app.getPath("userData"), "capture"),
           (reason) => sendAction("capture-ended", reason),
           app.isPackaged ? undefined : "com.github.Electron",
-          { previewAllowed: foreground },
+          {
+            previewAllowed: foreground,
+            diagnosticEvent: (event) => {
+              void diagnostics?.nativeEvent(event).catch(() => {});
+            },
+          },
         );
       if (process.platform === "win32")
         nativeCapture = new NativeCapture(
@@ -951,6 +956,9 @@ else {
           "CineGather.exe",
           {
             previewAllowed: foreground,
+            diagnosticEvent: (event) => {
+              void diagnostics?.nativeEvent(event).catch(() => {});
+            },
             encoder: () => settings.windowsEncoder ?? "auto",
             audioFallback: () => sendAction("device-audio-fallback"),
           },

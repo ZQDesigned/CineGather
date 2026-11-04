@@ -11,7 +11,17 @@ p.write_text(s)
 # Fixed stage codes only; the host never retains raw SDP/URLs/log messages.
 s=p.read_text()
 s=s.replace('bool WHIPOutput::Setup()\n{', 'bool WHIPOutput::Setup()\n{\n do_log(LOG_INFO, "CG_WHIP_PHASE setup");')
-s=s.replace('CURLcode res = curl_easy_perform(c);','do_log(LOG_INFO, "CG_WHIP_PHASE http");\n CURLcode res = curl_easy_perform(c);',1)
+assert s.count('CURLcode res = curl_easy_perform(c);') == 2
+s=s.replace('#include "whip-output.h"', '#include "whip-output.h"\n#include "curl-network-diagnostics.hpp"', 1)
+for method in [1, 2]:
+    original='CURLcode res = curl_easy_perform(c);'
+    replacement=(('do_log(LOG_INFO, "CG_WHIP_PHASE http");\n ' if method == 1 else '') +
+        'const auto cg_http_begin = std::chrono::steady_clock::now();\n CURLcode cg_http_result = curl_easy_perform(c);\n' +
+        f' auto cg_http_trace = cinegather::collectCurlTrace(c, cg_http_result, {method}, error_buffer, cg_http_begin);\n' +
+        ' do_log(LOG_INFO, "CG_WHIP_HTTP %s", cg_http_trace.json().c_str());\n CURLcode res = cg_http_result;')
+    s=s.replace(original,replacement,1)
+# Observe the ICE-to-DTLS handoff without enabling raw RTC debug logging.
+s=s.replace('peer_connection->onStateChange([this]', 'peer_connection->onIceStateChange([this](rtc::PeerConnection::IceState state) {\n if (state == rtc::PeerConnection::IceState::Connected) do_log(LOG_INFO, "CG_WHIP_PHASE dtls");\n });\n\tpeer_connection->onStateChange([this]', 1)
 s=s.replace('auto response = std::string(read_buffer);','do_log(LOG_INFO, "CG_WHIP_PHASE answer");\n auto response = std::string(read_buffer);',1)
 s=s.replace('peer_connection->gatherLocalCandidates(iceServers);','do_log(LOG_INFO, "CG_WHIP_PHASE ice");\n peer_connection->gatherLocalCandidates(iceServers);',1)
 p.write_text(s)

@@ -2,6 +2,7 @@ import { spawn } from "node:child_process";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { resolve, join } from "node:path";
+import { decodeNativeNetwork } from "../apps/desktop/src/main/native-capture-events";
 import { NativeProtocol } from "../apps/desktop/src/main/native-protocol";
 if (process.platform !== "darwin")
   throw new Error("The native capture runtime currently supports macOS arm64.");
@@ -21,7 +22,24 @@ const pipe = new NativeProtocol(
 );
 child.stdout.setEncoding("utf8");
 child.stdout.on("data", (data) => pipe.receive(data));
-child.stderr.resume();
+const networkEvents: NonNullable<ReturnType<typeof decodeNativeNetwork>>[] = [];
+let stderrBuffer = "";
+child.stderr.setEncoding("utf8");
+child.stderr.on("data", (chunk) => {
+  stderrBuffer += chunk;
+  for (let index; (index = stderrBuffer.indexOf("\n")) >= 0; ) {
+    const line = stderrBuffer.slice(0, index);
+    stderrBuffer = stderrBuffer.slice(index + 1);
+    if (!line.startsWith("CG_HOST_NETWORK ")) continue;
+    try {
+      const value = decodeNativeNetwork(JSON.parse(line.slice(16)));
+      if (value) networkEvents.push(value);
+    } catch {
+      /* Raw native text is discarded. */
+    }
+  }
+  if (stderrBuffer.length > 4096) stderrBuffer = "";
+});
 child.stdin.on("error", () => pipe.close());
 child.on("error", () => pipe.close());
 child.on("close", () => pipe.close());
@@ -30,6 +48,8 @@ type Status = {
   screenPermission: boolean;
   outputActive: boolean;
   outputPhase: string;
+  network?: unknown;
+  transportPhase?: string;
   sourcesActive: boolean;
   runtimeImages: string[];
   loadedPlugins: string[];
@@ -115,6 +135,24 @@ try {
         posts > 0 &&
         (await pipe.call<Status>({ type: "status" })).outputPhase === "failed",
     );
+    const failed = await pipe.call<Status>({ type: "status" });
+    const trace = decodeNativeNetwork(failed.network);
+    check(
+      trace?.curlCode === 0 &&
+        trace.httpStatus === 404 &&
+        trace.timings.totalMs !== undefined,
+      "Native failed WHIP status lost structured transport evidence",
+    );
+    check(
+      networkEvents.some((n) => n.method === "POST" && n.httpStatus === 404),
+      "Native failed WHIP event was not emitted immediately",
+    );
+    report.networkTrace = {
+      curlCode: trace.curlCode,
+      httpStatus: trace.httpStatus,
+      tlsBackend: trace.tlsBackend,
+      timings: trace.timings,
+    };
     rejected = false;
     try {
       await pipe.call({ type: "start", ...config });
@@ -124,6 +162,11 @@ try {
     check(
       rejected && (await pipe.call<Status>({ type: "status" })).sourcesActive,
       "Duplicate start changed an existing capture",
+    );
+    check(
+      decodeNativeNetwork((await pipe.call<Status>({ type: "status" })).network)
+        ?.httpStatus === 404,
+      "Duplicate start erased failed connection evidence",
     );
     const stopAt = performance.now();
     const stopped = await pipe.call<Status>({ type: "stop" });

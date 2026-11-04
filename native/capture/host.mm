@@ -15,6 +15,8 @@
 #include <util/base.h>
 #include "preview-control.hpp"
 #include "source-swap.hpp"
+#include "network-diagnostics.hpp"
+#include <cstdarg>
 
 // SPDX-License-Identifier: MIT
 // Direct libobs host. Commands arrive only through the parent-owned stdio pipe.
@@ -48,8 +50,19 @@ static void check(bool ok, const char *message) {
   if (!ok)
     throw std::runtime_error(message);
 }
-static void logging(int, const char *, va_list, void *) {
-} // Upstream debug messages may contain WHIP resource credentials.
+static cinegather::NetworkTelemetry networkTelemetry;
+static std::atomic<int> transportPhase{0};
+static const char *phaseName() { return std::array<const char *,7>{"none","setup","http","answer","ice","dtls","connected"}[transportPhase.load()]; }
+static void logging(int level, const char *format, va_list args, void *) {
+  if (level > LOG_INFO) return;
+  char raw[4096];vsnprintf(raw,sizeof(raw),format,args);std::string text=raw;
+  if (networkTelemetry.consume(text)) {
+    auto trace=cinegather::NetworkTrace::parse(std::string_view(text).substr(text.find("CG_WHIP_HTTP ")+13));
+    if(trace){std::fprintf(stderr,"CG_HOST_NETWORK %s\n",trace->json().c_str());std::fflush(stderr);}return;
+  }
+  for(const auto &phase:std::array<std::pair<const char*,int>,7>{{{"CG_WHIP_PHASE setup",1},{"CG_WHIP_PHASE http",2},{"CG_WHIP_PHASE answer",3},{"CG_WHIP_PHASE ice",4},{"CG_WHIP_PHASE dtls",5},{"Connection state is now: Connected",6},{"Connection state is now: connected",6}}})
+    if(text.find(phase.first)!=std::string::npos){transportPhase=phase.second;std::fprintf(stderr,"CG_HOST_TRANSPORT {\"transportPhase\":\"%s\"}\n",phaseName());std::fflush(stderr);}
+} // No upstream raw logs/addresses/SDP survive.
 static obs_data_t *settings(NSDictionary *dict) {
   NSData *data = [NSJSONSerialization dataWithJSONObject:dict
                                                  options:0
@@ -116,6 +129,9 @@ static void stopCapture() {
 }
 static NSDictionary *status() {
   obs_data_t *preview = obs_data_create();
+  obs_data_set_string(preview,"transportPhase",phaseName());
+  for(const auto &entry:std::array<std::pair<const char*,std::optional<cinegather::NetworkTrace>>,2>{{{"network",networkTelemetry.connection()},{"cleanupNetwork",networkTelemetry.cleanup()}}})if(entry.second){auto *n=obs_data_create_from_json(entry.second->json().c_str());obs_data_set_obj(preview,entry.first,n);obs_data_release(n);}
+
   cinegather::previewStats(output, preview);
   NSDictionary *previewStatus = [NSJSONSerialization JSONObjectWithData:
       [[NSString stringWithUTF8String:obs_data_get_json(preview)] dataUsingEncoding:NSUTF8StringEncoding]
@@ -477,6 +493,7 @@ static void prepareScene(NSDictionary *config, cinegather::CaptureScene &next) {
 }
 static void startCapture(NSDictionary *config) {
   check(!output, "Stop the existing output first");
+  networkTelemetry.reset();transportPhase=0;
   check(CGPreflightScreenCaptureAccess(),
         "请在系统设置中允许 CGScreenCaptureHost 录屏与系统录音后重试");
   if (config[@"displayId"] && [config[@"systemAudio"] boolValue]) {

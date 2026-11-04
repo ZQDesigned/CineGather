@@ -2,6 +2,7 @@
 // pointers.
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
+#include "network-diagnostics.hpp"
 #include "encoder-selection.hpp"
 #include "preview-control.hpp"
 #include "source-swap.hpp"
@@ -132,6 +133,7 @@ static std::atomic<bool> nvencRerouted{false};
 static std::atomic<int> transportFailure{0}, transportHttpStatus{0},
     transportDetail{0};
 static std::atomic<int> transportPhase{0}, transportErrorCode{0};
+static cinegather::NetworkTelemetry networkTelemetry;
 static const char *transportPhaseName() {
   switch (transportPhase.load()) {
   case 1: return "setup";
@@ -177,9 +179,21 @@ static void logging(int level, const char *format, va_list args, void *) {
   char buffer[4096];
   vsnprintf(buffer, sizeof(buffer), format, args);
   std::string text = buffer, lower = text;
+  if (networkTelemetry.consume(text)) {
+    const auto at = text.find("CG_WHIP_HTTP ");
+    const auto trace = cinegather::NetworkTrace::parse(std::string_view(text).substr(at + 13));
+    if (trace && trace->get("method") == 1) {
+      transportErrorCode = int(trace->get("curlCode"));
+      transportHttpStatus = int(std::max<int64_t>(0, trace->get("httpStatus")));
+      if (transportErrorCode) transportFailure = 1;
+      else if (transportHttpStatus != 201) transportFailure = 2;
+    }
+    if (trace) { std::fprintf(stderr, "CG_HOST_NETWORK %s\n", trace->json().c_str()); std::fflush(stderr); }
+    return;
+  }
   std::transform(lower.begin(), lower.end(), lower.begin(),
                  [](unsigned char c) { return char(std::tolower(c)); });
-  for (const auto &stage : std::vector<std::pair<const char *, int>>{{"cg_whip_phase setup",1},{"cg_whip_phase http",2},{"cg_whip_phase answer",3},{"cg_whip_phase ice",4},{"state is now: connected",6}}) {
+  for (const auto &stage : std::vector<std::pair<const char *, int>>{{"cg_whip_phase setup",1},{"cg_whip_phase http",2},{"cg_whip_phase answer",3},{"cg_whip_phase ice",4},{"cg_whip_phase dtls",5},{"state is now: connected",6}}) {
     if (lower.find(stage.first) != std::string::npos) { transportPhase = stage.second; emitTransport(); }
   }
   if (lower.find("non-texture encoder") != std::string::npos &&
@@ -263,7 +277,6 @@ static void rtcLog(int level, const char *message) {
   if (level > 4 || !message)
     return;
   const std::string_view text(message);
-  if (text.find("DTLS") != std::string::npos) { transportPhase = 5; }
   int empty = 0;
   if (text.find("fingerprint") != std::string::npos &&
       (text.find("match") != std::string::npos ||
@@ -1013,6 +1026,9 @@ static void stopCapture() {
 static Data status() {
   auto d = data();
   cinegather::previewStats(output, d.get());
+  for (const auto &entry : std::vector<std::pair<const char *, std::optional<cinegather::NetworkTrace>>>{{"network", networkTelemetry.connection()}, {"cleanupNetwork", networkTelemetry.cleanup()}}) {
+    if (entry.second) { auto *n = obs_data_create_from_json(entry.second->json().c_str()); obs_data_set_obj(d.get(), entry.first, n); obs_data_release(n); }
+  }
   obs_data_set_string(d.get(), "transportPhase", transportPhaseName());
   obs_data_set_int(d.get(), "transportErrorCode", transportErrorCode);
   obs_data_set_string(d.get(), "transportFailure", transportStage());
@@ -1274,6 +1290,7 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
   ++captureSequence;
   syntheticCapture = synthetic;
 
+  networkTelemetry.reset();
   transportFailure = 0;
   transportPhase = 0;
   transportErrorCode = 0;

@@ -1,0 +1,57 @@
+import { z } from "zod";
+const count = z.number().int().nonnegative(),
+  ms = z.number().finite().nonnegative();
+export const nativeNetworkSchema = z.object({
+  sequence: count.positive(),
+  method: z.enum(["POST", "DELETE"]),
+  curlCode: count.max(999),
+  httpStatus: count.max(599).optional(),
+  errorKind: z.enum([
+    "none",
+    "dns",
+    "proxy-dns",
+    "connect",
+    "timeout",
+    "tls",
+    "certificate",
+    "send",
+    "receive",
+    "redirect",
+    "other",
+  ]),
+  osError: count.optional(),
+  tlsNativeCode: count.max(0xffffffff).optional(),
+  tlsVerifyResult: count.optional(),
+  tlsBackend: z.enum([
+    "unknown",
+    "schannel",
+    "secure-transport",
+    "openssl",
+    "gnutls",
+    "libressl",
+    "boringssl",
+  ]),
+  addressFamily: z.enum(["ipv4", "ipv6"]).optional(),
+  redirectCount: count.optional(),
+  connectCount: count.optional(),
+  timings: z.object({
+    dnsMs: ms.optional(),
+    tcpMs: ms.optional(),
+    tlsMs: ms.optional(),
+    requestReadyMs: ms.optional(),
+    firstByteMs: ms.optional(),
+    totalMs: ms.optional(),
+    wallMs: ms.optional(),
+  }),
+});
+export type NativeNetwork = z.infer<typeof nativeNetworkSchema>;
+export const nativeHostTriggerSchema = z.enum([
+  "command",
+  "sources",
+  "select",
+  "encoders",
+  "share",
+  "diagnostic-probe",
+  "preview",
+  "health",
+]);

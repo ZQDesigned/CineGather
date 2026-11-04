@@ -10,7 +10,9 @@ export class NativeProtocol {
   };
   constructor(
     private readonly write: (data: string) => void,
-    private readonly kill: () => void,
+    private readonly kill: (
+      reason?: "response-timeout" | "protocol-error" | "write-error",
+    ) => void,
     private readonly timeout = 15_000,
   ) {}
   call<T = unknown>(command: Record<string, unknown>): Promise<T> {
@@ -22,14 +24,14 @@ export class NativeProtocol {
           reject,
           timer: setTimeout(() => {
             this.close(new Error("原生采集响应超时，请重新共享"));
-            this.kill();
+            this.kill("response-timeout");
           }, this.timeout),
         };
         try {
           this.write(JSON.stringify(command) + "\n");
         } catch {
           this.close();
-          this.kill();
+          this.kill("write-error");
         }
       });
     });
@@ -41,7 +43,7 @@ export class NativeProtocol {
     this.buffer += chunk;
     if (this.buffer.length > 262144) {
       this.close();
-      this.kill();
+      this.kill("protocol-error");
       return;
     }
     const index = this.buffer.indexOf("\n");
@@ -51,7 +53,7 @@ export class NativeProtocol {
     const pending = this.pending;
     if (!pending || this.buffer.length) {
       this.close();
-      this.kill();
+      this.kill("protocol-error");
       return;
     }
     this.pending = undefined;
@@ -70,7 +72,7 @@ export class NativeProtocol {
     } catch {
       pending.reject(new Error("原生采集协议异常"));
       this.close();
-      this.kill();
+      this.kill("protocol-error");
     }
   }
   close(error = new Error("原生采集进程已退出")) {

@@ -4,10 +4,12 @@ import { NativeProtocol } from "../src/main/native-protocol";
 test("native pipe correlates commands, rejects late data after timeout, and bounds response size", async () => {
   const writes: string[] = [];
   let killed = false;
+  let killReason: string | undefined;
   const pipe = new NativeProtocol(
     (data) => writes.push(data),
-    () => {
+    (reason) => {
       killed = true;
+      killReason = reason;
     },
     20,
   );
@@ -18,6 +20,7 @@ test("native pipe correlates commands, rejects late data after timeout, and boun
   const timed = pipe.call({ type: "start" });
   await expect(timed).rejects.toThrow("超时");
   expect(killed).toBe(true);
+  expect(killReason).toBe("response-timeout");
   pipe.receive('{"ok":true,"data":{}}\n');
   await expect(pipe.call({ type: "status" })).rejects.toThrow();
   expect(writes).toHaveLength(2);
@@ -604,3 +607,146 @@ require('node:readline').createInterface({input:process.stdin}).on('line',line=>
       await rm(root, { recursive: true, force: true });
     }
   });
+
+test("a transient native HTTP failure is journaled immediately and survives helper rebuild for export", async () => {
+  const { NativeCapture } = await import("../src/main/native-capture");
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "cg-http-evidence-"));
+  await mkdir(join(root, "bin/64bit"), { recursive: true });
+  const wire = {
+    sequence: 1,
+    method: 1,
+    curlCode: 28,
+    httpStatus: 0,
+    osError: 10060,
+    tlsBackendCode: 1,
+    tlsVerifyResult: -1,
+    tlsNativeCode: -1,
+    addressFamily: 4,
+    redirectCount: 0,
+    connectCount: 1,
+    dnsUs: 500,
+    tcpUs: 5000,
+    tlsUs: -1,
+    requestReadyUs: -1,
+    firstByteUs: -1,
+    totalUs: 8000000,
+    wallUs: 8000100,
+  };
+  await writeFile(
+    join(root, "bin/64bit/CGScreenCaptureHost.exe"),
+    `#!/usr/bin/env node
+require('node:readline').createInterface({input:process.stdin}).on('line',line=>{const c=JSON.parse(line);let data={screenPermission:true,outputPhase:'stopped'};if(c.type==='windows')data={windows:[],displays:[{displayId:1,name:'Screen'}]};if(c.type==='start'){process.stderr.write('CG_HOST_TRANSPORT {"transportPhase":"http"}\\nCG_HOST_NETWORK ${JSON.stringify(wire)}\\n',()=>process.exit(3));return;}if(c.type==='encoders')data={encoders:[],adapters:[]};if(c.type==='probe')data={status:'ok',framesEncoded:45};console.log(JSON.stringify({ok:true,data}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),10);});
+`,
+    { mode: 0o755 },
+  );
+  const expiresAt = new Date(Date.now() + 20000).toISOString(),
+    events: import("../src/main/native-capture-events").NativeCaptureEvent[] =
+      [];
+  let invalidResponse = false;
+  const server = Bun.serve({
+    hostname: "127.0.0.1",
+    port: 0,
+    fetch(req) {
+      if (invalidResponse && req.method !== "DELETE")
+        return new Response("not JSON");
+      return Response.json(
+        req.method === "DELETE"
+          ? { ok: true }
+          : {
+              url: "https://example.invalid/w",
+              token: "Bearer private",
+              identity: "test",
+              expiresAt,
+            },
+      );
+    },
+  });
+  const capture = new NativeCapture(
+    root,
+    join(root, "state"),
+    () => {},
+    undefined,
+    { platform: "win32", diagnosticEvent: (e) => events.push(e) },
+  );
+  try {
+    await capture.select({ sourceId: "native-screen:1", systemAudio: false });
+    await expect(
+      capture.start({
+        apiUrl: `http://127.0.0.1:${server.port}`,
+        sessionToken: "private",
+        roomId: crypto.randomUUID(),
+        quality: "cinema",
+        lease: {
+          leaseId: crypto.randomUUID(),
+          holderUserId: crypto.randomUUID(),
+          revision: 1,
+          expiresAt,
+        },
+      }),
+    ).rejects.toThrow();
+    await Bun.sleep(30);
+    const network = events.find((e) => e.name === "native-network-result")!;
+    expect(network?.native.network).toMatchObject({
+      curlCode: 28,
+      errorKind: "timeout",
+      timings: { dnsMs: 0.5, tcpMs: 5 },
+    });
+    expect(network.native.shareAttempt).toBeDefined();
+    const probe = await capture.encoderDiagnostics();
+    expect(probe?.lastSession?.network?.curlCode).toBe(28);
+    expect(probe?.lastSession?.hostSession).toBe(network.native.hostSession);
+    expect(events.filter((e) => e.name === "native-host-spawn")).toHaveLength(
+      2,
+    );
+    expect(
+      events.find((e) => e.name === "native-host-rebuild")?.native,
+    ).toMatchObject({
+      hostTrigger: "diagnostic-probe",
+      hostRestartCount: 1,
+      previousHostSession: network.native.hostSession,
+    });
+    expect(JSON.stringify(events)).not.toMatch(
+      /private|example\.invalid|Bearer/,
+    );
+    invalidResponse = true;
+    await capture.select({ sourceId: "native-screen:1", systemAudio: false });
+    await expect(
+      capture.start({
+        apiUrl: `http://127.0.0.1:${server.port}`,
+        sessionToken: "private",
+        roomId: crypto.randomUUID(),
+        quality: "cinema",
+        lease: {
+          leaseId: crypto.randomUUID(),
+          holderUserId: crypto.randomUUID(),
+          revision: 1,
+          expiresAt,
+        },
+      }),
+    ).rejects.toThrow();
+    const invalid = [...events]
+      .reverse()
+      .find(
+        (e) =>
+          e.name === "native-api-request" &&
+          e.native.apiRequest?.operation === "native",
+      );
+    expect(invalid?.native.apiRequest).toMatchObject({
+      status: 200,
+      result: "invalid-response",
+    });
+    expect(
+      [...events].reverse().find((e) => e.name === "native-share-failed")
+        ?.native.network,
+    ).toBeUndefined();
+  } finally {
+    await capture.shutdown().catch(() => {});
+    await Bun.sleep(30);
+    server.stop(true);
+    await rm(root, { recursive: true, force: true });
+  }
+  expect(events.at(-1)?.native.hostExitReason).toBe("shutdown");
+});

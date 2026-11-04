@@ -17,6 +17,7 @@ import {
 import { DiagnosticHistory } from "./diagnostic-history";
 import { diagnosticArchive } from "../shared/diagnostics";
 import type { NativeCapture } from "./native-capture";
+import type { NativeCaptureEvent } from "./native-capture-events";
 import { projectGPUInfo } from "./encoder-info";
 import { hardwareEncodingPolicy } from "./encoding-policy";
 export class ProductionDiagnostics {
@@ -93,6 +94,13 @@ export class ProductionDiagnostics {
         ...value,
       }),
     );
+  }
+  async nativeEvent(event: NativeCaptureEvent) {
+    await this.own({
+      kind: "event",
+      event: { name: event.name },
+      native: event.native,
+    });
   }
   start() {
     void this.refreshGPU();

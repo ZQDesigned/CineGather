@@ -201,7 +201,9 @@ test("export is a deflated ZIP with raw timeline, coverage, replay intervals and
     "frame-pipeline.csv",
     "intervals.csv",
     "manifest.json",
+    "native-network.csv",
     "native-pipeline.csv",
+    "native-process.csv",
     "summary.json",
     "timeline.ndjson",
   ]);
@@ -519,4 +521,88 @@ test("esports diagnostic context retains scoped revisions and strips credentials
   expect(result.esports?.seat).toEqual({ kind: "player", team: "a" });
   expect(result.esports?.watchRevision).toBe(8);
   expect(JSON.stringify(result)).not.toContain("never-store");
+});
+test("immediate native events survive history reopen and export failure, cleanup, rebuild and recovery separately", async () => {
+  const { NativeCaptureEvents, decodeNativeNetwork } = await import(
+    "../src/main/native-capture-events"
+  );
+  const dir = await mkdtemp(join(tmpdir(), "cg-native-journal-"));
+  const at = Date.now();
+  const history = new DiagnosticHistory(dir, () => at);
+  let sequence = 0;
+  const writes: Promise<boolean>[] = [];
+  const journal = new NativeCaptureEvents((e) =>
+    writes.push(
+      history.append({
+        ...entry(at, sequence++),
+        event: { name: e.name },
+        native: e.native,
+      }),
+    ),
+  );
+  const host = crypto.randomUUID(),
+    replacement = crypto.randomUUID();
+  const network = decodeNativeNetwork({
+    sequence: 1,
+    method: "POST",
+    curlCode: 28,
+    errorKind: "timeout",
+    osError: 10060,
+    tlsBackend: "schannel",
+    addressFamily: "ipv4",
+    timings: { dnsMs: 2, tcpMs: 8, totalMs: 8000, wallMs: 8001 },
+  })!;
+  try {
+    journal.spawn(host, 100, "sources");
+    journal.ready(host);
+    const attempt = journal.beginShare();
+    journal.phase(host, "http");
+    journal.network(host, network);
+    await Promise.all(writes.splice(0));
+    journal.network(host, {
+      ...network,
+      sequence: 2,
+      method: "DELETE",
+      curlCode: 0,
+      errorKind: "none",
+      httpStatus: 200,
+    });
+    journal.endShare("failed");
+    journal.exit(host, "response-timeout", 3);
+    journal.spawn(replacement, 101, "share");
+    await Promise.all(writes.splice(0));
+    journal.beginShare();
+    journal.network(replacement, {
+      ...network,
+      sequence: 1,
+      curlCode: 0,
+      errorKind: "none",
+      httpStatus: 201,
+    });
+    journal.phase(replacement, "connected");
+    await Promise.all(writes);
+    const persisted = await new DiagnosticHistory(dir, () => at).read();
+    const files = unzipSync(await diagnosticArchive(persisted, {}, {}));
+    expect(files["native-network.csv"]).toBeDefined();
+    expect(files["native-process.csv"]).toBeDefined();
+    const csv = strFromU8(files["native-network.csv"]!);
+    expect(csv).toContain("osError");
+    expect(csv).toContain("10060");
+    expect(csv).toContain(attempt);
+    expect(csv).toContain("DELETE");
+    expect(csv).toContain("201");
+    const processes = strFromU8(files["native-process.csv"]!);
+    expect(processes).toContain("native-host-rebuild");
+    expect(processes).toContain("response-timeout");
+    expect(processes).toContain(host);
+    expect(processes).toContain(replacement);
+    expect(strFromU8(files["timeline.ndjson"]!)).not.toMatch(
+      /Authorization|Bearer|https:\/\//,
+    );
+    expect(strFromU8(files["README.txt"] ?? files["README.md"]!)).toContain(
+      "Schannel",
+    );
+  } finally {
+    await rm(dir, { recursive: true, force: true });
+  }
 });

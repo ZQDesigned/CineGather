@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { nativeNetworkSchema, nativeHostTriggerSchema } from "./native-network";
 import {
   esportsSeatSchema,
   esportsTeamSchema,
@@ -375,6 +376,12 @@ export const nativeNumbers = [
   "sampledAt",
   "hostEventAt",
   "hostExitCode",
+  "hostPid",
+  "hostGeneration",
+  "hostRestartCount",
+  "hostReadyMs",
+  "connectionElapsedMs",
+  "phaseDurationMs",
   "transportErrorCode",
   "graphicsReinitializations",
   "graphicsAdapterIndex",
@@ -413,6 +420,63 @@ export const nativeNumbers = [
 ] as const;
 export const nativeDiagnosticSchema = z.object({
   hostSession: z.string().uuid().optional(),
+  previousHostSession: z.string().uuid().optional(),
+  shareAttempt: z.string().uuid().optional(),
+  hostTrigger: nativeHostTriggerSchema.optional(),
+  hostSignal: z
+    .string()
+    .regex(/^SIG[A-Z0-9]{1,10}$/)
+    .optional(),
+  previousPhase: z
+    .enum(["none", "setup", "http", "answer", "ice", "dtls", "connected"])
+    .optional(),
+  stageTimings: z
+    .object({
+      setupMs: number.nonnegative().optional(),
+      httpMs: number.nonnegative().optional(),
+      answerMs: number.nonnegative().optional(),
+      iceMs: number.nonnegative().optional(),
+      dtlsMs: number.nonnegative().optional(),
+      totalMs: number.nonnegative().optional(),
+    })
+    .optional(),
+  network: nativeNetworkSchema.optional(),
+  cleanupNetwork: nativeNetworkSchema.optional(),
+  apiRequest: z
+    .object({
+      operation: z.enum(["native", "renew", "release"]),
+      status: z.number().int().min(0).max(599).optional(),
+      elapsedMs: number.nonnegative(),
+      result: z.enum([
+        "ok",
+        "http-error",
+        "timeout",
+        "cancelled",
+        "network-error",
+        "invalid-response",
+      ]),
+      systemCode: z
+        .enum([
+          "ENOTFOUND",
+          "EAI_AGAIN",
+          "ECONNREFUSED",
+          "ECONNRESET",
+          "ETIMEDOUT",
+          "ENETUNREACH",
+          "EHOSTUNREACH",
+          "CERT_HAS_EXPIRED",
+          "UNABLE_TO_VERIFY_LEAF_SIGNATURE",
+          "DEPTH_ZERO_SELF_SIGNED_CERT",
+          "ERR_TLS_CERT_ALTNAME_INVALID",
+          "EPROTO",
+          "UND_ERR_CONNECT_TIMEOUT",
+          "UND_ERR_HEADERS_TIMEOUT",
+          "UND_ERR_BODY_TIMEOUT",
+          "UND_ERR_SOCKET",
+        ])
+        .optional(),
+    })
+    .optional(),
   transportPhase: z
     .enum(["none", "setup", "http", "answer", "ice", "dtls", "connected"])
     .optional(),

@@ -17,6 +17,11 @@ import {
   nativeEncoderInventorySchema,
 } from "@cinegather/contracts";
 import { selectNativeSource } from "./native-selection";
+import {
+  NativeCaptureEvents,
+  decodeNativeNetwork,
+  type NativeCaptureEvent,
+} from "./native-capture-events";
 import { NativeProtocol } from "./native-protocol";
 import { nativeFailure } from "./native-failure";
 const displaySchema = z.object({
@@ -41,18 +46,39 @@ type Status = {
 };
 export class NativeCapture {
   private child?: ChildProcessWithoutNullStreams;
+  private events: NativeCaptureEvents;
+  private shutdownChildren = new WeakSet<ChildProcessWithoutNullStreams>();
   private pipe?: NativeProtocol;
   private boot?: Promise<NativeProtocol>;
   private bootIssue?: string;
   private hostSession?: string;
   private rememberStatus(raw: unknown) {
-    const status = nativeDiagnosticSchema.safeParse(raw);
-    if (status.success)
+    const source =
+      raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
+    const network = decodeNativeNetwork(source.network),
+      cleanupNetwork = decodeNativeNetwork(source.cleanupNetwork);
+    const status = nativeDiagnosticSchema.safeParse({
+      ...source,
+      network,
+      cleanupNetwork,
+    });
+    if (status.success) {
+      if (status.data.transportPhase && this.hostSession)
+        this.events.phase(this.hostSession, status.data.transportPhase);
+      if (network && this.hostSession)
+        this.events.network(this.hostSession, network);
+      if (cleanupNetwork && this.hostSession)
+        this.events.network(this.hostSession, cleanupNetwork);
       this.diagnosticStatus = {
+        ...this.diagnosticStatus,
         ...status.data,
+        network: network ?? this.diagnosticStatus?.network,
+        cleanupNetwork: cleanupNetwork ?? this.diagnosticStatus?.cleanupNetwork,
+        ...this.events.snapshot(),
         sampledAt: Date.now(),
         hostSession: this.hostSession,
       };
+    }
   }
   get startupFailure() {
     return this.bootIssue;
@@ -165,8 +191,13 @@ export class NativeCapture {
       previewAllowed?: () => boolean;
       encoder?: () => string;
       audioFallback?: () => void;
+      diagnosticEvent?: (event: NativeCaptureEvent) => void;
     } = {},
-  ) {}
+  ) {
+    this.events = new NativeCaptureEvents((event) =>
+      this.options.diagnosticEvent?.(event),
+    );
+  }
   private get windows() {
     return (this.options.platform ?? process.platform) === "win32";
   }
@@ -180,7 +211,7 @@ export class NativeCapture {
         : undefined;
     return nativeEncoderInventorySchema.parse(
       await (
-        await this.ensure()
+        await this.ensure("encoders")
       ).call({
         type: "encoders",
         ...(this.windows
@@ -197,7 +228,7 @@ export class NativeCapture {
   }
   async encoderDiagnostics() {
     if (!this.windows) return undefined;
-    const pipe = await this.ensure();
+    const pipe = await this.ensure("diagnostic-probe");
     const inventory = await this.encoders();
     // A synthetic probe must never overwrite evidence from real publication.
     const lastSession = this.diagnosticStatus;
@@ -235,12 +266,16 @@ export class NativeCapture {
       },
     };
   }
-  private async ensure() {
+  private async ensure(
+    trigger: Parameters<NativeCaptureEvents["spawn"]>[2] = "command",
+  ) {
     if (this.pipe) return this.pipe;
     if (this.boot) return this.boot;
     this.boot = (async () => {
       await mkdir(this.directory, { recursive: true, mode: 0o700 });
-      this.hostSession = randomUUID();
+      const session = randomUUID();
+      this.hostSession = session;
+      let issue: string | undefined;
       const child = spawn(
         join(
           this.bundle,
@@ -253,20 +288,33 @@ export class NativeCapture {
           : [this.directory],
         { stdio: "pipe", windowsHide: true },
       );
+      this.child = child;
+      this.bootIssue = undefined;
+      this.events.spawn(session, child.pid, trigger);
       const pipe = new NativeProtocol(
         (data) => child.stdin.write(data),
-        () => {
-          this.bootIssue = "response-timeout";
+        (reason) => {
+          issue = reason ?? "protocol-error";
+          if (this.child === child) this.bootIssue = issue;
+          this.events.record(
+            issue === "response-timeout"
+              ? "native-host-timeout"
+              : "native-host-protocol-error",
+            { ...this.events.snapshot(session), hostExitReason: issue },
+          );
           child.kill("SIGKILL");
         },
       );
-      this.child = child;
       child.stdout.setEncoding("utf8");
       child.stdout.on("data", (data) => pipe.receive(data));
-      child.stdin.on("error", () => pipe.close());
-      child.stdout.on("error", () => pipe.close());
-      // Discard third-party messages. Only our fixed, credential-free boot code may survive.
-      this.bootIssue = undefined;
+      child.stdin.on("error", () => {
+        issue = "stdin-error";
+        pipe.close();
+      });
+      child.stdout.on("error", () => {
+        issue = "stdout-error";
+        pipe.close();
+      });
       let stderrBuffer = "";
       child.stderr.setEncoding("utf8");
       child.stderr.on("data", (chunk) => {
@@ -275,8 +323,49 @@ export class NativeCapture {
           const line = stderrBuffer.slice(0, newline).trim();
           stderrBuffer = stderrBuffer.slice(newline + 1);
           const match = /^CG_HOST_ERROR ([a-z-]{1,80})$/.exec(line);
-          if (match) this.bootIssue = match[1];
-          if (this.context && line.startsWith("CG_HOST_TRANSPORT ")) {
+          if (match) {
+            issue = match[1];
+            if (this.child === child) this.bootIssue = issue;
+            this.events.record("native-host-error", {
+              ...this.events.snapshot(session),
+              hostExitReason: issue,
+            });
+          }
+          if (line.startsWith("CG_HOST_NETWORK ")) {
+            try {
+              const network = this.events.network(
+                session,
+                JSON.parse(line.slice(16)),
+              );
+              if (network && this.child === child && this.diagnosticStatus) {
+                this.diagnosticStatus = {
+                  ...this.diagnosticStatus,
+                  ...this.events.snapshot(session),
+                  hostEventAt: Date.now(),
+                  ...(network.method === "POST"
+                    ? {
+                        network,
+                        transportErrorCode: network.curlCode,
+                        transportHttpStatus: network.httpStatus,
+                        transportFailure:
+                          network.curlCode !== 0
+                            ? "http-request"
+                            : network.httpStatus !== 201
+                              ? "http-status"
+                              : "none",
+                      }
+                    : { cleanupNetwork: network }),
+                };
+              }
+            } catch {
+              /* Reject malformed structured output, never retain its text. */
+            }
+          }
+          if (
+            this.child === child &&
+            this.context &&
+            line.startsWith("CG_HOST_TRANSPORT ")
+          ) {
             try {
               const status = nativeDiagnosticSchema
                 .pick({
@@ -287,54 +376,78 @@ export class NativeCapture {
                 })
                 .strict()
                 .safeParse(JSON.parse(line.slice(18)));
-              if (status.success)
+              if (status.success) {
+                if (status.data.transportPhase)
+                  this.events.phase(session, status.data.transportPhase);
                 this.diagnosticStatus = {
                   ...this.diagnosticStatus,
                   ...status.data,
+                  ...this.events.snapshot(session),
                   hostEventAt: Date.now(),
-                  hostSession: this.hostSession,
+                  hostSession: session,
                 };
+              }
             } catch {
-              /* Ignore unknown third-party output. */
+              /* No raw messages survive. */
             }
           }
         }
-        if (stderrBuffer.length > 512) stderrBuffer = "";
+        if (stderrBuffer.length > 4096) {
+          stderrBuffer = "";
+          this.events.record(
+            "native-host-stderr-overflow",
+            this.events.snapshot(session),
+          );
+        }
       });
-      child.on("error", () =>
-        pipe.close(new Error("原生采集引擎未安装，请重新构建应用")),
-      );
+      child.on("error", () => {
+        issue = "spawn-error";
+        this.events.record("native-host-error", {
+          ...this.events.snapshot(session),
+          hostExitReason: issue,
+        });
+        pipe.close(new Error("原生采集引擎未安装，请重新构建应用"));
+      });
       child.on("close", (code, signal) => {
-        if (this.context) {
+        const current = this.child === child;
+        const reason =
+          issue ??
+          (this.shutdownChildren.has(child)
+            ? "shutdown"
+            : signal
+              ? "terminated"
+              : "unexpected-exit");
+        this.events.exit(session, reason, code, signal);
+        if (current && this.context)
           this.diagnosticStatus = {
             ...this.diagnosticStatus,
+            ...this.events.snapshot(session),
             hostEventAt: Date.now(),
-            hostSession: this.hostSession,
+            hostSession: session,
             ...(code === null ? {} : { hostExitCode: code }),
-            hostExitReason:
-              this.bootIssue ?? (signal ? "terminated" : "unexpected-exit"),
+            hostExitReason: reason,
             outputPhase: "failed",
             outputActive: false,
             sourcesActive: false,
             videoSourceActive: false,
             audioSourceActive: false,
           };
-        }
         pipe.close(
-          this.bootIssue
-            ? (nativeFailure(new Error(this.bootIssue)) as Error)
-            : undefined,
+          issue ? (nativeFailure(new Error(issue)) as Error) : undefined,
         );
-        if (this.child === child) {
+        if (current) {
           this.child = undefined;
           this.pipe = undefined;
-        }
-        if (this.context) {
-          void this.stop().catch(() => {});
-          this.ended("屏幕采集进程已退出，请重新选择共享来源");
+          if (this.context) {
+            this.events.endShare("failed", this.diagnosticStatus);
+            void this.stop().catch(() => {});
+            this.ended("屏幕采集进程已退出，请重新选择共享来源");
+          }
         }
       });
       await pipe.call({ type: "status" });
+      if (this.child !== child) throw new Error("原生采集进程已退出");
+      this.events.ready(session);
       this.pipe = pipe;
       return pipe;
     })();
@@ -346,7 +459,7 @@ export class NativeCapture {
   }
   async sources(): Promise<CaptureSource[]> {
     const epoch = this.selectionEpoch;
-    const pipe = await this.ensure();
+    const pipe = await this.ensure("sources");
     const status = await pipe.call<Status>({ type: "status" });
     if (!status.screenPermission) {
       await pipe.call({ type: "requestPermission" });
@@ -432,7 +545,7 @@ export class NativeCapture {
   }
   async select(selection: CaptureSelection) {
     const epoch = ++this.selectionEpoch;
-    const pipe = await this.ensure();
+    const pipe = await this.ensure("select");
     const data = z
       .object({
         windows: z.array(windowSchema),
@@ -459,36 +572,86 @@ export class NativeCapture {
     method = "POST",
     extra: Record<string, unknown> = {},
   ) {
-    const response = await fetch(
-      `${context.apiUrl}/api/v1/rooms/${context.roomId}/${context.roomMode === "esports" ? "esports/" : ""}share-lease${suffix}`,
-      {
-        method,
-        headers: {
-          Authorization: `Bearer ${context.sessionToken}`,
-          "Content-Type": "application/json",
-          "X-CineGather-Features": "esports-v1",
-          "X-CineGather-Version": version,
-          "X-CineGather-Platform": process.platform,
+    const begin = performance.now();
+    let status: number | undefined;
+    let result: NonNullable<
+      ReturnType<typeof nativeDiagnosticSchema.parse>["apiRequest"]
+    >["result"] = "network-error";
+    let systemCode: NonNullable<
+      ReturnType<typeof nativeDiagnosticSchema.parse>["apiRequest"]
+    >["systemCode"];
+    try {
+      const response = await fetch(
+        `${context.apiUrl}/api/v1/rooms/${context.roomId}/${context.roomMode === "esports" ? "esports/" : ""}share-lease${suffix}`,
+        {
+          method,
+          headers: {
+            Authorization: `Bearer ${context.sessionToken}`,
+            "Content-Type": "application/json",
+            "X-CineGather-Features": "esports-v1",
+            "X-CineGather-Version": version,
+            "X-CineGather-Platform": process.platform,
+          },
+          body: JSON.stringify({
+            leaseId: context.lease.leaseId,
+            revision: context.lease.revision,
+            ...extra,
+          }),
+          signal: AbortSignal.any([
+            AbortSignal.timeout(8_000),
+            ...(this.abort ? [this.abort.signal] : []),
+          ]),
         },
-        body: JSON.stringify({
-          leaseId: context.lease.leaseId,
-          revision: context.lease.revision,
-          ...extra,
-        }),
-        signal: AbortSignal.any([
-          AbortSignal.timeout(8_000),
-          ...(this.abort ? [this.abort.signal] : []),
-        ]),
-      },
-    );
-    if (!response.ok)
-      throw new Error(
-        response.status === 409
-          ? "共享授权已失效，请重新共享"
-          : "房间共享权限不可用，请重新连接",
       );
-    return response.json();
+      status = response.status;
+      result = response.ok ? "ok" : "http-error";
+      if (!response.ok)
+        throw new Error(
+          response.status === 409
+            ? "共享授权已失效，请重新共享"
+            : "房间共享权限不可用，请重新连接",
+        );
+      return await response.json();
+    } catch (error) {
+      const name = error instanceof Error ? error.name : undefined;
+      if (name === "TimeoutError") result = "timeout";
+      else if (name === "AbortError") result = "cancelled";
+      else if (result === "ok") result = "invalid-response";
+      let cause: unknown = error;
+      for (
+        let depth = 0;
+        depth < 4 && cause && typeof cause === "object";
+        depth++
+      ) {
+        const item = cause as { code?: unknown; cause?: unknown };
+        const parsed = nativeDiagnosticSchema.shape.apiRequest
+          .unwrap()
+          .shape.systemCode.safeParse(item.code);
+        if (parsed.success && parsed.data) {
+          systemCode = parsed.data;
+          break;
+        }
+        cause = item.cause;
+      }
+      throw error;
+    } finally {
+      this.events.record("native-api-request", {
+        apiRequest: {
+          operation:
+            method === "DELETE"
+              ? "release"
+              : suffix === "/native"
+                ? "native"
+                : "renew",
+          status,
+          elapsedMs: Math.max(0, performance.now() - begin),
+          result,
+          systemCode,
+        },
+      });
+    }
   }
+
   async start(context: NativeCaptureRequest) {
     if (this.context) throw new Error("已有共享正在启动");
     const selection = this.selection;
@@ -497,6 +660,11 @@ export class NativeCapture {
       throw new Error("请选择共享窗口");
     const epoch = ++this.epoch;
     this.context = context;
+    this.events.beginShare();
+    this.diagnosticStatus = {
+      outputPhase: "starting",
+      ...this.events.snapshot(),
+    };
     this.abort = new AbortController();
     try {
       const publication = nativePublicationSchema.parse(
@@ -521,11 +689,12 @@ export class NativeCapture {
       )
         throw new Error("推流服务必须使用 HTTPS 或本机地址");
       if (epoch !== this.epoch) throw new Error("共享已取消");
-      const pipe = await this.ensure();
+      const pipe = await this.ensure("share");
       if (epoch !== this.epoch) throw new Error("共享已取消");
       this.bootIssue = undefined;
       this.diagnosticStatus = {
         outputPhase: "starting",
+        ...this.events.snapshot(),
         hostSession: this.hostSession,
       };
       const remainingMs = Math.min(
@@ -577,8 +746,13 @@ export class NativeCapture {
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+      this.events.record("native-connection-timeout", this.diagnosticStatus);
       throw new Error("共享启动已取消或超时");
     } catch (error) {
+      this.events.endShare(
+        epoch === this.epoch ? "failed" : "cancelled",
+        this.diagnosticStatus,
+      );
       if (epoch === this.epoch) await this.stop().catch(() => {});
       throw this.windows ? nativeFailure(error) : error;
     }
@@ -722,19 +896,24 @@ export class NativeCapture {
     this.abort = undefined;
     try {
       if (this.pipe) {
-        const status = nativeDiagnosticSchema.safeParse(
-          await this.pipe.call({ type: "stop" }),
-        );
-        if (context)
-          this.diagnosticStatus = status.success
-            ? status.data
-            : this.diagnosticStatus;
+        const raw = await this.pipe.call({ type: "stop" });
+        if (context) this.rememberStatus(raw);
       }
     } finally {
-      if (context) await this.request(context, "", "DELETE").catch(() => {});
+      if (context) {
+        await this.request(context, "", "DELETE").catch(() => {});
+        this.events.endShare("stopped", this.diagnosticStatus);
+      }
     }
   }
   async shutdown() {
+    if (this.child) {
+      this.shutdownChildren.add(this.child);
+      this.events.record("native-host-shutdown-request", {
+        hostSession: this.hostSession,
+        hostExitReason: "shutdown",
+      });
+    }
     await this.stop();
     const child = this.child;
     try {

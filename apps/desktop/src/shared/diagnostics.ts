@@ -383,6 +383,8 @@ export function nativePipeline(entries: DiagnosticRecord[]) {
         session: entry.session,
         sampledAt: native.sampledAt,
         hostSession: native.hostSession,
+        shareAttempt: native.shareAttempt,
+        hostGeneration: native.hostGeneration,
         outputPhase: native.outputPhase,
         transportPhase: native.transportPhase,
         transportFailure: native.transportFailure,
@@ -449,6 +451,139 @@ function csv(rows: Record<string, unknown>[], columns: string[]) {
   ].join("\n");
 }
 const guide = `CineGather 诊断包（格式 v1）\n\nsummary.json 的 collectionIssues 汇总采样失败的阶段、分类、字段和发生时间，降级时其余有效数据继续保留。frame-pipeline.csv 的 encoderImplementation/encoderMode 是实际运行结果；manifest.encodingPolicy 仅说明启动策略，不能据此认定已使用硬件编码。\n\n先阅读 manifest.json 的时间范围、缺口和能力说明，再检查 summary.json 的问题标记及异常区间。timeline.ndjson 包含逐条原始白名单记录；intervals.csv 是按轨道计算的区间码率、帧率、丢包、冻结、解码和缓冲指标。current.json 是导出时快照。frame-pipeline.csv 对照目标、实际采集、编码、接收、解码与呈现帧率；目标值只用于发送端，观看端的本机画质设置不能代表共享端目标。静态内容可能主动降帧，判断异常应对照持续运动画面。\n\n共享端和观看端请分别导出同一次问题的包。通过 room 哈希、participant 哈希、track SID 关联；session 是每次应用启动随机生成的会话标识。at 是 UTC 毫秒，monotonicMs 是该进程单调时钟。server.capturedAt 与 request.clockOffsetMs/clockUncertaintyMs 用于对齐两端时钟，误差至少为半个请求往返时间。\n\n优先排查：发送端 media-source/编码帧率及质量限制 → 发送码率/重传/远端接收报告 → 服务器 CPU/内存/SFU 转发与丢包 → 接收帧率/丢包/缓冲/解码 → 视频呈现回调间隔/掉帧及渲染线程长任务。对照 resources 中 GPU/渲染进程负载。native 是 macOS/Windows 原生采集宿主的安全计数器。native-pipeline.csv 列出原生输出计数器计算的编码帧率、码率和渲染耗时；renderFps 是渲染循环速率，不代表来源实际产生的画面帧率。captureArrivalFps 是 WGC 到达帧率，capturedFps 是成功拷贝到 OBS 的新帧率；静态画面更新较少仍可能是正常行为。Windows manifest.nativeEncoder 包含显卡、编码器清单、最后一次真实共享状态，以及导出时的合成画面编码自检。lastSession 与 probe 必须区分：后者不代表先前真实共享使用的编码器。手动选择失败不会自动回退，encoderAttempts/encoderErrors 记录尝试、阶段和已脱敏的错误码。没有完整编码能力列表时 profilesReported=false，不能解读为显卡不支持硬编码。\n\n记录仅覆盖应用实际运行时段；退出、休眠、浏览器后台节流、采样失败、磁盘故障或容量限制均可能导致缺口，不能据此声称连续一小时无异常。默认滚动保留两小时，不含音视频、截图、聊天内容、账号凭据、原始用户ID、IP地址、窗口标题、完整SDP或原始第三方日志。服务器指标未启用/旧服务端会明确标为不可用。不能仅凭单端数据保证唯一归因，更不能恢复真实音视频内容。\n`;
+// Structured native events are recorded immediately; periodic snapshots are only a fallback.
+export function nativeNetworkRows(entries: DiagnosticRecord[]) {
+  const seen = new Set<string>();
+  const rows: Record<string, unknown>[] = [];
+  for (const entry of entries) {
+    const n = entry.native;
+    if (!n) continue;
+    const base = {
+      at: entry.at,
+      monotonicMs: entry.monotonicMs,
+      session: entry.session,
+      event: entry.event?.name,
+      hostSession: n.hostSession,
+      shareAttempt: n.shareAttempt,
+      hostPid: n.hostPid,
+      hostGeneration: n.hostGeneration,
+    };
+    for (const net of [n.network, n.cleanupNetwork]) {
+      if (!net) continue;
+      const key = [
+        entry.session,
+        n.hostSession,
+        n.shareAttempt,
+        net.sequence,
+        net.method,
+      ].join(":");
+      if (seen.has(key)) continue;
+      seen.add(key);
+      rows.push({
+        ...base,
+        operation: "whip",
+        ...net,
+        ...net.timings,
+        timings: undefined,
+      });
+    }
+    if (entry.kind !== "event") continue;
+    if (n.apiRequest) rows.push({ ...base, ...n.apiRequest });
+    if (
+      entry.event?.name === "native-transport-phase" ||
+      entry.event?.name?.startsWith("native-share-")
+    )
+      rows.push({
+        ...base,
+        operation: "connection",
+        transportPhase: n.transportPhase,
+        previousPhase: n.previousPhase,
+        phaseDurationMs: n.phaseDurationMs,
+        connectionElapsedMs: n.connectionElapsedMs,
+        ...Object.fromEntries(
+          Object.entries(n.stageTimings ?? {}).map(([key, value]) => [
+            `stage_${key}`,
+            value,
+          ]),
+        ),
+      });
+  }
+  return rows;
+}
+const networkColumns = [
+  "at",
+  "monotonicMs",
+  "session",
+  "event",
+  "hostSession",
+  "shareAttempt",
+  "hostPid",
+  "hostGeneration",
+  "operation",
+  "sequence",
+  "method",
+  "curlCode",
+  "errorKind",
+  "httpStatus",
+  "osError",
+  "tlsBackend",
+  "tlsVerifyResult",
+  "tlsNativeCode",
+  "addressFamily",
+  "redirectCount",
+  "connectCount",
+  "dnsMs",
+  "tcpMs",
+  "tlsMs",
+  "requestReadyMs",
+  "firstByteMs",
+  "totalMs",
+  "wallMs",
+  "status",
+  "result",
+  "systemCode",
+  "elapsedMs",
+  "transportPhase",
+  "previousPhase",
+  "phaseDurationMs",
+  "connectionElapsedMs",
+  "stage_setupMs",
+  "stage_httpMs",
+  "stage_answerMs",
+  "stage_iceMs",
+  "stage_dtlsMs",
+  "stage_totalMs",
+];
+const processColumns = [
+  "at",
+  "monotonicMs",
+  "session",
+  "event",
+  "hostSession",
+  "previousHostSession",
+  "shareAttempt",
+  "hostPid",
+  "hostGeneration",
+  "hostRestartCount",
+  "hostTrigger",
+  "hostReadyMs",
+  "hostExitCode",
+  "hostSignal",
+  "hostExitReason",
+];
+export function nativeProcessRows(entries: DiagnosticRecord[]) {
+  return entries
+    .filter(
+      (e) => e.kind === "event" && e.event?.name?.startsWith("native-host-"),
+    )
+    .map((e) => ({
+      at: e.at,
+      monotonicMs: e.monotonicMs,
+      session: e.session,
+      event: e.event?.name,
+      ...e.native,
+    }));
+}
 export async function diagnosticArchive(
   entries: DiagnosticRecord[],
   metadata: Record<string, unknown>,
@@ -500,6 +635,12 @@ export async function diagnosticArchive(
           capabilities: {
             ...(metadata.capabilities as object),
             installerHistory: Boolean(installer?.available),
+            nativeNetworkEvents: safe.some(
+              (e) => e.event?.name === "native-network-result",
+            ),
+            nativeProcessEvents: safe.some(
+              (e) => e.event?.name === "native-host-spawn",
+            ),
           },
           coverage: {
             since: summary.since,
@@ -526,12 +667,16 @@ export async function diagnosticArchive(
     "timeline.ndjson": strToU8(
       safe.map((x) => JSON.stringify(x)).join("\n") + "\n",
     ),
+    "native-network.csv": strToU8(csv(nativeNetworkRows(safe), networkColumns)),
+    "native-process.csv": strToU8(csv(nativeProcessRows(safe), processColumns)),
     "native-pipeline.csv": strToU8(
       csv(nativePipeline(safe), [
         "at",
         "session",
         "sampledAt",
         "hostSession",
+        "shareAttempt",
+        "hostGeneration",
         "outputPhase",
         "transportPhase",
         "transportFailure",
@@ -592,6 +737,7 @@ export async function diagnosticArchive(
     ),
     "README.txt": strToU8(
       guide +
+        "\n原生连接排障：native-network.csv 按 shareAttempt（单次共享）与 hostSession（单个子进程）关联，分别记录 WHIP POST、DELETE 清理、授权 API 请求和连接阶段。POST 失败不会被 DELETE 成功覆盖。curlCode 是 libcurl 错误码，osError 是操作系统网络错误码（Windows 与 macOS 含义不同）；未报告的字段留空，0 不能推断网络或证书正常。TLS 后端为 Schannel 时不采集不受支持的 tlsVerifyResult；tlsNativeCode 仅在库报告数值状态时提供，不保留原始错误文本。dns/tcp/tls/requestReady/firstByte/totalMs 是从单次 libcurl 传输起点计的累计耗时，不是各阶段独立耗时；未到达阶段留空，不能当作零耗时。wallMs 包含调用实际墙钟耗时。dtls 阶段从 ICE 报告已连接、移交 DTLS 时开始计。阶段事件与 phaseDurationMs 使用主进程单调时钟观测，受 IPC 调度影响，与 libcurl 内部计时不能直接等同；phase 持续未退出时需用后续失败/停止事件的 connectionElapsedMs 对照。native-process.csv 包含 PID、进程代次、启动用途、就绪耗时、退出码/信号、重建触发及前一进程编号，可区分用户停止、协议超时、异常退出与导出时的诊断探测。实时事件立即追加到既有两小时滚动历史；磁盘写入失败仍按既有 storage issue/fallback 规则报告，未记录不能当作未发生。旧版本未采集这些字段时，文件可为空，仅表示证据不足。\n" +
         (installer
           ? "\n升级诊断见 upgrade/history.ndjson 和 upgrade/status.json；包含安装路径（用户目录已遮盖）、相关进程名、阶段、退出码及文件占用。即时占用探测不能证明历史原因；legacy 卸载器可能无法提供最初失败文件。cleanup-complete 仅表示应用清理回调已返回，进程是否实际退出需对照 process-cleanup 记录。win32Code 是 NSIS Rename 失败后立即读取的线程错误码，NSIS 内部可能包含多次系统调用，应结合阶段及源、目标文件证据解释；files[].code 是稍后进行的 DELETE 权限探测，不能当作原始操作错误码。\n"
           : ""),
