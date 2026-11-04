@@ -9,6 +9,7 @@ import { media } from "./media";
 import { readAccess } from "./access";
 import { memberIdentity, memberSession } from "@cinegather/contracts";
 import type { User } from "@cinegather/contracts";
+import { clearCredentialGames } from "./game-link-access";
 export async function authenticate(
   authorization?: string,
 ): Promise<User & { credentialId: string }> {
@@ -82,6 +83,7 @@ export async function revokeSession(authorization: string) {
   });
 }
 export async function clearUserMedia(userId: string) {
+  await clearCredentialGames(userId);
   const affected = new Set([
     ...(
       await db
@@ -135,6 +137,7 @@ export async function clearUserMedia(userId: string) {
 }
 
 export async function clearSessionMedia(userId: string, credentialId: string) {
+  await clearCredentialGames(userId, credentialId);
   const admissions = await db
     .select()
     .from(roomSessions)

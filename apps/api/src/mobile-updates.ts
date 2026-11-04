@@ -1,3 +1,4 @@
+import { gameCleanupRequest } from "./game-link-policy";
 import type {
   MobileUpdateIndex,
   MobileUpdatePolicy,
@@ -14,6 +15,7 @@ export function mobileUpdateExempt(method: string, path: string) {
   return (
     !path.startsWith("/api/v1/") ||
     method === "OPTIONS" ||
+    gameCleanupRequest(method, path) ||
     path.startsWith("/api/v1/mobile-updates/") ||
     [
       "/api/v1/health",

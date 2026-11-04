@@ -1,3 +1,4 @@
+import { gameCleanupRequest } from "./game-link-policy";
 import {
   clientPolicySchema,
   clientPlatformSchema,
@@ -31,6 +32,7 @@ export function compatibilityFailure(
     !path.startsWith("/api/v1/") ||
     path.startsWith("/api/v1/mobile-updates/") ||
     method === "OPTIONS" ||
+    gameCleanupRequest(method, path) ||
     [
       "/api/v1/health",
       "/api/v1/client-policy",

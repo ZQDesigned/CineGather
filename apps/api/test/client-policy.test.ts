@@ -111,3 +111,26 @@ test("an unconfigured mobile cutoff stays disabled without disabling desktop pol
     readClientPolicy({ CLIENT_MIN_VERSION_IOS: "invalid" }),
   ).toThrow();
 });
+
+test("game cleanup remains available across global and mobile compatibility floors", async () => {
+  const { mobileUpdateExempt } = await import("../src/mobile-updates");
+  for (const [method, path] of [
+    ["POST", "/api/v1/games/id/leave"],
+    ["POST", "/api/v1/games/id/end"],
+    ["DELETE", "/api/v1/games/requests/id"],
+    ["DELETE", "/api/v1/games/invitations/id"],
+  ]) {
+    expect(
+      compatibilityFailure(method!, path!, "win32", "0.0.1", policy()),
+    ).toBeUndefined();
+    expect(mobileUpdateExempt(method!, path!)).toBe(true);
+  }
+  for (const path of [
+    "/api/v1/games/id/ready",
+    "/api/v1/games/id/renew",
+    "/api/v1/games/id/requests",
+  ])
+    expect(
+      compatibilityFailure("POST", path, "win32", "0.0.1", policy()),
+    ).toBeDefined();
+});

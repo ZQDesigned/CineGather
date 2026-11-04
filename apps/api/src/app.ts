@@ -1,3 +1,4 @@
+import { gameTransaction } from "./game-link-access";
 import { z } from "zod";
 import { featureUpdateIssueSchema } from "@cinegather/contracts";
 import { join } from "node:path";
@@ -29,6 +30,7 @@ import {
 import { admissionSecretValid } from "./esports-admission";
 import { AdminController } from "./admin-controller";
 import { ApiController } from "./controller";
+import { GameLinkController } from "./game-link-controller";
 import {
   AuthGuard,
   ErrorFilter,
@@ -57,6 +59,7 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
     this.running = true;
     try {
       await reconcileAll();
+      await gameTransaction(async () => {});
     } catch {
       console.error(JSON.stringify({ event: "reconcile.failed" }));
     } finally {
@@ -95,6 +98,7 @@ class TacticalPauses implements OnModuleInit, OnModuleDestroy {
 @Module({
   controllers: [
     ApiController,
+    GameLinkController,
     AdminController,
     EsportsController,
     EsportsAdmissionController,

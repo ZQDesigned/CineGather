@@ -85,6 +85,9 @@ export const gameLookupSchema = gameSessionSchema.pick({
   gameVersion: true,
 });
 export const gameDecisionInput = z.strictObject({ approve: z.boolean() });
+export const gameRenewInput = z.strictObject({
+  revision: z.number().int().positive(),
+});
 export const gameInviteInput = z.strictObject({ userId: z.uuid() });
 export const gameLookupInput = z.strictObject({ code: gameCodeSchema });
 export const gameWorldSchema = z.strictObject({

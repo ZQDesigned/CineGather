@@ -106,5 +106,9 @@ export async function setCapabilities(
   });
   if (input.screenShareEnabled === false)
     await reconcileScreenShareAccount(userId);
+  if (input.gameHostEnabled === false) {
+    const { reconcileGameHost } = await import("./game-link-access");
+    await reconcileGameHost(userId);
+  }
   return { ok: true as const };
 }
