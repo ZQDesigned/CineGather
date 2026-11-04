@@ -5,6 +5,35 @@ import type {
   MainWindowState,
 } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
+  ...(["win32", "darwin"].includes(process.platform)
+    ? {
+        gameLink: {
+          discover: () => ipcRenderer.invoke("desktop:game-discover"),
+          probe: (port: number) =>
+            ipcRenderer.invoke("desktop:game-probe", port),
+          configure: (
+            input: Parameters<
+              NonNullable<DesktopBridge["gameLink"]>["configure"]
+            >[0],
+          ) => ipcRenderer.invoke("desktop:game-configure", input),
+          status: () => ipcRenderer.invoke("desktop:game-status"),
+          stop: () => ipcRenderer.invoke("desktop:game-stop"),
+          onConnection: (
+            callback: Parameters<
+              NonNullable<DesktopBridge["gameLink"]>["onConnection"]
+            >[0],
+          ) => {
+            const listener = (
+              _event: Electron.IpcRendererEvent,
+              value: import("@cinegather/contracts").GameConnectionObservation,
+            ) => callback(value);
+            ipcRenderer.on("desktop:game-connection", listener);
+            return () =>
+              ipcRenderer.removeListener("desktop:game-connection", listener);
+          },
+        },
+      }
+    : {}),
   notifications: {
     setDoNotDisturb: (enabled) =>
       ipcRenderer.invoke("desktop:do-not-disturb", enabled),

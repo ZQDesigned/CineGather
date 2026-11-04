@@ -71,19 +71,24 @@ async function snapshotInTx(
     .select({
       id: gameJoinRequests.id,
       sessionId: gameJoinRequests.sessionId,
+      sessionName: gameSessions.name,
       userId: gameJoinRequests.userId,
       displayName: users.displayName,
       status: gameJoinRequests.status,
       expiresAt: gameJoinRequests.expiresAt,
     })
     .from(gameJoinRequests)
+    .innerJoin(gameSessions, eq(gameJoinRequests.sessionId, gameSessions.id))
     .innerJoin(users, eq(gameJoinRequests.userId, users.id))
     .where(
       and(
         eq(gameJoinRequests.status, "pending"),
         active?.role === "host" && session
           ? eq(gameJoinRequests.sessionId, session.id)
-          : eq(gameJoinRequests.userId, user.id),
+          : and(
+              eq(gameJoinRequests.userId, user.id),
+              eq(gameJoinRequests.credentialId, sessionCredential(user)!),
+            ),
       ),
     )
     .orderBy(desc(gameJoinRequests.createdAt))
@@ -211,17 +216,15 @@ export async function createGameSession(
     }
     if (!created)
       fail(503, "GAME_CODE_UNAVAILABLE", "暂时无法创建联机，请稍后重试");
-    await tx
-      .insert(gameMembers)
-      .values({
-        id: randomUUID(),
-        sessionId: id,
-        userId: user.id,
-        credentialId: actor.credentialId,
-        role: "host",
-        leaseUntil: new Date(Date.now() + GAME_LEASE_MS),
-        reservedUntil: gameReservationUntil(),
-      });
+    await tx.insert(gameMembers).values({
+      id: randomUUID(),
+      sessionId: id,
+      userId: user.id,
+      credentialId: actor.credentialId,
+      role: "host",
+      leaseUntil: new Date(Date.now() + GAME_LEASE_MS),
+      reservedUntil: gameReservationUntil(),
+    });
     await audit(tx, user.id, "game.created", id);
   });
   return gameSnapshot(user);
@@ -319,8 +322,15 @@ export async function requestGameJoin(user: User, id: string) {
           eq(gameJoinRequests.status, "pending"),
         ),
       );
-    if (existing)
+    if (existing) {
+      if (existing.credentialId !== actor.credentialId)
+        fail(
+          409,
+          "GAME_REQUEST_OTHER_DEVICE",
+          "此账号已在另一台设备提交申请，请先在原设备取消后重试",
+        );
       return { id: existing.id, expiresAt: existing.expiresAt.toISOString() };
+    }
     const pending = await tx
       .select({ id: gameJoinRequests.id })
       .from(gameJoinRequests)
@@ -555,6 +565,15 @@ export async function renewGameMembership(
         leaseUntil: new Date(Date.now() + GAME_LEASE_MS),
         reservedUntil: gameReservationUntil(),
         status: member.status === "reconnecting" ? "connecting" : member.status,
+        revision:
+          member.leaseUntil.getTime() <= Date.now()
+            ? member.revision + 1
+            : member.revision,
+        tunnelSecretHash:
+          member.leaseUntil.getTime() <= Date.now()
+            ? null
+            : member.tunnelSecretHash,
+        route: member.leaseUntil.getTime() <= Date.now() ? null : member.route,
       })
       .where(eq(gameMembers.id, member.id));
   });
@@ -644,6 +663,32 @@ export async function dismissGameInvite(user: User, id: string) {
       .set({ revokedAt: new Date() })
       .where(
         and(eq(gameInvites.id, uuid(id)), eq(gameInvites.recipientId, user.id)),
+      );
+  });
+  return { ok: true as const };
+}
+
+export async function observeGameConnection(
+  user: User,
+  id: string,
+  memberId: string,
+  revision: number,
+  route: "p2p" | "relay",
+) {
+  await gameTransaction(async (tx) => {
+    await requireGameMember(tx, user, id, true);
+    await tx
+      .update(gameMembers)
+      .set({ route, status: "connected" })
+      .where(
+        and(
+          eq(gameMembers.id, uuid(memberId)),
+          eq(gameMembers.sessionId, id),
+          eq(gameMembers.role, "guest"),
+          eq(gameMembers.active, true),
+          eq(gameMembers.revision, revision),
+          gt(gameMembers.leaseUntil, new Date()),
+        ),
       );
   });
   return { ok: true as const };

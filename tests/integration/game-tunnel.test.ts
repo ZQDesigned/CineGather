@@ -526,3 +526,34 @@ test("game tokens reject a changed issuer, audience, signature algorithm and exp
     .where(eq(users.id, host.id));
   expect((await token(cfg)).status).toBe(401);
 });
+
+test("public game identity throttling uses trusted forwarded client IPs instead of combining all Nginx visitors", async () => {
+  const proxyApp = await createApp({ trustedProxies: ["loopback"] });
+  await proxyApp.listen(0, "127.0.0.1");
+  const proxyOrigin = await proxyApp.getUrl();
+  try {
+    const statuses: number[] = [];
+    for (let batch = 0; batch < 62; batch++)
+      statuses.push(
+        ...(await Promise.all(
+          Array.from({ length: 10 }, () =>
+            fetch(
+              proxyOrigin +
+                "/api/v1/game-tunnel/identity/.well-known/openid-configuration",
+              {
+                headers: {
+                  "X-Forwarded-For": batch < 31 ? "192.0.2.101" : "192.0.2.102",
+                },
+              },
+            ).then(async (r) => {
+              await r.arrayBuffer();
+              return r.status;
+            }),
+          ),
+        )),
+      );
+    expect(statuses.every((status) => status === 200)).toBe(true);
+  } finally {
+    await proxyApp.close();
+  }
+}, 15000);

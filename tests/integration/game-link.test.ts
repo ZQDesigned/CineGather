@@ -323,3 +323,62 @@ test("revoking hosting capability ends its game without changing the account or 
       ?.status,
   ).toBe("ended");
 });
+
+test("reconnecting after lease expiry rotates admission revision so old tunnel grants cannot revive", async () => {
+  const host = await person(true),
+    guest = await person(),
+    id = await opened(host);
+  const ask = await call(`/games/${id}/requests`, guest, {});
+  await call(`/games/requests/${ask.data.id}/decision`, host, {
+    approve: true,
+  });
+  const self = (await call("/games", guest)).data.self;
+  await db
+    .update(gameMembers)
+    .set({
+      leaseUntil: new Date(Date.now() - 100),
+      reservedUntil: new Date(Date.now() + 60000),
+    })
+    .where(eq(gameMembers.id, self.memberId));
+  const renewed = await call(`/games/${id}/renew`, guest, {
+    revision: self.revision,
+  });
+  expect(renewed.status).toBe(201);
+  expect(renewed.data.self.revision).toBe(self.revision + 1);
+  expect(
+    (await call(`/games/${id}/renew`, guest, { revision: self.revision }))
+      .status,
+  ).toBe(409);
+});
+
+test("pending requests stay bound to the requesting device and disappear when that device is revoked", async () => {
+  const host = await person(true),
+    guest = await person(),
+    id = await opened(host),
+    token = crypto.randomUUID(),
+    credentialId = crypto.randomUUID();
+  await db.insert(credentials).values({
+    id: credentialId,
+    userId: guest.id,
+    kind: "account",
+    secretHash: hash(token),
+    expiresAt: new Date(Date.now() + 3600000),
+  });
+  const other = { ...guest, credentialId, token };
+  const first = await call(`/games/${id}/requests`, guest, {});
+  expect(first.status).toBe(201);
+  const second = await call(`/games/${id}/requests`, other, {});
+  expect(second.status).toBe(409);
+  expect(second.data.code).toBe("GAME_REQUEST_OTHER_DEVICE");
+  expect(
+    (
+      await call(
+        "/accounts/sessions/" + guest.credentialId,
+        other,
+        undefined,
+        "DELETE",
+      )
+    ).status,
+  ).toBe(200);
+  expect((await call(`/games/${id}/requests`, other, {})).status).toBe(201);
+});

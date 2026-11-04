@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
@@ -225,6 +226,12 @@ func run(input io.Reader, output io.Writer, development bool, caFile string) int
 	return 0
 }
 func main() {
+	// Bound OIDC token HTTP operations, including custom-CA clients that clone this transport.
+	transport := http.DefaultTransport.(*http.Transport).Clone()
+	transport.ResponseHeaderTimeout = 5 * time.Second
+	transport.Proxy = nil
+	http.DefaultTransport = transport
+	http.DefaultClient.Timeout = 5 * time.Second
 	frplog.Logger = frplog.Logger.WithOptions(liblog.WithOutput(io.Discard))
 	if len(os.Args) > 1 {
 		fmt.Fprintln(os.Stderr, "No command-line configuration is supported")

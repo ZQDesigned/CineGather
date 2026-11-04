@@ -47,3 +47,5 @@ export * from "./esports";
 export * from "./first-frame";
 
 export * from "./feature-compatibility";
+
+export * from "./game-link";

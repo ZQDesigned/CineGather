@@ -43,14 +43,14 @@ afterAll(async () => {
   await pool.end();
 });
 
-test("new and existing accounts default to no Minecraft hosting and registration defaults remain explicit", async () => {
+test("new and existing accounts default to no game hosting and registration defaults remain explicit", async () => {
   const u = await person();
   expect(u.gameHostEnabled).toBe(false);
   expect((await readRegistrationPolicy()).gameHostDefaultEnabled).toBe(false);
   expect(gameSessions).toBeDefined();
   expect(gameMembers).toBeDefined();
 });
-test("only a superadmin or administrator with the dedicated permission may grant Minecraft hosting", async () => {
+test("only a superadmin or administrator with the dedicated permission may grant game hosting", async () => {
   const admin = await person(true),
     normal = await person(),
     target = await person();
@@ -72,7 +72,7 @@ test("only a superadmin or administrator with the dedicated permission may grant
   expect(updated?.screenShareEnabled).toBe(false);
 });
 
-test("an administrator with only Minecraft hosting management can grant that capability but not screen sharing", async () => {
+test("an administrator with only game hosting management can grant that capability but not screen sharing", async () => {
   const admin = await person(),
     target = await person();
   const id = crypto.randomUUID();

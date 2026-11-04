@@ -47,7 +47,7 @@ export async function gameTunnelHttp(
       return;
     }
     const now = Date.now(),
-      key = req.socket.remoteAddress ?? "unknown";
+      key = req.ip ?? req.socket.remoteAddress ?? "unknown";
     for (const [key, b] of buckets) if (b.at < now - 60000) buckets.delete(key);
     const bucket = buckets.get(key) ?? { at: now, count: 0 };
     if ((!buckets.has(key) && buckets.size >= 10000) || ++bucket.count > 600) {

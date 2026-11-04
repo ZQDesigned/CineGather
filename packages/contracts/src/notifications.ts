@@ -35,6 +35,7 @@ export const clientNotificationSchema = z.strictObject({
     "chat",
     "room",
     "friends",
+    "games",
     "room-invitations",
     "room-requests",
     "share",

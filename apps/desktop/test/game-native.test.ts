@@ -68,3 +68,18 @@ test("malformed or oversized helper output rejects pending operations and stops 
     }
   }
 });
+
+test("an unresponsive helper that ignores graceful shutdown cannot remain as an orphan", async () => {
+  const { root, binary } = await fixture(
+    `let b='';process.on('SIGTERM',()=>{});process.stdin.on('data',chunk=>{b+=chunk;for(;;){const n=b.indexOf('\\n');if(n<0)break;const c=JSON.parse(b.slice(0,n));b=b.slice(n+1);if(c.op==='configure'){process.stdout.write(JSON.stringify({id:c.id,ok:true,result:{pid:process.pid}})+'\\n')}}});`,
+  );
+  const native = new GameNative({ binaryPath: binary });
+  try {
+    const result = (await native.configure(transport(), [])) as { pid: number };
+    await native.close();
+    expect(() => process.kill(result.pid, 0)).toThrow();
+  } finally {
+    await native.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

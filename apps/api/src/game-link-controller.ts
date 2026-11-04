@@ -1,3 +1,4 @@
+import { gameConnectionInput } from "@cinegather/contracts";
 import {
   Controller,
   Get,
@@ -157,6 +158,30 @@ export class GameLinkController {
   @Endpoint("endGameSession", gameSnapshotSchema, undefined, ["sessionId"], 201)
   end(@Req() req: AuthRequest, @Param("sessionId") id: string) {
     return game.leaveGameSession(req.user, id, true);
+  }
+
+  @Post(":sessionId/members/:memberId/connection")
+  @Endpoint(
+    "observeGameConnection",
+    okSchema,
+    gameConnectionInput,
+    ["sessionId", "memberId"],
+    201,
+  )
+  connection(
+    @Req() req: AuthRequest,
+    @Param("sessionId") id: string,
+    @Param("memberId") member: string,
+    @Body() body: unknown,
+  ) {
+    const input = parse(gameConnectionInput, body);
+    return game.observeGameConnection(
+      req.user,
+      id,
+      member,
+      input.revision,
+      input.route,
+    );
   }
 
   @Delete(":sessionId/members/:memberId")

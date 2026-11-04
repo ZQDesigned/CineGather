@@ -34,6 +34,7 @@ export type GameNativeEvent =
       generation: number;
       code?: number | null;
     };
+let nextNativeGeneration = 0;
 export class GameNative {
   private child?: ChildProcessWithoutNullStreams;
   private pending = new Map<
@@ -69,7 +70,7 @@ export class GameNative {
     if (this.child) return this.child;
     this.buffer = "";
     this.stopping = false;
-    const generation = ++this.generation;
+    const generation = (this.generation = ++nextNativeGeneration);
     const child = spawn(this.options.binaryPath, [], {
       windowsHide: true,
       stdio: "pipe",
@@ -115,13 +116,15 @@ export class GameNative {
     });
     // Raw third-party diagnostics may contain addresses or credentials; consume without forwarding.
     child.stderr.resume();
-    child.on("error", () => this.fail(new Error("无法启动游戏联机组件")));
+    child.on("error", () => {
+      if (this.child === child) this.fail(new Error("无法启动游戏联机组件"));
+    });
     child.on("exit", (code) => {
       if (this.child === child) {
         this.child = undefined;
         this.rejectAll(new Error("游戏联机组件已退出"));
-        this.emit({ event: "process", state: "exited", generation, code });
       }
+      this.emit({ event: "process", state: "exited", generation, code });
     });
     return child;
   }
@@ -163,11 +166,37 @@ export class GameNative {
     }
     this.pending.clear();
   }
+  private async terminate(child: ChildProcessWithoutNullStreams) {
+    if (child.exitCode !== null || child.signalCode !== null) return;
+    let finished = false;
+    const exited = new Promise<void>((resolve) =>
+      child.once("close", () => {
+        finished = true;
+        resolve();
+      }),
+    );
+    child.kill();
+    const force = setTimeout(() => {
+      if (!finished) child.kill("SIGKILL");
+    }, 200);
+    const limit = setTimeout(() => {
+      if (!finished) child.kill("SIGKILL");
+    }, 700);
+    try {
+      await Promise.race([
+        exited,
+        new Promise<void>((resolve) => setTimeout(resolve, 800)),
+      ]);
+    } finally {
+      clearTimeout(force);
+      clearTimeout(limit);
+    }
+  }
   private fail(error: Error) {
     const child = this.child;
     this.child = undefined;
     this.rejectAll(error);
-    child?.kill();
+    if (child) void this.terminate(child);
   }
   private call(op: "configure" | "stop", config?: NativeGameConfig) {
     const child = this.boot(),
@@ -188,7 +217,8 @@ export class GameNative {
         return;
       }
       child.stdin.write(raw, (error) => {
-        if (error) this.fail(new Error("无法连接游戏联机组件"));
+        if (error && this.child === child)
+          this.fail(new Error("无法连接游戏联机组件"));
       });
     });
   }
@@ -217,8 +247,8 @@ export class GameNative {
     }
     if (this.child === child) {
       this.child = undefined;
-      child.kill();
       this.rejectAll(new Error("游戏联机已停止"));
+      await this.terminate(child);
     }
   }
 }

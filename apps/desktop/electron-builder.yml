@@ -32,6 +32,9 @@ mac:
   hardenedRuntime: true
   identity: null
   extraResources:
+    - from: ../../.local/native-runtime/game-link/darwin-arm64
+      to: game-link
+      filter: [cinegather-game-link, runtime.json, THIRD_PARTY_NOTICES.txt]
     - from: ../../.local/native-runtime/CGScreenCaptureHost.app
       to: capture/CGScreenCaptureHost.app
     - from: ../../node_modules/@koromix/koffi-darwin-arm64
@@ -46,6 +49,9 @@ win:
   icon: resources/icon.ico
   signExecutable: false
   extraResources:
+    - from: ../../.local/native-runtime/game-link/win32-x64
+      to: game-link
+      filter: [cinegather-game-link.exe, runtime.json, THIRD_PARTY_NOTICES.txt]
     - from: ../../.local/native-runtime/windows/obs
       to: capture/obs
       filter:

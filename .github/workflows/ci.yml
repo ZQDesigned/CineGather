@@ -15,12 +15,18 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/game-link/go.mod
+          cache-dependency-path: native/game-link/go.sum
       - run: bun install --frozen-lockfile
       - run: bun run setup
       - run: bun run infra:up
       - run: bun run db:migrate
       - run: bun run format:check
       - run: bun run check
+      - run: go test -race -tags noweb ./...
+        working-directory: native/game-link
       - run: bun run test:integration
       - run: bun run api:generate && git diff --exit-code packages/api-client/src/schema.ts
       - run: bun run build
@@ -50,6 +56,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/game-link/go.mod
+          cache-dependency-path: native/game-link/go.sum
       - run: bun tools/windows-audio-build.ts
       - run: go mod tidy && go build -o ../../.local/pion-whip-smoke.exe .
         working-directory: tools/pion-whip-smoke

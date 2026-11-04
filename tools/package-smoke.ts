@@ -2,6 +2,7 @@ import { _electron as electron, expect } from "@playwright/test";
 import { mkdtemp, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
+import { createHash } from "node:crypto";
 import { spawnSync } from "node:child_process";
 import { webRTCEncoderProbe } from "./encoder-probe";
 import { windowsWhipSmoke } from "./windows-whip-smoke";
@@ -21,6 +22,31 @@ const executablePath = join(
     ? "win-unpacked/CineGather.exe"
     : "mac-arm64/CineGather.app/Contents/MacOS/CineGather",
 );
+const gameResources = join(
+  packageDirectory,
+  platform === "win32"
+    ? "win-unpacked/resources/game-link"
+    : "mac-arm64/CineGather.app/Contents/Resources/game-link",
+);
+const gameRuntime = JSON.parse(
+  await readFile(join(gameResources, "runtime.json"), "utf8"),
+);
+expect(gameRuntime.version).toBe("0.71.0");
+expect(
+  createHash("sha256")
+    .update(
+      await readFile(
+        join(
+          gameResources,
+          "cinegather-game-link" + (platform === "win32" ? ".exe" : ""),
+        ),
+      ),
+    )
+    .digest("hex"),
+).toBe(gameRuntime.sha256);
+expect(
+  await readFile(join(gameResources, "THIRD_PARTY_NOTICES.txt"), "utf8"),
+).toContain("github.com/fatedier/frp@v0.71.0");
 const profile = await mkdtemp(join(tmpdir(), "cinegather-package-smoke-"));
 await writeFile(
   join(profile, "settings.json"),

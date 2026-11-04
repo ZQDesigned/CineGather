@@ -399,6 +399,7 @@ export interface MainWindowState {
 }
 export type MainWindowAction = "minimize" | "toggle-maximize" | "close";
 export interface DesktopBridge {
+  gameLink?: import("./game-link").GameLinkBridge;
   notifications?: {
     show(input: import("./notifications").DesktopNotification): Promise<void>;
     clear(): Promise<void>;

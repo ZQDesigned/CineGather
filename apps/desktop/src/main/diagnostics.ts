@@ -95,6 +95,9 @@ export class ProductionDiagnostics {
       }),
     );
   }
+  async gameEvent(game: import("@cinegather/contracts").GameDiagnostic) {
+    await this.own({ kind: "event", event: { name: "game-link" }, game });
+  }
   async nativeEvent(event: NativeCaptureEvent) {
     await this.own({
       kind: "event",

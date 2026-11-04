@@ -41,6 +41,7 @@ export const diagnosticIssueSchema = z.object({
     "renderer",
     "resources",
     "native",
+    "game",
     "record",
     "storage",
   ]),
@@ -587,7 +588,68 @@ export const esportsDiagnosticSchema = z.object({
     .max(64),
 });
 export type EsportsDiagnostic = z.infer<typeof esportsDiagnosticSchema>;
+export const gameDiagnosticSchema = z.object({
+  role: z.enum(["host", "guest"]).optional(),
+  state: z
+    .enum([
+      "idle",
+      "discovering",
+      "starting",
+      "connecting",
+      "connected",
+      "reconnecting",
+      "failed",
+    ])
+    .optional(),
+  sessionHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/)
+    .optional(),
+  revision: z.number().int().positive().optional(),
+  event: z
+    .enum([
+      "process-started",
+      "process-exited",
+      "tls-connecting",
+      "tls-connected",
+      "tls-failed",
+      "control-failed",
+      "grant-expired",
+      "gateway-connected",
+      "gateway-closed",
+      "gateway-failed",
+      "gateway-expired",
+    ])
+    .optional(),
+  route: z.enum(["p2p", "relay"]).optional(),
+  generation: z.number().int().nonnegative().optional(),
+  exitCode: z.number().int().nullable().optional(),
+  code: z
+    .enum([
+      "ETIMEDOUT",
+      "ECONNREFUSED",
+      "ECONNRESET",
+      "ENETUNREACH",
+      "EHOSTUNREACH",
+      "TLS_CERTIFICATE",
+      "NETWORK_ERROR",
+      "AUTH_EXPIRED",
+      "CONTROL_FAILED",
+      "PROTOCOL_INVALID",
+      "PROTOCOL_OVERSIZED",
+      "CONNECT_TIMEOUT",
+      "CLIENT_CLOSED",
+      "TARGET_UNAVAILABLE",
+    ])
+    .optional(),
+  bytesSent: z.number().int().nonnegative().optional(),
+  bytesReceived: z.number().int().nonnegative().optional(),
+  durationMs: z.number().min(0).max(60000).optional(),
+  leaseRemainingMs: z.number().min(0).max(30000).optional(),
+});
+export type GameDiagnostic = z.infer<typeof gameDiagnosticSchema>;
 export const diagnosticRecordSchema = z.object({
+  game: gameDiagnosticSchema.optional(),
   esports: esportsDiagnosticSchema.optional(),
   microphoneMonitor: microphoneMonitorSchema.optional(),
   gpu: gpuDiagnosticSchema.optional(),
@@ -712,7 +774,11 @@ export function repairDiagnosticRecord(input: unknown): DiagnosticRecord {
     const error = parsed.error.issues[0]!;
     const path = error.path as (string | number)[];
     const root = path[0];
-    if (!["media", "native", "renderer", "resources"].includes(String(root)))
+    if (
+      !["media", "native", "game", "renderer", "resources"].includes(
+        String(root),
+      )
+    )
       throw parsed.error;
     let parent: Record<string, unknown> | unknown[] = candidate;
     for (const key of path.slice(0, -1))
@@ -728,7 +794,7 @@ export function repairDiagnosticRecord(input: unknown): DiagnosticRecord {
           ? path[1] === "playback"
             ? "playback"
             : "media"
-          : (root as "native" | "renderer" | "resources"),
+          : (root as "native" | "game" | "renderer" | "resources"),
       code:
         typeof value === "number" && !Number.isFinite(value)
           ? "invalid-number"

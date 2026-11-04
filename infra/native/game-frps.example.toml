@@ -1,0 +1,27 @@
+# Dedicated game transport; do not enable alongside production until deployed explicitly.
+# Substitute a real TLS certificate, identity issuer and local plugin credential.
+bindAddr = "0.0.0.0"
+bindPort = 17443
+proxyBindAddr = "127.0.0.1"
+maxPortsPerClient = 14
+userConnTimeout = 5
+detailedErrorsToClient = false
+transport.tcpMux = false
+transport.heartbeatTimeout = 30
+transport.tls.force = true
+transport.tls.certFile = "/etc/cinegather/game/fullchain.pem"
+transport.tls.keyFile = "/etc/cinegather/game/privkey.pem"
+auth.method = "oidc"
+auth.additionalScopes = ["HeartBeats", "NewWorkConns"]
+auth.oidc.issuer = "https://cgplat.example.invalid/api/v1/game-tunnel/identity"
+auth.oidc.audience = "cinegather-game"
+auth.oidc.skipExpiryCheck = false
+auth.oidc.skipIssuerCheck = false
+log.to = "/var/log/cinegather/game-frps.log"
+log.level = "warn"
+log.maxDays = 7
+[[httpPlugins]]
+name = "cinegather-game"
+addr = "http://game:REPLACE_WITH_LOCAL_PLUGIN_SECRET@127.0.0.1:14310"
+path = "/api/v1/internal/game-tunnel"
+ops = ["Login", "NewProxy", "CloseProxy", "Ping", "NewWorkConn", "NewUserConn"]

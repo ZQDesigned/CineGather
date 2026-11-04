@@ -1,3 +1,4 @@
+import { GameLink, GameLinkNotifications } from "./GameLink";
 import { FeatureUpdatePrompt } from "./FeatureUpdate";
 import { EsportsRoom } from "./EsportsRoom";
 import { AnnouncementLayer } from "./Announcements";
@@ -17,6 +18,7 @@ import {
   LogOut,
   ShieldCheck,
   Download,
+  Gamepad2,
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -53,7 +55,7 @@ const roomStates: Record<string, string> = {
   leaving: "正在离开",
   failed: "连接已断开",
 };
-function readSection(): "main" | "admin" | "friends" {
+function readSection(): "main" | "admin" | "friends" | "games" {
   const route = location.hash
     ? location.hash.slice(1)
     : location.pathname.replace(/\/$/, "");
@@ -61,10 +63,14 @@ function readSection(): "main" | "admin" | "friends" {
     ? "admin"
     : route === "/friends"
       ? "friends"
-      : "main";
+      : route === "/games"
+        ? "games"
+        : "main";
 }
 const mainPath = () =>
-  /^\/(admin|friends)\/?$/.test(location.pathname) ? "/" : location.pathname;
+  /^\/(admin|friends|games)\/?$/.test(location.pathname)
+    ? "/"
+    : location.pathname;
 export function App() {
   const app = useApp();
   const [home, setHome] = useState(false);
@@ -281,6 +287,27 @@ export function App() {
                 update({ modal: null });
               },
             },
+            {
+              key: "games",
+              icon: (
+                <Badge
+                  dot={
+                    app.game.snapshot.invitations.length > 0 ||
+                    (app.game.snapshot.self?.role === "host" &&
+                      app.game.snapshot.requests.length > 0)
+                  }
+                >
+                  <Gamepad2 size={18} />
+                </Badge>
+              ),
+              label: "游戏联机",
+              disabled: !app.user,
+              onClick: () => {
+                setSection("games");
+                location.hash = "/games";
+                update({ modal: null });
+              },
+            },
           ]}
         />
         <span className="nav-label room-label">最近加入</span>
@@ -381,11 +408,13 @@ export function App() {
               {
                 title: admin
                   ? "管理后台"
-                  : section === "friends"
-                    ? "好友"
-                    : app.room && !home
-                      ? app.room.name
-                      : "放映厅",
+                  : section === "games"
+                    ? "游戏联机"
+                    : section === "friends"
+                      ? "好友"
+                      : app.room && !home
+                        ? app.room.name
+                        : "放映厅",
               },
             ]}
           />
@@ -460,6 +489,7 @@ export function App() {
         <RoomInvitationNotifications />
         <RoomRequestNotifications />
         <UpdateCenter />
+        <GameLinkNotifications />
         <FeatureUpdatePrompt />
         {!app.user ? (
           <Welcome />
@@ -476,6 +506,8 @@ export function App() {
             )}
             {admin ? (
               <Admin onHome={showHome} />
+            ) : section === "games" ? (
+              <GameLink />
             ) : section === "friends" ? (
               <Friends />
             ) : (

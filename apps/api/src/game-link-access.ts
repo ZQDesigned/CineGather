@@ -246,6 +246,18 @@ export async function clearCredentialGames(
   credentialId?: string,
 ) {
   await gameTransaction(async (tx) => {
+    await tx
+      .update(gameJoinRequests)
+      .set({ status: "cancelled" })
+      .where(
+        and(
+          eq(gameJoinRequests.userId, userId),
+          eq(gameJoinRequests.status, "pending"),
+          credentialId
+            ? eq(gameJoinRequests.credentialId, credentialId)
+            : undefined,
+        ),
+      );
     const affected = await tx
       .select()
       .from(gameMembers)

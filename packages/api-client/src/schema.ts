@@ -1124,6 +1124,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/games/{sessionId}/members/{memberId}/connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["observeGameConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/games/{sessionId}/members/{memberId}": {
         parameters: {
             query?: never;
@@ -10760,6 +10776,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             sessionId: string;
+                            sessionName: string;
                             /** Format: uuid */
                             userId: string;
                             displayName: string;
@@ -10960,6 +10977,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             sessionId: string;
+                            sessionName: string;
                             /** Format: uuid */
                             userId: string;
                             displayName: string;
@@ -11288,6 +11306,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             sessionId: string;
+                            sessionName: string;
                             /** Format: uuid */
                             userId: string;
                             displayName: string;
@@ -11870,6 +11889,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             sessionId: string;
+                            sessionName: string;
                             /** Format: uuid */
                             userId: string;
                             displayName: string;
@@ -12197,6 +12217,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             sessionId: string;
+                            sessionName: string;
                             /** Format: uuid */
                             userId: string;
                             displayName: string;
@@ -12393,6 +12414,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             sessionId: string;
+                            sessionName: string;
                             /** Format: uuid */
                             userId: string;
                             displayName: string;
@@ -12583,6 +12605,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             sessionId: string;
+                            sessionName: string;
                             /** Format: uuid */
                             userId: string;
                             displayName: string;
@@ -12773,6 +12796,7 @@ export interface operations {
                             id: string;
                             /** Format: uuid */
                             sessionId: string;
+                            sessionName: string;
                             /** Format: uuid */
                             userId: string;
                             displayName: string;
@@ -12791,6 +12815,143 @@ export interface operations {
                             /** Format: date-time */
                             expiresAt: string;
                         }[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    observeGameConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                sessionId: string;
+                memberId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    revision: number;
+                    /** @enum {string} */
+                    route: "p2p" | "relay";
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
                     };
                 };
             };

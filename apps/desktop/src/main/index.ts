@@ -1,3 +1,6 @@
+import { projectGameDiagnostic } from "../shared/game-diagnostics";
+import { GameLocal } from "./game-local";
+import { gameTunnelConfigSchema, gamePortSchema } from "@cinegather/contracts";
 import {
   allowedViewingWindow,
   setViewingWindowPinned,
@@ -81,6 +84,7 @@ let settings: DesktopSettings = defaultSettings;
 let pending: (CaptureSelection & { expiresAt: number }) | undefined;
 const devURL = process.env.ELECTRON_RENDERER_URL;
 let nativeCapture: NativeCapture | undefined;
+let gameLocal: GameLocal | undefined;
 let windowsAudio: WindowsAudio | undefined;
 let accompaniment: ReturnType<typeof createAccompaniment> | undefined;
 let shutdownStarted = false;
@@ -390,11 +394,13 @@ async function createWindow() {
         windowsAudio?.stop();
         accompaniment?.host.stop();
         void nativeCapture?.stopPreview();
+        void gameLocal?.stop().catch(() => {});
         memberOverlay?.publish(null);
       }
     },
   );
   win.on("closed", () => {
+    void gameLocal?.stop().catch(() => {});
     notifications?.closeSurface();
     notifications?.unread(0);
     watchVisibility?.watch(false);
@@ -423,6 +429,7 @@ async function createWindow() {
     windowsAudio?.stop();
     accompaniment?.host.stop();
     void nativeCapture?.stop().catch(() => {});
+    void gameLocal?.stop().catch(() => {});
     sharing = false;
     memberOverlay?.publish(null);
     updateTray();
@@ -668,6 +675,26 @@ function registerIPC() {
     if (!nativeCapture) throw new Error("当前平台不支持此采集引擎");
     return nativeCapture.switchSource();
   });
+  handle("desktop:game-discover", () => {
+    if (!gameLocal) throw Error("此平台暂不支持游戏联机");
+    return gameLocal.discover();
+  });
+  handle("desktop:game-probe", (input) => {
+    if (!gameLocal) throw Error("此平台暂不支持游戏联机");
+    return gameLocal.probe(gamePortSchema.parse(input));
+  });
+  handle("desktop:game-configure", (input) => {
+    if (!gameLocal) throw Error("此平台暂不支持游戏联机");
+    const data = z
+      .strictObject({
+        transport: gameTunnelConfigSchema,
+        worldPort: gamePortSchema.optional(),
+      })
+      .parse(input);
+    return gameLocal.configure(data.transport, data.worldPort);
+  });
+  handle("desktop:game-status", () => gameLocal?.status ?? { state: "idle" });
+  handle("desktop:game-stop", () => gameLocal?.stop());
   handle("desktop:native-stop", () => nativeCapture?.stop());
   handle("desktop:cancel-capture", () => {
     windowsAudio?.clearSelection();
@@ -855,12 +882,11 @@ else {
     memberOverlay?.destroy();
     windowsAudio?.stop();
     accompaniment?.host.stop();
-    if (nativeCapture && !shutdownStarted) {
+    if ((nativeCapture || gameLocal) && !shutdownStarted) {
       event.preventDefault();
       shutdownStarted = true;
       const timeout = setTimeout(() => app.exit(0), 5000);
-      void nativeCapture
-        .shutdown()
+      void Promise.all([nativeCapture?.shutdown(), gameLocal?.stop()])
         .catch(() => {})
         .finally(() => {
           clearTimeout(timeout);
@@ -877,6 +903,31 @@ else {
   app
     .whenReady()
     .then(async () => {
+      if (["win32", "darwin"].includes(process.platform)) {
+        const name =
+          "cinegather-game-link" + (process.platform === "win32" ? ".exe" : "");
+        const binaryPath = app.isPackaged
+          ? join(process.resourcesPath, "game-link", name)
+          : resolve(
+              app.getAppPath(),
+              "../../.local/native-runtime/game-link",
+              `${process.platform}-${process.arch}`,
+              name,
+            );
+        gameLocal = new GameLocal({
+          binaryPath,
+          development: !app.isPackaged,
+          ...(!app.isPackaged && process.env.CG_GAME_DEVELOPMENT_CA
+            ? { caFile: process.env.CG_GAME_DEVELOPMENT_CA }
+            : {}),
+          event: (event) =>
+            void diagnostics?.gameEvent(
+              projectGameDiagnostic(event, gameLocal?.diagnosticContext()),
+            ),
+          connection: (event) =>
+            win?.webContents.send("desktop:game-connection", event),
+        });
+      }
       if (process.platform === "win32")
         windowsAudio = new WindowsAudio({
           executable: app.isPackaged
@@ -1020,6 +1071,7 @@ else {
           accompaniment?.host.stop();
           memberOverlay?.publish(null);
           await nativeCapture?.shutdown();
+          await gameLocal?.stop();
           shutdownStarted = true;
           finishRecording();
           globalHold?.release();
@@ -1051,6 +1103,7 @@ else {
         memberOverlay?.block(true);
         finishRecording();
         void nativeCapture?.stop().catch(() => {});
+        void gameLocal?.stop().catch(() => {});
         sendAction("stop-share");
         sendAction("stop-accompaniment");
         globalHold?.release();

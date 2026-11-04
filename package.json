@@ -63,7 +63,9 @@
     "icons:build": "bun tools/icons.ts",
     "superadmin:grant": "bun tools/superadmin.ts grant",
     "superadmin:revoke": "bun tools/superadmin.ts revoke",
-    "dev:mobile": "bun run --filter @cinegather/mobile start"
+    "dev:mobile": "bun run --filter @cinegather/mobile start",
+    "game:build": "bun tools/game-link-build.ts",
+    "test:game": "bun tools/game-link-smoke.ts"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

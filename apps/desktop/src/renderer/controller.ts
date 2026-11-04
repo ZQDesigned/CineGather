@@ -1,3 +1,4 @@
+import { gameLink, bindGameLink } from "./game-link";
 import { FeatureCompatibility } from "@cinegather/client-core";
 import { FeatureUpdateError } from "@cinegather/api-client";
 import {
@@ -1298,6 +1299,9 @@ function receiveInvitation(value: string) {
   });
 }
 export async function initialize() {
+  const stopGameLink = bindGameLink(() =>
+    state().user ? sessionToken : undefined,
+  );
   const announcementBinding = ++announcementBindingRevision;
   const stopNotifications = bindClientNotifications(baseUrl, async (item) => {
     const userId = state().user?.id;
@@ -1315,6 +1319,10 @@ export async function initialize() {
       return;
     }
     if (item.target === "announcements") openAnnouncements(item.entityId);
+    if (item.target === "games") {
+      location.hash = "/games";
+      return;
+    }
     if (item.target === "friends") {
       location.hash = "/friends";
       update({ modal: null });
@@ -1572,6 +1580,7 @@ export async function initialize() {
     navigator.mediaDevices?.removeEventListener("devicechange", deviceChanged);
     clearInterval(timer);
     clearInterval(policyTimer);
+    stopGameLink();
     stopDiagnostics();
     stopWatchVisibility();
     stopNotifications();
@@ -2157,6 +2166,7 @@ function invitationLink(roomId: string, token: string) {
   return `cinegather://join?room=${roomId}&invite=${token}`;
 }
 export async function logout() {
+  await gameLink.exit();
   automaticRoomEntry.clear();
   await roomSession.leave();
   unwrap(await api.DELETE("/api/v1/session"));
@@ -2166,6 +2176,7 @@ export async function logout() {
   update({ user: undefined, rooms: [] });
 }
 export function configureServer(url: string) {
+  void gameLink.scope(undefined).catch(() => {});
   automaticRoomEntry.clear();
   localStorage.setItem("cinegather.api", serverOrigin(url));
   localStorage.removeItem("cinegather.session");

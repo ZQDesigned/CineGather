@@ -51,6 +51,7 @@ export const gameMemberSchema = z.strictObject({
 export const gameRequestSchema = z.strictObject({
   id: z.uuid(),
   sessionId: z.uuid(),
+  sessionName: z.string(),
   userId: z.uuid(),
   displayName: z.string(),
   status: z.enum(["pending", "approved", "rejected", "cancelled", "expired"]),
@@ -150,3 +151,28 @@ export type GameSnapshot = z.infer<typeof gameSnapshotSchema>;
 export type GameWorld = z.infer<typeof gameWorldSchema>;
 export type GameLocalStatus = z.infer<typeof gameLocalStatusSchema>;
 export type GameTunnelConfig = z.infer<typeof gameTunnelConfigSchema>;
+
+export const gameConnectionInput = z.strictObject({
+  revision: z.number().int().positive(),
+  route: z.enum(["p2p", "relay"]),
+});
+export const gameConnectionObservationSchema = gameConnectionInput.extend({
+  sessionId: z.uuid(),
+  memberId: z.uuid(),
+});
+export type GameConnectionObservation = z.infer<
+  typeof gameConnectionObservationSchema
+>;
+export interface GameLinkBridge {
+  discover(): Promise<GameWorld[]>;
+  probe(port: number): Promise<GameWorld>;
+  configure(input: {
+    transport: GameTunnelConfig;
+    worldPort?: number;
+  }): Promise<GameLocalStatus>;
+  status(): Promise<GameLocalStatus>;
+  stop(): Promise<void>;
+  onConnection(
+    callback: (event: GameConnectionObservation) => void,
+  ): () => void;
+}

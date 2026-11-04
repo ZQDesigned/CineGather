@@ -38,6 +38,7 @@ export type Modal =
   | null;
 export const defaults = defaultSettings;
 interface State {
+  game: import("@cinegather/client-core").GameLinkState;
   esports?: import("@cinegather/client-core").EsportsClientState;
   announcements: import("./announcements").AnnouncementSnapshot;
   pendingAnnouncementIds: string[];
@@ -94,6 +95,17 @@ interface State {
   joinValue: string;
 }
 export const useApp = create<State>(() => ({
+  game: {
+    snapshot: {
+      session: null,
+      self: null,
+      members: [],
+      requests: [],
+      invitations: [],
+    },
+    local: { state: "idle" },
+    syncing: false,
+  },
   announcements: { items: [], readIds: [], offset: 0 },
   pendingAnnouncementIds: [],
   announcementToastIds: [],

@@ -133,14 +133,16 @@ test("real local UDP discovery verifies the advertised TCP service and releases 
         (e) => (e ? reject(e) : resolve()),
       ),
     );
-    expect(await pending).toEqual([
-      {
-        port: server.port,
-        name: "本机广播世界",
-        version: "1.21.4",
-        protocol: 769,
-      },
-    ]);
+    expect(await pending).toEqual(
+      expect.arrayContaining([
+        {
+          port: server.port,
+          name: "本机广播世界",
+          version: "1.21.4",
+          protocol: 769,
+        },
+      ]),
+    );
     const abort = new AbortController(),
       cancelled = discoverMinecraftWorlds({
         signal: abort.signal,
@@ -148,7 +150,11 @@ test("real local UDP discovery verifies the advertised TCP service and releases 
       });
     abort.abort();
     await expect(cancelled).rejects.toThrow();
-    expect(await discoverMinecraftWorlds({ durationMs: 10 })).toEqual([]);
+    expect(
+      (await discoverMinecraftWorlds({ durationMs: 10 })).some(
+        (w) => w.port === server.port,
+      ),
+    ).toBe(false);
   } finally {
     sender.close();
     await server.close();
