@@ -750,3 +750,74 @@ require('node:readline').createInterface({input:process.stdin}).on('line',line=>
   }
   expect(events.at(-1)?.native.hostExitReason).toBe("shutdown");
 });
+test("native publication refusals report only the scoped feature requirement before capture starts", async () => {
+  const { NativeCapture } = await import("../src/main/native-capture");
+  const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
+  const { tmpdir } = await import("node:os");
+  const { join } = await import("node:path");
+  const root = await mkdtemp(join(tmpdir(), "cg-native-feature-"));
+  await mkdir(join(root, "bin/64bit"), { recursive: true });
+  await writeFile(
+    join(root, "bin/64bit/CGScreenCaptureHost.exe"),
+    `#!/usr/bin/env node
+require('node:readline').createInterface({input:process.stdin}).on('line',s=>{const c=JSON.parse(s);if(c.type==='start')process.exit(5);console.log(JSON.stringify({ok:true,data:c.type==='windows'?{windows:[],displays:[{displayId:1,name:'Screen'}]}:{screenPermission:true,outputPhase:'stopped'}}));if(c.type==='shutdown')setTimeout(()=>process.exit(0),5);});`,
+    { mode: 0o755 },
+  );
+  const issue = {
+    scope: "feature" as const,
+    feature: "screen.publish" as const,
+    protocol: 2,
+    reason: "共享功能需要更新",
+    updateKind: "desktop" as const,
+    minimumVersion: "0.1.99",
+  };
+  const notices: unknown[] = [];
+  let released = 0,
+    protocols: string | undefined;
+  const server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    fetch(req) {
+      if (req.method === "DELETE") {
+        released++;
+        return Response.json({ ok: true });
+      }
+      protocols = req.headers.get("X-CineGather-Protocols") ?? undefined;
+      return Response.json(
+        { code: "FEATURE_UPDATE_REQUIRED", compatibility: issue },
+        { status: 426 },
+      );
+    },
+  });
+  const capture = new NativeCapture(
+    root,
+    join(root, "state"),
+    () => {},
+    undefined,
+    { platform: "win32", featureUpdate: (e) => notices.push(e) },
+  );
+  try {
+    await capture.select({ sourceId: "native-screen:1", systemAudio: false });
+    await expect(
+      capture.start({
+        apiUrl: server.url.origin,
+        sessionToken: "fixture",
+        roomId: crypto.randomUUID(),
+        quality: "cinema",
+        lease: {
+          leaseId: crypto.randomUUID(),
+          revision: 1,
+          holderUserId: crypto.randomUUID(),
+          expiresAt: new Date(Date.now() + 20000).toISOString(),
+        },
+      }),
+    ).rejects.toThrow(issue.reason);
+    expect(notices).toEqual([issue]);
+    expect(JSON.parse(protocols!)["room.esports"]).toEqual([1, 2]);
+    expect(released).toBe(1);
+  } finally {
+    await capture.shutdown().catch(() => {});
+    server.stop(true);
+    await rm(root, { recursive: true, force: true });
+  }
+});

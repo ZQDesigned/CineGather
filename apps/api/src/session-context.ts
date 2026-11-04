@@ -1,3 +1,4 @@
+import { boundFeatureClient } from "./feature-policy";
 import { rooms } from "@cinegather/database";
 import { eq, or } from "drizzle-orm";
 import type { User } from "@cinegather/contracts";
@@ -14,11 +15,17 @@ export function bindFeatures(user: User, header?: string) {
   features.set(user, new Set((header ?? "").split(",").map((f) => f.trim())));
 }
 export function supportsEsports(user: User) {
-  return features.get(user)?.has("esports-v1") ?? false;
+  const bound = boundFeatureClient(user);
+  return bound
+    ? !!bound.protocols["room.esports"]?.includes(1)
+    : (features.get(user)?.has("esports-v1") ?? false);
 }
 
 export function supportsDynamicEsports(user: User) {
-  return features.get(user)?.has("esports-v2") ?? false;
+  const bound = boundFeatureClient(user);
+  return bound
+    ? !!bound.protocols["room.esports"]?.includes(2)
+    : (features.get(user)?.has("esports-v2") ?? false);
 }
 export function esportsVisibility(user: User) {
   return supportsDynamicEsports(user)

@@ -1,3 +1,5 @@
+import { featureClient } from "./feature-policy";
+import { featureClientIdentitySchema } from "@cinegather/contracts";
 import {
   AccessToken,
   TokenVerifier,
@@ -22,6 +24,7 @@ import { fail } from "./errors";
 
 export const esportsScopeSchema = z.object({
   format: z.literal("esports-v1"),
+  client: featureClientIdentitySchema.optional(),
   roomId: z.uuid(),
   userId: z.uuid(),
   credentialId: z.uuid(),
@@ -56,7 +59,7 @@ export async function issueEsports(
     identity: memberIdentity(scope.userId, scope.credentialId),
     name: user.displayName,
     ttl: 60,
-    metadata: JSON.stringify(scope),
+    metadata: JSON.stringify({ ...scope, client: featureClient(user) }),
   });
   access.addGrant({
     room: scope.channel

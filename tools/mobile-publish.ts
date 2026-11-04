@@ -1,4 +1,8 @@
 import {
+  validatePublicationScope,
+  type CompatibilityScope,
+} from "./compatibility-publication";
+import {
   createHash,
   sign,
   verify,
@@ -49,6 +53,7 @@ export async function publishMobileUpdate(options: {
   certificate: string;
   origin: string;
   minimumRevision?: number;
+  compatibilityScope?: CompatibilityScope;
   notes: string;
   native?: NativeRelease;
 }) {
@@ -241,6 +246,12 @@ export async function publishMobileUpdate(options: {
         native.minimumBuild < previous.native.minimumBuild)
     )
       throw Error("Native build floors cannot move backwards");
+    validatePublicationScope(
+      options.compatibilityScope,
+      native.minimumBuild > (previous?.native.minimumBuild ?? 0) ||
+        (options.minimumRevision ?? old?.minimumRevision ?? 0) >
+          (old?.minimumRevision ?? 0),
+    );
     if (native.minimumBuild > 0 && !native.url)
       throw Error("Required native updates need an installation URL");
     const release = {
@@ -293,6 +304,7 @@ if (import.meta.main) {
       key: { type: "string" },
       origin: { type: "string", default: "https://cgplat.zqdesigned.city" },
       "minimum-revision": { type: "string" },
+      "compatibility-scope": { type: "string" },
       notes: { type: "string", default: "" },
       "native-build": { type: "string" },
       "native-version": { type: "string" },
@@ -303,7 +315,7 @@ if (import.meta.main) {
   });
   if (!values.export || !values.store || !values.key)
     throw Error(
-      "Usage: bun tools/mobile-publish.ts --export <Expo export> --store <update directory> --key <offline private PEM> [--minimum-revision <revision>] [--native-build <build> --native-version <version> --minimum-build <build> --install-url <HTTPS URL>]",
+      "Usage: bun tools/mobile-publish.ts --export <Expo export> --store <update directory> --key <offline private PEM> [--compatibility-scope ordinary|feature|global] [--minimum-revision <revision>] [--native-build <build> --native-version <version> --minimum-build <build> --install-url <HTTPS URL>]",
     );
   console.log(
     await publishMobileUpdate({
@@ -318,6 +330,9 @@ if (import.meta.main) {
         "utf8",
       ),
       origin: values.origin!,
+      compatibilityScope: values["compatibility-scope"] as
+        | CompatibilityScope
+        | undefined,
       minimumRevision:
         values["minimum-revision"] === undefined
           ? undefined

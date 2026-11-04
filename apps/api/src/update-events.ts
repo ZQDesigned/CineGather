@@ -1,3 +1,4 @@
+import type { FeaturePolicyStore } from "./feature-policy";
 import { subscribeAnnouncements } from "./announcements";
 import type { OnModuleDestroy } from "@nestjs/common";
 import { readFile, stat } from "node:fs/promises";
@@ -84,7 +85,12 @@ export class UpdateEvents implements OnModuleDestroy {
     }
     response.write(`event: ${event}\ndata: ${data}\n\n`);
   }
-  connect(request: Request, response: Response, policy: () => ClientPolicy) {
+  connect(
+    request: Request,
+    response: Response,
+    policy: () => ClientPolicy,
+    features?: FeaturePolicyStore,
+  ) {
     const platform = String(request.query.platform ?? "web"),
       arch = String(request.query.arch ?? "x64");
     if (
@@ -107,6 +113,19 @@ export class UpdateEvents implements OnModuleDestroy {
     response.flushHeaders();
     let lastPolicy = JSON.stringify(policy());
     this.send(response, "policy", lastPolicy);
+    if (features)
+      this.send(
+        response,
+        "feature-policy",
+        JSON.stringify(features.snapshot()),
+      );
+    const unsubscribeFeatures = features?.subscribe(() =>
+      this.send(
+        response,
+        "feature-policy",
+        JSON.stringify(features.snapshot()),
+      ),
+    );
     this.send(response, "announcements", "{}");
     const channel = platform + "-" + arch;
     const timer = setInterval(() => {
@@ -125,6 +144,7 @@ export class UpdateEvents implements OnModuleDestroy {
     if (snapshot) this.send(response, "release", snapshot);
     response.once("close", () => {
       clearInterval(timer);
+      unsubscribeFeatures?.();
       this.clients.delete(client);
     });
   }

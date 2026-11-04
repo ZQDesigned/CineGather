@@ -45,3 +45,5 @@ export * from "./member-friend";
 export * from "./esports";
 
 export * from "./first-frame";
+
+export * from "./feature-compatibility";

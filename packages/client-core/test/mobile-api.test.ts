@@ -146,3 +146,93 @@ test("only authoritative401 invalidates a mobile session, including during an ex
     server.stop(true);
   }
 });
+test("a feature426 does not force a mobile application update or expire the account", async () => {
+  let forced = 0;
+  const server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    fetch: () =>
+      Response.json(
+        {
+          code: "FEATURE_UPDATE_REQUIRED",
+          message: "仅共享需要更新",
+          requestId: "f",
+          compatibility: {
+            scope: "feature",
+            feature: "screen.publish",
+            protocol: 2,
+            reason: "仅共享需要更新",
+            updateKind: "hot",
+          },
+        },
+        { status: 426 },
+      ),
+  });
+  try {
+    const api = new MobileApi({
+      origin: server.url.href,
+      platform: "ios",
+      version: "0.2.0",
+      getToken: () => "account",
+      expire: async () => {
+        throw Error("must keep account");
+      },
+      updateRequired: () => forced++,
+    });
+    await expect(
+      api.call("health", (c) => c.GET("/api/v1/health")),
+    ).rejects.toMatchObject({ name: "FeatureUpdateError" });
+    expect(forced).toBe(0);
+  } finally {
+    server.stop(true);
+  }
+});
+test("a feature refusal from a previous login is marked stale instead of prompting the new account", async () => {
+  let token = "old",
+    release!: () => void,
+    entered!: () => void;
+  const pending = new Promise<void>((r) => (release = r)),
+    started = new Promise<void>((r) => (entered = r));
+  const server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    async fetch() {
+      entered();
+      await pending;
+      return Response.json(
+        {
+          code: "FEATURE_UPDATE_REQUIRED",
+          message: "旧请求",
+          requestId: "old-feature",
+          compatibility: {
+            scope: "feature",
+            feature: "screen.publish",
+            protocol: 2,
+            reason: "旧请求",
+            updateKind: "package",
+          },
+        },
+        { status: 426 },
+      );
+    },
+  });
+  try {
+    const api = new MobileApi({
+      origin: server.url.href,
+      platform: "ios",
+      version: "0.2.0",
+      getToken: () => token,
+      expire: async () => true,
+    });
+    const result = api
+      .call("health", (c) => c.GET("/api/v1/health"))
+      .catch((e) => e);
+    await started;
+    token = "new";
+    release();
+    expect((await result).staleSession).toBe(true);
+  } finally {
+    release();
+    server.stop(true);
+  }
+});

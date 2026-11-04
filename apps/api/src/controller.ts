@@ -111,6 +111,25 @@ export class ApiController {
   clientPolicy(@Req() req: AuthRequest) {
     return c.clientPolicySchema.parse(req.app.get("cinegather.clientPolicy"));
   }
+  @Get("feature-policy")
+  @Endpoint("featurePolicy", c.featurePolicySchema)
+  featurePolicy(@Req() req: AuthRequest) {
+    return (
+      req.app.get(
+        "cinegather.featurePolicy",
+      ) as import("./feature-policy").FeaturePolicyStore
+    ).snapshot();
+  }
+  @Post("rooms/:roomId/join-admission")
+  @Endpoint("joinAdmission", c.okSchema, undefined, ["roomId"], 201)
+  joinAdmission(@Req() req: AuthRequest, @Param("roomId") id: string) {
+    return r.joinAdmission(req.user, id);
+  }
+  @Post("rooms/:roomId/watch-admission")
+  @Endpoint("watchAdmission", c.okSchema, undefined, ["roomId"], 201)
+  watchAdmission(@Req() req: AuthRequest, @Param("roomId") id: string) {
+    return r.watchAdmission(req.user, id);
+  }
   @Get("client-events")
   @ApiExcludeEndpoint()
   clientEvents(@Req() req: AuthRequest, @Res() res: Response) {
@@ -118,6 +137,7 @@ export class ApiController {
       req,
       res,
       () => c.clientPolicySchema.parse(req.app.get("cinegather.clientPolicy")),
+      req.app.get("cinegather.featurePolicy"),
     );
   }
   @Get("announcements")

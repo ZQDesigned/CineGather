@@ -225,7 +225,9 @@ export function Room({ visible = true }: { visible?: boolean }) {
                 <Button
                   type="primary"
                   disabled={!connected}
-                  onClick={() => actions.media.watch(true)}
+                  onClick={() =>
+                    void actions.watchShare(true).catch(actions.report)
+                  }
                 >
                   <Eye size={17} />
                   加入观看
@@ -452,7 +454,9 @@ export function Room({ visible = true }: { visible?: boolean }) {
                 aria-pressed
                 className="control-button"
                 disabled={!connected}
-                onClick={() => actions.media.watch(false)}
+                onClick={() =>
+                  void actions.watchShare(false).catch(actions.report)
+                }
               >
                 <Eye size={21} />
                 <span>暂停观看</span>

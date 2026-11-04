@@ -1,3 +1,4 @@
+import { requireFeature, requireRoomFeature } from "./feature-policy";
 import { esportsVisibility, supportsDynamicEsports } from "./session-context";
 import {
   requireShareQuality,
@@ -186,6 +187,10 @@ export async function createRoom(
             "此账号尚未开通创建赛事房能力",
           );
       }
+      requireRoomFeature(user, {
+        mode: input.mode,
+        maxMembers: input.maxMembers,
+      });
       const id = randomUUID();
       let created: typeof rooms.$inferSelect | undefined;
       for (let attempt = 0; attempt < 10 && !created; attempt++) {
@@ -225,6 +230,14 @@ export async function createRoom(
 export async function getRoom(user: User, roomId: string) {
   return db.transaction(async (tx) => {
     const info = await requireMember(tx, roomId, user.id, false, true);
+    const [configuration] = await tx
+      .select()
+      .from(rooms)
+      .where(eq(rooms.id, info.id));
+    requireRoomFeature(user, {
+      ...info,
+      esportsAdvanced: configuration?.esportsAdvanced,
+    });
     if (
       info.mode === "esports" &&
       (!supportsEsports(user) ||
@@ -322,6 +335,10 @@ export async function updateRoomSettings(
   roomId = uuid(roomId);
   return db.transaction(async (tx) => {
     const previous = await requireMember(tx, roomId, user.id, true, true);
+    requireRoomFeature(user, {
+      ...previous,
+      maxMembers: input.maxMembers ?? previous.maxMembers,
+    });
     const maxMembers = input.maxMembers ?? previous.maxMembers;
     if (previous.mode === "esports" && maxMembers !== previous.maxMembers)
       fail(400, "ESPORTS_FIXED_CAPACITY", "请通过分组配置调整赛事房席位");
@@ -462,6 +479,7 @@ export async function joinRoom(
     if (!room || room.status !== "active")
       fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
     roomId = room.id;
+    requireRoomFeature(user, room);
     if (
       room.mode === "esports" &&
       (!supportsEsports(user) ||
@@ -891,6 +909,8 @@ export async function acquireLease(
       await requireActiveSession(tx, user.id, sessionCredential(user));
       const policy = await requireScreenShare(tx, user.id, roomId);
       await requireShareQuality(tx, user.id, quality);
+      requireFeature(user, "screen.publish");
+      if (quality === "game") requireFeature(user, "screen.quality.game");
       if (handoffId) {
         const [request] = await tx
           .select()
@@ -1050,6 +1070,8 @@ export async function renewLease(
     )
       fail(409, "LEASE_LOST", "共享授权已失效，请重新共享");
     await requireShareQuality(tx, user.id, lease.quality);
+    requireFeature(user, "screen.publish");
+    if (lease.quality === "game") requireFeature(user, "screen.quality.game");
     if (!(await media.participants(roomId)).some((p) => p.identity === user.id))
       fail(409, "MEDIA_NOT_CONNECTED", "媒体连接已断开");
     const expiresAt = new Date(Date.now() + 30_000);
@@ -1900,6 +1922,9 @@ export async function nativePublication(
         lease!.quality,
         input.quality,
       );
+      requireFeature(user, "screen.publish");
+      if (lease!.quality === "game")
+        requireFeature(user, "screen.quality.game");
       const [existing] = await tx
         .select()
         .from(nativePublications)
@@ -1955,4 +1980,22 @@ export async function nativePublication(
         );
     throw error;
   }
+}
+
+export async function watchAdmission(user: User, roomId: string) {
+  await getRoom(user, roomId);
+  requireFeature(user, "screen.watch");
+  return { ok: true as const };
+}
+
+export async function joinAdmission(user: User, reference: string) {
+  const code = reference.toUpperCase();
+  const condition = /^[0-9A-F]{8}$/.test(code)
+    ? eq(rooms.code, code)
+    : eq(rooms.id, uuid(reference));
+  const [room] = await db.select().from(rooms).where(condition);
+  if (!room || room.status !== "active")
+    fail(404, "ROOM_NOT_FOUND", "房间不存在或已关闭");
+  requireRoomFeature(user, room);
+  return { ok: true as const };
 }

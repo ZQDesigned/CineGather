@@ -518,7 +518,7 @@ test("audience capacity is independent of player slots and legacy clients cannot
   );
   expect(
     (await req(`/rooms/${room.id}/join`, host.token, {}, "POST", "")).body.code,
-  ).toBe("ESPORTS_CLIENT_UNSUPPORTED");
+  ).toBe("FEATURE_UPDATE_REQUIRED");
   expect(
     (await req("/rooms", host.token)).body.items.find(
       (r: { id: string }) => r.id === room.id,

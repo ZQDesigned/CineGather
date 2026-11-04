@@ -1,3 +1,4 @@
+export * from "./feature-compatibility";
 export * from "./admin";
 export * from "./permissions";
 export * from "./client-policy";
@@ -470,6 +471,7 @@ export interface DesktopBridge {
         | "ptt-release"
         | "stop-accompaniment"
         | "capture-ended"
+        | "feature-update-required"
         | "stop-share"
         | "invite"
         | "device-audio-fallback",

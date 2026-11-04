@@ -1,3 +1,8 @@
+import {
+  protocolHeaders,
+  featureUpdateIssueSchema,
+  type FeatureUpdateIssue,
+} from "@cinegather/contracts";
 import { version } from "../../package.json";
 import { randomUUID } from "node:crypto";
 import { spawn, type ChildProcessWithoutNullStreams } from "node:child_process";
@@ -192,6 +197,7 @@ export class NativeCapture {
       encoder?: () => string;
       audioFallback?: () => void;
       diagnosticEvent?: (event: NativeCaptureEvent) => void;
+      featureUpdate?: (issue: FeatureUpdateIssue) => void;
     } = {},
   ) {
     this.events = new NativeCaptureEvents((event) =>
@@ -588,7 +594,7 @@ export class NativeCapture {
           headers: {
             Authorization: `Bearer ${context.sessionToken}`,
             "Content-Type": "application/json",
-            "X-CineGather-Features": "esports-v1",
+            ...protocolHeaders,
             "X-CineGather-Version": version,
             "X-CineGather-Platform": process.platform,
           },
@@ -605,6 +611,18 @@ export class NativeCapture {
       );
       status = response.status;
       result = response.ok ? "ok" : "http-error";
+      if (response.status === 426) {
+        const raw = await response
+          .clone()
+          .json()
+          .catch(() => undefined);
+        const issue = featureUpdateIssueSchema.safeParse(raw?.compatibility);
+        if (raw?.code === "FEATURE_UPDATE_REQUIRED" && issue.success) {
+          if (this.context === context)
+            this.options.featureUpdate?.(issue.data);
+          throw new Error(issue.data.reason);
+        }
+      }
       if (!response.ok)
         throw new Error(
           response.status === 409

@@ -221,6 +221,12 @@ export class EsportsAdmissionController {
     const auth = req.get("Authorization");
     if (!auth?.startsWith("Bearer "))
       fail(401, "MEDIA_TOKEN_REQUIRED", "缺少媒体授权");
-    await admitMediaToken(auth.slice(7));
+    await admitMediaToken(auth.slice(7), undefined, () =>
+      (
+        req.app.get(
+          "cinegather.featurePolicy",
+        ) as import("./feature-policy").FeaturePolicyStore
+      ).snapshot(),
+    );
   }
 }

@@ -1,3 +1,11 @@
+import { FeatureCompatibility } from "@cinegather/client-core";
+import { FeatureUpdateError } from "@cinegather/api-client";
+import {
+  currentFeatureProtocols,
+  featureUpdateIssueSchema,
+  requiresDynamicEsports,
+  type FeatureUpdateIssue,
+} from "@cinegather/contracts";
 import { allowedShareQuality, type Quality } from "@cinegather/contracts";
 import { EsportsRuntime } from "./esports";
 import { AnnouncementClient, announcementNotification } from "./announcements";
@@ -109,6 +117,101 @@ export const api = createApi(baseUrl, () => sessionToken, {
   },
   onUpdateRequired: requireClientUpdate,
 });
+export const featureCompatibility = new FeatureCompatibility(
+  () => ({
+    platform:
+      window.desktop?.platform === "win32"
+        ? "win32"
+        : window.desktop?.platform === "darwin"
+          ? "darwin"
+          : "web",
+    version,
+    protocols: currentFeatureProtocols,
+  }),
+  () => {
+    void enforceFeatureCompatibility();
+  },
+);
+let featureCleanup = false;
+let nativeFeatureFailure: string | undefined;
+async function enforceFeatureCompatibility(issue?: FeatureUpdateIssue) {
+  if (featureCleanup || state().requiredUpdate) return;
+  const current = state(),
+    room = current.room;
+  let active = issue;
+  if (!active && room) {
+    const snapshot = current.esports?.snapshot;
+    active = featureCompatibility.issue(
+      room.mode === "esports" ? "room.esports" : "room.standard",
+      room.mode === "esports" &&
+        snapshot?.configuration &&
+        requiresDynamicEsports(
+          snapshot.configuration,
+          snapshot.coachVoiceMode,
+          snapshot.tacticalPauseUntil,
+        )
+        ? 2
+        : 1,
+    );
+    if (!active && room.mode !== "esports" && room.maxMembers > 10)
+      active = featureCompatibility.issue("room.large");
+    if (
+      !active &&
+      ["acquiringLease", "selectingSource", "active", "publishing"].includes(
+        current.shareState,
+      )
+    )
+      active =
+        featureCompatibility.issue("screen.publish") ??
+        (current.settings.quality === "game"
+          ? featureCompatibility.issue("screen.quality.game")
+          : undefined);
+    if (!active && (current.media.watching || current.esports?.watching))
+      active = featureCompatibility.issue("screen.watch");
+  }
+  if (!active) return;
+  featureCleanup = true;
+  try {
+    if (
+      active.feature.startsWith("room.") &&
+      room &&
+      (!issue || issue.roomId === room.id)
+    )
+      await roomSession.leave();
+    else if (active.feature === "screen.watch" && room) {
+      media.watch(false);
+      if (esports.roomId) await esports.coordinator.stopWatching();
+    } else if (
+      (active.feature === "screen.publish" ||
+        active.feature === "screen.quality.game") &&
+      ["acquiringLease", "selectingSource", "active", "publishing"].includes(
+        current.shareState,
+      )
+    )
+      await stopShare();
+  } catch {
+    /* Keep the local operation closed even if remote cleanup is unavailable. */
+  } finally {
+    featureCleanup = false;
+    update({ featureUpdate: active, error: undefined });
+  }
+}
+export async function watchShare(enabled: boolean) {
+  if (enabled) {
+    if (!featureCompatibility.hasPolicy && !featureCompatibility.legacyServer)
+      await featureCompatibility.refresh(baseUrl);
+    featureCompatibility.require("screen.watch");
+    const room = state().room;
+    if (!room) return;
+    if (!featureCompatibility.legacyServer)
+      unwrap(
+        await api.POST("/api/v1/rooms/{roomId}/watch-admission", {
+          params: { path: { roomId: room.id } },
+        }),
+      );
+  }
+  media.watch(enabled);
+}
 const automaticRoomEntry = new ApprovedRoomEntry({
   identity: () =>
     sessionToken && state().user ? `${baseUrl}/${state().user!.id}` : undefined,
@@ -399,6 +502,18 @@ export async function copyText(value: string, notice?: string) {
   if (notice) update({ notice });
 }
 export function report(error: unknown) {
+  if (
+    nativeFeatureFailure &&
+    error instanceof Error &&
+    !(error instanceof FeatureUpdateError) &&
+    error.message.includes(nativeFeatureFailure)
+  )
+    return;
+  if (error instanceof FeatureUpdateError) {
+    if (error.staleSession || !state().user) return;
+    void enforceFeatureCompatibility(error.compatibility);
+    return;
+  }
   if (error instanceof ApiError && error.code === "SCREEN_SHARE_UNAVAILABLE") {
     update({ modal: "share-unavailable", error: undefined });
     return;
@@ -1017,6 +1132,7 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
     }
   },
   publish: async (lease) => {
+    nativeFeatureFailure = undefined;
     await accompaniment.stop();
     try {
       if (window.desktop?.nativeCapture) {
@@ -1082,6 +1198,16 @@ export const shareSession: ShareCoordinator = new ShareCoordinator({
 });
 const pttHolds = new Set<"window" | "global">();
 export const roomSession = new RoomCoordinator({
+  preflight: async (roomId) => {
+    if (!featureCompatibility.hasPolicy && !featureCompatibility.legacyServer)
+      await featureCompatibility.refresh(baseUrl);
+    if (!featureCompatibility.legacyServer)
+      unwrap(
+        await api.POST("/api/v1/rooms/{roomId}/join-admission", {
+          params: { path: { roomId } },
+        }),
+      );
+  },
   join: async (roomId, inviteToken, password) => {
     await window.desktop?.updates?.setInRoom(true);
     return unwrap(
@@ -1290,6 +1416,16 @@ export async function initialize() {
   webInvitation = undefined;
   if (initial) receiveInvitation(initial);
   const unsubscribe = window.desktop?.onAction((action, value) => {
+    if (action === "feature-update-required" && value) {
+      try {
+        const issue = featureUpdateIssueSchema.parse(JSON.parse(value));
+        nativeFeatureFailure = issue.reason;
+        void enforceFeatureCompatibility(issue);
+      } catch {
+        /* Ignore malformed native feature notices. */
+      }
+      return;
+    }
     if (action === "notification-settings-error") {
       update({ error: value || "无法保存通知设置，请重试" });
       return;
@@ -1327,8 +1463,12 @@ export async function initialize() {
   });
   const timer = setInterval(() => void syncRooms(), 2500);
   void checkClientPolicy();
+  void featureCompatibility.refresh(baseUrl);
   const policyTimer = setInterval(
-    () => void checkClientPolicy(),
+    () => {
+      void checkClientPolicy();
+      void featureCompatibility.refresh(baseUrl);
+    },
     60 * 60 * 1000,
   );
   const nativeUpdates = await window.desktop?.updates
@@ -1361,6 +1501,10 @@ export async function initialize() {
     nativeUpdates?.mode === "disabled" ||
     baseUrl !== clientUpdateOrigin;
   const stopPolicyEvents = watchUpdateEvents(eventUrl.href, (event, raw) => {
+    if (event === "feature-policy") {
+      featureCompatibility.accept(JSON.parse(raw));
+      return;
+    }
     if (event === "announcements") {
       void siteAnnouncements.refresh();
       return;
@@ -1474,11 +1618,22 @@ async function syncRooms() {
     );
     if (state().room !== room || state().roomRevision !== roomRevision) return;
     if (current.mode === "esports") await esports.poll();
+    if (
+      current.mode !== "esports" &&
+      state().media.watching &&
+      !featureCompatibility.legacyServer
+    )
+      unwrap(
+        await api.POST("/api/v1/rooms/{roomId}/watch-admission", {
+          params: { path: { roomId: current.id } },
+        }),
+      );
     const promoted = current.role === "owner" && state().room?.role !== "owner";
     update({ room: current, ...(promoted ? { notice: "你已成为房主" } : {}) });
   } catch (error) {
     if (identity !== sessionToken || changingCredentials) return;
-    if (error instanceof ApiError && error.status === 401) report(error);
+    if (error instanceof FeatureUpdateError) report(error);
+    else if (error instanceof ApiError && error.status === 401) report(error);
     else if (
       room &&
       state().room?.id === room.id &&

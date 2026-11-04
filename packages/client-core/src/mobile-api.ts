@@ -1,4 +1,9 @@
-import { ApiError, createApi, unwrap } from "@cinegather/api-client";
+import {
+  ApiError,
+  FeatureUpdateError,
+  createApi,
+  unwrap,
+} from "@cinegather/api-client";
 
 type Client = ReturnType<typeof createApi>;
 export interface MobileApiTrace {
@@ -55,7 +60,11 @@ export class MobileApi {
         }),
       );
       status = result.response.status;
-      if (status === 426)
+      if (
+        status === 426 &&
+        (result.error?.code === "MOBILE_UPDATE_REQUIRED" ||
+          result.error?.code === "CLIENT_UPDATE_REQUIRED")
+      )
         this.deps.updateRequired?.(
           result.response.headers.get("X-CineGather-Mobile-Update") === "hot"
             ? "hot"
@@ -63,6 +72,13 @@ export class MobileApi {
         );
       return unwrap(result);
     } catch (error) {
+      if (error instanceof FeatureUpdateError && token !== this.deps.getToken())
+        throw new FeatureUpdateError(
+          error.compatibility,
+          error.requestId,
+          true,
+          error.status,
+        );
       if (error instanceof ApiError) {
         status = error.status;
         code = error.code;

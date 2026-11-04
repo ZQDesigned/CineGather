@@ -1,5 +1,6 @@
 import type { RoomInfo, RoomState } from "@cinegather/contracts";
 export interface RoomDependencies {
+  preflight?(roomId: string): Promise<void>;
   join(
     roomId: string,
     inviteToken?: string,
@@ -17,13 +18,27 @@ export class RoomCoordinator {
   private roomId?: string;
   private pendingLeave?: string;
   private entering = false;
+  private preflighting = false;
   private entryFinished?: Promise<void>;
   private entry?: { roomId: string; inviteToken?: string; password?: string };
   constructor(private readonly deps: RoomDependencies) {}
   async enter(roomId: string, inviteToken?: string, password?: string) {
-    if (this.entering) return;
-    this.pendingLeave = undefined;
-    if (this.roomId) await this.leave();
+    if (this.entering || this.preflighting) return;
+    this.preflighting = true;
+    const before = this.revision,
+      hadRoom = !!this.roomId;
+    try {
+      if (this.deps.preflight) await this.deps.preflight(roomId);
+      if (this.revision !== before) return;
+      this.pendingLeave = undefined;
+      if (hadRoom) await this.leave();
+      if (this.revision !== before + (hadRoom ? 1 : 0)) return;
+    } catch (error) {
+      if (this.revision === before) this.deps.error(error);
+      return;
+    } finally {
+      this.preflighting = false;
+    }
     this.entering = true;
     let finishEntry!: () => void;
     this.entryFinished = new Promise<void>((resolve) => {

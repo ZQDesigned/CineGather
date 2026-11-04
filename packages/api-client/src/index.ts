@@ -2,6 +2,9 @@ import createClient from "openapi-fetch";
 import type { paths } from "./schema";
 import {
   clientVersionSchema,
+  protocolHeaders,
+  featureUpdateIssueSchema,
+  type FeatureUpdateIssue,
   type ClientPlatform,
 } from "@cinegather/contracts";
 export type { paths, components, operations } from "./schema";
@@ -30,7 +33,8 @@ export function createApi(
   const client = createClient<paths>({ baseUrl });
   client.use({
     onRequest({ request }) {
-      request.headers.set("X-CineGather-Features", "esports-v1,esports-v2");
+      for (const [key, value] of Object.entries(protocolHeaders))
+        request.headers.set(key, value);
       if (options.identity) {
         request.headers.set("X-CineGather-Version", options.identity.version);
         request.headers.set("X-CineGather-Platform", options.identity.platform);
@@ -55,6 +59,7 @@ export function createApi(
       const minimum = response.headers.get("X-CineGather-Min-Version");
       if (
         response.status === 426 &&
+        response.headers.get("X-CineGather-Update-Scope") !== "feature" &&
         minimum &&
         clientVersionSchema.safeParse(minimum).success
       ) {
@@ -69,10 +74,16 @@ export function createApi(
           typeof body.message === "string"
             ? body.message.slice(0, 500)
             : "当前版本已不受支持，请更新后继续使用。";
-        options.onUpdateRequired?.(minimum, reason);
+        if (
+          body &&
+          typeof body === "object" &&
+          "code" in body &&
+          body.code === "CLIENT_UPDATE_REQUIRED"
+        )
+          options.onUpdateRequired?.(minimum, reason);
       }
       if (
-        response.status === 401 &&
+        [401, 426].includes(response.status) &&
         request.headers.get("Authorization") !==
           (getToken() ? `Bearer ${getToken()}` : null)
       )
@@ -93,11 +104,45 @@ export class ApiError extends Error {
     this.name = "ApiError";
   }
 }
+export class FeatureUpdateError extends ApiError {
+  constructor(
+    readonly compatibility: FeatureUpdateIssue,
+    requestId?: string,
+    staleSession = false,
+    status = 426,
+  ) {
+    super(
+      "FEATURE_UPDATE_REQUIRED",
+      compatibility.reason,
+      status,
+      requestId,
+      staleSession,
+    );
+    this.name = "FeatureUpdateError";
+  }
+}
 export function unwrap<T>(result: {
   data?: T;
-  error?: { code: string; message: string; requestId: string };
+  error?: {
+    code: string;
+    message: string;
+    requestId: string;
+    compatibility?: unknown;
+  };
   response: Response;
 }): T {
+  if (result.error?.code === "FEATURE_UPDATE_REQUIRED") {
+    const issue = featureUpdateIssueSchema.safeParse(
+      result.error.compatibility,
+    );
+    if (issue.success)
+      throw new FeatureUpdateError(
+        issue.data,
+        result.error.requestId,
+        staleSessions.has(result.response),
+        result.response.status,
+      );
+  }
   if (result.error)
     throw new ApiError(
       result.error.code,

@@ -34,12 +34,13 @@ export function compatibilityFailure(
     [
       "/api/v1/health",
       "/api/v1/client-policy",
+      "/api/v1/feature-policy",
       "/api/v1/client-events",
       "/api/v1/livekit/webhook",
     ].includes(path) ||
     (method === "DELETE" &&
       (path === "/api/v1/session" ||
-        /^\/api\/v1\/rooms\/[^/]+\/share-lease$/.test(path))) ||
+        /^\/api\/v1\/rooms\/[^/]+\/(?:esports\/)?share-lease$/.test(path))) ||
     (method === "POST" && /^\/api\/v1\/rooms\/[^/]+\/leave$/.test(path))
   )
     return;

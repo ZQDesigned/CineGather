@@ -199,7 +199,9 @@ export default function RoomScreen() {
               <Button
                 primary
                 testID="watch-join"
-                onPress={() => runtime.media.watch(true)}
+                onPress={() =>
+                  void runtime.watchShare(true).catch((e) => runtime.fail(e))
+                }
               >
                 加入观看
               </Button>
@@ -316,7 +318,11 @@ export default function RoomScreen() {
                     <IconButton
                       icon={Pause}
                       label="暂停观看"
-                      onPress={() => runtime.media.watch(false)}
+                      onPress={() =>
+                        void runtime
+                          .watchShare(false)
+                          .catch((e) => runtime.fail(e))
+                      }
                     />
                     <IconButton
                       icon={Maximize}

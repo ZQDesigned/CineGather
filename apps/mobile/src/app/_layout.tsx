@@ -1,3 +1,4 @@
+import { FeatureUpdatePrompt } from "../components/FeatureUpdate";
 import { useEffect } from "react";
 import { Stack, useSegments } from "expo-router";
 import { StatusBar } from "expo-status-bar";
@@ -99,6 +100,7 @@ export default function Layout() {
             </View>
           )}
         </UpdateGate>
+        <FeatureUpdatePrompt />
         <RootSnackbar />
       </View>
     </SafeAreaProvider>

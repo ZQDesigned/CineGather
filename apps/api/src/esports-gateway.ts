@@ -1,3 +1,4 @@
+import { emptyFeaturePolicy, type FeaturePolicy } from "@cinegather/contracts";
 import { WebSocket, WebSocketServer, type RawData } from "ws";
 import { SignalResponse } from "@livekit/protocol";
 import type { Server, IncomingMessage } from "node:http";
@@ -28,6 +29,7 @@ export function attachEsportsGateway(
   server: Server,
   upstreamUrl: string,
   maintenance: () => boolean = () => false,
+  featurePolicy: () => FeaturePolicy = () => emptyFeaturePolicy,
 ) {
   const wss = new WebSocketServer({
     noServer: true,
@@ -161,6 +163,7 @@ export function attachEsportsGateway(
             upstream.on("error", close);
           });
         }),
+      featurePolicy,
     )
       .catch((error) => {
         client?.terminate();
@@ -188,7 +191,7 @@ export function attachEsportsGateway(
       return;
     }
     try {
-      await admitMediaToken(token);
+      await admitMediaToken(token, undefined, featurePolicy);
       const response = await fetch(
         new URL(url.pathname + url.search, upstreamUrl),
         {

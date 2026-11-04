@@ -84,6 +84,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/feature-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["featurePolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rooms/{roomId}/join-admission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["joinAdmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rooms/{roomId}/watch-admission": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["watchAdmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/announcements": {
         parameters: {
             query?: never;
@@ -1415,7 +1463,23 @@ export interface paths {
 }
 export type webhooks = Record<string, never>;
 export interface components {
-    schemas: never;
+    schemas: {
+        FeatureUpdateIssue: {
+            /** @enum {string} */
+            scope: "feature";
+            /** @enum {string} */
+            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game";
+            protocol: number;
+            /** Format: uuid */
+            roomId?: string;
+            reason: string;
+            /** @enum {string} */
+            updateKind: "desktop" | "reload" | "hot" | "package";
+            minimumVersion?: string;
+            minimumBuild?: number;
+            minimumRevision?: number;
+        };
+    };
     responses: never;
     parameters: never;
     requestBodies: never;
@@ -1459,6 +1523,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1471,6 +1536,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1483,6 +1549,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1495,6 +1562,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1507,6 +1575,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1519,6 +1588,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1531,6 +1601,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1543,6 +1614,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1590,6 +1662,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1602,6 +1675,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1614,6 +1688,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1626,6 +1701,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1638,6 +1714,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1650,6 +1727,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1662,6 +1740,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1674,6 +1753,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1708,6 +1788,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1720,6 +1801,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1732,6 +1814,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1744,6 +1827,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1756,6 +1840,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1768,6 +1853,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1780,6 +1866,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1792,6 +1879,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1826,6 +1914,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1838,6 +1927,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1850,6 +1940,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1862,6 +1953,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1874,6 +1966,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1886,6 +1979,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1898,6 +1992,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1910,6 +2005,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1951,6 +2047,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1963,6 +2060,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1975,6 +2073,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1987,6 +2086,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -1999,6 +2099,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2011,6 +2112,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2023,6 +2125,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2035,6 +2138,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2075,6 +2179,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2087,6 +2192,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2099,6 +2205,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2111,6 +2218,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2123,6 +2231,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2135,6 +2244,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2147,6 +2257,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2159,6 +2270,415 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    featurePolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {number} */
+                        format: 1;
+                        revision: number;
+                        rules: {
+                            /** @enum {string} */
+                            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game";
+                            platforms?: ("win32" | "darwin" | "web" | "android" | "ios")[];
+                            protocol: number;
+                            appliesFromProtocol?: number;
+                            reason: string;
+                            minimumVersions?: {
+                                [key: string]: string;
+                            };
+                            mobile?: {
+                                android?: {
+                                    minimumBuild?: number;
+                                    minimumRevisions?: {
+                                        [key: string]: number;
+                                    };
+                                };
+                                ios?: {
+                                    minimumBuild?: number;
+                                    minimumRevisions?: {
+                                        [key: string]: number;
+                                    };
+                                };
+                            };
+                        }[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    joinAdmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    watchAdmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2214,6 +2734,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2226,6 +2747,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2238,6 +2760,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2250,6 +2773,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2262,6 +2786,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2274,6 +2799,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2286,6 +2812,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2298,6 +2825,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2355,6 +2883,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2367,6 +2896,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2379,6 +2909,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2391,6 +2922,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2403,6 +2935,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2415,6 +2948,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2427,6 +2961,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2439,6 +2974,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2478,6 +3014,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2490,6 +3027,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2502,6 +3040,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2514,6 +3053,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2526,6 +3066,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2538,6 +3079,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2550,6 +3092,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2562,6 +3105,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2601,6 +3145,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2613,6 +3158,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2625,6 +3171,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2637,6 +3184,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2649,6 +3197,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2661,6 +3210,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2673,6 +3223,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2685,6 +3236,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2720,6 +3272,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2732,6 +3285,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2744,6 +3298,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2756,6 +3311,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2768,6 +3324,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2780,6 +3337,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2792,6 +3350,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2804,6 +3363,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2839,6 +3399,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2851,6 +3412,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2863,6 +3425,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2875,6 +3438,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2887,6 +3451,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2899,6 +3464,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2911,6 +3477,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2923,6 +3490,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2956,6 +3524,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2968,6 +3537,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2980,6 +3550,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -2992,6 +3563,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3004,6 +3576,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3016,6 +3589,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3028,6 +3602,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3040,6 +3615,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3099,6 +3675,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3111,6 +3688,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3123,6 +3701,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3135,6 +3714,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3147,6 +3727,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3159,6 +3740,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3171,6 +3753,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3183,6 +3766,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3241,6 +3825,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3253,6 +3838,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3265,6 +3851,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3277,6 +3864,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3289,6 +3877,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3301,6 +3890,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3313,6 +3903,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3325,6 +3916,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3383,6 +3975,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3395,6 +3988,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3407,6 +4001,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3419,6 +4014,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3431,6 +4027,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3443,6 +4040,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3455,6 +4053,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3467,6 +4066,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3520,6 +4120,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3532,6 +4133,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3544,6 +4146,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3556,6 +4159,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3568,6 +4172,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3580,6 +4185,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3592,6 +4198,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3604,6 +4211,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3651,6 +4259,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3663,6 +4272,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3675,6 +4285,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3687,6 +4298,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3699,6 +4311,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3711,6 +4324,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3723,6 +4337,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3735,6 +4350,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3769,6 +4385,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3781,6 +4398,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3793,6 +4411,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3805,6 +4424,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3817,6 +4437,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3829,6 +4450,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3841,6 +4463,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3853,6 +4476,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3889,6 +4513,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3901,6 +4526,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3913,6 +4539,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3925,6 +4552,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3937,6 +4565,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3949,6 +4578,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3961,6 +4591,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -3973,6 +4604,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4007,6 +4639,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4019,6 +4652,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4031,6 +4665,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4043,6 +4678,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4055,6 +4691,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4067,6 +4704,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4079,6 +4717,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4091,6 +4730,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4145,6 +4785,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4157,6 +4798,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4169,6 +4811,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4181,6 +4824,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4193,6 +4837,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4205,6 +4850,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4217,6 +4863,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4229,6 +4876,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4317,6 +4965,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4329,6 +4978,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4341,6 +4991,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4353,6 +5004,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4365,6 +5017,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4377,6 +5030,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4389,6 +5043,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4401,6 +5056,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4455,6 +5111,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4467,6 +5124,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4479,6 +5137,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4491,6 +5150,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4503,6 +5163,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4515,6 +5176,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4527,6 +5189,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4539,6 +5202,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4600,6 +5264,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4612,6 +5277,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4624,6 +5290,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4636,6 +5303,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4648,6 +5316,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4660,6 +5329,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4672,6 +5342,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4684,6 +5355,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4750,6 +5422,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4762,6 +5435,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4774,6 +5448,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4786,6 +5461,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4798,6 +5474,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4810,6 +5487,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4822,6 +5500,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4834,6 +5513,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4870,6 +5550,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4882,6 +5563,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4894,6 +5576,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4906,6 +5589,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4918,6 +5602,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4930,6 +5615,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4942,6 +5628,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -4954,6 +5641,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5002,6 +5690,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5014,6 +5703,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5026,6 +5716,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5038,6 +5729,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5050,6 +5742,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5062,6 +5755,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5074,6 +5768,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5086,6 +5781,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5123,6 +5819,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5135,6 +5832,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5147,6 +5845,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5159,6 +5858,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5171,6 +5871,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5183,6 +5884,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5195,6 +5897,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5207,6 +5910,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5255,6 +5959,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5267,6 +5972,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5279,6 +5985,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5291,6 +5998,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5303,6 +6011,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5315,6 +6024,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5327,6 +6037,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5339,6 +6050,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5375,6 +6087,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5387,6 +6100,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5399,6 +6113,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5411,6 +6126,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5423,6 +6139,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5435,6 +6152,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5447,6 +6165,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5459,6 +6178,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5495,6 +6215,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5507,6 +6228,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5519,6 +6241,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5531,6 +6254,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5543,6 +6267,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5555,6 +6280,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5567,6 +6293,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5579,6 +6306,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5616,6 +6344,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5628,6 +6357,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5640,6 +6370,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5652,6 +6383,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5664,6 +6396,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5676,6 +6409,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5688,6 +6422,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5700,6 +6435,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5737,6 +6473,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5749,6 +6486,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5761,6 +6499,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5773,6 +6512,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5785,6 +6525,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5797,6 +6538,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5809,6 +6551,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5821,6 +6564,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5872,6 +6616,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5884,6 +6629,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5896,6 +6642,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5908,6 +6655,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5920,6 +6668,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5932,6 +6681,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5944,6 +6694,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -5956,6 +6707,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6006,6 +6758,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6018,6 +6771,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6030,6 +6784,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6042,6 +6797,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6054,6 +6810,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6066,6 +6823,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6078,6 +6836,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6090,6 +6849,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6134,6 +6894,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6146,6 +6907,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6158,6 +6920,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6170,6 +6933,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6182,6 +6946,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6194,6 +6959,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6206,6 +6972,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6218,6 +6985,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6268,6 +7036,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6280,6 +7049,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6292,6 +7062,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6304,6 +7075,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6316,6 +7088,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6328,6 +7101,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6340,6 +7114,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6352,6 +7127,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6407,6 +7183,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6419,6 +7196,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6431,6 +7209,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6443,6 +7222,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6455,6 +7235,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6467,6 +7248,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6479,6 +7261,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6491,6 +7274,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6528,6 +7312,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6540,6 +7325,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6552,6 +7338,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6564,6 +7351,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6576,6 +7364,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6588,6 +7377,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6600,6 +7390,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6612,6 +7403,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6674,6 +7466,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6686,6 +7479,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6698,6 +7492,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6710,6 +7505,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6722,6 +7518,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6734,6 +7531,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6746,6 +7544,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6758,6 +7557,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6799,6 +7599,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6811,6 +7612,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6823,6 +7625,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6835,6 +7638,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6847,6 +7651,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6859,6 +7664,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6871,6 +7677,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6883,6 +7690,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6924,6 +7732,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6936,6 +7745,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6948,6 +7758,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6960,6 +7771,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6972,6 +7784,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6984,6 +7797,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -6996,6 +7810,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7008,6 +7823,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7056,6 +7872,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7068,6 +7885,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7080,6 +7898,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7092,6 +7911,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7104,6 +7924,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7116,6 +7937,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7128,6 +7950,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7140,6 +7963,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7189,6 +8013,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7201,6 +8026,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7213,6 +8039,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7225,6 +8052,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7237,6 +8065,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7249,6 +8078,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7261,6 +8091,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7273,6 +8104,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7317,6 +8149,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7329,6 +8162,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7341,6 +8175,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7353,6 +8188,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7365,6 +8201,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7377,6 +8214,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7389,6 +8227,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7401,6 +8240,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7440,6 +8280,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7452,6 +8293,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7464,6 +8306,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7476,6 +8319,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7488,6 +8332,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7500,6 +8345,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7512,6 +8358,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7524,6 +8371,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7561,6 +8409,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7573,6 +8422,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7585,6 +8435,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7597,6 +8448,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7609,6 +8461,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7621,6 +8474,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7633,6 +8487,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7645,6 +8500,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7693,6 +8549,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7705,6 +8562,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7717,6 +8575,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7729,6 +8588,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7741,6 +8601,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7753,6 +8614,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7765,6 +8627,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7777,6 +8640,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7826,6 +8690,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7838,6 +8703,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7850,6 +8716,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7862,6 +8729,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7874,6 +8742,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7886,6 +8755,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7898,6 +8768,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7910,6 +8781,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7970,6 +8842,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7982,6 +8855,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -7994,6 +8868,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8006,6 +8881,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8018,6 +8894,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8030,6 +8907,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8042,6 +8920,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8054,6 +8933,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8090,6 +8970,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8102,6 +8983,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8114,6 +8996,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8126,6 +9009,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8138,6 +9022,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8150,6 +9035,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8162,6 +9048,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8174,6 +9061,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8214,6 +9102,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8226,6 +9115,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8238,6 +9128,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8250,6 +9141,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8262,6 +9154,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8274,6 +9167,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8286,6 +9180,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8298,6 +9193,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8336,6 +9232,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8348,6 +9245,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8360,6 +9258,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8372,6 +9271,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8384,6 +9284,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8396,6 +9297,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8408,6 +9310,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8420,6 +9323,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8456,6 +9360,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8468,6 +9373,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8480,6 +9386,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8492,6 +9399,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8504,6 +9412,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8516,6 +9425,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8528,6 +9438,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8540,6 +9451,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8576,6 +9488,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8588,6 +9501,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8600,6 +9514,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8612,6 +9527,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8624,6 +9540,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8636,6 +9553,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8648,6 +9566,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8660,6 +9579,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8755,6 +9675,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8767,6 +9688,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8779,6 +9701,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8791,6 +9714,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8803,6 +9727,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8815,6 +9740,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8827,6 +9753,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8839,6 +9766,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8880,6 +9808,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8892,6 +9821,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8904,6 +9834,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8916,6 +9847,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8928,6 +9860,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8940,6 +9873,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8952,6 +9886,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -8964,6 +9899,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9000,6 +9936,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9012,6 +9949,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9024,6 +9962,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9036,6 +9975,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9048,6 +9988,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9060,6 +10001,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9072,6 +10014,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9084,6 +10027,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9120,6 +10064,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9132,6 +10077,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9144,6 +10090,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9156,6 +10103,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9168,6 +10116,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9180,6 +10129,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9192,6 +10142,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9204,6 +10155,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9248,6 +10200,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9260,6 +10213,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9272,6 +10226,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9284,6 +10239,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9296,6 +10252,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9308,6 +10265,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9320,6 +10278,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9332,6 +10291,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9396,6 +10356,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9408,6 +10369,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9420,6 +10382,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9432,6 +10395,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9444,6 +10408,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9456,6 +10421,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9468,6 +10434,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9480,6 +10447,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9531,6 +10499,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9543,6 +10512,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9555,6 +10525,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9567,6 +10538,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9579,6 +10551,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9591,6 +10564,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9603,6 +10577,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9615,6 +10590,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9657,6 +10633,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9669,6 +10646,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9681,6 +10659,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9693,6 +10672,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9705,6 +10685,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9717,6 +10698,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9729,6 +10711,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9741,6 +10724,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9799,6 +10783,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9811,6 +10796,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9823,6 +10809,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9835,6 +10822,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9847,6 +10835,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9859,6 +10848,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9871,6 +10861,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9883,6 +10874,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9960,6 +10952,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9972,6 +10965,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9984,6 +10978,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -9996,6 +10991,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10008,6 +11004,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10020,6 +11017,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10032,6 +11030,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10044,6 +11043,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10121,6 +11121,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10133,6 +11134,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10145,6 +11147,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10157,6 +11160,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10169,6 +11173,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10181,6 +11186,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10193,6 +11199,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10205,6 +11212,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10258,6 +11266,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10270,6 +11279,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10282,6 +11292,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10294,6 +11305,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10306,6 +11318,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10318,6 +11331,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10330,6 +11344,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10342,6 +11357,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10395,6 +11411,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10407,6 +11424,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10419,6 +11437,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10431,6 +11450,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10443,6 +11463,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10455,6 +11476,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10467,6 +11489,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10479,6 +11502,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10518,6 +11542,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10530,6 +11555,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10542,6 +11568,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10554,6 +11581,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10566,6 +11594,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10578,6 +11607,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10590,6 +11620,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10602,6 +11633,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10661,6 +11693,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10673,6 +11706,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10685,6 +11719,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10697,6 +11732,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10709,6 +11745,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10721,6 +11758,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10733,6 +11771,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10745,6 +11784,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10797,6 +11837,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10809,6 +11850,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10821,6 +11863,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10833,6 +11876,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10845,6 +11889,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10857,6 +11902,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10869,6 +11915,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10881,6 +11928,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10927,6 +11975,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10939,6 +11988,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10951,6 +12001,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10963,6 +12014,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10975,6 +12027,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10987,6 +12040,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -10999,6 +12053,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11011,6 +12066,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11057,6 +12113,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11069,6 +12126,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11081,6 +12139,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11093,6 +12152,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11105,6 +12165,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11117,6 +12178,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11129,6 +12191,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11141,6 +12204,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11184,6 +12248,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11196,6 +12261,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11208,6 +12274,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11220,6 +12287,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11232,6 +12300,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11244,6 +12313,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11256,6 +12326,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11268,6 +12339,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11311,6 +12383,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11323,6 +12396,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11335,6 +12409,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11347,6 +12422,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11359,6 +12435,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11371,6 +12448,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11383,6 +12461,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11395,6 +12474,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11437,6 +12517,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11449,6 +12530,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11461,6 +12543,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11473,6 +12556,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11485,6 +12569,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11497,6 +12582,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11509,6 +12595,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11521,6 +12608,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11563,6 +12651,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11575,6 +12664,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11587,6 +12677,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11599,6 +12690,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11611,6 +12703,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11623,6 +12716,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11635,6 +12729,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11647,6 +12742,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11689,6 +12785,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11701,6 +12798,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11713,6 +12811,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11725,6 +12824,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11737,6 +12837,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11749,6 +12850,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11761,6 +12863,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11773,6 +12876,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11815,6 +12919,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11827,6 +12932,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11839,6 +12945,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11851,6 +12958,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11863,6 +12971,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11875,6 +12984,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11887,6 +12997,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11899,6 +13010,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11941,6 +13053,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11953,6 +13066,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11965,6 +13079,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11977,6 +13092,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -11989,6 +13105,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12001,6 +13118,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12013,6 +13131,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12025,6 +13144,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12066,6 +13186,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12078,6 +13199,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12090,6 +13212,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12102,6 +13225,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12114,6 +13238,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12126,6 +13251,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12138,6 +13264,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12150,6 +13277,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12197,6 +13325,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12209,6 +13338,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12221,6 +13351,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12233,6 +13364,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12245,6 +13377,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12257,6 +13390,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12269,6 +13403,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12281,6 +13416,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12330,6 +13466,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12342,6 +13479,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12354,6 +13492,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12366,6 +13505,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12378,6 +13518,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12390,6 +13531,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12402,6 +13544,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12414,6 +13557,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12456,6 +13600,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12468,6 +13613,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12480,6 +13626,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12492,6 +13639,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12504,6 +13652,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12516,6 +13665,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12528,6 +13678,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12540,6 +13691,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12583,6 +13735,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12595,6 +13748,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12607,6 +13761,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12619,6 +13774,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12631,6 +13787,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12643,6 +13800,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12655,6 +13813,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12667,6 +13826,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12809,6 +13969,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12821,6 +13982,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12833,6 +13995,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12845,6 +14008,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12857,6 +14021,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12869,6 +14034,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12881,6 +14047,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -12893,6 +14060,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13025,6 +14193,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13037,6 +14206,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13049,6 +14219,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13061,6 +14232,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13073,6 +14245,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13085,6 +14258,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13097,6 +14271,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13109,6 +14284,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13242,6 +14418,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13254,6 +14431,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13266,6 +14444,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13278,6 +14457,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13290,6 +14470,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13302,6 +14483,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13314,6 +14496,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13326,6 +14509,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13452,6 +14636,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13464,6 +14649,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13476,6 +14662,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13488,6 +14675,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13500,6 +14688,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13512,6 +14701,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13524,6 +14714,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13536,6 +14727,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13681,6 +14873,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13693,6 +14886,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13705,6 +14899,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13717,6 +14912,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13729,6 +14925,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13741,6 +14938,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13753,6 +14951,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13765,6 +14964,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13901,6 +15101,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13913,6 +15114,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13925,6 +15127,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13937,6 +15140,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13949,6 +15153,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13961,6 +15166,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13973,6 +15179,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -13985,6 +15192,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14118,6 +15326,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14130,6 +15339,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14142,6 +15352,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14154,6 +15365,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14166,6 +15378,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14178,6 +15391,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14190,6 +15404,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14202,6 +15417,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14263,6 +15479,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14275,6 +15492,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14287,6 +15505,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14299,6 +15518,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14311,6 +15531,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14323,6 +15544,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14335,6 +15557,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14347,6 +15570,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14399,6 +15623,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14411,6 +15636,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14423,6 +15649,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14435,6 +15662,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14447,6 +15675,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14459,6 +15688,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14471,6 +15701,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14483,6 +15714,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14527,6 +15759,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14539,6 +15772,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14551,6 +15785,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14563,6 +15798,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14575,6 +15811,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14587,6 +15824,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14599,6 +15837,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14611,6 +15850,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14661,6 +15901,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14673,6 +15914,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14685,6 +15927,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14697,6 +15940,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14709,6 +15953,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14721,6 +15966,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14733,6 +15979,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14745,6 +15992,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14798,6 +16046,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14810,6 +16059,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14822,6 +16072,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14834,6 +16085,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14846,6 +16098,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14858,6 +16111,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14870,6 +16124,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };
@@ -14882,6 +16137,7 @@ export interface operations {
                         code: string;
                         message: string;
                         requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
                     };
                 };
             };

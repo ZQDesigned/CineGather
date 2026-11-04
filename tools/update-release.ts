@@ -1,3 +1,4 @@
+import { validatePublicationScope } from "./compatibility-publication";
 import {
   createHash,
   createPrivateKey,
@@ -12,7 +13,12 @@ import {
   type Release,
 } from "../apps/desktop/src/main/update-release";
 
-export function signRelease(release: Release, privateKey: string) {
+export function signRelease(
+  release: Release,
+  privateKey: string,
+  compatibilityScope?: string,
+) {
+  validatePublicationScope(compatibilityScope, Boolean(release.minimumVersion));
   const key = createPrivateKey(privateKey);
   if (key.asymmetricKeyType !== "ed25519")
     throw new Error("Expected an Ed25519 update key");
@@ -36,6 +42,7 @@ if (import.meta.main) {
       key: { type: "string" },
       notes: { type: "string" },
       "min-version": { type: "string" },
+      "compatibility-scope": { type: "string" },
       reason: { type: "string" },
       out: { type: "string" },
     },
@@ -43,8 +50,12 @@ if (import.meta.main) {
   });
   if (!values.file || !values.key || !values.out)
     throw new Error(
-      "Usage: bun tools/update-release.ts --file <installer> --key <private.pem> --notes <release notes> --out <channel.json> [--min-version <lowest supported>] [--reason <update reason>]",
+      "Usage: bun tools/update-release.ts --file <installer> --key <private.pem> --notes <release notes> --out <channel.json> [--compatibility-scope ordinary|feature|global] [--min-version <lowest supported>] [--reason <update reason>]",
     );
+  validatePublicationScope(
+    values["compatibility-scope"],
+    Boolean(values["min-version"]),
+  );
   const match =
     /^CineGather-(\d+\.\d+\.\d+)-(win|mac)-(x64|arm64)(-setup\.exe|\.dmg)$/.exec(
       basename(values.file),
@@ -73,7 +84,7 @@ if (import.meta.main) {
       sha512: createHash("sha512").update(bytes).digest("base64"),
     },
   };
-  const raw = signRelease(release, key);
+  const raw = signRelease(release, key, values["compatibility-scope"]);
   verifyRelease(raw, packagedKey, release.platform, release.arch);
   const target = resolve(values.out);
   const temporary = join(

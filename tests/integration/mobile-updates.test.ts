@@ -46,6 +46,7 @@ test("old mobile clients can obtain signed OTA while business requests enforce b
       .toString(),
     origin: "https://cgplat.zqdesigned.city",
     minimumRevision: 2,
+    compatibilityScope: "global",
     notes: "协议更新",
   });
   const app = await createApp({

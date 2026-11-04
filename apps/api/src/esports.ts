@@ -1,3 +1,4 @@
+import { requireFeature } from "./feature-policy";
 import {
   readEsportsConfiguration,
   roomCoachVoiceAllowed,
@@ -699,6 +700,8 @@ export async function connection(
     };
     const rights = await scopeRights(tx, scope),
       channel = esportsChannelName(roomId, c);
+    if (c.kind === "video")
+      requireFeature(user, rights.publish ? "screen.publish" : "screen.watch");
     await media.ensureRoom(channel);
     return {
       channel,
@@ -723,6 +726,8 @@ export async function acquireEsportsLease(
     if (seat.kind !== "player" || !policy.sharingAllowed)
       fail(403, "ESPORTS_PUBLISH_DENIED", "仅允许有共享权限的选手推流");
     await requireShareQuality(tx, user.id, quality);
+    requireFeature(user, "screen.publish");
+    if (quality === "game") requireFeature(user, "screen.quality.game");
     const [old] = await tx
       .select()
       .from(esportsPublications)
@@ -793,6 +798,8 @@ export async function renewEsportsLease(
       return { ok: true as const };
     }
     await requireShareQuality(tx, user.id, p.quality);
+    requireFeature(user, "screen.publish");
+    if (p.quality === "game") requireFeature(user, "screen.quality.game");
     const expiresAt = new Date(Date.now() + 30_000);
     await tx
       .update(esportsPublications)
@@ -833,6 +840,8 @@ export async function esportsNative(
     )
       fail(409, "LEASE_CONFLICT", "共享授权已失效");
     await validatePublicationQuality(tx, user.id, p.quality, input.quality);
+    requireFeature(user, "screen.publish");
+    if (p.quality === "game") requireFeature(user, "screen.quality.game");
     if (p.ingressId) {
       const info = await media.ingress.listIngress({ ingressId: p.ingressId });
       const existing = info[0];

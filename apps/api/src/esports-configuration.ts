@@ -1,3 +1,4 @@
+import { requireFeature } from "./feature-policy";
 import { and, eq, lte, isNotNull } from "drizzle-orm";
 import {
   rooms,
@@ -30,6 +31,7 @@ export const roomCoachVoiceAllowed = (room: typeof rooms.$inferSelect) =>
     room.tacticalPauseUntil,
   );
 async function requireModern(tx: Transaction, roomId: string, user: User) {
+  requireFeature(user, "room.esports", 2);
   if (!supportsDynamicEsports(user))
     fail(426, "ESPORTS_CLIENT_UNSUPPORTED", "请更新客户端后调整赛事房");
   const seats = await tx

@@ -1,3 +1,9 @@
+import { requireFeatureIdentity } from "./feature-policy";
+import {
+  emptyFeaturePolicy,
+  parseFeatureProtocols,
+  type FeaturePolicy,
+} from "@cinegather/contracts";
 import { trackSourceToString } from "livekit-server-sdk";
 import { timingSafeEqual } from "node:crypto";
 import { memberIdentity, esportsChannelName } from "@cinegather/contracts";
@@ -19,6 +25,7 @@ export function admissionSecretValid(value: string | undefined) {
 export async function admitMediaToken(
   token: string,
   whileAdmitted: () => Promise<void> = async () => {},
+  featurePolicy: () => FeaturePolicy = () => emptyFeaturePolicy,
 ) {
   let claims;
   try {
@@ -70,6 +77,25 @@ export async function admitMediaToken(
       )
     )
       fail(403, "MEDIA_GRANT_STALE", "媒体权限已变更，请重新连接");
+    const [configuration] = await tx
+      .select()
+      .from(rooms)
+      .where(eq(rooms.id, scope.roomId));
+    const client = scope.client ?? {
+      protocols: parseFeatureProtocols(undefined, "esports-v1,esports-v2"),
+    };
+    requireFeatureIdentity(
+      "room.esports",
+      client,
+      featurePolicy(),
+      configuration?.esportsAdvanced ? 2 : 1,
+    );
+    if (scope.channel?.kind === "video")
+      requireFeatureIdentity(
+        rights.publish ? "screen.publish" : "screen.watch",
+        client,
+        featurePolicy(),
+      );
     await whileAdmitted();
   });
 }

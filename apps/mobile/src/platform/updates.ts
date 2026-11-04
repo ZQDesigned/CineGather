@@ -48,6 +48,10 @@ export class MobileUpdateService {
   constructor(
     private readonly leave: () => Promise<void>,
     apiOrigin: string,
+    private readonly featurePolicies?: {
+      receive(raw: string): void;
+      refresh(): void;
+    },
   ) {
     this.origin = String(extra?.origin ?? apiOrigin).replace(/\/$/, "");
     this.key = `cinegather.updates.${encodeURIComponent(this.origin).replace(/%/g, "_")}.${mobileUpdateIdentity.channel}.${mobileUpdateIdentity.runtime}`;
@@ -156,6 +160,7 @@ export class MobileUpdateService {
   }
   start() {
     if (this.started) return;
+    this.featurePolicies?.refresh();
     this.started = true;
     void (async () => {
       await this.updater.restore();
@@ -180,7 +185,11 @@ export class MobileUpdateService {
     if (__DEV__ || !engine?.isEnabled) return;
     const events = watchUpdateEvents(
       `${this.origin}/api/v1/client-events?platform=${mobileUpdateIdentity.platform}&arch=arm64`,
-      (event) => {
+      (event, raw) => {
+        if (event === "feature-policy") {
+          this.featurePolicies?.receive(raw);
+          return;
+        }
         if (event === "mobile-update") this.hint();
         else if (event === "policy") void this.check();
       },
@@ -189,12 +198,14 @@ export class MobileUpdateService {
     CriticalTimers.setInterval(
       () => {
         void this.check();
+        this.featurePolicies?.refresh();
       },
       60 * 60 * 1000,
     );
     AppState.addEventListener("change", (state) => {
       if (state === "active") {
         events.reconnect();
+        this.featurePolicies?.refresh();
         void this.check();
       }
     });

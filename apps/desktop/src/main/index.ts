@@ -938,6 +938,8 @@ else {
           app.isPackaged ? undefined : "com.github.Electron",
           {
             previewAllowed: foreground,
+            featureUpdate: (issue) =>
+              sendAction("feature-update-required", JSON.stringify(issue)),
             diagnosticEvent: (event) => {
               void diagnostics?.nativeEvent(event).catch(() => {});
             },
@@ -956,6 +958,8 @@ else {
           "CineGather.exe",
           {
             previewAllowed: foreground,
+            featureUpdate: (issue) =>
+              sendAction("feature-update-required", JSON.stringify(issue)),
             diagnosticEvent: (event) => {
               void diagnostics?.nativeEvent(event).catch(() => {});
             },

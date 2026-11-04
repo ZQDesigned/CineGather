@@ -34,3 +34,45 @@ test("client identity is attached to requests and 426 invokes the mandatory-upda
     server.stop(true);
   }
 });
+test("feature rejection carries its own update requirement and never invokes global update callbacks", async () => {
+  const { FeatureUpdateError, unwrap } = await import("../src");
+  let forced = 0;
+  const issue = {
+    scope: "feature",
+    feature: "screen.publish",
+    protocol: 2,
+    reason: "共享功能需要更新",
+    updateKind: "desktop",
+    minimumVersion: "0.1.99",
+  };
+  const server = Bun.serve({
+    port: 0,
+    hostname: "127.0.0.1",
+    fetch: () =>
+      Response.json(
+        {
+          code: "FEATURE_UPDATE_REQUIRED",
+          message: issue.reason,
+          requestId: "scoped",
+          compatibility: issue,
+        },
+        {
+          status: 426,
+          headers: {
+            "X-CineGather-Update-Scope": "feature",
+            "X-CineGather-Min-Version": "0.1.99",
+          },
+        },
+      ),
+  });
+  try {
+    const c = createApi(server.url.href, () => undefined, {
+      onUpdateRequired: () => forced++,
+    });
+    const result = await c.GET("/api/v1/health");
+    expect(() => unwrap(result)).toThrow(FeatureUpdateError);
+    expect(forced).toBe(0);
+  } finally {
+    server.stop(true);
+  }
+});

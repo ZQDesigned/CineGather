@@ -56,6 +56,7 @@ interface State {
     source?: string;
     volume: number;
   };
+  featureUpdate?: import("@cinegather/contracts").FeatureUpdateIssue;
   requiredUpdate?: { minimumVersion: string; reason: string };
   user?: User;
   friends: Friend[];

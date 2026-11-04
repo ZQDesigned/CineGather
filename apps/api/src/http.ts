@@ -1,3 +1,4 @@
+import { checkRoomRequestCompatibility } from "./feature-admission";
 import {
   applyDecorators,
   SetMetadata,
@@ -21,6 +22,13 @@ import {
   hasAdminPermission,
   type User,
   type AdminPermission,
+} from "@cinegather/contracts";
+import { bindFeatureClient, type FeaturePolicyStore } from "./feature-policy";
+import {
+  clientPlatformSchema,
+  clientVersionSchema,
+  parseFeatureProtocols,
+  featureUpdateIssueSchema,
 } from "@cinegather/contracts";
 import { bindSession, bindFeatures } from "./session-context";
 import { authenticate } from "./auth";
@@ -86,6 +94,7 @@ export function Endpoint(
             code: { type: "string" },
             message: { type: "string" },
             requestId: { type: "string" },
+            compatibility: { $ref: "#/components/schemas/FeatureUpdateIssue" },
           },
           required: ["code", "message", "requestId"],
         },
@@ -131,6 +140,7 @@ export class AuthGuard implements CanActivate {
         "/api/v1/internal/esports-admission",
         "/api/v1/health",
         "/api/v1/client-policy",
+        "/api/v1/feature-policy",
         "/api/v1/client-events",
         "/api/v1/registration",
         "/api/v1/accounts/login",
@@ -156,6 +166,45 @@ export class AuthGuard implements CanActivate {
     req.sessionId = identity.credentialId;
     bindSession(req.user, identity.credentialId);
     bindFeatures(req.user, req.get("X-CineGather-Features"));
+    const platform = clientPlatformSchema.safeParse(
+      req.get("X-CineGather-Platform"),
+    );
+    const integer = (name: string) => {
+      const value = req.get(name);
+      return value && /^\d{1,15}$/.test(value) ? Number(value) : undefined;
+    };
+    const clientVersion = clientVersionSchema.safeParse(
+      req.get("X-CineGather-Version"),
+    );
+    const runtime = req.get("X-CineGather-Runtime");
+    bindFeatureClient(
+      req.user,
+      {
+        platform: platform.success ? platform.data : undefined,
+        scopedUpdates: req.get("X-CineGather-Protocols") !== undefined,
+        version: clientVersion.success ? clientVersion.data : undefined,
+        protocols: parseFeatureProtocols(
+          req.get("X-CineGather-Protocols"),
+          req.get("X-CineGather-Features"),
+        ),
+        build: integer("X-CineGather-Build"),
+        revision: integer("X-CineGather-Revision"),
+        runtime:
+          runtime && /^[A-Za-z0-9._-]{1,128}$/.test(runtime)
+            ? runtime
+            : undefined,
+      },
+      () =>
+        (
+          req.app.get("cinegather.featurePolicy") as FeaturePolicyStore
+        ).snapshot(),
+    );
+    await checkRoomRequestCompatibility(
+      req.user,
+      req.method,
+      req.path,
+      req.body,
+    );
     return true;
   }
 }
@@ -190,7 +239,14 @@ export class ErrorFilter implements ExceptionFilter {
     const body = error instanceof HttpException ? error.getResponse() : {};
     const details =
       typeof body === "object" ? (body as Record<string, unknown>) : {};
+    const compatibility =
+      details.code === "FEATURE_UPDATE_REQUIRED"
+        ? featureUpdateIssueSchema.safeParse(details.compatibility)
+        : undefined;
+    if (compatibility?.success)
+      res.setHeader("X-CineGather-Update-Scope", "feature");
     res.status(status).json({
+      ...(compatibility?.success ? { compatibility: compatibility.data } : {}),
       code:
         details.code ??
         (status === 503 ? "SERVICE_UNAVAILABLE" : "REQUEST_FAILED"),

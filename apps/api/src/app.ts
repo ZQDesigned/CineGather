@@ -1,3 +1,8 @@
+import { z } from "zod";
+import { featureUpdateIssueSchema } from "@cinegather/contracts";
+import { join } from "node:path";
+import { FeaturePolicyStore } from "./feature-policy";
+import type { FeaturePolicy } from "@cinegather/contracts";
 import { reconcileTacticalPauses } from "./esports-configuration";
 import { MobileUpdateStore } from "./mobile-update-store";
 import { serveMobileUpdate } from "./mobile-update-http";
@@ -109,12 +114,14 @@ export async function createApp({
   clientPolicy = config.clientPolicy,
   updateDirectory = config.updateDirectory,
   maintenanceFile = config.maintenanceFile,
+  featurePolicy,
 }: {
   trustedProxies?: string[];
   trustedCdns?: string[];
   clientPolicy?: ClientPolicy;
   updateDirectory?: string;
   maintenanceFile?: string;
+  featurePolicy?: FeaturePolicy;
 } = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false,
@@ -137,6 +144,17 @@ export async function createApp({
     next();
   });
   app.set("cinegather.clientPolicy", clientPolicy);
+  const featurePolicies = new FeaturePolicyStore(
+    featurePolicy ? undefined : join(updateDirectory, "feature-policy.json"),
+    featurePolicy,
+  );
+  await featurePolicies.start();
+  app.set("cinegather.featurePolicy", featurePolicies);
+  const closeFeatures = app.close.bind(app);
+  app.close = async () => {
+    featurePolicies.close();
+    await closeFeatures();
+  };
   const events = app.get(UpdateEvents);
   events.start(updateDirectory);
   app.set("cinegather.updateEvents", events);
@@ -148,6 +166,7 @@ export async function createApp({
       "Content-Type",
       "Idempotency-Key",
       "X-CineGather-Features",
+      "X-CineGather-Protocols",
       "X-CineGather-Version",
       "X-CineGather-Platform",
       "X-CineGather-Runtime",
@@ -158,6 +177,7 @@ export async function createApp({
     exposedHeaders: [
       "X-Request-Id",
       "X-CineGather-Min-Version",
+      "X-CineGather-Update-Scope",
       "X-CineGather-Maintenance",
       "Retry-After",
     ],
@@ -167,6 +187,7 @@ export async function createApp({
     app.getHttpServer(),
     config.livekitInternalUrl,
     () => !!readMaintenance(maintenanceFile),
+    () => featurePolicies.snapshot(),
   );
   app.use(mediaGateway.middleware);
   app.getHttpServer().once("close", () => mediaGateway.close());
@@ -329,7 +350,7 @@ export async function createApp({
   return app;
 }
 export function openapi(app: Awaited<ReturnType<typeof createApp>>) {
-  return SwaggerModule.createDocument(
+  const document = SwaggerModule.createDocument(
     app,
     new DocumentBuilder()
       .setTitle("CineGather API")
@@ -337,6 +358,13 @@ export function openapi(app: Awaited<ReturnType<typeof createApp>>) {
       .addBearerAuth()
       .build(),
   );
+  document.components ??= {};
+  document.components.schemas ??= {};
+  document.components.schemas.FeatureUpdateIssue = z.toJSONSchema(
+    featureUpdateIssueSchema,
+    { target: "openapi-3.0" },
+  ) as import("@nestjs/swagger").SchemaObject;
+  return document;
 }
 export async function closeDatabase() {
   await database.pool.end();

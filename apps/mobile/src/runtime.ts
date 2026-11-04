@@ -1,3 +1,10 @@
+import { FeatureCompatibility } from "@cinegather/client-core";
+import { FeatureUpdateError } from "@cinegather/api-client";
+import {
+  currentFeatureProtocols,
+  requiresDynamicEsports,
+  type FeatureUpdateIssue,
+} from "@cinegather/contracts";
 import { allowedShareQuality } from "@cinegather/contracts";
 import { AppState, Platform } from "react-native";
 import * as SecureStore from "expo-secure-store";
@@ -53,6 +60,7 @@ export interface Notice {
   time: number;
 }
 export interface RuntimeSnapshot {
+  featureUpdate?: FeatureUpdateIssue;
   esports?: import("@cinegather/client-core").EsportsClientState;
   roomState: RoomState;
   shareState: ShareState;
@@ -69,6 +77,8 @@ export interface RuntimeSnapshot {
   visibility: "online" | "invisible";
 }
 export class MobileRuntime {
+  readonly features: FeatureCompatibility;
+  private featureCleanup = false;
   readonly feedback = new SnackbarQueue();
   readonly origin: string;
   readonly version = mobileCodeVersion;
@@ -119,6 +129,16 @@ export class MobileRuntime {
       Constants.expoConfig?.extra?.apiOrigin ??
       "https://cgplat.zqdesigned.city"
     ).replace(/\/$/, "");
+    this.features = new FeatureCompatibility(
+      () => ({
+        ...mobileUpdateIdentity,
+        version: this.version,
+        protocols: currentFeatureProtocols,
+      }),
+      () => {
+        void this.enforceFeatureCompatibility();
+      },
+    );
     const key = `cinegather.session.${encodeURIComponent(this.origin).replace(/%/g, "_")}`;
     this.session = new MobileSession({
       storage: {
@@ -371,6 +391,16 @@ export class MobileRuntime {
       (message) => this.notice(message.displayName, message.body),
     );
     this.coordinator = new RoomCoordinator({
+      preflight: async (roomId) => {
+        if (!this.features.hasPolicy && !this.features.legacyServer)
+          await this.features.refresh(this.origin);
+        if (!this.features.legacyServer)
+          await this.api.call("join-admission", (c) =>
+            c.POST("/api/v1/rooms/{roomId}/join-admission", {
+              params: { path: { roomId } },
+            }),
+          );
+      },
       join: async (roomId, inviteToken, password) =>
         joinSchema.parse(
           await this.api.call("join", (c) =>
@@ -414,6 +444,12 @@ export class MobileRuntime {
     this.updates = new MobileUpdateService(
       () => this.coordinator.leave(true, true),
       this.origin,
+      {
+        receive: (raw) => this.features.accept(JSON.parse(raw)),
+        refresh: () => {
+          void this.features.refresh(this.origin);
+        },
+      },
     );
   }
   snapshot = () => this.current;
@@ -428,6 +464,12 @@ export class MobileRuntime {
     for (const fn of this.listeners) fn();
   }
   fail(error: unknown) {
+    if (error instanceof FeatureUpdateError) {
+      if (error.staleSession || this.session.snapshot().status !== "signed-in")
+        return;
+      void this.enforceFeatureCompatibility(error.compatibility);
+      return;
+    }
     if (error instanceof ApiError && error.staleSession) return;
     this.feedback.show({
       tone: "error",
@@ -438,6 +480,90 @@ export class MobileRuntime {
             : "操作未完成，请检查网络后重试"
           : "操作未完成，请稍后重试",
     });
+  }
+  private async enforceFeatureCompatibility(issue?: FeatureUpdateIssue) {
+    if (this.featureCleanup || this.updates?.updater.snapshot().required)
+      return;
+    const current = this.current,
+      room = current.room;
+    let active = issue;
+    if (!active && room) {
+      const snapshot = current.esports?.snapshot;
+      active = this.features.issue(
+        room.mode === "esports" ? "room.esports" : "room.standard",
+        room.mode === "esports" &&
+          snapshot?.configuration &&
+          requiresDynamicEsports(
+            snapshot.configuration,
+            snapshot.coachVoiceMode,
+            snapshot.tacticalPauseUntil,
+          )
+          ? 2
+          : 1,
+      );
+      if (!active && room.mode !== "esports" && room.maxMembers > 10)
+        active = this.features.issue("room.large");
+      if (
+        !active &&
+        ["acquiringLease", "selectingSource", "active", "publishing"].includes(
+          current.shareState,
+        )
+      )
+        active =
+          this.features.issue("screen.publish") ??
+          (this.shareQuality === "game"
+            ? this.features.issue("screen.quality.game")
+            : undefined);
+      if (
+        !active &&
+        (this.media.snapshot().watching || current.esports?.watching)
+      )
+        active = this.features.issue("screen.watch");
+    }
+    if (!active) return;
+    this.featureCleanup = true;
+    try {
+      if (
+        active.feature.startsWith("room.") &&
+        room &&
+        (!issue || issue.roomId === room.id)
+      )
+        await this.coordinator.leave();
+      else if (active.feature === "screen.watch" && room)
+        this.media.watch(false);
+      else if (
+        (active.feature === "screen.publish" ||
+          active.feature === "screen.quality.game") &&
+        ["acquiringLease", "selectingSource", "active", "publishing"].includes(
+          current.shareState,
+        )
+      )
+        await this.sharing.stop();
+    } catch {
+      // The local feature stays stopped if remote cleanup is unavailable.
+    } finally {
+      this.featureCleanup = false;
+      this.patch({ featureUpdate: active });
+    }
+  }
+  dismissFeatureUpdate() {
+    this.patch({ featureUpdate: undefined });
+  }
+  async watchShare(enabled: boolean) {
+    if (enabled) {
+      if (!this.features.hasPolicy && !this.features.legacyServer)
+        await this.features.refresh(this.origin);
+      this.features.require("screen.watch");
+      const room = this.current.room;
+      if (!room) return;
+      if (!this.features.legacyServer)
+        await this.api.call("watch-admission", (c) =>
+          c.POST("/api/v1/rooms/{roomId}/watch-admission", {
+            params: { path: { roomId: room.id } },
+          }),
+        );
+    }
+    this.media.watch(enabled);
   }
   clearError() {
     this.feedback.dismiss();
@@ -788,6 +914,16 @@ export class MobileRuntime {
       await this.roomSync.refresh();
       if (this.current.room?.mode === "esports")
         await this.media.refreshEsports();
+      else if (
+        room &&
+        this.media.snapshot().watching &&
+        !this.features.legacyServer
+      )
+        await this.api.call("watch-admission", (c) =>
+          c.POST("/api/v1/rooms/{roomId}/watch-admission", {
+            params: { path: { roomId: room.id } },
+          }),
+        );
     } catch (error) {
       if (
         error instanceof ApiError &&

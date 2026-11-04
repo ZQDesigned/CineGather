@@ -52,6 +52,7 @@ test("publishing signs Expo manifests and hashes assets before atomically advanc
       privateKey,
       certificate,
       origin: "https://cgplat.zqdesigned.city",
+      compatibilityScope: "global" as const,
       minimumRevision: 2,
       notes: "热更新修复",
     };

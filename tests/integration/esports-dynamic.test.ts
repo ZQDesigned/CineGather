@@ -131,7 +131,7 @@ test("owner configures six groups/52 seats atomically and legacy clients cannot 
   expect(
     (await req(`/rooms/${id}`, owner.token, undefined, "GET", "esports-v1"))
       .status,
-  ).toBe(426);
+  ).toBe(409);
   expect(
     (
       await req("/rooms", owner.token, undefined, "GET", "esports-v1")
@@ -227,14 +227,12 @@ test("coach watches own team only, manual voice persists through timeout, and ol
   expect(s.self.microphoneAllowed).toBe(true);
   expect(s.tacticalPauseUntil).toBeNull();
   await admitMediaToken(connection.body.token);
-  await db
-    .insert(roomMemberPermissions)
-    .values({
-      roomId: id,
-      userId: coach.id,
-      microphoneAllowed: false,
-      sharingAllowed: true,
-    });
+  await db.insert(roomMemberPermissions).values({
+    roomId: id,
+    userId: coach.id,
+    microphoneAllowed: false,
+    sharingAllowed: true,
+  });
   expect((await req(url, coach.token)).body.self.microphoneAllowed).toBe(false);
   await expect(admitMediaToken(connection.body.token)).rejects.toThrow();
   await db

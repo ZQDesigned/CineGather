@@ -1,3 +1,4 @@
+import { FeatureUpdatePrompt } from "./FeatureUpdate";
 import { EsportsRoom } from "./EsportsRoom";
 import { AnnouncementLayer } from "./Announcements";
 import { NotificationCenter } from "./NotificationCenter";
@@ -459,6 +460,7 @@ export function App() {
         <RoomInvitationNotifications />
         <RoomRequestNotifications />
         <UpdateCenter />
+        <FeatureUpdatePrompt />
         {!app.user ? (
           <Welcome />
         ) : (
