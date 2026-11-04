@@ -1,3 +1,6 @@
+import { gameTunnelHttp } from "./game-tunnel-http";
+import { GameTunnelController } from "./game-tunnel-controller";
+import { json, urlencoded } from "express";
 import { gameTransaction } from "./game-link-access";
 import { z } from "zod";
 import { featureUpdateIssueSchema } from "@cinegather/contracts";
@@ -99,6 +102,7 @@ class TacticalPauses implements OnModuleInit, OnModuleDestroy {
   controllers: [
     ApiController,
     GameLinkController,
+    GameTunnelController,
     AdminController,
     EsportsController,
     EsportsAdmissionController,
@@ -187,6 +191,12 @@ export async function createApp({
     ],
   });
   app.use(maintenanceGate(maintenanceFile));
+  app.use(
+    "/api/v1/game-tunnel/identity/token",
+    urlencoded({ extended: false, limit: "8kb" }),
+  );
+  app.use("/api/v1/internal/game-tunnel", json({ limit: "16kb" }));
+  app.use(gameTunnelHttp);
   const mediaGateway = attachEsportsGateway(
     app.getHttpServer(),
     config.livekitInternalUrl,

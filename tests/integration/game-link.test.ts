@@ -22,25 +22,21 @@ async function person(host = false) {
     credentialId = crypto.randomUUID(),
     token = crypto.randomUUID();
   people.push(id);
-  await db
-    .insert(users)
-    .values({
-      id,
-      displayName: "游戏联机验证",
-      username: "game_flow_" + id.replaceAll("-", "").slice(0, 12),
-      passwordHash: "fixture",
-      gameHostEnabled: host,
-    });
-  await db
-    .insert(credentials)
-    .values({
-      id: credentialId,
-      userId: id,
-      kind: "account",
-      secretHash: hash(token),
-      expiresAt: new Date(Date.now() + 3600000),
-      createdAt: new Date(),
-    });
+  await db.insert(users).values({
+    id,
+    displayName: "游戏联机验证",
+    username: "game_flow_" + id.replaceAll("-", "").slice(0, 12),
+    passwordHash: "fixture",
+    gameHostEnabled: host,
+  });
+  await db.insert(credentials).values({
+    id: credentialId,
+    userId: id,
+    kind: "account",
+    secretHash: hash(token),
+    expiresAt: new Date(Date.now() + 3600000),
+    createdAt: new Date(),
+  });
   return { id, credentialId, token };
 }
 type Person = Awaited<ReturnType<typeof person>>;
@@ -105,6 +101,7 @@ test("game hosting is capability-gated, guest approval is not, and game admissio
   expect((await call("/games", guest, { name: "不允许发起" })).status).toBe(
     403,
   );
+  expect((await call("/me", host)).data.gameHostEnabled).toBe(true);
   const id = await opened(host);
   const snapshot = (await call("/games", host)).data;
   const found = await call("/games/lookup", guest, {
@@ -292,15 +289,13 @@ test("pending requests can be cancelled without admission and a different login 
   ).toBe(201);
   const token = crypto.randomUUID(),
     credentialId = crypto.randomUUID();
-  await db
-    .insert(credentials)
-    .values({
-      id: credentialId,
-      userId: guest.id,
-      kind: "account",
-      secretHash: hash(token),
-      expiresAt: new Date(Date.now() + 3600000),
-    });
+  await db.insert(credentials).values({
+    id: credentialId,
+    userId: guest.id,
+    kind: "account",
+    secretHash: hash(token),
+    expiresAt: new Date(Date.now() + 3600000),
+  });
   const device = { ...guest, token, credentialId };
   expect((await call("/games", device)).data.self).toBeNull();
   expect(

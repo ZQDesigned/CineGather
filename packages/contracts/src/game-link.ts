@@ -125,6 +125,7 @@ export const gameTunnelConfigSchema = z.strictObject({
     host: z.string().min(1).max(253),
     port: gamePortSchema,
     tlsName: z.string().min(1).max(253),
+    stunServer: z.string().min(3).max(260),
     issuer: z.url(),
     audience: z.string().min(1).max(128),
   }),
@@ -133,6 +134,7 @@ export const gameTunnelConfigSchema = z.strictObject({
       z.strictObject({
         memberId: z.uuid(),
         revision: z.number().int().positive(),
+        expiresAt: time,
         publisherId: z.uuid(),
         visitorId: z.uuid(),
         secret: z.string().min(32).max(128),
