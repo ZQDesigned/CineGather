@@ -1,3 +1,4 @@
+import { config } from "../../apps/api/src/config";
 import { beforeAll, afterAll, expect, test } from "bun:test";
 import { createApp } from "../../apps/api/src/app";
 import {
@@ -62,6 +63,8 @@ async function fixture() {
   return { owner, id, url: `/rooms/${id}/esports` };
 }
 beforeAll(async () => {
+  config.esportsGatewayUrl ??= "ws://127.0.0.1:17882";
+  config.esportsAdmissionSecret ??= "fixture".repeat(12);
   app = await createApp();
   await app.listen(0, "127.0.0.1");
   base = await app.getUrl();

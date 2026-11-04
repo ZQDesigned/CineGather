@@ -1,3 +1,4 @@
+import { config } from "../../apps/api/src/config";
 import { beforeAll, afterAll, test, expect } from "bun:test";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
@@ -66,6 +67,8 @@ async function policy(value: FeaturePolicy) {
   ).toBe(true);
 }
 beforeAll(async () => {
+  config.esportsGatewayUrl ??= "ws://127.0.0.1:17882";
+  config.esportsAdmissionSecret ??= "fixture".repeat(12);
   dir = await mkdtemp(join(tmpdir(), "cg-feature-int-"));
   app = await createApp({
     clientPolicy: readClientPolicy({}),
