@@ -41,14 +41,48 @@ test("real API serves public compatibility policy, returns426 before incompatibl
         Origin: "app://cinegather",
         "Access-Control-Request-Method": "POST",
         "Access-Control-Request-Headers":
-          "X-CineGather-Version,X-CineGather-Platform",
+          "X-CineGather-Version,X-CineGather-Platform,X-CineGather-Features,X-CineGather-Protocols",
       },
     });
     expect(preflight.status).toBe(204);
     expect(preflight.headers.get("Access-Control-Allow-Headers")).toContain(
       "X-CineGather-Version",
     );
+    expect(preflight.headers.get("Access-Control-Allow-Headers")).toContain(
+      "X-CineGather-Protocols",
+    );
   } finally {
     await app.close();
+  }
+});
+
+test("native reverse-proxy preflight allows every compatibility header sent by desktop and mobile clients", async () => {
+  const { protocolHeaders } = await import("@cinegather/contracts");
+  const { readFile } = await import("node:fs/promises");
+  const template = await readFile(
+    new URL("../../infra/native/nginx-http.example.conf", import.meta.url),
+    "utf8",
+  );
+  const declarations = [
+    ...template.matchAll(/add_header Access-Control-Allow-Headers "([^"]+)"/g),
+  ];
+  expect(declarations.length).toBeGreaterThan(0);
+  for (const match of declarations) {
+    const allowed = new Set(
+      match[1]!.split(",").map((name) => name.trim().toLowerCase()),
+    );
+    for (const name of [
+      ...Object.keys(protocolHeaders),
+      "Authorization",
+      "Content-Type",
+      "Idempotency-Key",
+      "X-CineGather-Version",
+      "X-CineGather-Platform",
+      "X-CineGather-Runtime",
+      "X-CineGather-Build",
+      "X-CineGather-Revision",
+      "X-CineGather-Channel",
+    ])
+      expect(allowed.has(name.toLowerCase())).toBe(true);
   }
 });
