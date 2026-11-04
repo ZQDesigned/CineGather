@@ -48,6 +48,7 @@ async function publicUser(
     displayName: user.displayName,
     username: user.username,
     screenShareEnabled: user.screenShareEnabled,
+    gameHostEnabled: user.gameHostEnabled,
     esportsRoomsEnabled: user.esportsRoomsEnabled,
     highFrameRateEnabled: user.highFrameRateEnabled,
     standardRoomMaxMembers: user.standardRoomMaxMembers,
@@ -86,6 +87,7 @@ export async function registerAccount(
           displayName: input.displayName,
           passwordHash,
           screenShareEnabled: policy.screenShareDefaultEnabled,
+          gameHostEnabled: policy.gameHostDefaultEnabled,
         })
         .returning();
       const result = await session(tx, await publicUser(tx, stored!), device);

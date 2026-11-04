@@ -169,6 +169,13 @@
       "when": 1793725738728,
       "tag": "0023_esports_dynamic",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1793812138728,
+      "tag": "0024_game_link",
+      "breakpoints": true
     }
   ]
 }

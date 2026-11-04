@@ -2,6 +2,8 @@ import { FeatureUpdateError } from "@cinegather/api-client";
 import {
   emptyFeaturePolicy,
   featurePolicySchema,
+  featureIdSchema,
+  featureRuleSchema,
   featureCompatibilityFailure,
   type FeatureClientIdentity,
   type FeatureId,
@@ -24,7 +26,51 @@ export class FeatureCompatibility {
     private readonly changed: () => void = () => {},
   ) {}
   accept(raw: unknown) {
-    const parsed = featurePolicySchema.safeParse(raw);
+    // A server may add an unrelated feature before this client knows its ID.
+    // Preserve strict validation for every known rule; only unknown IDs are skipped.
+    const candidate =
+      raw && typeof raw === "object" && !Array.isArray(raw)
+        ? (raw as Record<string, unknown>)
+        : undefined;
+    if (
+      candidate &&
+      Array.isArray(candidate.rules) &&
+      candidate.rules.length > 32
+    )
+      return false;
+    if (
+      candidate &&
+      Array.isArray(candidate.rules) &&
+      !candidate.rules.every(
+        (rule: unknown) =>
+          !!rule &&
+          typeof rule === "object" &&
+          "feature" in rule &&
+          typeof rule.feature === "string" &&
+          rule.feature.length > 0 &&
+          rule.feature.length <= 128 &&
+          "protocol" in rule &&
+          featureRuleSchema.shape.protocol.safeParse(rule.protocol).success &&
+          "reason" in rule &&
+          featureRuleSchema.shape.reason.safeParse(rule.reason).success,
+      )
+    )
+      return false;
+    const compatible =
+      candidate && Array.isArray(candidate.rules)
+        ? {
+            ...candidate,
+            rules: candidate.rules.filter(
+              (rule: unknown) =>
+                !rule ||
+                typeof rule !== "object" ||
+                !("feature" in rule) ||
+                typeof rule.feature !== "string" ||
+                featureIdSchema.safeParse(rule.feature).success,
+            ),
+          }
+        : raw;
+    const parsed = featurePolicySchema.safeParse(compatible);
     if (!parsed.success) return false;
     const next = parsed.data;
     if (

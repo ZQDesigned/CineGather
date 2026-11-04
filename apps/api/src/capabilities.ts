@@ -18,6 +18,7 @@ import { reconcileRoom } from "./rooms";
 
 const permissions = {
   screenShareEnabled: "users.screen-share",
+  gameHostEnabled: "users.game-host",
   esportsRoomsEnabled: "users.esports",
   highFrameRateEnabled: "users.high-frame-rate",
   standardRoomMaxMembers: "users.room-capacity",

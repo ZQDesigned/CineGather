@@ -21,6 +21,7 @@ export const users = pgTable("users", {
   passwordHash: text("password_hash"),
   isSuperAdmin: boolean("is_super_admin").notNull().default(false),
   screenShareEnabled: boolean("screen_share_enabled").notNull().default(false),
+  gameHostEnabled: boolean("game_host_enabled").notNull().default(false),
   esportsRoomsEnabled: boolean("esports_rooms_enabled")
     .notNull()
     .default(false),
@@ -361,6 +362,9 @@ export const registrationPolicy = pgTable(
   {
     id: integer("id").primaryKey().default(1),
     enabled: boolean("enabled").notNull().default(false),
+    gameHostDefaultEnabled: boolean("game_host_default_enabled")
+      .notNull()
+      .default(false),
     screenShareDefaultEnabled: boolean("screen_share_default_enabled")
       .notNull()
       .default(false),
@@ -547,3 +551,5 @@ export const announcementReceipts = pgTable(
   },
   (t) => [primaryKey({ columns: [t.announcementId, t.userId] })],
 );
+
+export * from "./game-link";

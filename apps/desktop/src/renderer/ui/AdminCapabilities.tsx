@@ -36,6 +36,11 @@ const fields = [
     permission: "users.esports",
   },
   {
+    key: "gameHostEnabled",
+    label: "发起游戏联机",
+    permission: "users.game-host",
+  },
+  {
     key: "standardRoomMaxMembers",
     label: "普通房创建人数上限",
     permission: "users.room-capacity",
@@ -195,6 +200,25 @@ export function AdminCapabilities({
             disabled={busy || !hasAdminPermission(user, "users.room-capacity")}
           />
         </Form.Item>
+        <Divider titlePlacement="start">联机能力</Divider>
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            minHeight: 44,
+            gap: 16,
+            marginBottom: 16,
+          }}
+        >
+          <span>发起游戏联机</span>
+          <Form.Item noStyle name="gameHostEnabled" valuePropName="checked">
+            <Switch
+              aria-label="发起游戏联机"
+              disabled={busy || !hasAdminPermission(user, "users.game-host")}
+            />
+          </Form.Item>
+        </div>
         {canEdit && (
           <Form.Item
             name="reason"

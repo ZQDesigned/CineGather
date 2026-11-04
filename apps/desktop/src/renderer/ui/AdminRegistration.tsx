@@ -8,6 +8,7 @@ export function AdminRegistration({ revision }: { revision: number }) {
   const [form] = Form.useForm<{
     enabled: boolean;
     screenShareDefaultEnabled: boolean;
+    gameHostDefaultEnabled: boolean;
     reason: string;
   }>();
   const [loading, setLoading] = useState(true);
@@ -26,6 +27,7 @@ export function AdminRegistration({ revision }: { revision: number }) {
           form.setFieldsValue({
             enabled: policy.enabled,
             screenShareDefaultEnabled: policy.screenShareDefaultEnabled,
+            gameHostDefaultEnabled: policy.gameHostDefaultEnabled,
             reason: "",
           });
       })
@@ -43,6 +45,7 @@ export function AdminRegistration({ revision }: { revision: number }) {
   async function save(values: {
     enabled: boolean;
     screenShareDefaultEnabled: boolean;
+    gameHostDefaultEnabled: boolean;
     reason: string;
   }) {
     setSaving(true);
@@ -53,6 +56,7 @@ export function AdminRegistration({ revision }: { revision: number }) {
       form.setFieldsValue({
         enabled: policy.enabled,
         screenShareDefaultEnabled: policy.screenShareDefaultEnabled,
+        gameHostDefaultEnabled: policy.gameHostDefaultEnabled,
         reason: "",
       });
       void message.success("注册设置已保存");
@@ -78,7 +82,11 @@ export function AdminRegistration({ revision }: { revision: number }) {
         onFinish={(values) => void save(values)}
         disabled={loading || saving || !!error}
         style={{ maxWidth: 520 }}
-        initialValues={{ enabled: false, screenShareDefaultEnabled: false }}
+        initialValues={{
+          enabled: false,
+          screenShareDefaultEnabled: false,
+          gameHostDefaultEnabled: false,
+        }}
       >
         <Form.Item
           label="开放注册"
@@ -100,6 +108,18 @@ export function AdminRegistration({ revision }: { revision: number }) {
         >
           <Switch
             aria-label="新注册用户默认允许屏幕共享"
+            checkedChildren="开启"
+            unCheckedChildren="关闭"
+            loading={loading}
+          />
+        </Form.Item>
+        <Form.Item
+          label="新注册用户默认允许发起游戏联机"
+          name="gameHostDefaultEnabled"
+          valuePropName="checked"
+        >
+          <Switch
+            aria-label="新注册用户默认允许发起游戏联机"
             checkedChildren="开启"
             unCheckedChildren="关闭"
             loading={loading}

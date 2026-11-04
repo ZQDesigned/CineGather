@@ -16,6 +16,7 @@ export async function readRegistrationPolicy(
   return {
     enabled: policy?.enabled ?? config.registrationEnabled,
     screenShareDefaultEnabled: policy?.screenShareDefaultEnabled ?? false,
+    gameHostDefaultEnabled: policy?.gameHostDefaultEnabled ?? false,
   };
 }
 export async function updateRegistrationPolicy(
@@ -23,6 +24,7 @@ export async function updateRegistrationPolicy(
   input: {
     enabled: boolean;
     screenShareDefaultEnabled?: boolean;
+    gameHostDefaultEnabled?: boolean;
     reason: string;
   },
 ) {
@@ -30,22 +32,39 @@ export async function updateRegistrationPolicy(
     await requireSuperAdmin(tx, user.id);
     await tx.execute(sql`SELECT pg_advisory_xact_lock(${registrationLock})`);
     const previous = await readRegistrationPolicy(tx);
+    const gameHostDefaultEnabled =
+      input.gameHostDefaultEnabled ?? previous.gameHostDefaultEnabled;
     const screenShareDefaultEnabled =
       input.screenShareDefaultEnabled ?? previous.screenShareDefaultEnabled;
     await tx
       .insert(registrationPolicy)
-      .values({ id: 1, enabled: input.enabled, screenShareDefaultEnabled })
+      .values({
+        id: 1,
+        enabled: input.enabled,
+        screenShareDefaultEnabled,
+        gameHostDefaultEnabled,
+      })
       .onConflictDoUpdate({
         target: registrationPolicy.id,
-        set: { enabled: input.enabled, screenShareDefaultEnabled },
+        set: {
+          enabled: input.enabled,
+          screenShareDefaultEnabled,
+          gameHostDefaultEnabled,
+        },
       });
     await audit(tx, user.id, "admin.registration_updated", undefined, {
       previousEnabled: previous.enabled,
       previousScreenShareDefaultEnabled: previous.screenShareDefaultEnabled,
+      previousGameHostDefaultEnabled: previous.gameHostDefaultEnabled,
+      gameHostDefaultEnabled,
       screenShareDefaultEnabled,
       enabled: input.enabled,
       reason: input.reason,
     });
-    return { enabled: input.enabled, screenShareDefaultEnabled };
+    return {
+      enabled: input.enabled,
+      screenShareDefaultEnabled,
+      gameHostDefaultEnabled,
+    };
   });
 }

@@ -1468,7 +1468,7 @@ export interface components {
             /** @enum {string} */
             scope: "feature";
             /** @enum {string} */
-            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game";
+            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java";
             protocol: number;
             /** Format: uuid */
             roomId?: string;
@@ -1641,6 +1641,7 @@ export interface operations {
                         username?: string | null;
                         isSuperAdmin?: boolean;
                         screenShareEnabled?: boolean;
+                        gameHostEnabled?: boolean;
                         esportsRoomsEnabled?: boolean;
                         highFrameRateEnabled?: boolean;
                         standardRoomMaxMembers?: number;
@@ -1649,7 +1650,7 @@ export interface operations {
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -2296,7 +2297,7 @@ export interface operations {
                         revision: number;
                         rules: {
                             /** @enum {string} */
-                            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game";
+                            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java";
                             platforms?: ("win32" | "darwin" | "web" | "android" | "ios")[];
                             protocol: number;
                             appliesFromProtocol?: number;
@@ -3651,6 +3652,7 @@ export interface operations {
                             username?: string | null;
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
+                            gameHostEnabled?: boolean;
                             esportsRoomsEnabled?: boolean;
                             highFrameRateEnabled?: boolean;
                             standardRoomMaxMembers?: number;
@@ -3659,7 +3661,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -3801,6 +3803,7 @@ export interface operations {
                             username?: string | null;
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
+                            gameHostEnabled?: boolean;
                             esportsRoomsEnabled?: boolean;
                             highFrameRateEnabled?: boolean;
                             standardRoomMaxMembers?: number;
@@ -3809,7 +3812,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -3951,6 +3954,7 @@ export interface operations {
                             username?: string | null;
                             isSuperAdmin?: boolean;
                             screenShareEnabled?: boolean;
+                            gameHostEnabled?: boolean;
                             esportsRoomsEnabled?: boolean;
                             highFrameRateEnabled?: boolean;
                             standardRoomMaxMembers?: number;
@@ -3959,7 +3963,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -4099,6 +4103,7 @@ export interface operations {
                         username?: string | null;
                         isSuperAdmin?: boolean;
                         screenShareEnabled?: boolean;
+                        gameHostEnabled?: boolean;
                         esportsRoomsEnabled?: boolean;
                         highFrameRateEnabled?: boolean;
                         standardRoomMaxMembers?: number;
@@ -4107,7 +4112,7 @@ export interface operations {
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -10487,6 +10492,8 @@ export interface operations {
                     "application/json": {
                         enabled: boolean;
                         screenShareDefaultEnabled: boolean;
+                        /** @default false */
+                        gameHostDefaultEnabled: boolean;
                     };
                 };
             };
@@ -10607,6 +10614,7 @@ export interface operations {
             content: {
                 "application/json": {
                     screenShareDefaultEnabled?: boolean;
+                    gameHostDefaultEnabled?: boolean;
                     enabled: boolean;
                     reason: string;
                 };
@@ -10621,6 +10629,8 @@ export interface operations {
                     "application/json": {
                         enabled: boolean;
                         screenShareDefaultEnabled: boolean;
+                        /** @default false */
+                        gameHostDefaultEnabled: boolean;
                     };
                 };
             };
@@ -11666,6 +11676,8 @@ export interface operations {
                             isSuperAdmin: boolean;
                             screenShareEnabled: boolean;
                             /** @default false */
+                            gameHostEnabled: boolean;
+                            /** @default false */
                             esportsRoomsEnabled: boolean;
                             /** @default false */
                             highFrameRateEnabled: boolean;
@@ -12086,6 +12098,7 @@ export interface operations {
                 "application/json": {
                     reason: string;
                     screenShareEnabled?: boolean;
+                    gameHostEnabled?: boolean;
                     esportsRoomsEnabled?: boolean;
                     highFrameRateEnabled?: boolean;
                     standardRoomMaxMembers?: number;
@@ -13169,7 +13182,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             name: string;
-                            permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                             builtIn: boolean;
                             memberCount: number;
                             createdAt: string;
@@ -13294,7 +13307,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -13309,7 +13322,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
@@ -13435,7 +13448,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -13450,7 +13463,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;

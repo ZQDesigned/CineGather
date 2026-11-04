@@ -12,6 +12,7 @@ export const featureLabels = {
   "screen.publish": "屏幕共享",
   "screen.watch": "观看共享",
   "screen.quality.game": "1080p60 共享",
+  "game.minecraft-java": "游戏联机（Minecraft Java）",
 } as const;
 export const featureIdSchema = z.enum([
   "room.standard",
@@ -20,6 +21,7 @@ export const featureIdSchema = z.enum([
   "screen.publish",
   "screen.watch",
   "screen.quality.game",
+  "game.minecraft-java",
 ]);
 export type FeatureId = z.infer<typeof featureIdSchema>;
 const protocol = z.number().int().min(1).max(64),
@@ -40,6 +42,7 @@ export const currentFeatureProtocols: FeatureProtocols = {
   "screen.publish": [1],
   "screen.watch": [1],
   "screen.quality.game": [1],
+  "game.minecraft-java": [1],
 };
 export const protocolHeaders = {
   "X-CineGather-Features": "esports-v1,esports-v2",

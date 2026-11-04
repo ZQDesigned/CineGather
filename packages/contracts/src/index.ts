@@ -26,9 +26,11 @@ export const registerInput = z.strictObject({
 export const registrationPolicySchema = z.object({ enabled: z.boolean() });
 export const adminRegistrationPolicySchema = registrationPolicySchema.extend({
   screenShareDefaultEnabled: z.boolean(),
+  gameHostDefaultEnabled: z.boolean().default(false),
 });
 export const registrationPolicyInput = z.strictObject({
   screenShareDefaultEnabled: z.boolean().optional(),
+  gameHostDefaultEnabled: z.boolean().optional(),
   enabled: z.boolean(),
   reason: z.string().trim().min(1).max(500),
 });
@@ -133,6 +135,7 @@ export const userSchema = z.object({
   username: z.string().nullable().optional(),
   isSuperAdmin: z.boolean().optional(),
   screenShareEnabled: z.boolean().optional(),
+  gameHostEnabled: z.boolean().optional(),
   esportsRoomsEnabled: z.boolean().optional(),
   highFrameRateEnabled: z.boolean().optional(),
   standardRoomMaxMembers: z.number().int().min(10).max(25).optional(),
@@ -622,3 +625,4 @@ export * from "./mobile-updates";
 export * from "./mobile-downloads";
 
 export * from "./native-network";
+export * from "./game-link";

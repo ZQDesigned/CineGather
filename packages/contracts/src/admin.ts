@@ -18,6 +18,7 @@ export const adminUserSchema = z.object({
   displayName: z.string(),
   isSuperAdmin: z.boolean(),
   screenShareEnabled: z.boolean(),
+  gameHostEnabled: z.boolean().default(false),
   esportsRoomsEnabled: z.boolean().default(false),
   highFrameRateEnabled: z.boolean().default(false),
   standardRoomMaxMembers: z.number().int().min(10).max(25).default(10),
@@ -95,6 +96,7 @@ export const adminRoleInput = z
     for (const [manage, read] of [
       ["users.manage", "users.read"],
       ["users.screen-share", "users.read"],
+      ["users.game-host", "users.read"],
       ["users.esports", "users.read"],
       ["users.high-frame-rate", "users.read"],
       ["users.room-capacity", "users.read"],
@@ -127,6 +129,7 @@ export const adminScreenShareInput = adminReason.extend({
 export const adminCapabilitiesInput = adminReason
   .extend({
     screenShareEnabled: z.boolean().optional(),
+    gameHostEnabled: z.boolean().optional(),
     esportsRoomsEnabled: z.boolean().optional(),
     highFrameRateEnabled: z.boolean().optional(),
     standardRoomMaxMembers: z.number().int().min(10).max(25).optional(),
