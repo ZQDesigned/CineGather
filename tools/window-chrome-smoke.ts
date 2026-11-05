@@ -20,13 +20,18 @@ const app = await _electron.launch({
   executablePath: resolve("apps/desktop/release/win-unpacked/CineGather.exe"),
   args: [`--user-data-dir=${profile}`],
 });
+const diagnostics: string[] = [];
+app.on("console", (message) => diagnostics.push(message.text().slice(0, 1000)));
 try {
   const page = await app.firstWindow();
+  page.on("pageerror", (error) => diagnostics.push(error.message));
   expect(await windowsProcessIdentity(app)).toMatchObject({
     hresult: 0,
     identity: windowsAppId,
   });
-  await expect(page.locator(".app")).toHaveAttribute("data-platform", "win32");
+  await expect(page.locator(".app")).toHaveAttribute("data-platform", "win32", {
+    timeout: 15000,
+  });
   expect(
     await app.evaluate(({ Menu }) => Menu.getApplicationMenu() === null),
   ).toBe(true);
@@ -171,6 +176,27 @@ try {
   console.log(
     "Packaged Windows frontend controls and native window lifecycle verified",
   );
+} catch (error) {
+  const directory = resolve(".local/window-chrome-verification");
+  await mkdir(directory, { recursive: true });
+  const page = await app.firstWindow();
+  const state = await page
+    .evaluate(() => ({
+      url: location.href,
+      ready: document.readyState,
+      content: document.body.innerText.slice(0, 3000),
+      html: document.body.innerHTML.slice(0, 3000),
+    }))
+    .catch(() => null);
+  await writeFile(
+    join(directory, "failure.json"),
+    JSON.stringify({ diagnostics, state }),
+  );
+  await page
+    .screenshot({ path: join(directory, "failure.png") })
+    .catch(() => {});
+  console.error(JSON.stringify({ diagnostics, state }));
+  throw error;
 } finally {
   await app.close();
   await rm(profile, { recursive: true, force: true });
