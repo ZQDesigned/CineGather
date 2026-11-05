@@ -19,7 +19,7 @@ test("future unknown feature policies do not prevent existing game and screen ru
     }),
   ).toBe(true);
   expect(cache.issue("screen.publish")?.reason).toBe("Only sharing");
-  expect(cache.issue("game.minecraft-java")).toBeUndefined();
+  expect(cache.issue("game.minecraft-java", 2)).toBeUndefined();
   expect(
     cache.accept({
       format: 1,

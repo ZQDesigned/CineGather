@@ -1319,7 +1319,7 @@ export async function initialize() {
       return;
     }
     if (item.target === "announcements") openAnnouncements(item.entityId);
-    if (item.target === "games") {
+    if (item.target === "games" && window.desktop?.gameLink) {
       location.hash = "/games";
       return;
     }
@@ -2183,3 +2183,8 @@ export function configureServer(url: string) {
   location.reload();
 }
 export { baseUrl };
+
+// Replace service instances and their subscriptions together during development.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => window.location.reload());
+}

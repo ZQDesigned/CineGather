@@ -15,6 +15,10 @@ import {
 import { ApiBearerAuth, ApiQuery, ApiHeader } from "@nestjs/swagger";
 import * as c from "@cinegather/contracts";
 import * as admin from "./admin";
+import * as games from "./admin-game";
+import { listSessionEvents } from "./session-audit";
+import { hasAdminPermission } from "@cinegather/contracts";
+import { fail } from "./errors";
 import {
   readRegistrationPolicy,
   updateRegistrationPolicy,
@@ -157,6 +161,73 @@ export class AdminController {
   @Endpoint("adminRooms", c.adminRoomsSchema)
   rooms(@Query() query: unknown) {
     return admin.listRooms(parse(c.adminQuery, query));
+  }
+  @Get("games")
+  @ApiQuery({ name: "q", required: false })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "pageSize", required: false, type: Number })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    enum: ["all", "active", "ended"],
+  })
+  @RequireAdminPermission("games.read")
+  @Endpoint("adminGames", c.adminGamesSchema)
+  games(@Query() query: unknown) {
+    return games.listGames(parse(c.adminGameQuery, query));
+  }
+  @Get("games/:gameId/members")
+  @ApiQuery({ name: "q", required: false })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "pageSize", required: false, type: Number })
+  @RequireAdminPermission("games.read")
+  @Endpoint("adminGameMembers", c.adminGameMembersSchema, undefined, ["gameId"])
+  gameMembers(@Param("gameId") id: string, @Query() query: unknown) {
+    return games.listGameMembers(id, parse(c.adminQuery, query));
+  }
+  @Get("games/:gameId/events")
+  @ApiQuery({ name: "q", required: false })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "pageSize", required: false, type: Number })
+  @RequireAdminPermission("games.read")
+  @Endpoint("adminGameEvents", c.adminSessionEventsSchema, undefined, [
+    "gameId",
+  ])
+  gameEvents(
+    @Req() req: AuthRequest,
+    @Param("gameId") id: string,
+    @Query() query: unknown,
+  ) {
+    if (!hasAdminPermission(req.user, "audit.read"))
+      fail(403, "PERMISSION_DENIED", "没有查看操作记录的权限");
+    return listSessionEvents("game", id, parse(c.adminQuery, query));
+  }
+  @Post("games/:gameId/close")
+  @RequireAdminPermission("games.manage")
+  @Endpoint("adminCloseGame", c.okSchema, c.adminReason, ["gameId"], 201)
+  closeGame(
+    @Req() req: AuthRequest,
+    @Param("gameId") id: string,
+    @Body() body: unknown,
+  ) {
+    return games.closeGame(req.user, id, parse(c.adminReason, body).reason);
+  }
+  @Get("rooms/:roomId/events")
+  @ApiQuery({ name: "q", required: false })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "pageSize", required: false, type: Number })
+  @RequireAdminPermission("rooms.read")
+  @Endpoint("adminRoomEvents", c.adminSessionEventsSchema, undefined, [
+    "roomId",
+  ])
+  roomEvents(
+    @Req() req: AuthRequest,
+    @Param("roomId") id: string,
+    @Query() query: unknown,
+  ) {
+    if (!hasAdminPermission(req.user, "audit.read"))
+      fail(403, "PERMISSION_DENIED", "没有查看操作记录的权限");
+    return listSessionEvents("room", id, parse(c.adminQuery, query));
   }
   @Get("audit")
   @RequireAdminPermission("audit.read")

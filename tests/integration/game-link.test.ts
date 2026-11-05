@@ -79,6 +79,17 @@ afterAll(async () => {
   const { media } = await import("../../apps/api/src/media");
   for (const id of roomIds) await media.deleteRoom(id);
   if (people.length) {
+    const owned = await db
+      .select({ id: gameSessions.id })
+      .from(gameSessions)
+      .where(inArray(gameSessions.hostUserId, people));
+    if (owned.length)
+      await db.delete(auditLogs).where(
+        inArray(
+          auditLogs.targetId,
+          owned.map((r) => r.id),
+        ),
+      );
     await db
       .delete(gameSessions)
       .where(inArray(gameSessions.hostUserId, people));

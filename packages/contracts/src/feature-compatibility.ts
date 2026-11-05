@@ -42,7 +42,7 @@ export const currentFeatureProtocols: FeatureProtocols = {
   "screen.publish": [1],
   "screen.watch": [1],
   "screen.quality.game": [1],
-  "game.minecraft-java": [1],
+  "game.minecraft-java": [2],
 };
 export const protocolHeaders = {
   "X-CineGather-Features": "esports-v1,esports-v2",

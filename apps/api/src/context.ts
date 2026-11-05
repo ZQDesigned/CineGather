@@ -1,6 +1,9 @@
 import {
   createDatabase,
   auditLogs,
+  rooms,
+  gameSessions,
+  users,
   idempotency,
   type Transaction,
 } from "@cinegather/database";
@@ -20,6 +23,47 @@ export async function audit(
   targetId?: string,
   details: Record<string, unknown> = {},
 ) {
+  // Preserve readable session identity even if its name or membership later changes.
+  if (targetId) {
+    const game = /^(?:game\.|admin\.game_)/.test(action);
+    const room =
+      /^(?:room\.|member\.|share\.|invite\.|esports\.|friend\.room_|admin\.room_|admin\.share_)/.test(
+        action,
+      );
+    if (game || room) {
+      const table = game ? gameSessions : rooms;
+      const [target] = await tx
+        .select({ targetName: table.name, targetCode: table.code })
+        .from(table)
+        .where(eq(table.id, targetId));
+      const memberId =
+        details.userId ??
+        (action === "room.owner_transferred" ? details.owner : undefined);
+      const subject =
+        typeof memberId === "string" &&
+        /^[a-f0-9]{8}-(?:[a-f0-9]{4}-){3}[a-f0-9]{12}$/i.test(memberId)
+          ? memberId
+          : undefined;
+      const [member] = subject
+        ? await tx
+            .select({ memberName: users.displayName })
+            .from(users)
+            .where(eq(users.id, subject))
+        : [];
+      const [actor] = actorId
+        ? await tx
+            .select({ actorName: users.displayName })
+            .from(users)
+            .where(eq(users.id, actorId))
+        : [];
+      details = {
+        ...target,
+        ...actor,
+        ...details,
+        ...(member ? { memberName: member.memberName } : {}),
+      };
+    }
+  }
   await tx
     .insert(auditLogs)
     .values({ id: randomUUID(), actorId, action, targetId, details });

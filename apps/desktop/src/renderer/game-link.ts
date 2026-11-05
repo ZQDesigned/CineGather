@@ -57,6 +57,7 @@ export const gameLink = new GameLinkCoordinator({
   },
 });
 export function bindGameLink(scope: () => string | undefined) {
+  if (!window.desktop?.gameLink) return () => {};
   let disposed = false;
   let syncing = false;
   let activeScope = scope();
@@ -142,5 +143,12 @@ export function bindGameLink(scope: () => string | undefined) {
   };
 }
 export async function refreshGame() {
+  if (!window.desktop?.gameLink) return;
   await gameLink.refresh();
+}
+
+// Stateful coordinators must restart with their lifecycle bindings. Component-only
+// edits still use Fast Refresh; replacing a service requires a fresh renderer.
+if (import.meta.hot) {
+  import.meta.hot.accept(() => window.location.reload());
 }

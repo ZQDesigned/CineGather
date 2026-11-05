@@ -30,7 +30,7 @@ test("independent game sessions have eight slots and do not accept voice-room st
   expect(GAME_MAX_MEMBERS).toBe(8);
   expect(GAME_LEASE_MS).toBe(30000);
   expect(GAME_RENEW_MS).toBe(10000);
-  expect(currentFeatureProtocols["game.minecraft-java"]).toEqual([1]);
+  expect(currentFeatureProtocols["game.minecraft-java"]).toEqual([2]);
   expect(
     gameSessionInput.parse({ name: "一起挖矿", game: "minecraft-java" }),
   ).toEqual({

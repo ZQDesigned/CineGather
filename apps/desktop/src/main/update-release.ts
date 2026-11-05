@@ -105,11 +105,14 @@ export function updateMode(
   platform: string,
   packaged: boolean,
   installed: boolean,
-  portable: boolean,
+  portableHint: boolean,
 ): "install" | "notify" | "disabled" {
-  if (!packaged || portable) return "disabled";
-  if (platform === "darwin") return "notify";
-  return platform === "win32" && installed ? "install" : "disabled";
+  if (!packaged) return "disabled";
+  // The NSIS-created marker belongs to the running installation. Launcher
+  // environment variables can be inherited by an installed child process.
+  if (platform === "win32" && installed) return "install";
+  if (portableHint) return "disabled";
+  return platform === "darwin" ? "notify" : "disabled";
 }
 
 export async function fetchRelease(

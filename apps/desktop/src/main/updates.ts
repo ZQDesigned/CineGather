@@ -27,19 +27,28 @@ export async function createUpdates(
   options: { autoDownload?: boolean } = {},
 ) {
   const resource = (file: string) => join(__dirname, "../../resources", file);
-  const installed =
-    process.platform === "win32" &&
-    (await readFile(join(process.resourcesPath, "install-mode"), "utf8")
-      .then((value) => value.trim() === "nsis")
-      .catch(() => false));
+  const installation =
+    process.platform === "win32"
+      ? await readFile(join(process.resourcesPath, "install-mode"), "utf8")
+          .then((value) => ({
+            installed: value.trim() === "nsis",
+            marker: value.trim() === "nsis" ? "nsis" : "unrecognized",
+            code: undefined as string | undefined,
+          }))
+          .catch((error: NodeJS.ErrnoException) => ({
+            installed: false,
+            marker: error.code === "ENOENT" ? "missing" : "unreadable",
+            code: error.code?.slice(0, 100),
+          }))
+      : { installed: false, marker: "not-applicable", code: undefined };
+  const portableEnvironment = Boolean(
+    process.env.PORTABLE_EXECUTABLE_FILE || process.env.PORTABLE_EXECUTABLE_DIR,
+  );
   const mode = updateMode(
     process.platform,
     app.isPackaged,
-    installed,
-    Boolean(
-      process.env.PORTABLE_EXECUTABLE_FILE ||
-        process.env.PORTABLE_EXECUTABLE_DIR,
-    ),
+    installation.installed,
+    portableEnvironment,
   );
   const publicKey = !app.isPackaged
     ? ""
@@ -57,7 +66,16 @@ export async function createUpdates(
     installerDiagnosticDirectory(),
     app.getVersion(),
   );
-  journal.record("application-start", { path: process.execPath, scope: mode });
+  journal.record("application-start", {
+    path: process.execPath,
+    scope: mode,
+    detail: JSON.stringify({
+      packaged: app.isPackaged,
+      installationMarker: installation.marker,
+      markerErrorCode: installation.code,
+      portableEnvironment,
+    }),
+  });
   app.on("before-quit", () => journal.record("application-before-quit"));
   app.on("will-quit", () => journal.record("application-will-quit"));
   const updater =
@@ -167,6 +185,14 @@ export async function createUpdates(
   });
   return {
     controller,
+    recordActivation: (executable: string | undefined) => {
+      journal.record("application-second-instance", {
+        scope: mode,
+        ...(executable && executable.length <= 4096
+          ? { targetPath: executable }
+          : {}),
+      });
+    },
     check: async () => {
       const status = await controller.check();
       scheduler.checked();

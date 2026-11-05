@@ -116,6 +116,17 @@ beforeAll(async () => {
 afterAll(async () => {
   await app.close();
   if (people.length) {
+    const owned = await db
+      .select({ id: gameSessions.id })
+      .from(gameSessions)
+      .where(inArray(gameSessions.hostUserId, people));
+    if (owned.length)
+      await db.delete(auditLogs).where(
+        inArray(
+          auditLogs.targetId,
+          owned.map((r) => r.id),
+        ),
+      );
     await db
       .delete(gameSessions)
       .where(inArray(gameSessions.hostUserId, people));

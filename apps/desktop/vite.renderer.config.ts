@@ -2,9 +2,21 @@ import { noiseSuppressionAudioWorkletVitePlugin } from "@workadventure/noise-sup
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
+import { clientUpdateOrigin } from "../../packages/contracts/src/client-policy";
 export default defineConfig({
   root: resolve("src/renderer"),
   envDir: resolve("../.."),
   plugins: [react(), noiseSuppressionAudioWorkletVitePlugin()],
-  server: { host: "127.0.0.1", port: 5173, strictPort: true },
+  server: {
+    host: "127.0.0.1",
+    port: 5173,
+    strictPort: true,
+    proxy: {
+      "^/downloads/(windows|mobile)-latest\\.json$": {
+        target: clientUpdateOrigin,
+        changeOrigin: true,
+        secure: true,
+      },
+    },
+  },
 });

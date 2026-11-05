@@ -218,6 +218,7 @@ export const AppSurface = styled.div`
     color: #454955;
   }
   .topbar-right {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 20px;
@@ -279,6 +280,7 @@ export const AppSurface = styled.div`
   }
   .current-room {
     min-width: 0;
+    flex-shrink: 1;
     -webkit-app-region: no-drag;
   }
   .current-room .ant-btn {
@@ -294,6 +296,14 @@ export const AppSurface = styled.div`
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+  .current-game-count {
+    color: var(--muted);
+    font-variant-numeric: tabular-nums;
+    flex-shrink: 0;
+  }
+  .current-game .current-room-link.ant-btn {
+    max-width: clamp(90px, 15vw, 200px);
   }
   .current-room-exit.ant-btn {
     flex-shrink: 0;

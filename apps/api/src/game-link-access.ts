@@ -23,7 +23,7 @@ export function requireGameDesktop(user: User) {
     identity.platform !== "darwin"
   )
     fail(403, "GAME_DESKTOP_REQUIRED", "请使用映聚桌面客户端进行游戏联机");
-  requireFeature(user, "game.minecraft-java");
+  requireFeature(user, "game.minecraft-java", 2);
 }
 export async function activeGameCredential(
   tx: Transaction,
@@ -58,6 +58,7 @@ export async function endGameInTx(
   tx: Transaction,
   sessionId: string,
   reason: string,
+  actorId: string | null = null,
 ) {
   const [ended] = await tx
     .update(gameSessions)
@@ -98,7 +99,7 @@ export async function endGameInTx(
     .where(
       and(eq(gameInvites.sessionId, sessionId), isNull(gameInvites.revokedAt)),
     );
-  await audit(tx, ended.hostUserId, "game.ended", sessionId, { reason });
+  await audit(tx, actorId, "game.ended", sessionId, { reason });
 }
 export async function reconcileGamesInTx(tx: Transaction) {
   const now = new Date();
@@ -158,7 +159,11 @@ export async function reconcileGamesInTx(tx: Transaction) {
       await endGameInTx(tx, session.id, "host_unavailable");
       continue;
     }
-    if (owner.leaseUntil <= now) {
+    if (owner.leaseUntil <= now && owner.status !== "reconnecting") {
+      await audit(tx, null, "game.member_disconnected", session.id, {
+        userId: owner.userId,
+        reason: "lease_expired",
+      });
       await tx
         .update(gameSessions)
         .set({ status: "recovering" })
@@ -184,11 +189,20 @@ export async function reconcileGamesInTx(tx: Transaction) {
             revision: sql`${gameMembers.revision}+1`,
           })
           .where(eq(gameMembers.id, member.id));
-      } else if (member.leaseUntil <= now && member.status !== "reconnecting")
+        await audit(tx, null, "game.member_expired", session.id, {
+          userId: member.userId,
+          reason: "connection_expired",
+        });
+      } else if (member.leaseUntil <= now && member.status !== "reconnecting") {
+        await audit(tx, null, "game.member_disconnected", session.id, {
+          userId: member.userId,
+          reason: "lease_expired",
+        });
         await tx
           .update(gameMembers)
           .set({ status: "reconnecting", route: null })
           .where(eq(gameMembers.id, member.id));
+      }
     }
   }
   await tx
@@ -271,7 +285,11 @@ export async function clearCredentialGames(
     for (const member of affected) {
       if (member.role === "host")
         await endGameInTx(tx, member.sessionId, "credential_revoked");
-      else
+      else {
+        await audit(tx, null, "game.member_removed", member.sessionId, {
+          userId: member.userId,
+          reason: "credential_revoked",
+        });
         await tx
           .update(gameMembers)
           .set({
@@ -282,6 +300,7 @@ export async function clearCredentialGames(
             revision: sql`${gameMembers.revision}+1`,
           })
           .where(eq(gameMembers.id, member.id));
+      }
     }
   });
 }

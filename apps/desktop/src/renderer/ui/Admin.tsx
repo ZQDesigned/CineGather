@@ -1,3 +1,5 @@
+import { AdminGameLinks } from "./AdminGameLinks";
+import { AdminSessionEvents } from "./AdminSessionEvents";
 import { AdminCapabilities } from "./AdminCapabilities";
 import { AdminAnnouncements } from "./AdminAnnouncements";
 import {
@@ -136,6 +138,7 @@ const actionNames: Record<string, string> = {
   "admin.user_disable": "停用账号",
   "admin.user_enable": "启用账号",
   "admin.user_revoke_sessions": "撤销登录",
+  "admin.game_closed": "结束游戏联机",
   "admin.room_closed": "关闭房间",
   "admin.share_revoked": "停止共享",
   "admin.role_granted": "授予管理员",
@@ -182,6 +185,7 @@ function AdminPanel() {
   const canOverview = hasAdminPermission(user, "overview.read");
   const canUsers = hasAdminPermission(user, "users.read"),
     canManageUsers = hasAdminPermission(user, "users.manage");
+  const [roomHistory, setRoomHistory] = useState<AdminRoom>();
   const [capabilityTarget, setCapabilityTarget] = useState<AdminUser>();
   const canRooms = hasAdminPermission(user, "rooms.read"),
     canManageRooms = hasAdminPermission(user, "rooms.manage");
@@ -193,6 +197,9 @@ function AdminPanel() {
       : []),
     ...(canUsers ? [{ key: "users", label: "用户管理" }] : []),
     ...(canRooms ? [{ key: "rooms", label: "房间管理" }] : []),
+    ...(hasAdminPermission(user, "games.read")
+      ? [{ key: "games", label: "游戏联机" }]
+      : []),
     ...(canAudit ? [{ key: "audit", label: "操作记录" }] : []),
     ...(isSuper
       ? [
@@ -498,32 +505,36 @@ function AdminPanel() {
       title: "操作",
       key: "actions",
       fixed: "right",
-      width: 195,
-      render: (_, r) =>
-        r.status === "closed" || !canManageRooms ? (
-          <span className="admin-muted">
-            {r.status === "closed" ? "已结束" : "仅可查看"}
-          </span>
-        ) : (
-          <Space size={0}>
-            <Button
-              size="small"
-              type="link"
-              disabled={!r.sharing}
-              onClick={() => confirm({ kind: "revoke-share", room: r })}
-            >
-              停止共享
+      width: 275,
+      render: (_, r) => (
+        <Space size={0}>
+          {canAudit && (
+            <Button size="small" type="link" onClick={() => setRoomHistory(r)}>
+              事件记录
             </Button>
-            <Button
-              size="small"
-              type="link"
-              danger
-              onClick={() => confirm({ kind: "close", room: r })}
-            >
-              关闭房间
-            </Button>
-          </Space>
-        ),
+          )}
+          {r.status !== "closed" && canManageRooms && (
+            <>
+              <Button
+                size="small"
+                type="link"
+                disabled={!r.sharing}
+                onClick={() => confirm({ kind: "revoke-share", room: r })}
+              >
+                停止共享
+              </Button>
+              <Button
+                size="small"
+                type="link"
+                danger
+                onClick={() => confirm({ kind: "close", room: r })}
+              >
+                关闭房间
+              </Button>
+            </>
+          )}
+        </Space>
+      ),
     },
   ];
   const logColumns: TableColumnsType<AdminAudit> = [
@@ -552,6 +563,14 @@ function AdminPanel() {
   };
   return (
     <Surface aria-label="管理后台">
+      {roomHistory && (
+        <AdminSessionEvents
+          key={roomHistory.id}
+          kind="room"
+          target={roomHistory}
+          onClose={() => setRoomHistory(undefined)}
+        />
+      )}
       <div className="admin-heading">
         <h1>管理后台</h1>
         <Space>
@@ -615,7 +634,8 @@ function AdminPanel() {
         />
         {activeTab !== "overview" &&
           activeTab !== "registration" &&
-          activeTab !== "announcements" && (
+          activeTab !== "announcements" &&
+          activeTab !== "games" && (
             <Input.Search
               aria-label="搜索管理数据"
               placeholder={
@@ -639,7 +659,9 @@ function AdminPanel() {
           )}
       </div>
       <div className="admin-table" ref={tableRef}>
-        {activeTab === "registration" ? (
+        {activeTab === "games" ? (
+          <AdminGameLinks revision={revision} height={tableHeight} />
+        ) : activeTab === "registration" ? (
           <AdminRegistration revision={revision} />
         ) : activeTab === "roles" ? (
           <RoleManagement
@@ -686,7 +708,7 @@ function AdminPanel() {
             loading={loading}
             pagination={pagination}
             size="small"
-            scroll={{ x: 810, y: tableHeight }}
+            scroll={{ x: 900, y: tableHeight }}
           />
         ) : (
           <Table<AdminAudit>

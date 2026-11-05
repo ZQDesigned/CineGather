@@ -107,9 +107,26 @@ try {
     application = await _electron.launch({
       executablePath: executable,
       args: ["--mute-audio"],
+      ...(round === 2
+        ? {
+            env: {
+              ...process.env,
+              PORTABLE_EXECUTABLE_DIR: "C:\\Downloads",
+              PORTABLE_EXECUTABLE_FILE:
+                "C:\\Downloads\\CineGather-portable.exe",
+            },
+          }
+        : {}),
     });
     const page = await application.firstWindow();
     await expect(page.locator(".app")).toBeVisible();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          async () => (await window.desktop!.updates!.status()).mode,
+        ),
+      )
+      .toBe("install");
     const identityBefore = await windowsProcessIdentity(application);
     const log = join(directory, `in-app-upgrade-${round}-launch.json`);
     const closed = application.waitForEvent("close", { timeout: 90_000 });
@@ -268,6 +285,8 @@ try {
       installerArguments: launch.args,
       diagnosticUpdater: round === 2,
       registryOnlyResolution: round === 2,
+      installedUpdateModeVerified: true,
+      inheritedPortableEnvironment: round === 2,
       actualTaskbarPinsOnRunner: before.filter(
         (link) => link.kind === "taskbar",
       ).length,

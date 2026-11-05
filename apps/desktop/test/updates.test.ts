@@ -76,10 +76,14 @@ test("stable version comparison prevents reinstall and downgrade", () => {
 });
 test("portable and unpacked builds never enable automatic update installation", () => {
   expect(updateMode("win32", true, true, false)).toBe("install");
-  expect(updateMode("win32", true, true, true)).toBe("disabled");
+  expect(updateMode("win32", true, false, true)).toBe("disabled");
+  expect(updateMode("win32", false, true, false)).toBe("disabled");
   expect(updateMode("win32", true, false, false)).toBe("disabled");
   expect(updateMode("darwin", true, false, false)).toBe("notify");
   expect(updateMode("darwin", false, false, false)).toBe("disabled");
+});
+test("a real NSIS installation remains updatable when portable environment hints were inherited", () => {
+  expect(updateMode("win32", true, true, true)).toBe("install");
 });
 function setup(mode: "install" | "notify" | "disabled" = "install") {
   const calls: string[] = [];

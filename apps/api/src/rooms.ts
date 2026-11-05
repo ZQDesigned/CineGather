@@ -661,7 +661,16 @@ export async function joinRoom(
           target: [roomSessions.roomId, roomSessions.credentialId],
           set: { admittedUntil: new Date(Date.now() + 70_000) },
         });
-    await audit(tx, user.id, "room.joined", roomId);
+    const alreadyAdmitted = credentialId
+      ? previousSessions.some(
+          (s) =>
+            s.roomId === roomId &&
+            s.credentialId === credentialId &&
+            s.admittedUntil &&
+            s.admittedUntil.getTime() > Date.now(),
+        )
+      : member?.admittedUntil && member.admittedUntil.getTime() > Date.now();
+    if (!alreadyAdmitted) await audit(tx, user.id, "room.joined", roomId);
     return {
       room: await roomInfo(tx, room, user.id),
       token: esportsSeat
@@ -685,6 +694,25 @@ export async function leaveRoom(user: User, roomId: string) {
       .for("update");
     if (!room || room.status === "closed") return;
     await requireMember(tx, roomId, user.id, false, true);
+    const [previousMember] = await tx
+      .select({ admittedUntil: members.admittedUntil })
+      .from(members)
+      .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
+    const credential = sessionCredential(user);
+    const [priorAdmission] = credential
+      ? await tx
+          .select()
+          .from(roomSessions)
+          .where(
+            and(
+              eq(roomSessions.roomId, roomId),
+              eq(roomSessions.credentialId, credential),
+            ),
+          )
+      : [];
+    const wasAdmitted = priorAdmission
+      ? priorAdmission.admittedUntil !== null
+      : previousMember?.admittedUntil != null;
     if (room.mode === "esports") {
       const [seat] = await tx
         .select()
@@ -737,7 +765,7 @@ export async function leaveRoom(user: User, roomId: string) {
         .update(members)
         .set({ admittedUntil: null })
         .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
-    await audit(tx, user.id, "room.left", roomId);
+    if (wasAdmitted) await audit(tx, user.id, "room.left", roomId);
     await settleRoom(tx, roomId);
   });
   return { ok: true as const };
@@ -1452,14 +1480,17 @@ export async function moderate(
           eq(shareRequests.userId, targetId),
         ),
       );
-    await tx
+    const removed = await tx
       .delete(members)
-      .where(and(eq(members.roomId, roomId), eq(members.userId, targetId)));
-    if (ban)
-      await tx
-        .insert(bans)
-        .values({ roomId, userId: targetId })
-        .onConflictDoNothing();
+      .where(and(eq(members.roomId, roomId), eq(members.userId, targetId)))
+      .returning({ userId: members.userId });
+    const banned = ban
+      ? await tx
+          .insert(bans)
+          .values({ roomId, userId: targetId })
+          .onConflictDoNothing()
+          .returning({ userId: bans.userId })
+      : [];
     await tx
       .update(leases)
       .set({
@@ -1469,9 +1500,16 @@ export async function moderate(
         expiresAt: null,
       })
       .where(and(eq(leases.roomId, roomId), eq(leases.holderUserId, targetId)));
-    await audit(tx, user.id, ban ? "member.banned" : "member.kicked", roomId, {
-      userId: targetId,
-    });
+    if (removed.length || banned.length)
+      await audit(
+        tx,
+        user.id,
+        ban ? "member.banned" : "member.kicked",
+        roomId,
+        {
+          userId: targetId,
+        },
+      );
   });
   return { ok: true as const };
 }

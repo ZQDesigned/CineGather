@@ -54,6 +54,7 @@ export class GameLinkCoordinator {
   private renewedAt = 0;
   private queue = Promise.resolve();
   private refreshPending?: Promise<void>;
+  private exitPending?: Promise<void>;
   constructor(
     private options: {
       api: GameLinkAPI;
@@ -70,6 +71,7 @@ export class GameLinkCoordinator {
   async scope(identity: string | undefined) {
     if (identity === this.identity) return;
     this.epoch++;
+    this.exitPending = undefined;
     this.identity = identity;
     this.hostPort = undefined;
     this.activeMember = undefined;
@@ -174,6 +176,7 @@ export class GameLinkCoordinator {
     }
   }
   refresh() {
+    if (this.exitPending) return this.exitPending;
     if (this.refreshPending) return this.refreshPending;
     const pending = this.serialize(async (epoch) => {
       try {
@@ -236,22 +239,38 @@ export class GameLinkCoordinator {
       await this.connect(await this.options.api.snapshot(), epoch);
     });
   }
-  async exit() {
+  exit() {
+    if (this.exitPending) return this.exitPending;
+    const pending = this.leaveCurrent();
+    this.exitPending = pending;
+    const clear = () => {
+      if (this.exitPending === pending) this.exitPending = undefined;
+    };
+    void pending.then(clear, clear);
+    return pending;
+  }
+  private async leaveCurrent() {
     const snapshot = this.state.snapshot;
     this.epoch++;
     this.activeMember = undefined;
+    this.activeRevision = undefined;
     this.hostPort = undefined;
     this.renewedAt = 0;
     const epoch = this.epoch;
-    await this.options.local?.stop();
-    if (snapshot.session && snapshot.self)
-      await this.options.api.leave(snapshot.session.id);
-    if (this.current(epoch))
-      this.publish({
-        snapshot: empty(),
-        local: { state: "idle" },
-        error: undefined,
-        syncing: false,
-      });
+    this.publish({ syncing: true });
+    try {
+      await this.options.local?.stop();
+      if (!this.current(epoch)) return;
+      if (snapshot.session && snapshot.self)
+        await this.options.api.leave(snapshot.session.id);
+      if (this.current(epoch))
+        this.publish({
+          snapshot: empty(),
+          local: { state: "idle" },
+          error: undefined,
+        });
+    } finally {
+      if (this.current(epoch)) this.publish({ syncing: false });
+    }
   }
 }

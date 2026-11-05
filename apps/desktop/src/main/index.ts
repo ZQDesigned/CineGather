@@ -862,6 +862,7 @@ function capturePermissions() {
 if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on("second-instance", (_event, argv) => {
+    updates?.recordActivation(argv[0]);
     const invite = argv.find((v) => v.startsWith("cinegather://"));
     if (invite && invite.length <= 4096) {
       pendingInvite = invite;

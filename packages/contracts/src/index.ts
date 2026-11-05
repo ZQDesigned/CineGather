@@ -1,3 +1,4 @@
+export * from "./admin-game";
 export * from "./feature-compatibility";
 export * from "./admin";
 export * from "./permissions";

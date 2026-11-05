@@ -101,6 +101,7 @@ export const adminRoleInput = z
       ["users.high-frame-rate", "users.read"],
       ["users.room-capacity", "users.read"],
       ["rooms.manage", "rooms.read"],
+      ["games.manage", "games.read"],
       ["announcements.manage", "announcements.read"],
     ] as const)
       if (

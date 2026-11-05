@@ -154,11 +154,13 @@ async function snapshotInTx(
     })),
   });
 }
-export const gameSnapshot = (user: User) =>
-  gameTransaction(async (tx) => {
+export const gameSnapshot = (user: User, cleanup = false) => {
+  if (!cleanup) requireGameDesktop(user);
+  return gameTransaction(async (tx) => {
     await requireGameAccount(tx, user);
     return snapshotInTx(tx, user);
   });
+};
 
 export async function createGameSession(
   user: User,
@@ -247,6 +249,7 @@ export async function setGameReady(user: User, id: string) {
   return gameSnapshot(user);
 }
 export async function lookupGameSession(user: User, code: string) {
+  requireGameDesktop(user);
   return gameTransaction(async (tx) => {
     await requireGameAccount(tx, user);
     const [session] = await tx
@@ -363,6 +366,7 @@ export async function requestGameJoin(user: User, id: string) {
       expiresAt: new Date(Date.now() + GAME_REQUEST_MS),
     };
     await tx.insert(gameJoinRequests).values(request);
+    await audit(tx, user.id, "game.join_requested", session.id);
     return { id: request.id, expiresAt: request.expiresAt.toISOString() };
   });
 }
@@ -371,6 +375,7 @@ async function admit(
   sessionId: string,
   userId: string,
   credentialId: string,
+  method: "request" | "invitation" = "request",
 ) {
   if (!(await activeGameCredential(tx, userId, credentialId)))
     fail(409, "GAME_APPLICANT_OFFLINE", "申请设备已退出登录，请对方重新申请");
@@ -418,6 +423,7 @@ async function admit(
         tunnelSecretHash: null,
       },
     });
+  await audit(tx, userId, "game.member_joined", sessionId, { userId, method });
 }
 export async function decideGameRequest(
   user: User,
@@ -501,6 +507,9 @@ export async function inviteGameFriend(
       expiresAt: new Date(Date.now() + GAME_INVITE_MS),
     };
     await tx.insert(gameInvites).values(invite);
+    await audit(tx, user.id, "game.invited", session.id, {
+      userId: recipientId,
+    });
     return { id: invite.id, expiresAt: invite.expiresAt.toISOString() };
   });
 }
@@ -538,12 +547,14 @@ export async function acceptGameInvite(user: User, inviteId: string) {
       if (active) return;
       fail(409, "GAME_INVITE_EXPIRED", "此邀请已使用，请重新申请加入");
     }
-    await admit(tx, session.id, user.id, account.credentialId);
+    await admit(tx, session.id, user.id, account.credentialId, "invitation");
     await tx
       .update(gameInvites)
       .set({ consumedAt: new Date() })
       .where(eq(gameInvites.id, invite.id));
-    await audit(tx, user.id, "game.invite_accepted", session.id);
+    await audit(tx, user.id, "game.invite_accepted", session.id, {
+      userId: user.id,
+    });
   });
   return gameSnapshot(user);
 }
@@ -576,6 +587,10 @@ export async function renewGameMembership(
         route: member.leaseUntil.getTime() <= Date.now() ? null : member.route,
       })
       .where(eq(gameMembers.id, member.id));
+    if (member.status === "reconnecting")
+      await audit(tx, user.id, "game.member_reconnected", session.id, {
+        userId: user.id,
+      });
   });
   return gameSnapshot(user);
 }
@@ -587,8 +602,9 @@ export async function leaveGameSession(user: User, id: string, end = false) {
       .where(eq(gameSessions.id, uuid(id)));
     if (!session || session.status === "ended") return;
     const { member } = await requireGameMember(tx, user, id, end);
-    if (member.role === "host") await endGameInTx(tx, session.id, "host_ended");
-    else
+    if (member.role === "host")
+      await endGameInTx(tx, session.id, "host_ended", user.id);
+    else {
       await tx
         .update(gameMembers)
         .set({
@@ -599,14 +615,19 @@ export async function leaveGameSession(user: User, id: string, end = false) {
           revision: sql`${gameMembers.revision}+1`,
         })
         .where(eq(gameMembers.id, member.id));
+      await audit(tx, user.id, "game.member_left", session.id, {
+        userId: user.id,
+      });
+    }
   });
-  return gameSnapshot(user);
+  return gameSnapshot(user, true);
 }
 export async function removeGameMember(
   user: User,
   id: string,
   memberId: string,
 ) {
+  requireGameDesktop(user);
   await gameTransaction(async (tx) => {
     await requireGameMember(tx, user, id, true);
     const [member] = await tx
@@ -675,6 +696,7 @@ export async function observeGameConnection(
   revision: number,
   route: "p2p" | "relay",
 ) {
+  requireGameDesktop(user);
   await gameTransaction(async (tx) => {
     await requireGameMember(tx, user, id, true);
     await tx

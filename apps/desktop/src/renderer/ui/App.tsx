@@ -1,4 +1,6 @@
 import { GameLink, GameLinkNotifications } from "./GameLink";
+import { GameLinkStatus } from "./GameLinkStatus";
+import { GameLinkPromo } from "./GameLinkPromo";
 import { FeatureUpdatePrompt } from "./FeatureUpdate";
 import { EsportsRoom } from "./EsportsRoom";
 import { AnnouncementLayer } from "./Announcements";
@@ -301,7 +303,7 @@ export function App() {
                 </Badge>
               ),
               label: "游戏联机",
-              disabled: !app.user,
+              disabled: capabilities().desktop && !app.user,
               onClick: () => {
                 setSection("games");
                 location.hash = "/games";
@@ -421,6 +423,15 @@ export function App() {
           <div className="topbar-right">
             <RoomInvitationInboxButton />
             <RoomRequestInboxButton />
+            {section !== "games" && (
+              <GameLinkStatus
+                onReturn={() => {
+                  setSection("games");
+                  location.hash = "/games";
+                  update({ modal: null });
+                }}
+              />
+            )}
             {(home || secondary) && app.room && (
               <Space.Compact
                 className="current-room"
@@ -428,36 +439,32 @@ export function App() {
                 aria-label="当前加入的房间"
                 size="small"
               >
-                <Tooltip title={`返回房间：${app.room.name}`}>
-                  <Button
-                    className="current-room-link"
-                    icon={<Film size={14} />}
-                    aria-label="返回当前房间"
-                    disabled={app.busy || app.roomState === "leaving"}
-                    onClick={() => {
-                      showHome();
-                      setHome(false);
-                    }}
-                  >
-                    <span className="current-room-name">{app.room.name}</span>
-                    <Badge count={app.chat.unread} size="small" />
-                  </Button>
-                </Tooltip>
-                <Tooltip title="退出当前房间">
-                  <Button
-                    danger
-                    className="current-room-exit"
-                    icon={<LogOut size={14} />}
-                    aria-label="退出当前房间"
-                    loading={app.roomState === "leaving"}
-                    disabled={app.busy || app.roomState === "leaving"}
-                    onClick={() =>
-                      void actions.run(() => actions.roomSession.leave())
-                    }
-                  >
-                    退出
-                  </Button>
-                </Tooltip>
+                <Button
+                  className="current-room-link"
+                  icon={<Film size={14} />}
+                  aria-label="返回当前房间"
+                  disabled={app.busy || app.roomState === "leaving"}
+                  onClick={() => {
+                    showHome();
+                    setHome(false);
+                  }}
+                >
+                  <span className="current-room-name">{app.room.name}</span>
+                  <Badge count={app.chat.unread} size="small" />
+                </Button>
+                <Button
+                  danger
+                  className="current-room-exit"
+                  icon={<LogOut size={14} />}
+                  aria-label="退出当前房间"
+                  loading={app.roomState === "leaving"}
+                  disabled={app.busy || app.roomState === "leaving"}
+                  onClick={() =>
+                    void actions.run(() => actions.roomSession.leave())
+                  }
+                >
+                  退出
+                </Button>
               </Space.Compact>
             )}
             {app.roomState === "connected" &&
@@ -489,9 +496,11 @@ export function App() {
         <RoomInvitationNotifications />
         <RoomRequestNotifications />
         <UpdateCenter />
-        <GameLinkNotifications />
+        {window.desktop?.gameLink && <GameLinkNotifications />}
         <FeatureUpdatePrompt />
-        {!app.user ? (
+        {section === "games" && !capabilities().desktop ? (
+          <GameLinkPromo />
+        ) : !app.user ? (
           <Welcome />
         ) : (
           <>
@@ -506,7 +515,7 @@ export function App() {
             )}
             {admin ? (
               <Admin onHome={showHome} />
-            ) : section === "games" ? (
+            ) : section === "games" && window.desktop?.gameLink ? (
               <GameLink />
             ) : section === "friends" ? (
               <Friends />

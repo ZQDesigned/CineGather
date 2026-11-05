@@ -190,3 +190,75 @@ test("an interrupted native connection replaces stale connected status without m
   expect(coordinator.state.local.state).toBe("failed");
   await coordinator.scope(undefined);
 });
+
+for (const role of ["host", "guest"] as const)
+  test(`${role} exit excludes concurrent polling until leave completes`, async () => {
+    const joined = snapshot();
+    joined.self!.role = role;
+    let releaseLeave!: () => void;
+    let leaveStarted!: () => void;
+    let releaseSnapshot: ((value: GameSnapshot) => void) | undefined;
+    let delaySnapshot = false;
+    let configured = 0;
+    const began = new Promise<void>((resolve) => {
+      leaveStarted = resolve;
+    });
+    const pendingLeave = new Promise<void>((resolve) => {
+      releaseLeave = resolve;
+    });
+    const coordinator = new GameLinkCoordinator({
+      api: {
+        snapshot: () =>
+          delaySnapshot
+            ? new Promise((resolve) => {
+                releaseSnapshot = resolve;
+              })
+            : Promise.resolve(joined),
+        create: async () => joined,
+        ready: async () => joined,
+        renew: async () => joined,
+        transport: async () =>
+          ({
+            memberId: joined.self!.memberId,
+            revision: 1,
+          }) as GameTunnelConfig,
+        leave: async () => {
+          leaveStarted();
+          await pendingLeave;
+          return empty;
+        },
+      },
+      local: {
+        probe: async (port) => ({
+          port,
+          name: "world",
+          version: "1.21",
+          protocol: 1,
+        }),
+        configure: async () => {
+          configured++;
+          return { state: "connected" };
+        },
+        stop: async () => {},
+      },
+      changed: () => {},
+    });
+    await coordinator.scope("test");
+    if (role === "host") await coordinator.create("test", 25565);
+    else await coordinator.refresh();
+    const before = configured;
+    const leaving = coordinator.exit();
+    await began;
+    delaySnapshot = true;
+    const polling = coordinator.refresh();
+    await Promise.resolve();
+    await Promise.resolve();
+    releaseLeave();
+    await leaving;
+    // A delayed snapshot taken during exit must never reconnect the ended game.
+    releaseSnapshot?.(joined);
+    await polling;
+    expect(coordinator.state.snapshot.session).toBeNull();
+    expect(coordinator.state.local.state).toBe("idle");
+    expect(configured).toBe(before);
+  });

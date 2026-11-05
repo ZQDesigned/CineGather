@@ -176,6 +176,13 @@
       "when": 1793812138728,
       "tag": "0024_game_link",
       "breakpoints": true
+    },
+    {
+      "idx": 25,
+      "version": "7",
+      "when": 1793898538728,
+      "tag": "0025_game_administration",
+      "breakpoints": true
     }
   ]
 }

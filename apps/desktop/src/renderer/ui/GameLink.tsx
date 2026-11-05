@@ -406,15 +406,7 @@ export function GameLink() {
                   {local.message && (
                     <p className="game-help">{local.message}</p>
                   )}
-                  {host ? (
-                    <p className="game-help">
-                      保持游戏世界和映聚运行，好友即可加入。语音聊天可照常在放映房中进行。
-                    </p>
-                  ) : self ? (
-                    <p className="game-help">
-                      世界版本与模组需要和主机保持一致。游戏连接中断后，请重新连接上方地址。
-                    </p>
-                  ) : (
+                  {!self && (
                     <p className="game-help">
                       此账号的联机正在另一台设备运行，请在那台设备上退出后再加入。
                     </p>
@@ -570,10 +562,6 @@ export function GameLink() {
             <div className="game-empty">
               <Gamepad2 size={52} />
               <h2>和好友连接同一个世界</h2>
-              <p>
-                首个支持的游戏：Minecraft Java 版<br />
-                在游戏中将世界「对局域网开放」，然后在这里发起联机。
-              </p>
               {!user?.gameHostEnabled && (
                 <p>当前账号可通过联机码或好友邀请加入游戏。</p>
               )}
@@ -682,15 +670,25 @@ export function GameLink() {
         }
       >
         <Form layout="vertical">
-          <p>先在 Minecraft Java 中打开世界，选择「对局域网开放」。</p>
           {dialog === "create" && (
-            <Form.Item label="联机名称">
-              <Input
-                maxLength={64}
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-              />
-            </Form.Item>
+            <>
+              <Form.Item label="选择游戏" htmlFor="game-link-game">
+                <Select
+                  id="game-link-game"
+                  value="minecraft-java"
+                  options={[
+                    { value: "minecraft-java", label: "Minecraft Java 版" },
+                  ]}
+                />
+              </Form.Item>
+              <Form.Item label="联机名称">
+                <Input
+                  maxLength={64}
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                />
+              </Form.Item>
+            </>
           )}
           <Form.Item
             label={
@@ -725,7 +723,33 @@ export function GameLink() {
                 value={worldPort}
                 options={worlds.map((w) => ({
                   value: w.port,
-                  label: `${w.name} · ${w.version} (${w.port})`,
+                  label: (
+                    <span
+                      style={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 12,
+                        minWidth: 0,
+                      }}
+                    >
+                      <span
+                        style={{
+                          flex: 1,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap",
+                        }}
+                      >
+                        {w.name}
+                      </span>
+                      <Space size={8}>
+                        <Tag style={{ marginInlineEnd: 0 }}>{w.version}</Tag>
+                        <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                          端口 {w.port}
+                        </span>
+                      </Space>
+                    </span>
+                  ),
                 }))}
                 onChange={setWorldPort}
               />
@@ -741,9 +765,6 @@ export function GameLink() {
               {manual ? "返回发现的世界" : "手动输入局域网端口"}
             </Button>
           </Form.Item>
-          <p style={{ color: "var(--muted)" }}>
-            最多 8 人，包括主机。使用已有的游戏账号与游戏文件。
-          </p>
         </Form>
       </Modal>
       <Modal
@@ -792,8 +813,13 @@ export function GameLink() {
           <div style={{ marginTop: 24 }}>
             <h3>{found.name}</h3>
             <p>
-              {found.hostName} · {found.memberCount} / {found.maxMembers} 人
-              {found.gameVersion && ` · ${found.gameVersion}`}
+              <Space wrap size={12}>
+                <span>主机：{found.hostName}</span>
+                <span>
+                  {found.memberCount} / {found.maxMembers} 人
+                </span>
+                {found.gameVersion && <Tag>{found.gameVersion}</Tag>}
+              </Space>
             </p>
             <Button
               type="primary"
