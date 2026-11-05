@@ -1,3 +1,4 @@
+import { useRetainedDialog } from "./useRetainedDialog";
 import { useEffect, useState } from "react";
 import {
   App,
@@ -85,6 +86,7 @@ export function AdminAnnouncements({
     [editing, setEditing] = useState<Announcement>(),
     [preview, setPreview] = useState(false),
     [view, setView] = useState<Announcement>();
+  const viewDialog = useRetainedDialog(view);
   const [form] = Form.useForm<Fields>(),
     values = Form.useWatch([], form);
   useEffect(() => {
@@ -466,13 +468,15 @@ export function AdminAnnouncements({
         </div>
       </Modal>
       <Modal
-        title={view?.title ?? "公告预览"}
-        open={!!view}
+        title={viewDialog.value?.title ?? "公告预览"}
+        open={viewDialog.open}
+        afterClose={viewDialog.afterClose}
+        destroyOnHidden
         onCancel={() => setView(undefined)}
         width={760}
         footer={<Button onClick={() => setView(undefined)}>关闭</Button>}
       >
-        {view && <AnnouncementBody item={view} />}
+        {viewDialog.value && <AnnouncementBody item={viewDialog.value} />}
       </Modal>
     </div>
   );

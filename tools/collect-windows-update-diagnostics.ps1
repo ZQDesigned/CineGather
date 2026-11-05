@@ -5,7 +5,7 @@ $destination = Join-Path $OutputDirectory ('CineGather-Update-Diagnostics-' + $s
 New-Item -ItemType Directory -Path $destination -ErrorAction Stop | Out-Null
 $script:issues = New-Object 'System.Collections.Generic.List[object]'
 function Mask-Text([string]$Text) {
- foreach($p in @($env:LOCALAPPDATA,$env:APPDATA,$env:USERPROFILE) | Where-Object {$_ -and $_.Length -gt 4} | Sort-Object Length -Descending){$Text=[regex]::Replace($Text,[regex]::Escape($p),'<USER_DIRECTORY>','IgnoreCase')}
+ foreach($p in @($env:LOCALAPPDATA,$env:APPDATA,$env:USERPROFILE) | Where-Object {$_ -and $_.Length -gt 4} | Sort-Object Length -Descending){foreach($form in @($p,(ConvertTo-Json -InputObject $p -Compress).Trim('"'))){$Text=[regex]::Replace($Text,[regex]::Escape($form),'<USER_DIRECTORY>','IgnoreCase')}}
  $Text=[regex]::Replace($Text,'(?i)([a-z]:\\Users\\)[^\\\r\n]+','$1<USER>')
  $Text=[regex]::Replace($Text,'(?i)(Bearer\s+|(?:token|password|secret)=)[^\s,;"\r\n]+','<REDACTED>')
  return $Text
@@ -24,7 +24,7 @@ $root=[IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
 $roots=New-Object 'System.Collections.Generic.List[string]';$roots.Add($root)
 function Add-Root([string]$Path){if(!$Path){return};try{$p=[IO.Path]::GetFullPath($Path).TrimEnd('\');if($p.Length -gt 3 -and !$roots.Contains($p) -and $roots.Count -lt 12){$roots.Add($p)}}catch{}}
 $identity=[Security.Principal.WindowsIdentity]::GetCurrent();$principal=New-Object Security.Principal.WindowsPrincipal($identity)
-Save-Json 'capture' @{startedLocal=(Get-Date).ToString('o');startedUtc=[DateTime]::UtcNow.ToString('o');installDirectory=$root;elevated=$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);powershell=$PSVersionTable.PSVersion.ToString();collector='20261106-1';collectorPid=$PID;operations='Read-only inspection. No installer execution, process termination, file deletion, registry/ACL changes, cache clearing, or network upload.';limitations='Current locks do not prove earlier causes. Native queries may be unavailable without elevation. No credentials, browser storage, audio, chat, application binaries or memory dumps are collected.'}
+Save-Json 'capture' @{startedLocal=(Get-Date).ToString('o');startedUtc=[DateTime]::UtcNow.ToString('o');installDirectory=$root;elevated=$principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator);powershell=$PSVersionTable.PSVersion.ToString();collector='20261106-2';collectorPid=$PID;operations='Read-only inspection. No installer execution, process termination, file deletion, registry/ACL changes, cache clearing, or network upload.';limitations='Current locks do not prove earlier causes. Native queries may be unavailable without elevation. No credentials, browser storage, audio, chat, application binaries or memory dumps are collected.'}
 $all=@()
 function Process-Info($p){@{pid=[int]$p.ProcessId;ppid=[int]$p.ParentProcessId;name=[string]$p.Name;path=[string]$p.ExecutablePath;started=[string]$p.CreationDate;session=[int]$p.SessionId}}
 function Is-Related($p){return $p.Name -match '(?i)CineGather|CGScreenCaptureHost|CGProcessAudioHost|cinegather-game-link|old-uninstaller' -or ($p.ExecutablePath -and $p.ExecutablePath.StartsWith($root+'\',[StringComparison]::OrdinalIgnoreCase))}
@@ -151,6 +151,11 @@ Collect 'update-cache' {
   $result+=$row
  };@{path=$cache;exists=(Test-Path -LiteralPath $cache);limit=100;files=$result}
 }
+function Read-JournalText([string]$Path){
+ # FileWriteUTF16LE journals have no BOM. Explicit decoding preserves paths and error text.
+ if([IO.Path]::GetExtension($Path) -eq '.tsv'){$text=[IO.File]::ReadAllText($Path,[Text.Encoding]::Unicode)}else{$text=[IO.File]::ReadAllText($Path)}
+ return (Mask-Text $text)
+}
 Collect 'installer-journals' {
  $target=Join-Path $destination 'installer-journals';New-Item -ItemType Directory -Path $target | Out-Null
  $sources=@((Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs'),(Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs'))
@@ -158,7 +163,7 @@ Collect 'installer-journals' {
  foreach($source in $sources){if(!(Test-Path -LiteralPath $source)){continue};$dir=Get-Item -LiteralPath $source;if($dir.Attributes -band [IO.FileAttributes]::ReparsePoint){continue}
   foreach($f in @(Get-ChildItem -LiteralPath $source -File | Where-Object {$_.Name -match $owned -and !($_.Attributes -band [IO.FileAttributes]::ReparsePoint)} | Sort-Object LastWriteTimeUtc -Descending)){
    $row=@{source=$f.FullName;bytes=$f.Length;modifiedUtc=$f.LastWriteTimeUtc};if($count -ge 128 -or $f.Length -gt 2097152 -or $total+$f.Length -gt 33554432){$row.skipped='size-or-count-limit';$result+=$row;continue}
-   try{$content=[IO.File]::ReadAllText($f.FullName);$content=Mask-Text $content;$out=('{0:D3}-' -f $count)+$f.Name;[IO.File]::WriteAllText((Join-Path $target $out),$content,(New-Object Text.UTF8Encoding($true)));$row.exported=$out;$total+=$f.Length;$count++}catch{$row.error=$_.Exception.HResult};$result+=$row
+   try{$content=Read-JournalText $f.FullName;$out=('{0:D3}-' -f $count)+$f.Name;[IO.File]::WriteAllText((Join-Path $target $out),$content,(New-Object Text.UTF8Encoding($true)));$row.exported=$out;$total+=$f.Length;$count++}catch{$row.error=$_.Exception.HResult};$result+=$row
   }
  };@{copied=$count;totalSourceBytes=$total;entries=$result;note='No pruning, truncation or writes to original journals.'}
 }

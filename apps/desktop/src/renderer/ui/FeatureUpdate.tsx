@@ -1,3 +1,4 @@
+import { useRetainedDialog } from "./useRetainedDialog";
 import { useState } from "react";
 import { Modal, Button, Space, Typography, Alert } from "antd";
 import {
@@ -11,10 +12,11 @@ export function FeatureUpdatePrompt() {
     required = useApp((s) => s.requiredUpdate);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState<string>();
-  if (!issue || required) return null;
+  const dialog = useRetainedDialog(required ? undefined : issue);
+  const shown = dialog.value;
+  if (!shown) return null;
   const close = () => {
     update({ featureUpdate: undefined });
-    setError(undefined);
   };
   const upgrade = async () => {
     setBusy(true);
@@ -37,13 +39,14 @@ export function FeatureUpdatePrompt() {
       }
       if (
         !status.latestVersion ||
-        (issue.minimumVersion &&
-          versionBelow(status.latestVersion, issue.minimumVersion))
+        (shown.minimumVersion &&
+          versionBelow(status.latestVersion, shown.minimumVersion))
       )
         throw Error("满足此功能要求的更新暂未提供，请稍后再试。");
       close();
       update({ modal: "updates" });
     } catch (e) {
+      if (useApp.getState().featureUpdate !== shown) return;
       setError(
         e instanceof Error ? e.message : "暂时无法检查更新，请稍后重试。",
       );
@@ -53,7 +56,12 @@ export function FeatureUpdatePrompt() {
   };
   return (
     <Modal
-      open
+      open={dialog.open}
+      afterClose={() => {
+        dialog.afterClose();
+        setError(undefined);
+      }}
+      destroyOnHidden
       title="此功能需要更新后使用"
       centered
       zIndex={2100}
@@ -62,19 +70,19 @@ export function FeatureUpdatePrompt() {
         <Space>
           <Button onClick={close}>暂不使用</Button>
           <Button type="primary" loading={busy} onClick={() => void upgrade()}>
-            {issue.updateKind === "reload" ? "刷新页面" : "检查更新"}
+            {shown.updateKind === "reload" ? "刷新页面" : "检查更新"}
           </Button>
         </Space>
       }
     >
       <Space orientation="vertical" size={12} style={{ width: "100%" }}>
-        <Typography.Text>{featureLabels[issue.feature]}</Typography.Text>
+        <Typography.Text>{featureLabels[shown.feature]}</Typography.Text>
         <Typography.Paragraph style={{ margin: 0 }}>
-          {issue.reason}
+          {shown.reason}
         </Typography.Paragraph>
-        {issue.minimumVersion && (
+        {shown.minimumVersion && (
           <Typography.Text type="secondary">
-            需要 v{issue.minimumVersion} 或更高版本
+            需要 v{shown.minimumVersion} 或更高版本
           </Typography.Text>
         )}
         {error && <Alert type="warning" showIcon title={error} />}

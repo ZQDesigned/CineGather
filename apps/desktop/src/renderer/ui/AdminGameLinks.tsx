@@ -1,4 +1,8 @@
 import {
+  useRetainedDialog,
+  type RetainedDialogProps,
+} from "./useRetainedDialog";
+import {
   Alert,
   App,
   Button,
@@ -35,17 +39,20 @@ const states: Record<string, string> = {
 };
 function GameMembers({
   target,
+  open,
+  afterClose,
   onClose,
 }: {
   target: AdminGame;
   onClose: () => void;
-}) {
+} & RetainedDialogProps) {
   const [rows, setRows] = useState<AdminGameMember[]>([]),
     [page, setPage] = useState(1),
     [total, setTotal] = useState(0),
     [loading, setLoading] = useState(true),
     [error, setError] = useState<string>();
   useEffect(() => {
+    if (!open) return;
     let active = true;
     setLoading(true);
     setError(undefined);
@@ -69,7 +76,7 @@ function GameMembers({
     return () => {
       active = false;
     };
-  }, [target.id, page]);
+  }, [target.id, page, open]);
   const columns: TableColumnsType<AdminGameMember> = [
     {
       title: "成员",
@@ -111,7 +118,9 @@ function GameMembers({
   ];
   return (
     <Modal
-      open
+      open={open}
+      afterClose={afterClose}
+      destroyOnHidden
       title={`${target.name}的成员`}
       width={800}
       footer={null}
@@ -160,6 +169,9 @@ export function AdminGameLinks({
     [closing, setClosing] = useState<AdminGame>(),
     [saving, setSaving] = useState(false);
   const [form] = Form.useForm<{ reason: string }>();
+  const membersDialog = useRetainedDialog(members);
+  const historyDialog = useRetainedDialog(history);
+  const closingDialog = useRetainedDialog(closing);
   useEffect(() => {
     let active = true;
     setLoading(true);
@@ -347,23 +359,29 @@ export function AdminGameLinks({
           showTotal: (n) => `共 ${n} 条`,
         }}
       />
-      {members && (
+      {membersDialog.value && (
         <GameMembers
-          key={members.id}
-          target={members}
+          key={membersDialog.value.id}
+          target={membersDialog.value}
+          open={membersDialog.open}
+          afterClose={membersDialog.afterClose}
           onClose={() => setMembers(undefined)}
         />
       )}{" "}
-      {history && (
+      {historyDialog.value && (
         <AdminSessionEvents
-          key={history.id}
+          key={historyDialog.value.id}
           kind="game"
-          target={history}
+          target={historyDialog.value}
+          open={historyDialog.open}
+          afterClose={historyDialog.afterClose}
           onClose={() => setHistory(undefined)}
         />
       )}
       <Modal
-        open={!!closing}
+        open={closingDialog.open}
+        afterClose={closingDialog.afterClose}
+        destroyOnHidden
         title="结束游戏联机"
         okText="结束联机"
         okButtonProps={{ danger: true }}
@@ -373,7 +391,7 @@ export function AdminGameLinks({
           if (!saving) setClosing(undefined);
         }}
       >
-        <p>结束「{closing?.name}」后，所有成员的游戏连接将断开。</p>
+        <p>结束「{closingDialog.value?.name}」后，所有成员的游戏连接将断开。</p>
         <Form form={form} layout="vertical">
           <Form.Item
             name="reason"

@@ -1,3 +1,4 @@
+import { useRetainedDialog } from "./useRetainedDialog";
 import {
   App,
   Alert,
@@ -201,6 +202,8 @@ export function GameLink() {
       gameVersion: string | null;
     }>(),
     [sent, setSent] = useState<Set<string>>(new Set());
+  const retainedDialog = useRetainedDialog(dialog ?? undefined);
+  const shownDialog = retainedDialog.value;
   const dialogEpoch = useRef(0);
   useEffect(() => {
     if (!host && (dialog === "invite" || dialog === "resume")) {
@@ -650,13 +653,17 @@ export function GameLink() {
         </div>
       )}
       <Modal
-        open={dialog === "create" || dialog === "resume"}
-        title={dialog === "resume" ? "选择本机世界" : "发起游戏联机"}
+        open={
+          retainedDialog.open &&
+          (shownDialog === "create" || shownDialog === "resume")
+        }
+        title={shownDialog === "resume" ? "选择本机世界" : "发起游戏联机"}
         className="cinema-dialog"
         centered
+        afterClose={retainedDialog.afterClose}
         destroyOnHidden
         onCancel={close}
-        okText={dialog === "resume" ? "恢复联机" : "发起联机"}
+        okText={shownDialog === "resume" ? "恢复联机" : "发起联机"}
         confirmLoading={busy}
         okButtonProps={{ disabled: !worldPort || scanning }}
         onOk={() =>
@@ -670,7 +677,7 @@ export function GameLink() {
         }
       >
         <Form layout="vertical">
-          {dialog === "create" && (
+          {shownDialog === "create" && (
             <>
               <Form.Item label="选择游戏" htmlFor="game-link-game">
                 <Select
@@ -768,10 +775,11 @@ export function GameLink() {
         </Form>
       </Modal>
       <Modal
-        open={dialog === "join"}
+        open={retainedDialog.open && shownDialog === "join"}
         title="加入游戏联机"
         className="cinema-dialog"
         centered
+        afterClose={retainedDialog.afterClose}
         destroyOnHidden
         onCancel={close}
         footer={null}
@@ -835,10 +843,11 @@ export function GameLink() {
         )}
       </Modal>
       <Modal
-        open={dialog === "invite"}
+        open={retainedDialog.open && shownDialog === "invite"}
         title="邀请好友游戏联机"
         className="cinema-dialog"
         centered
+        afterClose={retainedDialog.afterClose}
         destroyOnHidden
         onCancel={close}
         footer={null}

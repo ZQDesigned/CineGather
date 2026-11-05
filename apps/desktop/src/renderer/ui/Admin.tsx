@@ -1,3 +1,4 @@
+import { useRetainedDialog } from "./useRetainedDialog";
 import { AdminGameLinks } from "./AdminGameLinks";
 import { AdminSessionEvents } from "./AdminSessionEvents";
 import { AdminCapabilities } from "./AdminCapabilities";
@@ -187,6 +188,8 @@ function AdminPanel() {
     canManageUsers = hasAdminPermission(user, "users.manage");
   const [roomHistory, setRoomHistory] = useState<AdminRoom>();
   const [capabilityTarget, setCapabilityTarget] = useState<AdminUser>();
+  const roomHistoryDialog = useRetainedDialog(roomHistory);
+  const capabilityDialog = useRetainedDialog(capabilityTarget);
   const canRooms = hasAdminPermission(user, "rooms.read"),
     canManageRooms = hasAdminPermission(user, "rooms.manage");
   const canAudit = hasAdminPermission(user, "audit.read"),
@@ -563,11 +566,13 @@ function AdminPanel() {
   };
   return (
     <Surface aria-label="管理后台">
-      {roomHistory && (
+      {roomHistoryDialog.value && (
         <AdminSessionEvents
-          key={roomHistory.id}
+          key={roomHistoryDialog.value.id}
           kind="room"
-          target={roomHistory}
+          target={roomHistoryDialog.value}
+          open={roomHistoryDialog.open}
+          afterClose={roomHistoryDialog.afterClose}
           onClose={() => setRoomHistory(undefined)}
         />
       )}
@@ -722,10 +727,12 @@ function AdminPanel() {
           />
         )}
       </div>
-      {capabilityTarget && (
+      {capabilityDialog.value && (
         <AdminCapabilities
-          key={capabilityTarget.id}
-          target={capabilityTarget}
+          key={capabilityDialog.value.id}
+          target={capabilityDialog.value}
+          open={capabilityDialog.open}
+          afterClose={capabilityDialog.afterClose}
           close={() => setCapabilityTarget(undefined)}
           saved={() => setRevision((r) => r + 1)}
         />

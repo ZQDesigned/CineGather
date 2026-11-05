@@ -1,3 +1,4 @@
+import type { RetainedDialogProps } from "./useRetainedDialog";
 import {
   App,
   Button,
@@ -53,13 +54,15 @@ const fields = [
 
 export function AdminCapabilities({
   target,
+  open,
+  afterClose,
   close,
   saved,
 }: {
   target: AdminUser;
   close(): void;
   saved(): void;
-}) {
+} & RetainedDialogProps) {
   const user = useApp((s) => s.user),
     { message } = App.useApp();
   const [form] = Form.useForm<AdminCapabilitiesInput>(),
@@ -93,7 +96,9 @@ export function AdminCapabilities({
   }
   return (
     <Modal
-      open
+      open={open}
+      afterClose={afterClose}
+      destroyOnHidden
       title="账号能力配置"
       onCancel={() => {
         if (!busy) close();

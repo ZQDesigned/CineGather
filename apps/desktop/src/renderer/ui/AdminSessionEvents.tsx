@@ -1,3 +1,4 @@
+import type { RetainedDialogProps } from "./useRetainedDialog";
 import { Alert, Input, Modal, Space, Table } from "antd";
 import type { TableColumnsType } from "antd";
 import { useEffect, useState } from "react";
@@ -72,12 +73,14 @@ const reasons: Record<string, string> = {
 export function AdminSessionEvents({
   kind,
   target,
+  open,
+  afterClose,
   onClose,
 }: {
   kind: "room" | "game";
   target: { id: string; name: string };
   onClose: () => void;
-}) {
+} & RetainedDialogProps) {
   const [page, setPage] = useState(1),
     [q, setQ] = useState(""),
     [rows, setRows] = useState<AdminSessionEvent[]>([]),
@@ -85,6 +88,7 @@ export function AdminSessionEvents({
     [loading, setLoading] = useState(false),
     [error, setError] = useState<string>();
   useEffect(() => {
+    if (!open) return;
     let active = true;
     setLoading(true);
     setError(undefined);
@@ -120,7 +124,7 @@ export function AdminSessionEvents({
     return () => {
       active = false;
     };
-  }, [kind, target.id, page, q]);
+  }, [kind, target.id, page, q, open]);
   const columns: TableColumnsType<AdminSessionEvent> = [
     { title: "时间", dataIndex: "createdAt", width: 175, render: adminDate },
     { title: "操作人", dataIndex: "actorName", width: 120, ellipsis: true },
@@ -146,7 +150,9 @@ export function AdminSessionEvents({
   ];
   return (
     <Modal
-      open
+      open={open}
+      afterClose={afterClose}
+      destroyOnHidden
       title={`${target.name}的事件记录`}
       width={900}
       footer={null}
