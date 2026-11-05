@@ -125,7 +125,7 @@ func TestOldLeaseTimerCannotCloseRenewedAuthorization(t *testing.T) {
 func TestConnectorAdvertisesGameProtocolOverVerifiedTLS(t *testing.T) {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	advertised := make(chan []string, 1)
-	server.TLS = &tls.Config{GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+	server.TLS = &tls.Config{NextProtos: []string{"cinegather-game"}, GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
 		advertised <- append([]string(nil), hello.SupportedProtos...)
 		return nil, nil
 	}}
