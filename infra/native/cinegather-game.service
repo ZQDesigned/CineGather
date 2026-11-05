@@ -1,6 +1,6 @@
 [Unit]
 Description=CineGather game transport relay
-After=network-online.target cinegather-api.service
+After=network-online.target cinegather@api.service
 Wants=network-online.target
 [Service]
 Type=simple

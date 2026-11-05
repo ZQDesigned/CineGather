@@ -38,7 +38,7 @@ func (c *Connector) Open() error  { return nil }
 func (c *Connector) Close() error { return nil }
 func (c *Connector) Connect() (net.Conn, error) {
 	c.emit(map[string]any{"event": "transport", "phase": "tls_dial", "state": "connecting"})
-	d := tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second, KeepAlive: 15 * time.Second}, Config: &tls.Config{ServerName: c.cfg.Transport.TLS.ServerName, RootCAs: c.roots, MinVersion: tls.VersionTLS12}}
+	d := tls.Dialer{NetDialer: &net.Dialer{Timeout: 5 * time.Second, KeepAlive: 15 * time.Second}, Config: &tls.Config{ServerName: c.cfg.Transport.TLS.ServerName, RootCAs: c.roots, MinVersion: tls.VersionTLS12, NextProtos: []string{"cinegather-game"}}}
 	started := time.Now()
 	conn, err := d.DialContext(c.ctx, "tcp", net.JoinHostPort(c.cfg.ServerAddr, itoa(c.cfg.ServerPort)))
 	if err != nil {

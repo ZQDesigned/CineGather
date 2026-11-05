@@ -42,6 +42,10 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/game-link/go.mod
+          cache-dependency-path: native/game-link/go.sum
       - run: bun install --frozen-lockfile
       - run: bun run setup
       - name: Verify installed encoder probe cleanup and unrelated process isolation
@@ -83,9 +87,12 @@ jobs:
           VITE_WEB_URL: https://cgplat.zqdesigned.city
         run: |
           bun ../../tools/icons.ts
+          bun ../../tools/game-link-build.ts
           bun run build
           bun ../../tools/third-party.ts win32 x64
           bunx electron-builder --win --x64 --publish never
+      - name: Verify packaged game helper IPC and library inventory
+        run: bun tools/game-package-smoke.ts apps/desktop/release/win-unpacked/resources/game-link
       - name: Verify packaged offline speech enhancement
         run: bun tools/noise-package-smoke.ts
       - name: Verify packaged native encoder inventory and real H264 packets

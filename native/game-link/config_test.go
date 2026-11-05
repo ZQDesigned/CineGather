@@ -2,8 +2,15 @@ package main
 
 import (
 	"bytes"
+	"context"
+	"crypto/tls"
+	"crypto/x509"
 	"encoding/json"
 	v1 "github.com/fatedier/frp/pkg/config/v1"
+	"net"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -112,5 +119,35 @@ func TestOldLeaseTimerCannotCloseRenewedAuthorization(t *testing.T) {
 	r.expire(2)
 	if !r.closed || events != 1 {
 		t.Fatal("current authorization did not expire")
+	}
+}
+
+func TestConnectorAdvertisesGameProtocolOverVerifiedTLS(t *testing.T) {
+	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
+	advertised := make(chan []string, 1)
+	server.TLS = &tls.Config{GetConfigForClient: func(hello *tls.ClientHelloInfo) (*tls.Config, error) {
+		advertised <- append([]string(nil), hello.SupportedProtos...)
+		return nil, nil
+	}}
+	server.StartTLS()
+	defer server.Close()
+	host, port, _ := net.SplitHostPort(server.Listener.Addr().String())
+	number, _ := strconv.Atoi(port)
+	common, _, _, _ := buildConfig(fixture(), false, "")
+	common.ServerAddr, common.ServerPort = host, number
+	common.Transport.TLS.ServerName = "example.com"
+	roots := x509.NewCertPool()
+	roots.AddCert(server.Certificate())
+	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
+	defer cancel()
+	connector := Connector{ctx: ctx, cfg: common, roots: roots, emit: func(any) {}}
+	conn, err := connector.Connect()
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer conn.Close()
+	protocols := <-advertised
+	if len(protocols) != 1 || protocols[0] != "cinegather-game" {
+		t.Fatalf("missing game routing protocol: %v", protocols)
 	}
 }
