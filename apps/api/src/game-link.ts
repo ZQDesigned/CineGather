@@ -7,6 +7,7 @@ import {
   gameJoinRequests,
   gameInvites,
   users,
+  credentials,
   type Transaction,
 } from "@cinegather/database";
 import {
@@ -17,8 +18,10 @@ import {
   gameSnapshotSchema,
   type GameSnapshot,
   type User,
+  type GameKind,
 } from "@cinegather/contracts";
-import { audit, db } from "./context";
+import { audit } from "./context";
+import { presenceLifetimeMs } from "./presence";
 import { fail, uuid } from "./errors";
 import { areAcceptedFriends } from "./friend-access";
 import { sessionCredential } from "./session-context";
@@ -29,8 +32,26 @@ import {
   gameTransaction,
   requireGameAccount,
   requireGameDesktop,
+  requireGamePlatform,
   requireGameMember,
 } from "./game-link-access";
+
+function supportsGame(user: User, game: GameKind) {
+  try {
+    requireGameDesktop(user, game);
+    return true;
+  } catch (error) {
+    const body = error instanceof HttpException ? error.getResponse() : null;
+    if (
+      body &&
+      typeof body === "object" &&
+      "code" in body &&
+      body.code === "FEATURE_UPDATE_REQUIRED"
+    )
+      return false;
+    throw error;
+  }
+}
 
 async function snapshotInTx(
   tx: Transaction,
@@ -40,17 +61,19 @@ async function snapshotInTx(
     .select()
     .from(gameMembers)
     .where(and(eq(gameMembers.userId, user.id), eq(gameMembers.active, true)));
-  const [session] = active
+  let [session] = active
     ? await tx
         .select()
         .from(gameSessions)
         .where(eq(gameSessions.id, active.sessionId))
     : [];
+  if (session && !supportsGame(user, session.game)) session = undefined;
   const invitations = await tx
     .select({
       id: gameInvites.id,
       sessionId: gameInvites.sessionId,
       sessionName: gameSessions.name,
+      game: gameSessions.game,
       hostName: users.displayName,
       expiresAt: gameInvites.expiresAt,
     })
@@ -73,6 +96,7 @@ async function snapshotInTx(
       id: gameJoinRequests.id,
       sessionId: gameJoinRequests.sessionId,
       sessionName: gameSessions.name,
+      game: gameSessions.game,
       userId: gameJoinRequests.userId,
       displayName: users.displayName,
       status: gameJoinRequests.status,
@@ -136,7 +160,7 @@ async function snapshotInTx(
         }
       : null,
     self:
-      active && active.credentialId === sessionCredential(user)
+      session && active && active.credentialId === sessionCredential(user)
         ? {
             memberId: active.id,
             revision: active.revision,
@@ -145,43 +169,26 @@ async function snapshotInTx(
           }
         : null,
     members,
-    requests: requests.map((r) => ({
-      ...r,
-      expiresAt: r.expiresAt.toISOString(),
-    })),
-    invitations: invitations.map((r) => ({
-      ...r,
-      expiresAt: r.expiresAt.toISOString(),
-    })),
+    requests: requests
+      .filter((r) => supportsGame(user, r.game))
+      .map(({ game, ...r }) => ({
+        ...r,
+        ...(game === "stardew-valley" ? { game } : {}),
+        expiresAt: r.expiresAt.toISOString(),
+      })),
+    invitations: invitations
+      .filter((r) => supportsGame(user, r.game))
+      .map(({ game, ...r }) => ({
+        ...r,
+        ...(game === "stardew-valley" ? { game } : {}),
+        expiresAt: r.expiresAt.toISOString(),
+      })),
   });
 }
 export const gameSnapshot = (user: User, cleanup = false) => {
-  if (!cleanup) {
-    try {
-      requireGameDesktop(user);
-    } catch (error) {
-      const body = error instanceof HttpException ? error.getResponse() : null;
-      if (
-        !body ||
-        typeof body !== "object" ||
-        !("code" in body) ||
-        body.code !== "FEATURE_UPDATE_REQUIRED"
-      )
-        throw error;
-      // Desktop discovery also polls on the home page. Unsupported clients
-      // learn no game state; only an explicit game action asks them to update.
-      return db.transaction(async (tx) => {
-        await requireGameAccount(tx, user);
-        return gameSnapshotSchema.parse({
-          session: null,
-          self: null,
-          members: [],
-          requests: [],
-          invitations: [],
-        });
-      });
-    }
-  }
+  if (!cleanup) requireGamePlatform(user);
+  // Unsupported sessions and invitations are filtered in snapshotInTx. Polling
+  // is quiet; only an explicit operation asks for a feature-specific update.
   return gameTransaction(async (tx) => {
     await requireGameAccount(tx, user);
     return snapshotInTx(tx, user);
@@ -190,9 +197,9 @@ export const gameSnapshot = (user: User, cleanup = false) => {
 
 export async function createGameSession(
   user: User,
-  input: { game: "minecraft-java"; name: string; gameVersion?: string },
+  input: { game: GameKind; name: string; gameVersion?: string },
 ) {
-  requireGameDesktop(user);
+  requireGameDesktop(user, input.game);
   await gameTransaction(async (tx) => {
     const actor = await requireGameAccount(tx, user);
     if (!actor.gameHostEnabled)
@@ -284,6 +291,7 @@ export async function lookupGameSession(user: User, code: string) {
       .where(and(eq(gameSessions.code, code), eq(gameSessions.status, "open")));
     if (!session)
       fail(404, "GAME_NOT_FOUND", "未找到可加入的游戏联机，请检查联机码");
+    requireGameDesktop(user, session.game);
     const [host] = await tx
       .select()
       .from(users)
@@ -300,6 +308,7 @@ export async function lookupGameSession(user: User, code: string) {
     return {
       id: session.id,
       name: session.name,
+      ...(session.game === "stardew-valley" ? { game: session.game } : {}),
       hostName: host!.displayName,
       maxMembers: GAME_MAX_MEMBERS as 8,
       memberCount: members.length,
@@ -320,82 +329,136 @@ async function joinable(tx: Transaction, id: string) {
 }
 export async function requestGameJoin(user: User, id: string) {
   requireGameDesktop(user);
+  return gameTransaction((tx) => requestGameInTx(tx, user, id));
+}
+async function requestGameInTx(tx: Transaction, user: User, id: string) {
+  const actor = await requireGameAccount(tx, user),
+    session = await joinable(tx, id);
+  requireGameDesktop(user, session.game);
+  const [active] = await tx
+    .select()
+    .from(gameMembers)
+    .where(and(eq(gameMembers.userId, user.id), eq(gameMembers.active, true)));
+  if (active) fail(409, "GAME_ALREADY_ACTIVE", "请先退出当前游戏联机");
+  const members = await tx
+    .select()
+    .from(gameMembers)
+    .where(
+      and(eq(gameMembers.sessionId, session.id), eq(gameMembers.active, true)),
+    );
+  if (members.length >= GAME_MAX_MEMBERS)
+    fail(409, "GAME_FULL", "游戏联机人数已满，无法申请加入");
+  const [existing] = await tx
+    .select()
+    .from(gameJoinRequests)
+    .where(
+      and(
+        eq(gameJoinRequests.sessionId, session.id),
+        eq(gameJoinRequests.userId, user.id),
+        eq(gameJoinRequests.status, "pending"),
+      ),
+    );
+  if (existing) {
+    if (existing.credentialId !== actor.credentialId)
+      fail(
+        409,
+        "GAME_REQUEST_OTHER_DEVICE",
+        "此账号已在另一台设备提交申请，请先在原设备取消后重试",
+      );
+    return { id: existing.id, expiresAt: existing.expiresAt.toISOString() };
+  }
+  const pending = await tx
+    .select({ id: gameJoinRequests.id })
+    .from(gameJoinRequests)
+    .where(
+      and(
+        eq(gameJoinRequests.sessionId, session.id),
+        eq(gameJoinRequests.status, "pending"),
+      ),
+    )
+    .limit(100);
+  if (pending.length >= 100)
+    fail(429, "GAME_REQUESTS_BUSY", "当前申请较多，请稍后再试");
+  const recent = await tx
+    .select({ id: gameJoinRequests.id })
+    .from(gameJoinRequests)
+    .where(
+      and(
+        eq(gameJoinRequests.userId, user.id),
+        gt(gameJoinRequests.createdAt, new Date(Date.now() - 60000)),
+      ),
+    )
+    .limit(20);
+  if (recent.length >= 20)
+    fail(429, "GAME_REQUEST_LIMIT", "申请过于频繁，请稍后再试");
+  const request = {
+    id: randomUUID(),
+    sessionId: session.id,
+    userId: user.id,
+    credentialId: actor.credentialId,
+    expiresAt: new Date(Date.now() + GAME_REQUEST_MS),
+  };
+  await tx.insert(gameJoinRequests).values(request);
+  await audit(tx, user.id, "game.join_requested", session.id);
+  return { id: request.id, expiresAt: request.expiresAt.toISOString() };
+}
+export async function requestFriendGame(user: User, targetId: string) {
+  targetId = uuid(targetId);
+  requireGameDesktop(user);
   return gameTransaction(async (tx) => {
-    const actor = await requireGameAccount(tx, user),
-      session = await joinable(tx, id);
-    const [active] = await tx
-      .select()
-      .from(gameMembers)
-      .where(
-        and(eq(gameMembers.userId, user.id), eq(gameMembers.active, true)),
-      );
-    if (active) fail(409, "GAME_ALREADY_ACTIVE", "请先退出当前游戏联机");
-    const members = await tx
-      .select()
-      .from(gameMembers)
+    await requireGameAccount(tx, user);
+    if (!(await areAcceptedFriends(tx, user.id, targetId)))
+      fail(404, "FRIEND_NOT_IN_GAME", "好友当前没有可加入的游戏联机");
+    const [target] = await tx
+      .select({ id: users.id })
+      .from(users)
       .where(
         and(
-          eq(gameMembers.sessionId, session.id),
-          eq(gameMembers.active, true),
-        ),
-      );
-    if (members.length >= GAME_MAX_MEMBERS)
-      fail(409, "GAME_FULL", "游戏联机人数已满，无法申请加入");
-    const [existing] = await tx
-      .select()
-      .from(gameJoinRequests)
-      .where(
-        and(
-          eq(gameJoinRequests.sessionId, session.id),
-          eq(gameJoinRequests.userId, user.id),
-          eq(gameJoinRequests.status, "pending"),
-        ),
-      );
-    if (existing) {
-      if (existing.credentialId !== actor.credentialId)
-        fail(
-          409,
-          "GAME_REQUEST_OTHER_DEVICE",
-          "此账号已在另一台设备提交申请，请先在原设备取消后重试",
-        );
-      return { id: existing.id, expiresAt: existing.expiresAt.toISOString() };
-    }
-    const pending = await tx
-      .select({ id: gameJoinRequests.id })
-      .from(gameJoinRequests)
-      .where(
-        and(
-          eq(gameJoinRequests.sessionId, session.id),
-          eq(gameJoinRequests.status, "pending"),
+          eq(users.id, targetId),
+          eq(users.presenceVisibility, "online"),
+          isNull(users.disabledAt),
         ),
       )
-      .limit(100);
-    if (pending.length >= 100)
-      fail(429, "GAME_REQUESTS_BUSY", "当前申请较多，请稍后再试");
-    const recent = await tx
-      .select({ id: gameJoinRequests.id })
-      .from(gameJoinRequests)
-      .where(
-        and(
-          eq(gameJoinRequests.userId, user.id),
-          gt(gameJoinRequests.createdAt, new Date(Date.now() - 60000)),
-        ),
-      )
-      .limit(20);
-    if (recent.length >= 20)
-      fail(429, "GAME_REQUEST_LIMIT", "申请过于频繁，请稍后再试");
-    const request = {
-      id: randomUUID(),
-      sessionId: session.id,
-      userId: user.id,
-      credentialId: actor.credentialId,
-      expiresAt: new Date(Date.now() + GAME_REQUEST_MS),
-    };
-    await tx.insert(gameJoinRequests).values(request);
-    await audit(tx, user.id, "game.join_requested", session.id);
-    return { id: request.id, expiresAt: request.expiresAt.toISOString() };
+      .for("share");
+    const [present] = target
+      ? await tx
+          .select({ id: credentials.id })
+          .from(credentials)
+          .where(
+            and(
+              eq(credentials.userId, targetId),
+              eq(credentials.kind, "account"),
+              isNull(credentials.revokedAt),
+              gt(credentials.expiresAt, new Date()),
+              gt(
+                credentials.presenceAt,
+                new Date(Date.now() - presenceLifetimeMs),
+              ),
+            ),
+          )
+          .limit(1)
+      : [];
+    const [location] = present
+      ? await tx
+          .select({ sessionId: gameMembers.sessionId })
+          .from(gameMembers)
+          .innerJoin(gameSessions, eq(gameMembers.sessionId, gameSessions.id))
+          .where(
+            and(
+              eq(gameMembers.userId, targetId),
+              eq(gameMembers.active, true),
+              gt(gameMembers.reservedUntil, new Date()),
+              eq(gameSessions.status, "open"),
+            ),
+          )
+          .limit(1)
+      : [];
+    if (!location)
+      fail(404, "FRIEND_NOT_IN_GAME", "好友当前没有可加入的游戏联机");
+    return requestGameInTx(tx, user, location.sessionId);
   });
 }
+
 async function admit(
   tx: Transaction,
   sessionId: string,
@@ -556,6 +619,7 @@ export async function acceptGameInvite(user: User, inviteId: string) {
     if (invite.revokedAt || invite.expiresAt.getTime() <= Date.now())
       fail(409, "GAME_INVITE_EXPIRED", "此联机邀请已失效");
     const session = await joinable(tx, invite.sessionId);
+    requireGameDesktop(user, session.game);
     if (!(await areAcceptedFriends(tx, session.hostUserId, user.id)))
       fail(403, "GAME_FRIEND_REQUIRED", "好友关系已变化，请通过联机码重新申请");
     if (invite.consumedAt) {
@@ -627,7 +691,7 @@ export async function leaveGameSession(user: User, id: string, end = false) {
       .from(gameSessions)
       .where(eq(gameSessions.id, uuid(id)));
     if (!session || session.status === "ended") return;
-    const { member } = await requireGameMember(tx, user, id, end);
+    const { member } = await requireGameMember(tx, user, id, end, false);
     if (member.role === "host")
       await endGameInTx(tx, session.id, "host_ended", user.id);
     else {

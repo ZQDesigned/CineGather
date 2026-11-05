@@ -4,6 +4,7 @@ import {
   type GameTunnelConfig,
   type GameWorld,
   type GameLocalStatus,
+  type GameKind,
 } from "@cinegather/contracts";
 export interface GameLinkState {
   snapshot: GameSnapshot;
@@ -14,7 +15,7 @@ export interface GameLinkState {
 export interface GameLinkAPI {
   snapshot(): Promise<GameSnapshot>;
   create(input: {
-    game: "minecraft-java";
+    game: GameKind;
     name: string;
     gameVersion?: string;
   }): Promise<GameSnapshot>;
@@ -24,7 +25,7 @@ export interface GameLinkAPI {
   leave(id: string): Promise<GameSnapshot>;
 }
 export interface GameLinkLocal {
-  probe(port: number): Promise<GameWorld>;
+  probe(port: number, game?: GameKind): Promise<GameWorld>;
   configure(
     input: GameTunnelConfig,
     worldPort?: number,
@@ -210,15 +211,15 @@ export class GameLinkCoordinator {
     void pending.then(clear, clear);
     return pending;
   }
-  create(name: string, port: number) {
+  create(name: string, port: number, game: GameKind = "minecraft-java") {
     return this.serialize(async (epoch) => {
-      const world = await this.options.local?.probe(port);
+      const world = await this.options.local?.probe(port, game);
       if (!world) throw Error("请使用映聚桌面客户端发起联机");
       if (!this.current(epoch)) return;
       const snapshot = await this.options.api.create({
-        game: "minecraft-java",
+        game,
         name,
-        gameVersion: world.version,
+        ...(world.version ? { gameVersion: world.version } : {}),
       });
       if (!this.current(epoch)) return;
       this.hostPort = port;
@@ -228,7 +229,7 @@ export class GameLinkCoordinator {
   }
   resumeHost(port: number) {
     return this.serialize(async (epoch) => {
-      await this.options.local?.probe(port);
+      await this.options.local?.probe(port, this.state.snapshot.session?.game);
       if (!this.current(epoch)) return;
       await this.options.local?.stop();
       if (!this.current(epoch)) return;

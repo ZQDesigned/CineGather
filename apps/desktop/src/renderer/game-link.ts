@@ -37,7 +37,7 @@ export const gameLink = new GameLinkCoordinator({
   ...(window.desktop?.gameLink
     ? {
         local: {
-          probe: (port: number) => window.desktop!.gameLink!.probe(port),
+          probe: (port, game) => window.desktop!.gameLink!.probe(port, game),
           configure: (
             transport: import("@cinegather/contracts").GameTunnelConfig,
             worldPort?: number,

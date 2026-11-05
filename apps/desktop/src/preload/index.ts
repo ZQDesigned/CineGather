@@ -8,9 +8,9 @@ const bridge: DesktopBridge = {
   ...(["win32", "darwin"].includes(process.platform)
     ? {
         gameLink: {
-          discover: () => ipcRenderer.invoke("desktop:game-discover"),
-          probe: (port: number) =>
-            ipcRenderer.invoke("desktop:game-probe", port),
+          discover: (game) => ipcRenderer.invoke("desktop:game-discover", game),
+          probe: (port, game) =>
+            ipcRenderer.invoke("desktop:game-probe", { port, game }),
           configure: (
             input: Parameters<
               NonNullable<DesktopBridge["gameLink"]>["configure"]

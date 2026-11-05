@@ -1,3 +1,4 @@
+import { gameTitles } from "@cinegather/contracts";
 import {
   useRetainedDialog,
   type RetainedDialogProps,
@@ -244,7 +245,7 @@ export function AdminGameLinks({
       width: 150,
       render: (_, r) => (
         <>
-          Minecraft Java 版
+          {gameTitles[r.game]}
           {r.gameVersion && <div className="admin-muted">{r.gameVersion}</div>}
         </>
       ),

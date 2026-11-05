@@ -183,6 +183,13 @@
       "when": 1793898538728,
       "tag": "0025_game_administration",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1793984938728,
+      "tag": "0026_stardew_game_kind",
+      "breakpoints": true
     }
   ]
 }

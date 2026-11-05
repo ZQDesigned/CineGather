@@ -3,7 +3,7 @@ import { friendships, users, credentials } from "@cinegather/database";
 import { and, eq, ne, isNull, isNotNull, or, sql } from "drizzle-orm";
 import { db, audit } from "./context";
 import { fail, uuid } from "./errors";
-import type { User } from "@cinegather/contracts";
+import type { User, FriendGamePresence } from "@cinegather/contracts";
 import { presenceLifetimeMs } from "./presence";
 import { listRoomInvitations } from "./friend-room-invitations";
 import { listRoomJoinRequests } from "./friend-room-requests";
@@ -119,6 +119,18 @@ export async function listFriends(user: User) {
       pinned: sql<boolean>`${pinnedAt} IS NOT NULL`,
       volume: sql<number>`CASE WHEN ${friendships.requesterId} = ${user.id} THEN ${friendships.requesterVolume} ELSE ${friendships.recipientVolume} END`,
       online,
+      game: sql<FriendGamePresence | null>`CASE WHEN ${online} THEN (
+        SELECT json_build_object(
+          'game', session.game,
+          'memberCount', (SELECT count(*)::int FROM game_members AS gm WHERE gm.session_id=session.id AND gm.active=true AND gm.reserved_until>NOW()),
+          'maxMembers', 8,
+          'joinable', session.status='open' AND (SELECT count(*) FROM game_members AS gm WHERE gm.session_id=session.id AND gm.active=true AND gm.reserved_until>NOW())<8,
+          'requestPending', EXISTS(SELECT 1 FROM game_join_requests AS gr WHERE gr.session_id=session.id AND gr.user_id=${user.id} AND gr.status='pending' AND gr.expires_at>NOW()),
+          'joined', EXISTS(SELECT 1 FROM game_members AS mine WHERE mine.session_id=session.id AND mine.user_id=${user.id} AND mine.active=true AND mine.reserved_until>NOW()))
+        FROM game_members AS location JOIN game_sessions AS session ON session.id=location.session_id
+        WHERE location.user_id=${users.id} AND location.active=true AND location.reserved_until>NOW() AND session.status='open'
+        LIMIT 1
+      ) ELSE NULL END`,
       // Admission leases exclude departed users and synthetic media publishers.
       room: sql<{
         memberCount: number;
@@ -163,6 +175,7 @@ export async function listFriends(user: User) {
       incoming: r.recipientId === user.id,
       online: r.online,
       room: r.room,
+      game: r.game,
     })),
   };
 }

@@ -122,6 +122,26 @@ func TestOldLeaseTimerCannotCloseRenewedAuthorization(t *testing.T) {
 	}
 }
 
+func TestGameKindIsValidatedAndFenced(t *testing.T) {
+	c := fixture()
+	c.Game = "stardew-valley"
+	if err := c.Validate(false); err != nil {
+		t.Fatal(err)
+	}
+	fence := Fence{}
+	if err := fence.Accept(c); err != nil {
+		t.Fatal(err)
+	}
+	c.Game = "minecraft-java"
+	if err := fence.Accept(c); err == nil {
+		t.Fatal("game silently changed in an existing authorization")
+	}
+	c.Game = "generic-udp"
+	if err := c.Validate(false); err == nil {
+		t.Fatal("arbitrary game accepted")
+	}
+}
+
 func TestConnectorAdvertisesGameProtocolOverVerifiedTLS(t *testing.T) {
 	server := httptest.NewUnstartedServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {}))
 	advertised := make(chan []string, 1)

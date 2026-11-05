@@ -320,6 +320,7 @@ export async function issueGameTransport(
     const host = members.find((m) => m.role === "host");
     if (!host) fail(409, "GAME_NOT_READY", "主机正在恢复连接");
     return gameTunnelConfigSchema.parse({
+      ...(session.game === "stardew-valley" ? { game: session.game } : {}),
       sessionId: session.id,
       memberId: member.id,
       revision: member.revision,

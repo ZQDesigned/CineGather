@@ -4,7 +4,10 @@ import {
   gameTunnelConfigSchema,
   type GameTunnelConfig,
   type GameLocalStatus,
+  type GameKind,
 } from "@cinegather/contracts";
+import { GameDatagram, type GameDatagramEvent } from "./game-datagram";
+import { probeStardewWorld, discoverStardewWorlds } from "./stardew-worlds";
 import {
   GameNative,
   type GameNativeEvent,
@@ -40,6 +43,8 @@ export class GameLocal {
   private queue = Promise.resolve();
   private config?: GameTunnelConfig;
   private proxy?: GameProxy;
+  private datagram?: GameDatagram;
+  private visitorGateway?: string;
   private native?: GameNative;
   private hostPort?: number;
   private visitorPort?: number;
@@ -54,13 +59,14 @@ export class GameLocal {
       binaryPath: string;
       development?: boolean;
       caFile?: string;
-      event?(event: GameNativeEvent | GameProxyEvent): void;
+      event?(event: GameNativeEvent | GameProxyEvent | GameDatagramEvent): void;
       connection?(event: GameConnectionObservation): void;
     },
   ) {}
   diagnosticContext() {
     return {
       state: this.status.state,
+      game: this.config?.game ?? "minecraft-java",
       ...(this.config
         ? {
             role: this.config.role,
@@ -76,14 +82,18 @@ export class GameLocal {
         : {}),
     };
   }
-  discover() {
+  discover(game: GameKind = "minecraft-java") {
     this.discovery?.abort();
     const controller = new AbortController();
     this.discovery = controller;
-    return discoverMinecraftWorlds({ signal: controller.signal });
+    return game === "stardew-valley"
+      ? discoverStardewWorlds()
+      : discoverMinecraftWorlds({ signal: controller.signal });
   }
-  probe(port: number) {
-    return probeMinecraftWorld(port);
+  probe(port: number, game: GameKind = "minecraft-java") {
+    return game === "stardew-valley"
+      ? probeStardewWorld(port)
+      : probeMinecraftWorld(port);
   }
   private valid(epoch: number) {
     if (epoch !== this.epoch) throw Error("游戏联机操作已取消");
@@ -115,12 +125,17 @@ export class GameLocal {
       this.config &&
       (this.config.memberId !== config.memberId ||
         this.config.revision !== config.revision ||
-        this.config.sessionId !== config.sessionId)
+        this.config.sessionId !== config.sessionId ||
+        (this.config.game ?? "minecraft-java") !==
+          (config.game ?? "minecraft-java"))
     )
       throw Error("请先关闭旧的联机连接");
     const ttl = Math.min(30000, Date.parse(config.expiresAt) - Date.now());
     if (ttl <= 0) throw Error("游戏联机授权已过期");
     if (!this.proxy) {
+      this.datagram = new GameDatagram({
+        event: (event) => this.options.event?.(event),
+      });
       this.proxy = new GameProxy({
         event: (event) => {
           this.options.event?.(event);
@@ -170,7 +185,7 @@ export class GameLocal {
     if (config.role === "host") {
       if (!this.hostPort) {
         if (!worldPort) throw Error("请先选择本机世界");
-        await probeMinecraftWorld(worldPort, { signal });
+        await this.probe(worldPort, config.game);
         this.valid(epoch);
         this.hostPort = worldPort;
       }
@@ -180,6 +195,7 @@ export class GameLocal {
       for (const id of this.bindings.keys())
         if (!expected.has(id)) {
           await this.proxy.revoke(id);
+          await this.datagram?.revoke(id);
           this.bindings.delete(id);
           this.valid(epoch);
         }
@@ -188,6 +204,7 @@ export class GameLocal {
         if (peerTTL <= 0) {
           if (this.bindings.has(peer.memberId))
             await this.proxy.revoke(peer.memberId);
+          await this.datagram?.revoke(peer.memberId);
           this.bindings.delete(peer.memberId);
           continue;
         }
@@ -202,12 +219,23 @@ export class GameLocal {
           this.peerRevisions.get(peer.memberId) !== peer.revision
         ) {
           await this.proxy.revoke(peer.memberId);
+          await this.datagram?.revoke(peer.memberId);
           this.bindings.delete(peer.memberId);
         }
         if (this.bindings.has(peer.memberId)) {
           if (!this.proxy.renew(peer.memberId, peer.revision, peerTTL))
             throw Error("好友的联机授权已过期，请让对方重新加入");
+          if (
+            config.game === "stardew-valley" &&
+            !this.datagram?.renew(peer.memberId, peer.revision, peerTTL)
+          )
+            throw Error("好友的游戏授权已过期");
           continue;
+        }
+        if (config.game === "stardew-valley") {
+          const address = await this.datagram!.createHost(grant, this.hostPort);
+          this.valid(epoch);
+          target.port = port(address);
         }
         const p2p = await this.proxy.createHostGateway({
           grant,
@@ -253,19 +281,39 @@ export class GameLocal {
           target: { host: "127.0.0.1", port: this.visitorPort },
         });
         this.valid(epoch);
-        this.address = visitor.address;
+        this.visitorGateway = visitor.address;
+        this.address =
+          config.game === "stardew-valley"
+            ? await this.datagram!.createVisitor(
+                {
+                  id: config.memberId,
+                  revision: config.revision,
+                  ttlMs: visitorTTL,
+                },
+                visitor.address,
+              )
+            : visitor.address;
+        this.valid(epoch);
       } else if (
         !this.proxy.renew(config.memberId, config.revision, visitorTTL)
+      )
+        throw Error("游戏联机授权已过期，请重新连接");
+      if (
+        config.game === "stardew-valley" &&
+        !this.datagram!.renew(config.memberId, config.revision, visitorTTL)
       )
         throw Error("游戏联机授权已过期，请重新连接");
       if (this.status.state !== "connected") {
         let reachable = false;
         for (let attempt = 0; attempt < 3 && !reachable; attempt++) {
           try {
-            await probeMinecraftWorld(port(this.address), {
-              signal,
-              timeoutMs: 2500,
-            });
+            if (config.game === "stardew-valley")
+              await this.datagram!.probe(this.visitorGateway!);
+            else
+              await probeMinecraftWorld(port(this.address), {
+                signal,
+                timeoutMs: 2500,
+              });
             reachable = true;
           } catch {
             this.valid(epoch);
@@ -294,16 +342,19 @@ export class GameLocal {
     this.discovery?.abort();
     this.work?.abort();
     const proxy = this.proxy,
-      native = this.native;
+      native = this.native,
+      datagram = this.datagram;
     this.config = undefined;
     this.proxy = undefined;
     this.native = undefined;
+    this.datagram = undefined;
+    this.visitorGateway = undefined;
     this.hostPort = undefined;
     this.visitorPort = undefined;
     this.address = undefined;
     this.bindings = new Map();
     this.peerRevisions = new Map();
     this.status = { state: "idle" };
-    await Promise.all([proxy?.close(), native?.close()]);
+    await Promise.all([proxy?.close(), native?.close(), datagram?.close()]);
   }
 }

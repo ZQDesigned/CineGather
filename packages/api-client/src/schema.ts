@@ -788,6 +788,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/friends/{userId}/game-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["requestFriendGame"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/friends/{userId}/room-requests": {
         parameters: {
             query?: never;
@@ -1788,7 +1804,7 @@ export interface components {
             /** @enum {string} */
             scope: "feature";
             /** @enum {string} */
-            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java";
+            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java" | "game.stardew-valley";
             protocol: number;
             /** Format: uuid */
             roomId?: string;
@@ -2617,7 +2633,7 @@ export interface operations {
                         revision: number;
                         rules: {
                             /** @enum {string} */
-                            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java";
+                            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java" | "game.stardew-valley";
                             platforms?: ("win32" | "darwin" | "web" | "android" | "ios")[];
                             protocol: number;
                             appliesFromProtocol?: number;
@@ -9524,6 +9540,136 @@ export interface operations {
             };
         };
     };
+    requestFriendGame: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                userId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        /** Format: date-time */
+                        expiresAt: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
     requestFriendRoom: {
         parameters: {
             query?: never;
@@ -9986,6 +10132,19 @@ export interface operations {
                             room: {
                                 memberCount: number;
                                 maxMembers: number;
+                            } | null;
+                            /** @default null */
+                            game: {
+                                /** @enum {string} */
+                                game: "minecraft-java" | "stardew-valley";
+                                memberCount: number;
+                                /** @enum {number} */
+                                maxMembers: 8;
+                                joinable: boolean;
+                                /** @default false */
+                                requestPending: boolean;
+                                /** @default false */
+                                joined: boolean;
                             } | null;
                         }[];
                     };
@@ -10816,7 +10975,7 @@ export interface operations {
                             code: string;
                             name: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             hostUserId: string;
                             hostName: string;
@@ -10852,6 +11011,8 @@ export interface operations {
                             route: "p2p" | "relay" | null;
                         }[];
                         requests: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -10866,6 +11027,8 @@ export interface operations {
                             expiresAt: string;
                         }[];
                         invitations: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -10998,7 +11161,7 @@ export interface operations {
                      * @default minecraft-java
                      * @enum {string}
                      */
-                    game?: "minecraft-java";
+                    game?: "minecraft-java" | "stardew-valley";
                     name: string;
                     gameVersion?: string;
                 };
@@ -11017,7 +11180,7 @@ export interface operations {
                             code: string;
                             name: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             hostUserId: string;
                             hostName: string;
@@ -11053,6 +11216,8 @@ export interface operations {
                             route: "p2p" | "relay" | null;
                         }[];
                         requests: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -11067,6 +11232,8 @@ export interface operations {
                             expiresAt: string;
                         }[];
                         invitations: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -11214,6 +11381,11 @@ export interface operations {
                         maxMembers: 8;
                         memberCount: number;
                         gameVersion: string | null;
+                        /**
+                         * @default minecraft-java
+                         * @enum {string}
+                         */
+                        game: "minecraft-java" | "stardew-valley";
                     };
                 };
             };
@@ -11346,7 +11518,7 @@ export interface operations {
                             code: string;
                             name: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             hostUserId: string;
                             hostName: string;
@@ -11382,6 +11554,8 @@ export interface operations {
                             route: "p2p" | "relay" | null;
                         }[];
                         requests: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -11396,6 +11570,8 @@ export interface operations {
                             expiresAt: string;
                         }[];
                         invitations: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -11929,7 +12105,7 @@ export interface operations {
                             code: string;
                             name: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             hostUserId: string;
                             hostName: string;
@@ -11965,6 +12141,8 @@ export interface operations {
                             route: "p2p" | "relay" | null;
                         }[];
                         requests: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -11979,6 +12157,8 @@ export interface operations {
                             expiresAt: string;
                         }[];
                         invitations: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -12257,7 +12437,7 @@ export interface operations {
                             code: string;
                             name: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             hostUserId: string;
                             hostName: string;
@@ -12293,6 +12473,8 @@ export interface operations {
                             route: "p2p" | "relay" | null;
                         }[];
                         requests: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -12307,6 +12489,8 @@ export interface operations {
                             expiresAt: string;
                         }[];
                         invitations: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -12454,7 +12638,7 @@ export interface operations {
                             code: string;
                             name: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             hostUserId: string;
                             hostName: string;
@@ -12490,6 +12674,8 @@ export interface operations {
                             route: "p2p" | "relay" | null;
                         }[];
                         requests: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -12504,6 +12690,8 @@ export interface operations {
                             expiresAt: string;
                         }[];
                         invitations: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -12645,7 +12833,7 @@ export interface operations {
                             code: string;
                             name: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             hostUserId: string;
                             hostName: string;
@@ -12681,6 +12869,8 @@ export interface operations {
                             route: "p2p" | "relay" | null;
                         }[];
                         requests: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -12695,6 +12885,8 @@ export interface operations {
                             expiresAt: string;
                         }[];
                         invitations: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -12836,7 +13028,7 @@ export interface operations {
                             code: string;
                             name: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             hostUserId: string;
                             hostName: string;
@@ -12872,6 +13064,8 @@ export interface operations {
                             route: "p2p" | "relay" | null;
                         }[];
                         requests: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -12886,6 +13080,8 @@ export interface operations {
                             expiresAt: string;
                         }[];
                         invitations: {
+                            /** @enum {string} */
+                            game?: "minecraft-java" | "stardew-valley";
                             /** Format: uuid */
                             id: string;
                             /** Format: uuid */
@@ -13287,6 +13483,8 @@ export interface operations {
                 };
                 content: {
                     "application/json": {
+                        /** @enum {string} */
+                        game?: "minecraft-java" | "stardew-valley";
                         /** Format: uuid */
                         sessionId: string;
                         /** Format: uuid */
@@ -14926,7 +15124,7 @@ export interface operations {
                             name: string;
                             code: string;
                             /** @enum {string} */
-                            game: "minecraft-java";
+                            game: "minecraft-java" | "stardew-valley";
                             gameVersion: string | null;
                             /** Format: uuid */
                             hostUserId: string;

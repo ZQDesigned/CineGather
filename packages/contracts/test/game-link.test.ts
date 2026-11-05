@@ -8,7 +8,51 @@ import {
   gameSessionInput,
   gameSnapshotSchema,
   currentFeatureProtocols,
+  gameWorldSchema,
+  gameLookupSchema,
 } from "../src";
+
+test("Stardew is one game for vanilla and SMAPI with its own compatibility gate", () => {
+  expect(
+    gameSessionInput.parse({ name: "农场", game: "stardew-valley" }).game,
+  ).toBe("stardew-valley");
+  expect(currentFeatureProtocols["game.stardew-valley"]).toEqual([1]);
+  expect(
+    gameWorldSchema.parse({
+      game: "stardew-valley",
+      port: 24642,
+      name: "本机农场",
+      version: "",
+      transport: "tcp-udp",
+    }),
+  ).toEqual({
+    game: "stardew-valley",
+    port: 24642,
+    name: "本机农场",
+    version: "",
+    transport: "tcp-udp",
+  });
+  expect(
+    gameWorldSchema.safeParse({
+      game: "stardew-valley",
+      port: 24642,
+      name: "农场",
+      version: "",
+      protocol: 1,
+    }).success,
+  ).toBe(false);
+  expect(
+    gameLookupSchema.safeParse({
+      id: crypto.randomUUID(),
+      name: "农场",
+      hostName: "好友",
+      maxMembers: 8,
+      memberCount: 2,
+      gameVersion: null,
+      game: "stardew-valley",
+    }).success,
+  ).toBe(true);
+});
 
 test("Minecraft addresses are loopback-only and cannot reveal or redirect to a remote endpoint", () => {
   expect(gameLocalAddressSchema.parse("127.0.0.1:25565")).toBe(

@@ -7,6 +7,7 @@ export * from "./esports";
 import { accountRoleSchema, adminPermissionSchema } from "./permissions";
 import { z } from "zod";
 import { esportsSeatSchema } from "./esports";
+import { gameKindSchema } from "./game-link";
 
 export const usernameInput = z
   .string()
@@ -241,6 +242,15 @@ export const friendRoomPresenceSchema = z.object({
   maxMembers: z.number().int().min(2).max(52),
 });
 export type FriendRoomPresence = z.infer<typeof friendRoomPresenceSchema>;
+export const friendGamePresenceSchema = z.object({
+  game: gameKindSchema,
+  memberCount: z.number().int().min(1).max(8),
+  maxMembers: z.literal(8),
+  joinable: z.boolean(),
+  requestPending: z.boolean().default(false),
+  joined: z.boolean().default(false),
+});
+export type FriendGamePresence = z.infer<typeof friendGamePresenceSchema>;
 export const friendsSchema = z.object({
   roomInvitations: z.array(roomInvitationSchema).default([]),
   roomJoinRequests: z.array(roomJoinRequestSchema).default([]),
@@ -255,6 +265,7 @@ export const friendsSchema = z.object({
       incoming: z.boolean(),
       online: z.boolean().default(false),
       room: friendRoomPresenceSchema.nullable().default(null),
+      game: friendGamePresenceSchema.nullable().default(null),
     }),
   ),
 });

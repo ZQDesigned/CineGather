@@ -46,3 +46,32 @@ test("game diagnostics preserve useful phases and traffic counts while excluding
     }).bytesSent,
   ).toBeUndefined();
 });
+test("Stardew datagram diagnostics preserve queue and mapping evidence without payload or endpoint data", () => {
+  const data = projectGameDiagnostic(
+    {
+      type: "datagram",
+      code: "QUEUE_LIMIT",
+      dropped: 1,
+      mappings: 3,
+      queuedBytes: 262000,
+      bytesSent: 9000,
+      packetsSent: 3,
+      packetsReceived: 2,
+      host: "private",
+      payload: "secret",
+    },
+    { game: "stardew-valley" },
+  );
+  expect(data).toMatchObject({
+    event: "datagram",
+    game: "stardew-valley",
+    code: "QUEUE_LIMIT",
+    dropped: 1,
+    mappings: 3,
+    queuedBytes: 262000,
+    bytesSent: 9000,
+    packetsSent: 3,
+    packetsReceived: 2,
+  });
+  expect(JSON.stringify(data)).not.toMatch(/private|secret/);
+});

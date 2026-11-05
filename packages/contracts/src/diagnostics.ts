@@ -589,6 +589,12 @@ export const esportsDiagnosticSchema = z.object({
 });
 export type EsportsDiagnostic = z.infer<typeof esportsDiagnosticSchema>;
 export const gameDiagnosticSchema = z.object({
+  packetsSent: z.number().int().nonnegative().optional(),
+  packetsReceived: z.number().int().nonnegative().optional(),
+  game: z.enum(["minecraft-java", "stardew-valley"]).optional(),
+  mappings: z.number().int().min(0).max(16).optional(),
+  queuedBytes: z.number().int().nonnegative().optional(),
+  dropped: z.number().int().nonnegative().optional(),
   role: z.enum(["host", "guest"]).optional(),
   state: z
     .enum([
@@ -619,6 +625,7 @@ export const gameDiagnosticSchema = z.object({
       "gateway-closed",
       "gateway-failed",
       "gateway-expired",
+      "datagram",
     ])
     .optional(),
   route: z.enum(["p2p", "relay"]).optional(),
@@ -640,6 +647,19 @@ export const gameDiagnosticSchema = z.object({
       "CONNECT_TIMEOUT",
       "CLIENT_CLOSED",
       "TARGET_UNAVAILABLE",
+      "QUEUE_LIMIT",
+      "LEASE_EXPIRED",
+      "INVALID_FRAME",
+      "INVALID_PREAMBLE",
+      "MAPPING_LIMIT",
+      "CHANNEL_CLOSED",
+      "PROBE_FAILED",
+      "PROBE_READY",
+      "TRAFFIC_SAMPLE",
+      "SOCKET_ERROR",
+      "EMSGSIZE",
+      "EADDRINUSE",
+      "ENOBUFS",
     ])
     .optional(),
   bytesSent: z.number().int().nonnegative().optional(),

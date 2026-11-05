@@ -35,6 +35,7 @@ type Binding struct {
 	RelayPort int    `json:"relayPort"`
 }
 type Config struct {
+	Game         string    `json:"game,omitempty"`
 	SessionID    string    `json:"sessionId"`
 	MemberID     string    `json:"memberId"`
 	Revision     int       `json:"revision"`
@@ -68,6 +69,9 @@ func decodeConfig(raw []byte, dst any) error {
 }
 func (c Config) Validate(development bool) error {
 	invalid := errors.New("invalid game configuration")
+	if c.Game != "" && c.Game != "minecraft-java" && c.Game != "stardew-valley" {
+		return invalid
+	}
 	if !uuidPattern.MatchString(c.SessionID) || !uuidPattern.MatchString(c.MemberID) || c.ClientID != c.MemberID || c.Revision < 1 || len(c.ClientSecret) < 32 || len(c.ClientSecret) > 128 || (c.Role != "host" && c.Role != "guest") {
 		return invalid
 	}
@@ -166,6 +170,7 @@ func buildConfig(c Config, development bool, caFile string) (*v1.ClientCommonCon
 }
 
 type Fence struct {
+	Game      string
 	MemberID  string
 	SessionID string
 	Revision  int
@@ -174,10 +179,15 @@ type Fence struct {
 }
 
 func (f *Fence) Accept(c Config) error {
-	if f.MemberID != "" && (f.MemberID != c.MemberID || f.SessionID != c.SessionID || c.Revision < f.Revision || f.Server != c.Server || f.Secret != c.ClientSecret) {
+	game := c.Game
+	if game == "" {
+		game = "minecraft-java"
+	}
+	if f.MemberID != "" && (f.Game != game || f.MemberID != c.MemberID || f.SessionID != c.SessionID || c.Revision < f.Revision || f.Server != c.Server || f.Secret != c.ClientSecret) {
 		return errors.New("stale or changed membership")
 	}
 	f.MemberID = c.MemberID
+	f.Game = game
 	f.SessionID = c.SessionID
 	f.Revision = c.Revision
 	f.Server = c.Server

@@ -20,9 +20,11 @@ import * as actions from "../controller";
 import {
   friendDisplayName,
   friendPresenceLabel,
+  friendGameLabel,
   type Friend,
 } from "../friends";
 import { FriendRoomJoinButton } from "./RoomJoinRequests";
+import { FriendGameJoinButton } from "./FriendGameJoinButton";
 
 const Surface = styled.section`
   flex: 1;
@@ -141,6 +143,9 @@ export function Friends() {
           className="friend"
           key={friend.userId}
           actions={[
+            ...(friend.status === "accepted" && friend.online && friend.game
+              ? [<FriendGameJoinButton key="join-game" friend={friend} />]
+              : []),
             ...(friend.status === "accepted" && friend.online && friend.room
               ? [<FriendRoomJoinButton key="join-room" friend={friend} />]
               : []),
@@ -260,6 +265,11 @@ export function Friends() {
                     color={friend.online ? "#75c99c" : "#8e93a4"}
                     text={<small>{friendPresenceLabel(friend)}</small>}
                   />
+                  {friendGameLabel(friend) && (
+                    <small className="friend-game-status">
+                      {friendGameLabel(friend)}
+                    </small>
+                  )}
                   {friend.remark && (
                     <Typography.Text
                       type="secondary"

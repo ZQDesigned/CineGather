@@ -1,6 +1,10 @@
 import { projectGameDiagnostic } from "../shared/game-diagnostics";
 import { GameLocal } from "./game-local";
-import { gameTunnelConfigSchema, gamePortSchema } from "@cinegather/contracts";
+import {
+  gameTunnelConfigSchema,
+  gamePortSchema,
+  gameKindSchema,
+} from "@cinegather/contracts";
 import {
   allowedViewingWindow,
   setViewingWindowPinned,
@@ -675,13 +679,22 @@ function registerIPC() {
     if (!nativeCapture) throw new Error("当前平台不支持此采集引擎");
     return nativeCapture.switchSource();
   });
-  handle("desktop:game-discover", () => {
+  handle("desktop:game-discover", (input) => {
     if (!gameLocal) throw Error("此平台暂不支持游戏联机");
-    return gameLocal.discover();
+    return gameLocal.discover(gameKindSchema.optional().parse(input));
   });
   handle("desktop:game-probe", (input) => {
     if (!gameLocal) throw Error("此平台暂不支持游戏联机");
-    return gameLocal.probe(gamePortSchema.parse(input));
+    const data = z
+      .union([
+        gamePortSchema.transform((port) => ({ port, game: undefined })),
+        z.strictObject({
+          port: gamePortSchema,
+          game: gameKindSchema.optional(),
+        }),
+      ])
+      .parse(input);
+    return gameLocal.probe(data.port, data.game);
   });
   handle("desktop:game-configure", (input) => {
     if (!gameLocal) throw Error("此平台暂不支持游戏联机");

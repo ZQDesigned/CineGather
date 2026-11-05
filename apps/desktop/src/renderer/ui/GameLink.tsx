@@ -30,7 +30,11 @@ import {
 import { useEffect, useRef, useState } from "react";
 import styled from "@emotion/styled";
 import { unwrap } from "@cinegather/api-client";
-import type { GameWorld } from "@cinegather/contracts";
+import {
+  gameTitles,
+  type GameKind,
+  type GameWorld,
+} from "@cinegather/contracts";
 import { gameLink } from "../game-link";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -188,6 +192,7 @@ export function GameLink() {
       "create" | "join" | "invite" | "resume" | null
     >(null),
     [worlds, setWorlds] = useState<GameWorld[]>([]),
+    [selectedGame, setSelectedGame] = useState<GameKind>("minecraft-java"),
     [scanning, setScanning] = useState(false),
     [manual, setManual] = useState(false),
     [worldPort, setWorldPort] = useState<number>(),
@@ -219,12 +224,12 @@ export function GameLink() {
     dialogEpoch.current++;
     setDialog(null);
   };
-  const scan = async () => {
+  const scan = async (game: GameKind = selectedGame) => {
     if (!bridge) return;
     const epoch = ++dialogEpoch.current;
     setScanning(true);
     try {
-      const result = await bridge.discover();
+      const result = await bridge.discover(game);
       if (epoch !== dialogEpoch.current) return;
       setWorlds(result);
       if (result.length === 1) setWorldPort(result[0]!.port);
@@ -239,11 +244,14 @@ export function GameLink() {
     }
   };
   const chooseWorld = (kind: "create" | "resume") => {
+    const selected =
+      kind === "resume" ? (session?.game ?? "minecraft-java") : selectedGame;
+    setSelectedGame(selected);
     setWorlds([]);
-    setWorldPort(undefined);
+    setWorldPort(selected === "stardew-valley" ? 24642 : undefined);
     setManual(false);
     setDialog(kind);
-    void scan();
+    void scan(selected);
   };
   const copy = async (value: string) => {
     await navigator.clipboard.writeText(value);
@@ -344,7 +352,7 @@ export function GameLink() {
                   <div className="game-panel-heading">
                     <div>
                       <h2>{session.name}</h2>
-                      <Tag>Minecraft Java</Tag>
+                      <Tag>{gameTitles[session.game]}</Tag>
                     </div>
                     <Badge
                       status={
@@ -388,15 +396,29 @@ export function GameLink() {
                     </div>
                     {!host && self && (
                       <div className="game-fact">
-                        <small>在游戏「直接连接」中输入</small>
+                        <small>
+                          {session.game === "stardew-valley"
+                            ? "在游戏「加入局域网游戏」中输入 IP"
+                            : "在游戏「直接连接」中输入"}
+                        </small>
                         {local.address ? (
                           <Space wrap>
-                            <strong>{local.address}</strong>
+                            <strong>
+                              {session.game === "stardew-valley"
+                                ? "127.0.0.1"
+                                : local.address}
+                            </strong>
                             <Button
                               aria-label="复制连接地址"
                               icon={<Copy size={16} />}
                               onClick={() =>
-                                void actions.run(() => copy(local.address!))
+                                void actions.run(() =>
+                                  copy(
+                                    session?.game === "stardew-valley"
+                                      ? "127.0.0.1"
+                                      : local.address!,
+                                  ),
+                                )
                               }
                             />
                           </Space>
@@ -671,7 +693,11 @@ export function GameLink() {
             if (!worldPort) return;
             if (dialog === "resume") await gameLink.resumeHost(worldPort);
             else
-              await gameLink.create(name.trim() || "一起探索世界", worldPort);
+              await gameLink.create(
+                name.trim() || "一起探索世界",
+                worldPort,
+                selectedGame,
+              );
             close();
           })
         }
@@ -682,10 +708,20 @@ export function GameLink() {
               <Form.Item label="选择游戏" htmlFor="game-link-game">
                 <Select
                   id="game-link-game"
-                  value="minecraft-java"
-                  options={[
-                    { value: "minecraft-java", label: "Minecraft Java 版" },
-                  ]}
+                  value={selectedGame}
+                  onChange={(value: GameKind) => {
+                    setSelectedGame(value);
+                    setWorlds([]);
+                    setWorldPort(
+                      value === "stardew-valley" ? 24642 : undefined,
+                    );
+                    setManual(value === "stardew-valley");
+                    void scan(value);
+                  }}
+                  options={Object.entries(gameTitles).map(([value, label]) => ({
+                    value,
+                    label,
+                  }))}
                 />
               </Form.Item>
               <Form.Item label="联机名称">
@@ -719,7 +755,11 @@ export function GameLink() {
                 min={1}
                 max={65535}
                 precision={0}
-                placeholder="游戏中显示的局域网端口"
+                placeholder={
+                  selectedGame === "stardew-valley"
+                    ? "本机游戏端口（默认 24642）"
+                    : "游戏中显示的局域网端口"
+                }
                 value={worldPort}
                 onChange={(v) => setWorldPort(v ?? undefined)}
               />
@@ -750,7 +790,9 @@ export function GameLink() {
                         {w.name}
                       </span>
                       <Space size={8}>
-                        <Tag style={{ marginInlineEnd: 0 }}>{w.version}</Tag>
+                        {w.version && (
+                          <Tag style={{ marginInlineEnd: 0 }}>{w.version}</Tag>
+                        )}
                         <span style={{ color: "var(--muted)", fontSize: 12 }}>
                           端口 {w.port}
                         </span>

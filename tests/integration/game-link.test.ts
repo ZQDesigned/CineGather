@@ -144,6 +144,146 @@ test("game hosting is capability-gated, guest approval is not, and game admissio
   ).toBe(201);
 });
 
+test("Stardew supports its own lifecycle and incompatible clients discover no unsupported game state", async () => {
+  const host = await person(true),
+    guest = await person();
+  await db
+    .insert(friendships)
+    .values({
+      requesterId: host.id,
+      recipientId: guest.id,
+      status: "accepted",
+    });
+  const made = await call("/games", host, {
+    game: "stardew-valley",
+    name: "兼容模组农场",
+  });
+  expect(made.status).toBe(201);
+  const id = made.data.session.id;
+  expect((await call(`/games/${id}/ready`, host, {})).status).toBe(201);
+  expect(
+    (await call(`/games/${id}/invitations`, host, { userId: guest.id })).status,
+  ).toBe(201);
+  const found = await call("/games/lookup", guest, {
+    code: made.data.session.code,
+  });
+  expect(found.data.game).toBe("stardew-valley");
+  const oldHeaders = {
+    Authorization: "Bearer " + guest.token,
+    "Content-Type": "application/json",
+    "X-CineGather-Platform": "win32",
+    "X-CineGather-Version": "0.1.36",
+    "X-CineGather-Protocols": JSON.stringify({ "game.minecraft-java": [2] }),
+  };
+  const old = await fetch(origin + "/api/v1/games", { headers: oldHeaders });
+  expect(old.status).toBe(200);
+  expect((await old.json()).invitations).toEqual([]);
+  const refused = await fetch(origin + `/api/v1/games/${id}/requests`, {
+    method: "POST",
+    headers: oldHeaders,
+  });
+  expect(refused.status).toBe(426);
+  const asked = await call(`/games/${id}/requests`, guest, {});
+  expect(asked.status).toBe(201);
+  expect(
+    (
+      await call(`/games/requests/${asked.data.id}/decision`, host, {
+        approve: true,
+      })
+    ).status,
+  ).toBe(201);
+  expect((await call("/games", guest)).data.session.game).toBe(
+    "stardew-valley",
+  );
+});
+
+test("friend game activity coexists with voice and targets the host even through a guest friend, while invisibility hides both", async () => {
+  const host = await person(true),
+    friend = await person(),
+    applicant = await person();
+  for (const [a, b] of [
+    [host, friend],
+    [friend, applicant],
+  ] as const)
+    await db
+      .insert(friendships)
+      .values({ requesterId: a.id, recipientId: b.id, status: "accepted" });
+  const id = await opened(host);
+  const ask = await call(`/games/${id}/requests`, friend, {});
+  await call(`/games/requests/${ask.data.id}/decision`, host, {
+    approve: true,
+  });
+  const voice = await call("/rooms", friend, {
+    name: "同时在语音房和游戏",
+    maxMembers: 5,
+  });
+  expect(voice.status).toBe(201);
+  roomIds.push(voice.data.id);
+  expect((await call(`/rooms/${voice.data.id}/join`, friend, {})).status).toBe(
+    201,
+  );
+  await db
+    .update(credentials)
+    .set({ presenceAt: new Date() })
+    .where(eq(credentials.id, friend.credentialId));
+  const before = await call("/friends", applicant);
+  expect(before.data.items[0].room).toEqual({ memberCount: 1, maxMembers: 5 });
+  expect(before.data.items[0].game).toEqual({
+    game: "minecraft-java",
+    memberCount: 2,
+    maxMembers: 8,
+    joinable: true,
+    requestPending: false,
+    joined: false,
+  });
+  expect(JSON.stringify(before.data.items[0].game)).not.toMatch(
+    /session|code|address|secret/i,
+  );
+  const request = await call(
+    `/friends/${friend.id}/game-requests`,
+    applicant,
+    {},
+  );
+  expect(request.status).toBe(201);
+  const twice = await call(
+    `/friends/${friend.id}/game-requests`,
+    applicant,
+    {},
+  );
+  expect(twice.data.id).toBe(request.data.id);
+  expect(
+    (await call("/friends", applicant)).data.items[0].game.requestPending,
+  ).toBe(true);
+  expect(
+    (
+      await call(`/games/requests/${request.data.id}/decision`, friend, {
+        approve: true,
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await call(`/games/requests/${request.data.id}/decision`, host, {
+        approve: true,
+      })
+    ).status,
+  ).toBe(201);
+  expect((await call("/friends", applicant)).data.items[0].game.joined).toBe(
+    true,
+  );
+  await db
+    .update(users)
+    .set({ presenceVisibility: "invisible" })
+    .where(eq(users.id, friend.id));
+  const hidden = (await call("/friends", applicant)).data.items[0];
+  expect(hidden.online).toBe(false);
+  expect(hidden.game).toBeNull();
+  expect(hidden.room).toBeNull();
+  expect(
+    (await call(`/friends/${friend.id}/game-requests`, applicant, {})).status,
+  ).toBe(404);
+});
+
 test("leaving voice preserves game membership and leaving a game preserves the account session", async () => {
   const host = await person(true),
     id = await opened(host);

@@ -6,10 +6,11 @@ export const GAME_RENEW_MS = 10_000;
 export const GAME_RESERVATION_MS = 120_000;
 export const GAME_REQUEST_MS = 300_000;
 export const GAME_INVITE_MS = 600_000;
-export const gameKindSchema = z.enum(["minecraft-java"]);
+export const gameKindSchema = z.enum(["minecraft-java", "stardew-valley"]);
 export type GameKind = z.infer<typeof gameKindSchema>;
 export const gameTitles: Record<GameKind, string> = {
   "minecraft-java": "Minecraft Java 版",
+  "stardew-valley": "星露谷物语",
 };
 export const gameCodeSchema = z
   .string()
@@ -49,6 +50,7 @@ export const gameMemberSchema = z.strictObject({
   route: z.enum(["p2p", "relay"]).nullable(),
 });
 export const gameRequestSchema = z.strictObject({
+  game: gameKindSchema.optional(),
   id: z.uuid(),
   sessionId: z.uuid(),
   sessionName: z.string(),
@@ -58,6 +60,7 @@ export const gameRequestSchema = z.strictObject({
   expiresAt: time,
 });
 export const gameInvitationSchema = z.strictObject({
+  game: gameKindSchema.optional(),
   id: z.uuid(),
   sessionId: z.uuid(),
   sessionName: z.string(),
@@ -77,26 +80,39 @@ export const gameSnapshotSchema = z.strictObject({
   requests: z.array(gameRequestSchema).max(100),
   invitations: z.array(gameInvitationSchema).max(100),
 });
-export const gameLookupSchema = gameSessionSchema.pick({
-  id: true,
-  name: true,
-  hostName: true,
-  maxMembers: true,
-  memberCount: true,
-  gameVersion: true,
-});
+export const gameLookupSchema = gameSessionSchema
+  .pick({
+    id: true,
+    name: true,
+    hostName: true,
+    maxMembers: true,
+    memberCount: true,
+    gameVersion: true,
+  })
+  .extend({ game: gameKindSchema.default("minecraft-java") });
 export const gameDecisionInput = z.strictObject({ approve: z.boolean() });
 export const gameRenewInput = z.strictObject({
   revision: z.number().int().positive(),
 });
 export const gameInviteInput = z.strictObject({ userId: z.uuid() });
 export const gameLookupInput = z.strictObject({ code: gameCodeSchema });
-export const gameWorldSchema = z.strictObject({
+const minecraftWorldSchema = z.strictObject({
+  game: z.literal("minecraft-java").optional(),
   port: gamePortSchema,
   name: z.string().max(128),
   version: z.string().max(64),
   protocol: z.number().int(),
 });
+export const gameWorldSchema = z.union([
+  minecraftWorldSchema,
+  z.strictObject({
+    game: z.literal("stardew-valley"),
+    port: gamePortSchema,
+    name: z.string().max(128),
+    version: z.string().max(64),
+    transport: z.literal("tcp-udp"),
+  }),
+]);
 export const gameLocalStatusSchema = z.strictObject({
   state: z.enum([
     "idle",
@@ -115,6 +131,7 @@ export const gameLocalStatusSchema = z.strictObject({
 // Native-only transport credentials. Never put this object in public game snapshots
 // or use it as the game address displayed to the player.
 export const gameTunnelConfigSchema = z.strictObject({
+  game: gameKindSchema.optional(),
   sessionId: z.uuid(),
   memberId: z.uuid(),
   revision: z.number().int().positive(),
@@ -164,8 +181,8 @@ export type GameConnectionObservation = z.infer<
   typeof gameConnectionObservationSchema
 >;
 export interface GameLinkBridge {
-  discover(): Promise<GameWorld[]>;
-  probe(port: number): Promise<GameWorld>;
+  discover(game?: GameKind): Promise<GameWorld[]>;
+  probe(port: number, game?: GameKind): Promise<GameWorld>;
   configure(input: {
     transport: GameTunnelConfig;
     worldPort?: number;

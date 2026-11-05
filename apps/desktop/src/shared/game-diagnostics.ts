@@ -26,10 +26,16 @@ export function projectGameDiagnostic(
     ["connected", "closed", "failed", "expired"].includes(String(event.type))
   )
     name = `gateway-${event.type}`;
+  if (event.type === "datagram") name = "datagram";
   const candidate = {
     ...context,
     event: name,
     route: event.route,
+    dropped: event.dropped,
+    mappings: event.mappings,
+    queuedBytes: event.queuedBytes,
+    packetsSent: event.packetsSent,
+    packetsReceived: event.packetsReceived,
     code: typeof event.code === "string" ? event.code : undefined,
     generation: event.generation,
     exitCode: event.event === "process" ? event.code : undefined,

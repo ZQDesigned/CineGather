@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { gameTitles } from "@cinegather/contracts";
 import { View, Text, Switch } from "react-native";
 import { router } from "expo-router";
 import {
@@ -103,6 +104,12 @@ export default function Friends() {
                   : "在线"
                 : "离线"}
           </Text>
+          {friend.status === "accepted" && friend.online && friend.game && (
+            <Text style={styles.muted}>
+              {gameTitles[friend.game.game]}（{friend.game.memberCount}/
+              {friend.game.maxMembers}）
+            </Text>
+          )}
         </View>
         <IconButton
           icon={MoreHorizontal}
@@ -113,6 +120,18 @@ export default function Friends() {
           }}
         />
       </View>
+      {friend.status === "accepted" && friend.online && friend.game && (
+        <Button
+          onPress={() => {
+            runtime.feedback.show({
+              text: "请使用 Windows 或 macOS 桌面客户端申请游戏联机",
+              tone: "info",
+            });
+          }}
+        >
+          桌面端联机
+        </Button>
+      )}
       {friend.status === "pending" && friend.incoming ? (
         <Button
           primary

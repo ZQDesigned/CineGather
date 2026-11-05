@@ -8,6 +8,41 @@ const empty: GameSnapshot = {
   requests: [],
   invitations: [],
 };
+test("selected Stardew is probed and created without inventing a Minecraft game version", async () => {
+  let selected: unknown, created: unknown;
+  const c = new GameLinkCoordinator({
+    api: {
+      snapshot: async () => empty,
+      create: async (input) => {
+        created = input;
+        return empty;
+      },
+      ready: async () => empty,
+      renew: async () => empty,
+      transport: async () => ({}) as GameTunnelConfig,
+      leave: async () => empty,
+    },
+    local: {
+      probe: async (port, game) => {
+        selected = game;
+        return {
+          game: "stardew-valley",
+          port,
+          name: "农场",
+          version: "",
+          transport: "tcp-udp",
+        };
+      },
+      configure: async () => ({ state: "connected" }),
+      stop: async () => {},
+    },
+    changed: () => {},
+  });
+  await c.scope("current");
+  await c.create("一起种田", 24642, "stardew-valley");
+  expect(selected).toBe("stardew-valley");
+  expect(created).toEqual({ name: "一起种田", game: "stardew-valley" });
+});
 const snapshot = (): GameSnapshot => ({
   session: {
     id: crypto.randomUUID(),

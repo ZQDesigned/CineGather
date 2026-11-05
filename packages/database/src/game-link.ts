@@ -38,6 +38,10 @@ export const gameSessions = pgTable(
     endedAt: time("ended_at"),
   },
   (t) => [
+    check(
+      "game_session_kind_check",
+      sql`${t.game} IN ('minecraft-java','stardew-valley')`,
+    ),
     check("game_session_code_check", sql`${t.code} ~ '^[A-HJ-NP-Z2-9]{8}$'`),
     check(
       "game_session_status_check",

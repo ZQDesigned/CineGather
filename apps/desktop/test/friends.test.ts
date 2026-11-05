@@ -3,6 +3,7 @@ import type { RoomInvitation, RoomJoinRequest } from "@cinegather/contracts";
 import {
   FriendRequests,
   friendPresenceLabel,
+  friendGameLabel,
   hasIncomingRequests,
   type Friend,
 } from "../src/renderer/friends";
@@ -13,6 +14,26 @@ const request: Friend = {
   status: "pending",
   incoming: true,
 };
+test("game activity supplements the room activity and never appears for invisible or pending friends", () => {
+  const friend: Friend = {
+    ...request,
+    status: "accepted",
+    online: true,
+    room: { memberCount: 3, maxMembers: 5 },
+    game: {
+      game: "stardew-valley",
+      memberCount: 2,
+      maxMembers: 8,
+      joinable: true,
+      requestPending: false,
+      joined: false,
+    },
+  };
+  expect(friendPresenceLabel(friend)).toBe("房间中（3/5）");
+  expect(friendGameLabel(friend)).toBe("星露谷物语（2/8）");
+  expect(friendGameLabel({ ...friend, online: false })).toBeUndefined();
+  expect(friendGameLabel({ ...friend, status: "pending" })).toBeUndefined();
+});
 const roomInvitation: RoomInvitation = {
   id: "00000000-0000-4000-8000-000000000001",
   roomId: "00000000-0000-4000-8000-000000000002",

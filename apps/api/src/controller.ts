@@ -1,3 +1,4 @@
+import { requestFriendGame } from "./game-link";
 import { participantOwner } from "@cinegather/contracts";
 import * as announcements from "./announcements";
 import * as queue from "./share-requests";
@@ -649,6 +650,20 @@ export class ApiController {
   @Endpoint("searchFriend", c.friendSearchSchema)
   searchFriend(@Req() req: AuthRequest, @Query("username") username: unknown) {
     return s.searchFriend(req.user, parse(c.usernameInput, username));
+  }
+  @Post("friends/:userId/game-requests")
+  @Endpoint(
+    "requestFriendGame",
+    z.strictObject({
+      id: z.uuid(),
+      expiresAt: z.iso.datetime({ offset: true }),
+    }),
+    undefined,
+    ["userId"],
+    201,
+  )
+  requestFriendGame(@Req() req: AuthRequest, @Param("userId") userId: string) {
+    return requestFriendGame(req.user, userId);
   }
   @Post("friends/:userId/room-requests")
   @Endpoint(

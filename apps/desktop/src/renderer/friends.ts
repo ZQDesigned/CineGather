@@ -1,10 +1,12 @@
 import type {
   FriendRoomPresence,
+  FriendGamePresence,
   RoomInvitation,
   RoomJoinRequest,
   ClientNotification,
   NotificationRecord,
 } from "@cinegather/contracts";
+import { gameTitles } from "@cinegather/contracts";
 
 export interface Friend {
   userId: string;
@@ -16,7 +18,13 @@ export interface Friend {
   incoming: boolean;
   online?: boolean;
   room?: FriendRoomPresence | null;
+  game?: FriendGamePresence | null;
 }
+
+export const friendGameLabel = (friend: Friend) =>
+  friend.status === "accepted" && friend.online && friend.game
+    ? `${gameTitles[friend.game.game]}（${friend.game.memberCount}/${friend.game.maxMembers}）`
+    : undefined;
 
 export const friendDisplayName = (
   friend: Pick<Friend, "displayName" | "remark">,

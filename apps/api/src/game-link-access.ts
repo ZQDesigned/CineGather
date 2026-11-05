@@ -1,4 +1,5 @@
 import { and, eq, gt, isNull, ne, sql, inArray, or, lte } from "drizzle-orm";
+import { HttpException } from "@nestjs/common";
 import {
   credentials,
   users,
@@ -8,14 +9,18 @@ import {
   gameInvites,
   type Transaction,
 } from "@cinegather/database";
-import { GAME_RESERVATION_MS, type User } from "@cinegather/contracts";
+import {
+  GAME_RESERVATION_MS,
+  type User,
+  type GameKind,
+} from "@cinegather/contracts";
 import { db, audit } from "./context";
 import { fail, uuid } from "./errors";
 import { sessionCredential } from "./session-context";
 import { boundFeatureClient, requireFeature } from "./feature-policy";
 
 export const gameMutationLock = 839222;
-export function requireGameDesktop(user: User) {
+export function requireGamePlatform(user: User) {
   const identity = boundFeatureClient(user);
   if (
     identity &&
@@ -23,6 +28,29 @@ export function requireGameDesktop(user: User) {
     identity.platform !== "darwin"
   )
     fail(403, "GAME_DESKTOP_REQUIRED", "请使用映聚桌面客户端进行游戏联机");
+}
+export function requireGameDesktop(user: User, game?: GameKind) {
+  requireGamePlatform(user);
+  if (game) {
+    requireFeature(user, `game.${game}`, game === "minecraft-java" ? 2 : 1);
+    return;
+  }
+  // Before resolving a code/session, require at least one supported game.
+  // A policy change for Minecraft must not block an otherwise usable Stardew.
+  try {
+    requireFeature(user, "game.stardew-valley", 1);
+    return;
+  } catch (error) {
+    if (!(error instanceof HttpException)) throw error;
+    const body = error.getResponse();
+    if (
+      !body ||
+      typeof body !== "object" ||
+      !("code" in body) ||
+      body.code !== "FEATURE_UPDATE_REQUIRED"
+    )
+      throw error;
+  }
   requireFeature(user, "game.minecraft-java", 2);
 }
 export async function activeGameCredential(
@@ -229,6 +257,7 @@ export async function requireGameMember(
   user: User,
   id: string,
   hostOnly = false,
+  checkFeature = true,
 ) {
   const account = await requireGameAccount(tx, user);
   const [session] = await tx
@@ -253,6 +282,7 @@ export async function requireGameMember(
     (hostOnly && member.role !== "host")
   )
     fail(403, "GAME_MEMBERSHIP_REQUIRED", "当前设备没有此联机的操作资格");
+  if (checkFeature) requireGameDesktop(user, session.game);
   return { session, member, account };
 }
 export async function clearCredentialGames(

@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { adminQuery } from "./admin";
+import { gameKindSchema } from "./game-link";
 export const adminGameQuery = adminQuery.extend({
   status: z.enum(["all", "active", "ended"]).default("all"),
 });
@@ -7,7 +8,7 @@ export const adminGameSchema = z.object({
   id: z.uuid(),
   name: z.string(),
   code: z.string(),
-  game: z.literal("minecraft-java"),
+  game: gameKindSchema,
   gameVersion: z.string().nullable(),
   hostUserId: z.uuid(),
   hostName: z.string(),
