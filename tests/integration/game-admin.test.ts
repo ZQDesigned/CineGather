@@ -287,7 +287,7 @@ test("voice room history includes creation, joins, leave and kick without duplic
   ).toBe(true);
 });
 
-test("old game clients are blocked only for game operations, while cleanup and normal rooms remain available", async () => {
+test("old clients poll silently but cannot use game operations; cleanup and normal rooms remain available", async () => {
   const h = await person("host");
   const made = await call("/games", h, {
     game: "minecraft-java",
@@ -312,9 +312,31 @@ test("old game clients are blocked only for game operations, while cleanup and n
     });
   expect((await oldCall("/me")).status).toBe(200);
   expect((await oldCall("/rooms")).status).toBe(200);
-  const blocked = await oldCall("/games");
-  expect([409, 426]).toContain(blocked.status);
-  expect((await blocked.json()).code).toBe("FEATURE_UPDATE_REQUIRED");
+  // This discovery request runs every five seconds, including on the home page.
+  for (let n = 0; n < 3; n++) {
+    const poll = await oldCall("/games");
+    expect(poll.status).toBe(200);
+    expect(poll.headers.get("X-CineGather-Update-Scope")).not.toBe("feature");
+    expect(await poll.json()).toEqual({
+      session: null,
+      self: null,
+      members: [],
+      requests: [],
+      invitations: [],
+    });
+  }
+  // A quiet discovery response must not authorize any game action or expose an
+  // invitation/credential. A supported client still sees the real session.
+  expect((await call("/games", h)).data.session.id).toBe(made.data.session.id);
+  for (const [path, body] of [
+    ["/games", { game: "minecraft-java", name: "old-client" }],
+    ["/games/lookup", { code: made.data.session.code }],
+    [`/games/${made.data.session.id}/renew`, { revision: 1 }],
+  ] as const) {
+    const blocked = await oldCall(path, "POST", body);
+    expect([409, 426]).toContain(blocked.status);
+    expect((await blocked.json()).code).toBe("FEATURE_UPDATE_REQUIRED");
+  }
   expect([409, 426]).toContain(
     (await oldCall(`/games/${made.data.session.id}/ready`, "POST", {})).status,
   );

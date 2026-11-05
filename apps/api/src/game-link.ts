@@ -1,3 +1,4 @@
+import { HttpException } from "@nestjs/common";
 import { randomBytes, randomUUID } from "node:crypto";
 import { and, eq, gt, isNull, desc, sql } from "drizzle-orm";
 import {
@@ -17,7 +18,7 @@ import {
   type GameSnapshot,
   type User,
 } from "@cinegather/contracts";
-import { audit } from "./context";
+import { audit, db } from "./context";
 import { fail, uuid } from "./errors";
 import { areAcceptedFriends } from "./friend-access";
 import { sessionCredential } from "./session-context";
@@ -155,7 +156,32 @@ async function snapshotInTx(
   });
 }
 export const gameSnapshot = (user: User, cleanup = false) => {
-  if (!cleanup) requireGameDesktop(user);
+  if (!cleanup) {
+    try {
+      requireGameDesktop(user);
+    } catch (error) {
+      const body = error instanceof HttpException ? error.getResponse() : null;
+      if (
+        !body ||
+        typeof body !== "object" ||
+        !("code" in body) ||
+        body.code !== "FEATURE_UPDATE_REQUIRED"
+      )
+        throw error;
+      // Desktop discovery also polls on the home page. Unsupported clients
+      // learn no game state; only an explicit game action asks them to update.
+      return db.transaction(async (tx) => {
+        await requireGameAccount(tx, user);
+        return gameSnapshotSchema.parse({
+          session: null,
+          self: null,
+          members: [],
+          requests: [],
+          invitations: [],
+        });
+      });
+    }
+  }
   return gameTransaction(async (tx) => {
     await requireGameAccount(tx, user);
     return snapshotInTx(tx, user);
