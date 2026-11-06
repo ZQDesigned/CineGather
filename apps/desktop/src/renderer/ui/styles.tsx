@@ -27,41 +27,33 @@ export function GlobalStyles() {
           flex: 1;
         }
         .room-activity-stage {
+          display: flex;
+          flex-direction: column;
+          /* Preserve game controls' intrinsic height; short windows scroll the column. */
+          flex: 1 0 auto;
+          min-height: 320px;
           background: #171922;
           border: 1px solid #ffffff12;
           border-radius: 18px;
-          overflow: hidden;
+          overflow: clip;
         }
-        .view-column:has(
-          > .room-activity-stage[data-canvas="true"][data-active="true"]
-        ) {
+        .view-column:has(> .room-activity-stage[data-active="true"]) {
           overflow-y: auto;
           scrollbar-gutter: stable;
         }
-        .view-column:has(
-            > .room-activity-stage[data-canvas="true"][data-active="true"]
-          )
-          > * {
+        .view-column:has(> .room-activity-stage[data-active="true"]) > * {
           flex-shrink: 0;
-        }
-        .room-activity-stage[data-canvas="true"] {
-          display: flex;
-          flex-direction: column;
-          flex: 1 0 320px;
-          min-height: 320px;
-          overflow: clip;
         }
         .room-activity-stage > .activity-board-content,
         .activity-board-content > .collab-board {
           display: flex;
           flex-direction: column;
-          flex: 1;
-          min-height: 0;
+          flex: 1 0 auto;
         }
         .activity-board-content .collab-canvas {
-          flex: 1 1 0;
+          flex: 1 0 180px;
           height: 0;
-          min-height: 0;
+          min-height: 180px;
           aspect-ratio: auto;
           background: #101116;
         }
@@ -154,6 +146,7 @@ export function GlobalStyles() {
           font-size: 18px;
         }
         .quiz-clue {
+          flex: 1 0 auto;
           min-height: 280px;
           padding: 36px;
           display: flex;

@@ -396,7 +396,6 @@ export function RoomActivityStage() {
   return (
     <section
       className="room-activity-stage"
-      data-canvas={snapshot.kind === "board"}
       data-active={active}
       style={active ? undefined : { display: "none" }}
     >
@@ -501,9 +500,7 @@ export function RoomActivityStage() {
         </div>
       )}
       <div
-        className={
-          snapshot.kind === "board" ? "activity-board-content" : undefined
-        }
+        className="activity-board-content"
         style={!game || game.kind === "draw" ? undefined : { display: "none" }}
       >
         <Whiteboard
