@@ -1,6 +1,9 @@
 import { serverOrigin } from "./server-address";
 import { parseInvitation } from "@cinegather/client-core";
-import type { DesktopSettings } from "@cinegather/contracts";
+import {
+  clientUpdateOrigin,
+  type DesktopSettings,
+} from "@cinegather/contracts";
 
 export function platformSettings(
   settings: DesktopSettings,
@@ -24,7 +27,7 @@ export function defaultServer(
       }
     }
   }
-  return desktop ? "http://127.0.0.1:14310" : origin;
+  return desktop ? clientUpdateOrigin : origin;
 }
 
 export function capabilities() {

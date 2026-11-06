@@ -23,12 +23,12 @@ test("browser settings discard legacy push-to-talk while desktop settings remain
   expect(saved.pushToTalk).toBe(true);
 });
 
-test("web defaults to its own origin while native keeps the local API and configured addresses win", () => {
+test("web uses its own origin and an unconfigured desktop release defaults to the public API", () => {
   expect(defaultServer(undefined, "", "https://watch.example.com", false)).toBe(
     "https://watch.example.com",
   );
   expect(defaultServer(undefined, undefined, "app://cinegather", true)).toBe(
-    "http://127.0.0.1:14310",
+    "https://cgplat.zqdesigned.city",
   );
   expect(
     defaultServer(
@@ -92,4 +92,26 @@ test("browser shortcuts match physical keys with exact platform modifiers withou
       "darwin",
     ),
   ).toBe(false);
+});
+
+test("explicit local self-hosting and development API addresses are preserved", () => {
+  expect(
+    defaultServer(
+      "http://127.0.0.1:14310",
+      undefined,
+      "app://cinegather",
+      true,
+    ),
+  ).toBe("http://127.0.0.1:14310");
+  expect(
+    defaultServer(
+      undefined,
+      "http://127.0.0.1:14310",
+      "app://cinegather",
+      true,
+    ),
+  ).toBe("http://127.0.0.1:14310");
+  expect(defaultServer("invalid", undefined, "app://cinegather", true)).toBe(
+    "https://cgplat.zqdesigned.city",
+  );
 });

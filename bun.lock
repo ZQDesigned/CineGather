@@ -46,7 +46,7 @@
     },
     "apps/desktop": {
       "name": "@cinegather/desktop",
-      "version": "0.1.38",
+      "version": "0.1.39",
       "dependencies": {
         "@ant-design/icons": "6.3.4",
         "@cinegather/api-client": "workspace:*",
