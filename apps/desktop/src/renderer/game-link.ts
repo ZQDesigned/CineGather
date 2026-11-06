@@ -1,5 +1,8 @@
 import { unwrap, ApiError, FeatureUpdateError } from "@cinegather/api-client";
-import { GameLinkCoordinator } from "@cinegather/client-core";
+import {
+  alignGameAuthorization,
+  GameLinkCoordinator,
+} from "@cinegather/client-core";
 import { gameConnectionObservationSchema } from "@cinegather/contracts";
 import { api, report } from "./controller";
 import { update, state, useApp } from "./store";
@@ -23,12 +26,21 @@ export const gameLink = new GameLinkCoordinator({
           body: { revision },
         }),
       ),
-    transport: async (id) =>
-      unwrap(
-        await api.GET("/api/v1/games/{sessionId}/transport", {
-          params: path(id),
-        }),
-      ),
+    transport: async (id) => {
+      const started = performance.now();
+      const result = await api.GET("/api/v1/games/{sessionId}/transport", {
+        params: path(id),
+      });
+      const receivedAtMs = Date.now();
+      const roundTripMs = performance.now() - started;
+      const config = unwrap(result);
+      const timestamp = result.response.headers.get("X-CineGather-Server-Time");
+      return alignGameAuthorization(config, {
+        serverTimeMs: timestamp ? Number(timestamp) : NaN,
+        receivedAtMs,
+        roundTripMs,
+      });
+    },
     leave: async (id) =>
       unwrap(
         await api.POST("/api/v1/games/{sessionId}/leave", { params: path(id) }),

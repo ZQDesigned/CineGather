@@ -183,6 +183,7 @@ export async function createApp({
       "X-CineGather-Channel",
     ],
     exposedHeaders: [
+      "X-CineGather-Server-Time",
       "X-Request-Id",
       "X-CineGather-Min-Version",
       "X-CineGather-Update-Scope",

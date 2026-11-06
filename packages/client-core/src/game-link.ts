@@ -106,7 +106,7 @@ export class GameLinkCoordinator {
   }
   private async connect(snapshot: GameSnapshot, epoch: number) {
     if (!this.current(epoch)) return;
-    this.publish({ snapshot, error: undefined });
+    this.publish({ snapshot });
     const { session, self } = snapshot,
       local = this.options.local;
     if (!session || !self) {
@@ -114,7 +114,8 @@ export class GameLinkCoordinator {
         this.activeMember = undefined;
         await local?.stop();
       }
-      if (this.current(epoch)) this.publish({ local: { state: "idle" } });
+      if (this.current(epoch))
+        this.publish({ local: { state: "idle" }, error: undefined });
       return;
     }
     if (!local) {
@@ -170,6 +171,7 @@ export class GameLinkCoordinator {
     const own = snapshot.members.find((m) => m.id === config.memberId);
     this.publish({
       local: { ...status, ...(own?.route ? { route: own.route } : {}) },
+      error: undefined,
     });
     if (self.role === "host" && snapshot.session?.status === "starting") {
       const ready = await this.options.api.ready(session.id);
@@ -224,7 +226,20 @@ export class GameLinkCoordinator {
       if (!this.current(epoch)) return;
       this.hostPort = port;
       this.renewedAt = 0;
-      await this.connect(snapshot, epoch);
+      try {
+        await this.connect(snapshot, epoch);
+      } catch (error) {
+        if (!this.current(epoch)) return;
+        const local = await this.options.local
+          ?.status?.()
+          .catch(() => undefined);
+        if (!this.current(epoch)) return;
+        this.publish({
+          local: local ?? { state: "failed" },
+          error: "联机已创建，但本机连接未就绪，请重新连接",
+        });
+        this.options.failure?.(error);
+      }
     });
   }
   resumeHost(port: number) {

@@ -3,6 +3,7 @@ import { mkdtemp, writeFile, chmod, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { GameNative } from "../src/main/game-native";
+import { projectGameDiagnostic } from "../src/shared/game-diagnostics";
 import type { GameTunnelConfig } from "@cinegather/contracts";
 const transport = (): GameTunnelConfig => ({
   sessionId: crypto.randomUUID(),
@@ -78,6 +79,36 @@ test("an unresponsive helper that ignores graceful shutdown cannot remain as an 
     const result = (await native.configure(transport(), [])) as { pid: number };
     await native.close();
     expect(() => process.kill(result.pid, 0)).toThrow();
+  } finally {
+    await native.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("a rejected configuration records its failure phase without exporting credentials", async () => {
+  const { root, binary } = await fixture(
+    `process.stdin.once('data',data=>{const c=JSON.parse(String(data));process.stdout.write(JSON.stringify({id:c.id,ok:false,code:'CONFIG_REJECTED'})+'\\n');});`,
+  );
+  const events: unknown[] = [];
+  const native = new GameNative({
+    binaryPath: binary,
+    event: (e) => events.push(e),
+  });
+  try {
+    await expect(native.configure(transport(), [])).rejects.toThrow(
+      "授权已失效或配置不匹配",
+    );
+    expect(events).toContainEqual({
+      event: "transport",
+      state: "failed",
+      phase: "configuration",
+      code: "CONFIG_REJECTED",
+    });
+    expect(events.map((event) => projectGameDiagnostic(event))).toContainEqual({
+      event: "config-rejected",
+      code: "CONFIG_REJECTED",
+    });
+    expect(JSON.stringify(events)).not.toContain("clientSecret");
   } finally {
     await native.close();
     await rm(root, { recursive: true, force: true });

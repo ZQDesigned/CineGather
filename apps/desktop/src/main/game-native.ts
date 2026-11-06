@@ -19,7 +19,7 @@ export type NativeGameConfig = z.infer<typeof nativeGameConfigSchema>;
 const eventSchema = z.strictObject({
   event: z.literal("transport"),
   state: z.enum(["connecting", "connected", "failed", "expired"]),
-  phase: z.enum(["tls_dial", "lease", "control"]).optional(),
+  phase: z.enum(["tls_dial", "lease", "control", "configuration"]).optional(),
   code: z
     .string()
     .regex(/^[A-Z_0-9]{1,64}$/)
@@ -150,7 +150,14 @@ export class GameNative {
     this.pending.delete(reply.id);
     clearTimeout(pending.timer);
     if (reply.ok) pending.resolve(reply.result);
-    else
+    else {
+      if (reply.code === "CONFIG_REJECTED")
+        this.emit({
+          event: "transport",
+          state: "failed",
+          phase: "configuration",
+          code: "CONFIG_REJECTED",
+        });
       pending.reject(
         new Error(
           reply.code === "CONFIG_REJECTED"
@@ -158,6 +165,7 @@ export class GameNative {
             : "游戏联机操作未完成",
         ),
       );
+    }
   }
   private rejectAll(error: Error) {
     for (const p of this.pending.values()) {

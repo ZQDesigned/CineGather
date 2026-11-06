@@ -297,3 +297,44 @@ for (const role of ["host", "guest"] as const)
     expect(coordinator.state.local.state).toBe("idle");
     expect(configured).toBe(before);
   });
+
+test("a created host session survives local connection failure as a recoverable state, not a failed create action", async () => {
+  const value = snapshot();
+  value.self!.role = "host";
+  value.session!.status = "starting";
+  const errors: (string | undefined)[] = [];
+  const c = new GameLinkCoordinator({
+    api: {
+      snapshot: async () => value,
+      create: async () => value,
+      renew: async () => value,
+      ready: async () => value,
+      transport: async () =>
+        ({ memberId: value.self!.memberId, revision: 1 }) as GameTunnelConfig,
+      leave: async () => empty,
+    },
+    local: {
+      probe: async (port) => ({
+        port,
+        name: "MC",
+        version: "1.21",
+        protocol: 1,
+      }),
+      configure: async () => {
+        throw Error("configuration rejected");
+      },
+      status: async () => ({ state: "failed", message: "本机连接失败" }),
+      stop: async () => {},
+    },
+    changed: (s) => errors.push(s.error),
+  });
+  await c.scope("test");
+  await c.create("MC", 25565);
+  expect(c.state.snapshot.session?.id).toBe(value.session!.id);
+  expect(c.state.local.state).toBe("failed");
+  expect(c.state.error).toBeTruthy();
+  errors.length = 0;
+  await c.refresh();
+  expect(errors.length).toBeGreaterThan(0);
+  expect(errors.every(Boolean)).toBe(true);
+});

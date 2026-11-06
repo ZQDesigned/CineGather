@@ -52,13 +52,14 @@ async function call(
     headers: {
       "Content-Type": "application/json",
       Authorization: `Bearer ${who.token}`,
+      Origin: "app://cinegather",
       "X-CineGather-Platform": "win32",
       "X-CineGather-Version": "0.1.33",
       ...protocolHeaders,
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  return { status: r.status, data: await r.json() };
+  return { status: r.status, data: await r.json(), headers: r.headers };
 }
 async function token(
   config: {
@@ -165,6 +166,13 @@ test("transport credentials are private, scoped to approved members, and OIDC di
   expect((await call(`/games/${sid}/transport`, outsider)).status).toBe(403);
   const issued = await call(`/games/${sid}/transport`, guest);
   expect(issued.status).toBe(200);
+  const clock = Number(issued.headers.get("X-CineGather-Server-Time"));
+  expect(clock).toBeGreaterThan(Date.now() - 5000);
+  expect(clock).toBeLessThanOrEqual(Date.now());
+  expect(issued.headers.get("Cache-Control")).toBe("no-store");
+  expect(issued.headers.get("Access-Control-Expose-Headers")).toContain(
+    "X-CineGather-Server-Time",
+  );
   const cfg = gameTunnelConfigSchema.parse(issued.data);
   expect(cfg.peers).toHaveLength(1);
   expect(cfg.role).toBe("guest");
@@ -617,3 +625,62 @@ test("public game identity throttling uses trusted forwarded client IPs instead 
     await proxyApp.close();
   }
 }, 15000);
+
+const clockHelper = process.env.CG_GAME_HELPER;
+test.skipIf(!clockHelper)(
+  "a server clock 3.5 seconds ahead is rebased for native configure and repeated lease renewal",
+  async () => {
+    const { GameNative } = await import(
+      "../../apps/desktop/src/main/game-native"
+    );
+    const { alignGameAuthorization } = await import(
+      "../../packages/client-core/src/game-authorization"
+    );
+    const host = await person(true);
+    const sid = (await call("/games", host, { name: "时钟偏差回归" })).data
+      .session.id;
+    const events: import("../../apps/desktop/src/main/game-native").GameNativeEvent[] =
+      [];
+    const native = new GameNative({
+      binaryPath: clockHelper!,
+      development: true,
+      event: (e) => events.push(e),
+    });
+    try {
+      for (let attempt = 0; attempt < 4; attempt++) {
+        if (attempt) await Bun.sleep(11000);
+        await call(`/games/${sid}/renew`, host, { revision: 1 });
+        const started = performance.now();
+        const issued = await call(`/games/${sid}/transport`, host);
+        const receivedAtMs = Date.now(),
+          roundTripMs = performance.now() - started;
+        const raw = gameTunnelConfigSchema.parse(issued.data);
+        const shifted = {
+          ...raw,
+          expiresAt: new Date(Date.parse(raw.expiresAt) + 3500).toISOString(),
+        };
+        if (!attempt)
+          await expect(native.configure(shifted, [])).rejects.toThrow(
+            "授权已失效或配置不匹配",
+          );
+        const aligned = alignGameAuthorization(shifted, {
+          serverTimeMs:
+            Number(issued.headers.get("X-CineGather-Server-Time")) + 3500,
+          receivedAtMs,
+          roundTripMs,
+        });
+        expect(await native.configure(aligned, [])).toEqual({
+          state: "configured",
+        });
+      }
+      expect(
+        events.filter((e) => e.event === "process" && e.state === "started"),
+      ).toHaveLength(1);
+      expect(native.running).toBe(true);
+    } finally {
+      await native.close();
+      await call(`/games/${sid}/end`, host, {});
+    }
+  },
+  45000,
+);

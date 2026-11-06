@@ -19,9 +19,11 @@ export function projectGameDiagnostic(
     name =
       event.phase === "tls_dial"
         ? `tls-${event.state}`
-        : event.state === "expired"
-          ? "grant-expired"
-          : "control-failed";
+        : event.phase === "configuration"
+          ? "config-rejected"
+          : event.state === "expired"
+            ? "grant-expired"
+            : "control-failed";
   else if (
     ["connected", "closed", "failed", "expired"].includes(String(event.type))
   )

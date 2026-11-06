@@ -356,12 +356,18 @@ export function GameLink() {
                     </div>
                     <Badge
                       status={
-                        local.state === "connected" ? "success" : "processing"
+                        local.state === "connected"
+                          ? "success"
+                          : local.state === "failed"
+                            ? "error"
+                            : "processing"
                       }
                       text={
                         self
                           ? host
-                            ? "已发起联机"
+                            ? local.state === "connected"
+                              ? "已发起联机"
+                              : "连接未就绪"
                             : local.state === "connected"
                               ? "连接已就绪"
                               : "正在连接"

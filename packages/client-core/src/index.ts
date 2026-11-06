@@ -49,3 +49,4 @@ export * from "./first-frame";
 export * from "./feature-compatibility";
 
 export * from "./game-link";
+export * from "./game-authorization";

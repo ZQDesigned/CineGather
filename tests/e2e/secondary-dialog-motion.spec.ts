@@ -234,6 +234,8 @@ test("game create and join panels keep their form fields and title during exit",
   await page.evaluate(async () => {
     Object.assign(window, {
       desktop: {
+        takeInvitation: async () => undefined,
+        onAction: () => () => {},
         gameLink: { discover: async () => [], onConnection: () => () => {} },
       },
     });
@@ -312,4 +314,111 @@ test("retained dialogs still clean up when reduced motion is requested", async (
   await expect(page.locator(".ant-modal:visible")).toHaveCount(0);
   await page.getByRole("button", { name: "能力配置" }).click();
   await expect(page.getByRole("dialog")).toContainText(user.displayName);
+});
+
+test("a created game closes its form with exit motion even when the local proxy fails", async ({
+  page,
+}) => {
+  const pageErrors: string[] = [];
+  page.on("pageerror", (error) => pageErrors.push(error.message));
+  await page.addInitScript(() => {
+    Object.assign(window, {
+      desktop: {
+        takeInvitation: async () => undefined,
+        onAction: () => () => {},
+        gameLink: {
+          discover: async () => [
+            { port: 25565, name: "本机 MC 世界", version: "1.21", protocol: 1 },
+          ],
+          probe: async (port: number) => ({
+            port,
+            name: "本机 MC 世界",
+            version: "1.21",
+            protocol: 1,
+          }),
+          configure: async () => {
+            throw Error("游戏联机授权已失效或配置不匹配");
+          },
+          status: async () => ({ state: "failed", message: "本机连接未完成" }),
+          stop: async () => {},
+          onConnection: () => () => {},
+        },
+      },
+    });
+  });
+  await setup(page);
+  let created = false;
+  const joined = {
+    ...emptyGame,
+    session: { ...game, status: "starting" },
+    self: {
+      memberId: id,
+      revision: 1,
+      role: "host",
+      leaseExpiresAt: new Date(Date.now() + 30000).toISOString(),
+    },
+    members: [
+      {
+        id,
+        userId: id,
+        displayName: user.displayName,
+        role: "host",
+        status: "connecting",
+        route: null,
+      },
+    ],
+  };
+  await page.route("**/api/v1/games**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/games" && route.request().method() === "POST")
+      created = true;
+    let body: unknown = created ? joined : emptyGame;
+    if (path.endsWith("/transport"))
+      body = {
+        sessionId: id,
+        memberId: id,
+        clientId: id,
+        clientSecret: "x".repeat(43),
+        revision: 1,
+        role: "host",
+        expiresAt: new Date(Date.now() + 30000).toISOString(),
+        peers: [],
+        server: {
+          host: "games.example.test",
+          port: 443,
+          tlsName: "games.example.test",
+          stunServer: "games.example.test:3478",
+          issuer: "https://api.example.test/api/v1/game-tunnel/identity",
+          audience: "cinegather-game",
+        },
+      };
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "X-CineGather-Server-Time": String(Date.now()) },
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto("/#/games");
+  await page.getByRole("button", { name: "发起联机", exact: true }).click();
+  await expect(page.getByRole("dialog")).toContainText("本机 MC 世界");
+  await page.evaluate(async () => {
+    const modulePath = "/game-link.ts";
+    const { gameLink } = await import(modulePath);
+    await gameLink.scope("isolated-motion-fixture");
+  });
+  await closeWithMotion(page, () =>
+    page
+      .getByRole("dialog")
+      .getByRole("button", { name: "发起联机", exact: true })
+      .click(),
+  );
+  await expect(page.getByText("连接未就绪", { exact: true })).toBeVisible();
+  await expect(
+    page.getByRole("button", { name: "选择世界并恢复" }),
+  ).toBeVisible();
+  await expect(
+    page.getByText("联机已创建，但本机连接未就绪，请重新连接", { exact: true }),
+  ).toBeVisible();
+  expect(pageErrors).toEqual([]);
 });
