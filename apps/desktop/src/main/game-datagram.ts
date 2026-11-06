@@ -508,7 +508,9 @@ export class GameDatagram {
       started = performance.now();
     return new Promise<void>((resolve, reject) => {
       const s = createConnection({ host: "127.0.0.1", port }),
-        timer = setTimeout(() => finish(Error("游戏通道连接超时")), 2500);
+        // FRP fallback and verified TLS/OIDC setup can consume more than 2.5s
+        // on a high-latency first connection. Keep a bounded startup budget.
+        timer = setTimeout(() => finish(Error("游戏通道连接超时")), 5000);
       let done = false,
         buffer = Buffer.alloc(0);
       const finish = (error?: Error) => {

@@ -232,3 +232,32 @@ test("delayed and dropped game-endpoint datagrams do not stall later packets or 
     client.close();
   }
 });
+
+test("initial tunnel health tolerates a slow relay handshake without declaring a working route unavailable", async () => {
+  const { createServer } = await import("node:net");
+  const sockets = new Set<import("node:net").Socket>();
+  const server = createServer((socket) => {
+    sockets.add(socket);
+    socket.on("close", () => sockets.delete(socket));
+    socket.on("error", () => {});
+    socket.once("data", () => {
+      const timer = setTimeout(
+        () => socket.write(Buffer.from([2, 0, 0, 0, 0])),
+        2700,
+      );
+      socket.once("close", () => clearTimeout(timer));
+    });
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const bridge = new GameDatagram();
+  try {
+    await expect(
+      bridge.probe(`127.0.0.1:${(server.address() as { port: number }).port}`),
+    ).resolves.toBeUndefined();
+  } finally {
+    await bridge.close();
+    for (const socket of sockets) socket.destroy();
+    await new Promise<void>((resolve) => server.close(() => resolve()));
+  }
+}, 7000);
