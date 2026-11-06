@@ -1,4 +1,8 @@
-import { boardCursorColor, boardLiveDraft } from "@cinegather/client-core";
+import {
+  boardCursorColor,
+  boardLiveDraft,
+  boardSweepHits,
+} from "@cinegather/client-core";
 import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { Input, Modal, App } from "antd";
 import {
@@ -26,6 +30,7 @@ import type {
 import { unwrap } from "@cinegather/api-client";
 import { api, report } from "../controller";
 import { Button } from "./Controls";
+import { useWhiteboardEraser } from "./useWhiteboardEraser";
 import { useRetainedDialog } from "./useRetainedDialog";
 import { normalizeBoardImage, screenshotBoardImage } from "../whiteboard-image";
 type Tool = "pointer" | "select" | "path" | "rect" | "text" | "note" | "eraser";
@@ -148,6 +153,22 @@ export function Whiteboard({
         }
       | undefined
     >(undefined);
+  const erase = useWhiteboardEraser(contextKey, editable, onOperation);
+  const erasing = useRef<
+    { pointer: number; last: [number, number]; seen: Set<string> } | undefined
+  >(undefined);
+  function sweep(point: [number, number]) {
+    const active = erasing.current,
+      matrix = svg.current?.getScreenCTM();
+    if (!active || !matrix || !editable) return;
+    const radius = 5 / Math.max(0.001, Math.hypot(matrix.a, matrix.b));
+    const hits = boardSweepHits(elements, active.last, point, radius).filter(
+      (e) => !active.seen.has(e.id),
+    );
+    for (const element of hits) active.seen.add(element.id);
+    active.last = point;
+    erase(hits);
+  }
   const drawingClip = useId();
   const cursor = useRef<{ x: number; y: number } | null>(null);
   const pointerPosition = useRef<{ x: number; y: number } | null>(null);
@@ -171,6 +192,7 @@ export function Whiteboard({
   context.current = contextKey;
   useEffect(() => {
     setDialog(undefined);
+    erasing.current = undefined;
     gesture.current = undefined;
     setDraft(undefined);
     setSelected(undefined);
@@ -234,6 +256,7 @@ export function Whiteboard({
   useEffect(() => {
     if (!editable) {
       setDialog(undefined);
+      erasing.current = undefined;
       gesture.current = undefined;
       setDraft(undefined);
       setTool("pointer");
@@ -268,12 +291,13 @@ export function Whiteboard({
         ?.getAttribute("data-element"),
       existing = elements.find((e) => e.id === target);
     if (tool === "eraser") {
-      if (existing)
-        void run({
-          type: "remove",
-          elementId: existing.id,
-          expectedVersion: existing.version,
-        });
+      erasing.current = {
+        pointer: event.pointerId,
+        last: [x, y],
+        seen: new Set(),
+      };
+      event.currentTarget.setPointerCapture(event.pointerId);
+      sweep([x, y]);
       return;
     }
     if (tool === "select") {
@@ -321,6 +345,13 @@ export function Whiteboard({
     const [x, y] = position(event);
     cursor.current =
       x >= 0 && x <= 1600 && y >= 0 && y <= 900 ? { x, y } : null;
+    const eraser = erasing.current;
+    if (eraser?.pointer === event.pointerId) {
+      if (event.buttons & 1) sweep([x, y]);
+      else erasing.current = undefined;
+      onPresence?.({ cursor: cursor.current, draft: null });
+      return;
+    }
     const g = gesture.current;
     if (!g || g.pointer !== event.pointerId) {
       onPresence?.({ cursor: cursor.current, draft: null });
@@ -345,6 +376,7 @@ export function Whiteboard({
     });
   }
   function up() {
+    erasing.current = undefined;
     const g = gesture.current;
     if (!g) return;
     gesture.current = undefined;
@@ -456,13 +488,17 @@ export function Whiteboard({
         onPointerMove={move}
         onPointerUp={up}
         onPointerLeave={() => {
-          if (!gesture.current) {
+          if (!gesture.current && !erasing.current) {
             pointerPosition.current = null;
             cursor.current = null;
             onPresence?.({ cursor: null, draft: null });
           }
         }}
+        onLostPointerCapture={() => {
+          erasing.current = undefined;
+        }}
         onPointerCancel={() => {
+          erasing.current = undefined;
           gesture.current = undefined;
           setDraft(undefined);
           pointerPosition.current = null;

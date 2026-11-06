@@ -900,3 +900,73 @@ test("live board previews stream at 20 Hz without writes, enforce permissions an
     guest.socket.close();
   }
 }, 10000);
+
+test("drag erasure is authorized, atomic and undoable across several crossed objects", async () => {
+  const f = await fixture(),
+    path = `/rooms/${f.id}/activity`;
+  const started = (
+    await call(f.host, path, { type: "start", target: "board", generation: 0 })
+  ).data;
+  for (let i = 0; i < 3; i++)
+    await call(f.host, path, {
+      type: "board",
+      generation: started.generation,
+      operation: {
+        type: "put",
+        element: {
+          id: crypto.randomUUID(),
+          kind: "path",
+          x: i * 100,
+          y: 0,
+          width: 1,
+          height: 1,
+          color: "#112233",
+          strokeWidth: 3,
+          points: [
+            [0, 0],
+            [0, 100],
+          ],
+        },
+      },
+    });
+  const elements = (await call(f.host, path)).data.board.elements.map(
+    (e: { id: string; version: number }) => ({
+      elementId: e.id,
+      expectedVersion: e.version,
+    }),
+  );
+  const command = {
+    type: "board",
+    generation: started.generation,
+    operation: { type: "erase", elements },
+  };
+  expect((await call(f.guest, path, command)).status).toBe(403);
+  expect(
+    (
+      await call(f.host, path, {
+        ...command,
+        operation: { type: "erase", elements: [...elements, elements[0]] },
+      })
+    ).status,
+  ).toBe(400);
+  expect(
+    (
+      await call(f.host, path, {
+        ...command,
+        operation: {
+          type: "erase",
+          elements: [elements[0], { ...elements[1], expectedVersion: 999 }],
+        },
+      })
+    ).status,
+  ).toBe(409);
+  expect((await call(f.host, path)).data.board.elements).toHaveLength(3);
+  expect((await call(f.host, path, command)).status).toBe(201);
+  expect((await call(f.host, path)).data.board.elements).toHaveLength(0);
+  await call(f.host, path, {
+    type: "board",
+    generation: started.generation,
+    operation: { type: "undo" },
+  });
+  expect((await call(f.host, path)).data.board.elements).toHaveLength(1);
+});

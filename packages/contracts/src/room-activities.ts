@@ -53,6 +53,23 @@ export const boardOperationSchema = z.discriminatedUnion("type", [
     elementId: z.uuid(),
     expectedVersion: z.number().int().positive(),
   }),
+  z.strictObject({
+    type: z.literal("erase"),
+    elements: z
+      .array(
+        z.strictObject({
+          elementId: z.uuid(),
+          expectedVersion: z.number().int().positive(),
+        }),
+      )
+      .min(1)
+      .max(500)
+      .refine(
+        (items) =>
+          new Set(items.map((item) => item.elementId)).size === items.length,
+        { message: "不能重复擦除同一对象" },
+      ),
+  }),
   z.strictObject({ type: z.literal("undo") }),
   z.strictObject({ type: z.literal("redo") }),
   z.strictObject({ type: z.literal("clear") }),

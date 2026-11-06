@@ -2133,6 +2133,14 @@ export interface operations {
                         expectedVersion: number;
                     } | {
                         /** @enum {string} */
+                        type: "erase";
+                        elements: {
+                            /** Format: uuid */
+                            elementId: string;
+                            expectedVersion: number;
+                        }[];
+                    } | {
+                        /** @enum {string} */
                         type: "undo";
                     } | {
                         /** @enum {string} */

@@ -16,6 +16,23 @@ export function editWhiteboard(
   const board = structuredClone(input);
   const revision = board.revision + 1;
   if (operation.type === "clear") return { ...emptyWhiteboard(), revision };
+  if (operation.type === "erase") {
+    const targets = new Map(
+      operation.elements.map((item) => [item.elementId, item.expectedVersion]),
+    );
+    for (const [id, version] of targets) {
+      const element = board.elements.find((e) => e.id === id);
+      if (!element || element.version !== version)
+        throw Error("这部分白板已被修改，请重试");
+    }
+    for (const before of board.elements.filter((e) => targets.has(e.id)))
+      board.undo.push({ actor, before });
+    board.elements = board.elements.filter((e) => !targets.has(e.id));
+    board.undo = board.undo.slice(-200);
+    board.redo = [];
+    board.revision = revision;
+    return board;
+  }
   let before: BoardElement | undefined, after: BoardElement | undefined;
   if (operation.type === "put") {
     before = board.elements.find((e) => e.id === operation.element.id);

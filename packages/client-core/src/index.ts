@@ -52,3 +52,5 @@ export * from "./game-link";
 export * from "./game-authorization";
 export * from "./whiteboard";
 export * from "./room-activities";
+
+export * from "./whiteboard-eraser";
