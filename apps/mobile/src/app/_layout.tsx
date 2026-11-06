@@ -1,3 +1,4 @@
+import { ActivityConnection } from "../components/Activities";
 import { FeatureUpdatePrompt } from "../components/FeatureUpdate";
 import { useEffect } from "react";
 import { Stack, useSegments } from "expo-router";
@@ -21,6 +22,7 @@ export default function Layout() {
     <SafeAreaProvider>
       <StatusBar style="light" />
       <View style={{ flex: 1, backgroundColor: colors.bg }}>
+        <ActivityConnection />
         <UpdateGate>
           {session.status !== "signed-in" ? (
             <Auth />
@@ -61,6 +63,14 @@ export default function Layout() {
                 <Stack.Screen
                   name="invite-friends"
                   options={nativeSheetOptions}
+                />
+                <Stack.Screen
+                  name="room-activity"
+                  options={{ title: "房间活动" }}
+                />
+                <Stack.Screen
+                  name="whiteboards"
+                  options={{ title: "白板记录" }}
                 />
                 <Stack.Screen name="devices" options={{ title: "登录设备" }} />
                 <Stack.Screen

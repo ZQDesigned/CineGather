@@ -40,6 +40,8 @@ export function attachEsportsGateway(
   let pending = 0;
   const upgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     const url = new URL(req.url ?? "/", "http://localhost");
+    // The API also hosts the independently authenticated room-activity channel.
+    if (url.pathname === "/api/v1/room-activities/ws") return;
     if (!rtcPath(url.pathname)) {
       socket.destroy();
       return;

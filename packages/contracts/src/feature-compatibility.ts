@@ -7,6 +7,7 @@ import {
 } from "./client-policy";
 export const featureLabels = {
   "room.standard": "普通房间",
+  "room.activities": "白板与聚会游戏",
   "room.large": "多人普通房间",
   "room.esports": "电竞赛事房",
   "screen.publish": "屏幕共享",
@@ -17,6 +18,7 @@ export const featureLabels = {
 } as const;
 export const featureIdSchema = z.enum([
   "room.standard",
+  "room.activities",
   "room.large",
   "room.esports",
   "screen.publish",
@@ -39,6 +41,7 @@ export const featureProtocolsSchema = z.partialRecord(
 export type FeatureProtocols = z.infer<typeof featureProtocolsSchema>;
 export const currentFeatureProtocols: FeatureProtocols = {
   "room.standard": [1],
+  "room.activities": [1],
   "room.large": [1],
   "room.esports": [1, 2],
   "screen.publish": [1],

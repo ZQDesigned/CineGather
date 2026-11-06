@@ -1,4 +1,10 @@
 import { WatchProfileControl, WatchAdvice } from "./WatchProfile";
+import {
+  useRoomActivityConnection,
+  RoomActivityStage,
+  RoomActivityControls,
+  ActivityNotifications,
+} from "./RoomActivities";
 
 import { PictureInPicture2 } from "lucide-react";
 import { useViewingWindow } from "./ViewingWindow";
@@ -45,6 +51,9 @@ import {
 } from "../audio-compatibility";
 export function Room({ visible = true }: { visible?: boolean }) {
   const app = useApp();
+  const activity = useRoomActivityConnection();
+  const activityVisible =
+    activity.snapshot?.kind === "board" || activity.snapshot?.kind === "game";
   const { modal } = App.useApp();
   const stage = useRef<HTMLDivElement>(null);
   const local = app.media.participants.find((p) => p.local);
@@ -94,6 +103,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
   };
   return (
     <div className="room-page">
+      <ActivityNotifications />
       <div className="room-heading">
         <div className="room-title-row">
           <h1 title={app.room!.name}>{app.room!.name}</h1>
@@ -161,7 +171,10 @@ export function Room({ visible = true }: { visible?: boolean }) {
       )}
       <div className="room-layout">
         <div className="view-column">
+          <RoomActivityControls />
+          <RoomActivityStage />
           <div
+            style={activityVisible ? { display: "none" } : undefined}
             className={`stage ${!nativeSharing && app.media.sharer?.hasVideo ? "has-video" : ""}`}
             ref={stage}
             onDoubleClick={(event) => {
@@ -343,7 +356,10 @@ export function Room({ visible = true }: { visible?: boolean }) {
               }
             />
           )}
-          <div className="stage-meta">
+          <div
+            className="stage-meta"
+            style={activityVisible ? { display: "none" } : undefined}
+          >
             <span>
               <ScreenShare size={15} />
               {app.media.sharer ? "实时共享" : "等待共享"}
@@ -408,7 +424,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
             </div>
             <MicrophoneEffectControl disabled={!connected} />
             <div className="control-divider" />
-            {(!otherSharing || canPreempt || sharing) && (
+            {!activityVisible && (!otherSharing || canPreempt || sharing) && (
               <Button
                 type="text"
                 aria-pressed={sharing}
@@ -447,7 +463,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
                 </span>
               </Button>
             )}
-            <ShareQueue key={app.room!.id} />
+            {!activityVisible && <ShareQueue key={app.room!.id} />}
             {otherSharing && app.media.watching && (
               <Button
                 type="text"

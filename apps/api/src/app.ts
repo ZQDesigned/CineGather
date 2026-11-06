@@ -1,4 +1,10 @@
 import { gameTunnelHttp } from "./game-tunnel-http";
+import { RoomActivityController } from "./room-activity-controller";
+import { attachActivityGateway } from "./room-activity-gateway";
+import {
+  tickRoomActivities,
+  cleanupWhiteboardArchives,
+} from "./room-activities";
 import { GameTunnelController } from "./game-tunnel-controller";
 import { json, urlencoded } from "express";
 import { gameTransaction } from "./game-link-access";
@@ -73,6 +79,28 @@ class Reconciler implements OnModuleInit, OnModuleDestroy {
     clearInterval(this.timer);
   }
 }
+class RoomActivityClock implements OnModuleInit, OnModuleDestroy {
+  private timer?: ReturnType<typeof setInterval>;
+  private busy = false;
+  onModuleInit() {
+    this.timer = setInterval(() => {
+      if (this.busy) return;
+      this.busy = true;
+      void tickRoomActivities()
+        .then(() => cleanupWhiteboardArchives())
+        .catch(() =>
+          console.error(JSON.stringify({ event: "activity.tick_failed" })),
+        )
+        .finally(() => {
+          this.busy = false;
+        });
+    }, 1000);
+    this.timer.unref();
+  }
+  onModuleDestroy() {
+    clearInterval(this.timer);
+  }
+}
 class TacticalPauses implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;
   private running = false;
@@ -100,6 +128,7 @@ class TacticalPauses implements OnModuleInit, OnModuleDestroy {
 }
 @Module({
   controllers: [
+    RoomActivityController,
     ApiController,
     GameLinkController,
     GameTunnelController,
@@ -108,6 +137,7 @@ class TacticalPauses implements OnModuleInit, OnModuleDestroy {
     EsportsAdmissionController,
   ],
   providers: [
+    RoomActivityClock,
     Metrics,
     Reconciler,
     TacticalPauses,
@@ -192,6 +222,17 @@ export async function createApp({
     ],
   });
   app.use(maintenanceGate(maintenanceFile));
+  app.use("/api/v1/rooms/:roomId/activity/images", json({ limit: "3mb" }));
+  const activitiesGateway = attachActivityGateway(
+    app.getHttpServer(),
+    () => !!readMaintenance(maintenanceFile),
+  );
+  app.getHttpServer().once("close", () => activitiesGateway.close());
+  const closeActivities = app.close.bind(app);
+  app.close = async () => {
+    activitiesGateway.close();
+    await closeActivities();
+  };
   app.use(
     "/api/v1/game-tunnel/identity/token",
     urlencoded({ extended: false, limit: "8kb" }),

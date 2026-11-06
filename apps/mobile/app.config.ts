@@ -72,6 +72,14 @@ const config: ExpoConfig = {
     "./plugins/with-screen-share.cjs",
     "expo-secure-store",
     "expo-sharing",
+    [
+      "expo-image-picker",
+      {
+        cameraPermission: false,
+        microphonePermission: false,
+        photosPermission: "选择图片加入房间白板。",
+      },
+    ],
     "expo-notifications",
     "expo-screen-orientation",
     [

@@ -238,6 +238,8 @@ const bridge: DesktopBridge = {
   },
   takeInvitation: () => ipcRenderer.invoke("desktop:take-invitation"),
   sources: () => ipcRenderer.invoke("desktop:sources"),
+  captureWhiteboardImage: () =>
+    ipcRenderer.invoke("desktop:whiteboard-capture"),
   sourceThumbnails: (ids) =>
     ipcRenderer.invoke("desktop:source-thumbnails", ids),
   selectSource: (selection) =>

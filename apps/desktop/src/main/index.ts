@@ -16,6 +16,7 @@ import {
   net,
   ipcMain,
   desktopCapturer,
+  dialog,
   session,
   shell,
   Tray,
@@ -454,6 +455,7 @@ function registerIPC() {
       if (
         [
           "desktop:sources",
+          "desktop:whiteboard-capture",
           "desktop:select-source",
           "desktop:native-start",
           "desktop:process-audio-start",
@@ -569,6 +571,45 @@ function registerIPC() {
     if (process.platform !== "win32" || !nativeCapture)
       throw new Error("当前平台不支持原生编码器选择");
     return nativeCapture.encoders();
+  });
+  handle("desktop:whiteboard-capture", async () => {
+    const window = win;
+    if (!window) return;
+    const sources = await desktopCapturer.getSources({
+      types: ["screen"],
+      thumbnailSize: { width: 0, height: 0 },
+    });
+    if (!sources.length) throw Error("无法读取屏幕，请检查系统录屏权限");
+    const choice = await dialog.showMessageBox(window, {
+      type: "question",
+      title: "截取屏幕",
+      message: "选择要加入白板的屏幕",
+      buttons: [
+        ...sources.map((source, i) => source.name || `屏幕 ${i + 1}`),
+        "取消",
+      ],
+      cancelId: sources.length,
+      defaultId: sources.length,
+      noLink: true,
+    });
+    const source = sources[choice.response];
+    if (
+      !source ||
+      screenLocked ||
+      suspended ||
+      quitting ||
+      window.isDestroyed()
+    )
+      return;
+    const capture = (
+      await desktopCapturer.getSources({
+        types: ["screen"],
+        thumbnailSize: { width: 2400, height: 1600 },
+      })
+    ).find((s) => s.id === source.id);
+    if (!capture || capture.thumbnail.isEmpty())
+      throw Error("无法截取画面，请检查系统录屏权限");
+    return capture.thumbnail.toDataURL();
   });
   handle("desktop:sources", async () =>
     nativeCapture

@@ -1,3 +1,4 @@
+import { WhiteboardHistory } from "./RoomActivities";
 import { GameLink, GameLinkNotifications } from "./GameLink";
 import { GameLinkStatus } from "./GameLinkStatus";
 import { GameLinkPromo } from "./GameLinkPromo";
@@ -21,6 +22,7 @@ import {
   ShieldCheck,
   Download,
   Gamepad2,
+  History,
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -75,6 +77,7 @@ const mainPath = () =>
     : location.pathname;
 export function App() {
   const app = useApp();
+  const [whiteboards, setWhiteboards] = useState(false);
   const [home, setHome] = useState(false);
   const [section, setSection] = useState(readSection);
   const admin = section === "admin";
@@ -365,6 +368,13 @@ export function App() {
                   ]
                 : []),
               {
+                key: "whiteboards",
+                disabled: !app.user,
+                icon: <History size={18} />,
+                label: "白板记录",
+                onClick: () => setWhiteboards(true),
+              },
+              {
                 key: "settings",
                 icon: <Settings size={18} />,
                 label: "设置与设备",
@@ -526,6 +536,10 @@ export function App() {
         )}
       </main>
       <Dialogs />
+      <WhiteboardHistory
+        open={whiteboards}
+        onClose={() => setWhiteboards(false)}
+      />
     </AppSurface>
   );
 }

@@ -1,0 +1,492 @@
+import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { Input, Modal, App } from "antd";
+import {
+  MousePointer2,
+  Pencil,
+  Square,
+  Type,
+  StickyNote,
+  Eraser,
+  Undo2,
+  Redo2,
+  Trash2,
+  ImagePlus,
+  ScanLine,
+  Download,
+} from "lucide-react";
+import type {
+  BoardElement,
+  BoardElementInput,
+  BoardOperation,
+} from "@cinegather/contracts";
+import { unwrap } from "@cinegather/api-client";
+import { api, report } from "../controller";
+import { Button } from "./Controls";
+import { useRetainedDialog } from "./useRetainedDialog";
+import { normalizeBoardImage, screenshotBoardImage } from "../whiteboard-image";
+type Tool = "select" | "path" | "rect" | "text" | "note" | "eraser";
+export function WhiteboardImage({ element }: { element: BoardElement }) {
+  const [data, setData] = useState<string>();
+  useEffect(() => {
+    let active = true;
+    void api
+      .GET("/api/v1/whiteboards/images/{imageId}", {
+        params: { path: { imageId: element.imageId! } },
+      })
+      .then(unwrap)
+      .then((r) => {
+        if (active) setData(r.data);
+      })
+      .catch(report);
+    return () => {
+      active = false;
+    };
+  }, [element.imageId]);
+  return data ? (
+    <image
+      x={element.x}
+      y={element.y}
+      width={element.width}
+      height={element.height}
+      href={data}
+      preserveAspectRatio="xMidYMid meet"
+    />
+  ) : null;
+}
+export function BoardShape({ element }: { element: BoardElementInput }) {
+  if (element.kind === "image")
+    return <WhiteboardImage element={element as BoardElement} />;
+  if (element.kind === "path")
+    return (
+      <path
+        transform={`translate(${element.x} ${element.y})`}
+        d={element.points
+          ?.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`)
+          .join(" ")}
+        fill="none"
+        stroke={element.color}
+        strokeWidth={element.strokeWidth}
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    );
+  if (element.kind === "rect")
+    return (
+      <rect
+        x={element.x}
+        y={element.y}
+        width={element.width}
+        height={element.height}
+        fill="none"
+        stroke={element.color}
+        strokeWidth={element.strokeWidth}
+      />
+    );
+  return (
+    <g>
+      {element.kind === "note" && (
+        <rect
+          x={element.x}
+          y={element.y}
+          width={element.width}
+          height={element.height}
+          rx={6}
+          fill="#e5d9f7"
+        />
+      )}
+      <text
+        x={element.x + 12}
+        y={element.y + 30}
+        fill={element.color}
+        fontSize={24}
+      >
+        {(element.text ?? "").split("\n").map((line, i) => (
+          <tspan key={i} x={element.x + 12} dy={i ? 31 : 0}>
+            {line}
+          </tspan>
+        ))}
+      </text>
+    </g>
+  );
+}
+export function Whiteboard({
+  elements,
+  editable,
+  importable,
+  canUndo,
+  canRedo,
+  canClear,
+  onOperation,
+  onImage,
+  contextKey = "history",
+}: {
+  elements: BoardElement[];
+  editable: boolean;
+  importable: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  canClear: boolean;
+  onOperation: (operation: BoardOperation) => Promise<void>;
+  onImage?: (data: string) => Promise<void>;
+  contextKey?: string;
+}) {
+  const svg = useRef<SVGSVGElement>(null),
+    gesture = useRef<
+      | {
+          start: [number, number];
+          element: BoardElementInput;
+          original?: BoardElement;
+          pointer: number;
+        }
+      | undefined
+    >(undefined);
+  const [tool, setTool] = useState<Tool>("path"),
+    [color, setColor] = useState("#8161ac"),
+    [draft, setDraft] = useState<BoardElementInput>(),
+    [selected, setSelected] = useState<string>(),
+    [busy, setBusy] = useState(false);
+  const [dialog, setDialog] = useState<{
+    kind: "text" | "image" | "clear";
+    element?: BoardElementInput;
+    data?: string;
+  }>();
+  const retained = useRetainedDialog(dialog),
+    [text, setText] = useState("");
+  const file = useRef<HTMLInputElement>(null);
+  const { message } = App.useApp();
+  const context = useRef(contextKey);
+  context.current = contextKey;
+  useEffect(() => {
+    setDialog(undefined);
+    gesture.current = undefined;
+    setDraft(undefined);
+    setSelected(undefined);
+  }, [contextKey]);
+  useEffect(() => {
+    if (!editable) {
+      gesture.current = undefined;
+      setDraft(undefined);
+    }
+  }, [editable]);
+  function position(event: PointerEvent<SVGSVGElement>): [number, number] {
+    const point = svg.current!.createSVGPoint();
+    point.x = event.clientX;
+    point.y = event.clientY;
+    const p = point.matrixTransform(svg.current!.getScreenCTM()!.inverse());
+    return [Math.round(p.x), Math.round(p.y)];
+  }
+  async function run(operation: BoardOperation) {
+    try {
+      await onOperation(operation);
+    } catch (e) {
+      report(e);
+    }
+  }
+  function down(event: PointerEvent<SVGSVGElement>) {
+    if (!editable || busy || event.button !== 0) return;
+    event.currentTarget.focus();
+    const [x, y] = position(event),
+      target = (event.target as Element)
+        .closest("[data-element]")
+        ?.getAttribute("data-element"),
+      existing = elements.find((e) => e.id === target);
+    if (tool === "eraser") {
+      if (existing)
+        void run({
+          type: "remove",
+          elementId: existing.id,
+          expectedVersion: existing.version,
+        });
+      return;
+    }
+    if (tool === "select") {
+      setSelected(existing?.id);
+      if (!existing) return;
+      gesture.current = {
+        start: [x, y],
+        element: { ...existing },
+        original: existing,
+        pointer: event.pointerId,
+      };
+    } else {
+      const element: BoardElementInput = {
+        id: crypto.randomUUID(),
+        kind: tool,
+        x,
+        y,
+        width: tool === "note" ? 260 : 220,
+        height: tool === "note" ? 160 : 60,
+        color,
+        strokeWidth: 3,
+        ...(tool === "path"
+          ? { x: 0, y: 0, points: [[x, y] as [number, number]] }
+          : {}),
+        ...(["text", "note"].includes(tool) ? { text: "" } : {}),
+      };
+      if (tool === "text" || tool === "note") {
+        setText("");
+        setDialog({ kind: "text", element });
+        return;
+      }
+      gesture.current = { start: [x, y], element, pointer: event.pointerId };
+    }
+    event.currentTarget.setPointerCapture(event.pointerId);
+    setDraft({ ...gesture.current.element });
+  }
+  function move(event: PointerEvent<SVGSVGElement>) {
+    const g = gesture.current;
+    if (!g || g.pointer !== event.pointerId) return;
+    event.currentTarget.focus();
+    const [x, y] = position(event),
+      [sx, sy] = g.start;
+    if (g.original) {
+      g.element.x = g.original.x + x - sx;
+      g.element.y = g.original.y + y - sy;
+    } else if (g.element.kind === "path") {
+      if (g.element.points!.length < 1024) g.element.points!.push([x, y]);
+    } else {
+      g.element.x = Math.min(sx, x);
+      g.element.y = Math.min(sy, y);
+      g.element.width = Math.abs(x - sx);
+      g.element.height = Math.abs(y - sy);
+    }
+    setDraft({ ...g.element });
+  }
+  function up() {
+    const g = gesture.current;
+    if (!g) return;
+    gesture.current = undefined;
+    setDraft(undefined);
+    const {
+      authorId: _author,
+      version: _version,
+      ...element
+    } = g.element as BoardElement;
+    void run({ type: "put", element, expectedVersion: g.original?.version });
+  }
+  async function importImage(source: File | string) {
+    const began = contextKey;
+    setBusy(true);
+    try {
+      const data = await normalizeBoardImage(source);
+      if (context.current === began) setDialog({ kind: "image", data });
+    } catch (e) {
+      report(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function capture() {
+    const began = contextKey;
+    setBusy(true);
+    try {
+      const data = await screenshotBoardImage();
+      if (data && context.current === began) setDialog({ kind: "image", data });
+    } catch (e) {
+      report(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function save() {
+    if (!retained.value || busy) return;
+    setBusy(true);
+    try {
+      const item = retained.value;
+      if (item.kind === "image") {
+        await onImage?.(item.data!);
+      } else if (item.kind === "clear") await onOperation({ type: "clear" });
+      else if (text.trim())
+        await onOperation({
+          type: "put",
+          element: { ...item.element!, text: text.trim() },
+        });
+      else return;
+      setDialog((current) => (current === item ? undefined : current));
+    } catch (e) {
+      report(e);
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function exportImage() {
+    try {
+      const clone = svg.current!.cloneNode(true) as SVGSVGElement;
+      clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
+      clone.setAttribute("width", "1600");
+      clone.setAttribute("height", "900");
+      clone.querySelectorAll("[data-selection]").forEach((e) => e.remove());
+      const blob = new Blob([new XMLSerializer().serializeToString(clone)], {
+          type: "image/svg+xml",
+        }),
+        url = URL.createObjectURL(blob);
+      try {
+        const data = await normalizeBoardImage(url),
+          a = document.createElement("a");
+        a.href = data;
+        a.download = "映聚白板.png";
+        a.click();
+      } finally {
+        URL.revokeObjectURL(url);
+      }
+    } catch {
+      void message.error("暂时无法导出白板");
+    }
+  }
+  const tools: [Tool, string, typeof Pencil][] = [
+    ["select", "选择移动", MousePointer2],
+    ["path", "画笔", Pencil],
+    ["rect", "矩形", Square],
+    ["text", "文字", Type],
+    ["note", "便签", StickyNote],
+    ["eraser", "擦除", Eraser],
+  ];
+  return (
+    <div className="collab-board">
+      <svg
+        ref={svg}
+        className="collab-canvas"
+        viewBox="0 0 1600 900"
+        aria-label="协作白板"
+        tabIndex={0}
+        onPointerDown={down}
+        onPointerMove={move}
+        onPointerUp={up}
+        onPointerCancel={() => {
+          gesture.current = undefined;
+          setDraft(undefined);
+        }}
+      >
+        <rect width="1600" height="900" fill="#f1eef6" />
+        {elements
+          .filter((e) => e.id !== draft?.id)
+          .map((element) => (
+            <g key={`${contextKey}:${element.id}`} data-element={element.id}>
+              <BoardShape element={element} />
+              {selected === element.id && tool === "select" && (
+                <rect
+                  data-selection
+                  x={element.x - 3}
+                  y={element.y - 3}
+                  width={element.width + 6}
+                  height={element.height + 6}
+                  fill="none"
+                  stroke="#9d7bcc"
+                  strokeDasharray="8 5"
+                />
+              )}
+            </g>
+          ))}
+        {draft && <BoardShape element={draft} />}
+      </svg>
+      {editable && (
+        <div className="collab-tools">
+          {tools.map(([value, label, Icon]) => (
+            <Button
+              key={value}
+              aria-label={label}
+              aria-pressed={tool === value}
+              className={tool === value ? "active" : ""}
+              onClick={() => setTool(value)}
+            >
+              <Icon size={17} />
+            </Button>
+          ))}
+          <input
+            aria-label="画笔颜色"
+            type="color"
+            value={color}
+            onChange={(e) => setColor(e.target.value)}
+          />
+          <Button
+            disabled={!canUndo}
+            aria-label="撤销"
+            onClick={() => void run({ type: "undo" })}
+          >
+            <Undo2 size={17} />
+          </Button>
+          <Button
+            disabled={!canRedo}
+            aria-label="重做"
+            onClick={() => void run({ type: "redo" })}
+          >
+            <Redo2 size={17} />
+          </Button>
+          {canClear && (
+            <Button
+              aria-label="清空白板"
+              onClick={() => setDialog({ kind: "clear" })}
+            >
+              <Trash2 size={17} />
+            </Button>
+          )}
+        </div>
+      )}
+      <div className="collab-import">
+        {importable && (
+          <>
+            <Button loading={busy} onClick={() => void capture()}>
+              <ScanLine size={16} />
+              截取屏幕
+            </Button>
+            <Button disabled={busy} onClick={() => file.current?.click()}>
+              <ImagePlus size={16} />
+              上传图片
+            </Button>
+            <input
+              hidden
+              ref={file}
+              type="file"
+              accept="image/png,image/jpeg,image/webp"
+              onChange={(e) => {
+                const chosen = e.target.files?.[0];
+                e.target.value = "";
+                if (chosen) void importImage(chosen);
+              }}
+            />
+          </>
+        )}
+        <Button aria-label="导出白板" onClick={() => void exportImage()}>
+          <Download size={16} />
+        </Button>
+      </div>
+      <Modal
+        open={retained.open}
+        afterClose={retained.afterClose}
+        title={
+          retained.value?.kind === "image"
+            ? "确认加入图片"
+            : retained.value?.kind === "clear"
+              ? "清空白板"
+              : "添加文字"
+        }
+        onCancel={() => setDialog(undefined)}
+        onOk={() => void save()}
+        confirmLoading={busy}
+        okText="确认"
+        cancelText="取消"
+        destroyOnHidden
+        centered
+      >
+        {retained.value?.kind === "image" ? (
+          <img
+            className="collab-image-preview"
+            src={retained.value.data}
+            alt="待加入白板的图片"
+          />
+        ) : retained.value?.kind === "clear" ? (
+          <p>清空当前画布内容，此操作不能撤销。</p>
+        ) : (
+          <Input.TextArea
+            aria-label="白板文字"
+            autoFocus
+            value={text}
+            onChange={(e) => setText(e.target.value)}
+            maxLength={1000}
+            rows={4}
+          />
+        )}
+      </Modal>
+    </div>
+  );
+}

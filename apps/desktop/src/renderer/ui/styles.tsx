@@ -7,6 +7,167 @@ export function GlobalStyles() {
   return (
     <Global
       styles={css`
+        .room-activity-controls,
+        .room-activity-stage > header,
+        .activity-actions,
+        .party-status,
+        .party-choices,
+        .party-answer,
+        .collab-tools,
+        .collab-import {
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          flex-wrap: wrap;
+        }
+        .room-activity-controls {
+          margin-bottom: 12px;
+        }
+        .activity-spacer {
+          flex: 1;
+        }
+        .room-activity-stage {
+          background: #171922;
+          border: 1px solid #ffffff12;
+          border-radius: 18px;
+          overflow: hidden;
+        }
+        .room-activity-stage > header {
+          padding: 16px 18px;
+          border-bottom: 1px solid #ffffff0e;
+        }
+        .room-activity-stage > header > strong {
+          flex: 1;
+        }
+        .room-activity-stage > header > span,
+        .party-scores small {
+          color: var(--muted);
+        }
+        .collab-board {
+          position: relative;
+        }
+        .collab-canvas {
+          display: block;
+          width: 100%;
+          aspect-ratio: 16/9;
+          touch-action: none;
+          user-select: none;
+        }
+        .collab-tools {
+          padding: 10px;
+          background: #1d202b;
+          border-top: 1px solid #ffffff0c;
+        }
+        .collab-tools button {
+          padding: 7px 10px;
+        }
+        .collab-tools button.active {
+          background: #51446c;
+          border-color: #b39bff;
+        }
+        .collab-tools input[type="color"] {
+          width: 32px;
+          height: 30px;
+          border: 0;
+          background: transparent;
+        }
+        .collab-import {
+          padding: 10px;
+          justify-content: flex-end;
+        }
+        .collab-image-preview {
+          max-width: 100%;
+          max-height: 55vh;
+          display: block;
+          margin: auto;
+        }
+        .party-status {
+          padding: 14px 18px;
+          min-height: 62px;
+        }
+        .party-choices {
+          margin-left: auto;
+        }
+        .party-picker {
+          display: grid;
+          grid-template-columns: 1fr 1fr;
+          gap: 16px;
+          padding: 12px 0;
+        }
+        .party-picker button {
+          height: 100px;
+          font-size: 18px;
+        }
+        .quiz-clue {
+          min-height: 280px;
+          padding: 36px;
+          display: flex;
+          flex-direction: column;
+          align-items: center;
+          justify-content: center;
+          text-align: center;
+          background: radial-gradient(ellipse at center, #342849, #161821);
+        }
+        .party-scores {
+          display: flex;
+          flex-wrap: wrap;
+          gap: 10px;
+          padding: 14px;
+        }
+        .party-scores > div {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          background: #242635;
+          border-radius: 10px;
+          padding: 10px 12px;
+        }
+        .party-scores strong {
+          color: #c7adff;
+        }
+        .party-answer {
+          padding: 0 14px 14px;
+          flex-wrap: nowrap;
+        }
+        .activity-permissions > div {
+          display: flex;
+          align-items: center;
+          gap: 20px;
+          margin: 12px 0;
+        }
+        .activity-permissions > div > span {
+          flex: 1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+        }
+        .activity-permissions label {
+          display: flex;
+          gap: 8px;
+          align-items: center;
+        }
+        .whiteboard-history {
+          max-height: 72vh;
+          overflow: auto;
+        }
+        .whiteboard-record {
+          display: flex;
+          gap: 10px;
+          align-items: center;
+          padding: 10px 0;
+          border-bottom: 1px solid #ffffff12;
+        }
+        .whiteboard-record > button:first-of-type {
+          flex: 1;
+          justify-content: flex-start;
+          height: auto;
+          text-align: left;
+        }
+        .whiteboard-record small {
+          display: block;
+          color: var(--muted);
+          margin-top: 4px;
+        }
         :root {
           font-family: ${cinemaFont};
           color: #e9e9ef;

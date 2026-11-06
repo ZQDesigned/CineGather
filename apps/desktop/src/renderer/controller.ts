@@ -67,6 +67,9 @@ import { version } from "../../package.json";
 import { clientPolicySchema, clientUpdateOrigin } from "@cinegather/contracts";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;
 let changingCredentials = false;
+export function activityServerOrigin() {
+  return baseUrl;
+}
 const baseUrl = defaultServer(
   localStorage.getItem("cinegather.api"),
   import.meta.env.VITE_API_URL,

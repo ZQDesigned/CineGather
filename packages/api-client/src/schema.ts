@@ -4,6 +4,102 @@
  */
 
 export interface paths {
+    "/api/v1/rooms/{roomId}/activity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["roomActivity"];
+        put?: never;
+        post: operations["roomActivityCommand"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rooms/{roomId}/activity/ticket": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["roomActivityTicket"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/rooms/{roomId}/activity/images": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["uploadWhiteboardImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whiteboards/images/{imageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["whiteboardImage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whiteboards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["whiteboards"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/whiteboards/{whiteboardId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["whiteboard"];
+        put?: never;
+        post?: never;
+        delete: operations["deleteWhiteboard"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -1804,7 +1900,7 @@ export interface components {
             /** @enum {string} */
             scope: "feature";
             /** @enum {string} */
-            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java" | "game.stardew-valley";
+            feature: "room.standard" | "room.activities" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java" | "game.stardew-valley";
             protocol: number;
             /** Format: uuid */
             roomId?: string;
@@ -1824,6 +1920,1131 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    roomActivity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    roomActivityCommand: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    type: "start";
+                    /** @enum {string} */
+                    target: "board" | "draw" | "quiz" | "screen";
+                    generation: number;
+                    /** Format: uuid */
+                    requestId?: string;
+                    /** Format: uuid */
+                    historyId?: string;
+                } | {
+                    /** @enum {string} */
+                    type: "end";
+                    generation: number;
+                } | {
+                    /** @enum {string} */
+                    type: "request";
+                    /** @enum {string} */
+                    target: "board" | "draw" | "quiz" | "screen";
+                    generation: number;
+                } | {
+                    /** @enum {string} */
+                    type: "decide";
+                    /** Format: uuid */
+                    requestId: string;
+                    approve: boolean;
+                } | {
+                    /** @enum {string} */
+                    type: "cancel";
+                    /** Format: uuid */
+                    requestId: string;
+                } | {
+                    /** @enum {string} */
+                    type: "permissions";
+                    /** Format: uuid */
+                    userId: string;
+                    board?: boolean;
+                    game?: boolean;
+                } | {
+                    /** @enum {string} */
+                    type: "board";
+                    generation: number;
+                    operation: {
+                        /** @enum {string} */
+                        type: "put";
+                        element: {
+                            /** Format: uuid */
+                            id: string;
+                            /** @enum {string} */
+                            kind: "path" | "rect" | "text" | "note" | "image";
+                            x: number;
+                            y: number;
+                            width: number;
+                            height: number;
+                            color: string;
+                            strokeWidth: number;
+                            points?: (number)[][];
+                            text?: string;
+                            /** Format: uuid */
+                            imageId?: string;
+                        };
+                        expectedVersion?: number;
+                    } | {
+                        /** @enum {string} */
+                        type: "remove";
+                        /** Format: uuid */
+                        elementId: string;
+                        expectedVersion: number;
+                    } | {
+                        /** @enum {string} */
+                        type: "undo";
+                    } | {
+                        /** @enum {string} */
+                        type: "redo";
+                    } | {
+                        /** @enum {string} */
+                        type: "clear";
+                    };
+                } | {
+                    /** @enum {string} */
+                    type: "party";
+                    generation: number;
+                    action: {
+                        /** @enum {string} */
+                        type: "ready";
+                        ready: boolean;
+                    } | {
+                        /** @enum {string} */
+                        type: "start";
+                    } | {
+                        /** @enum {string} */
+                        type: "choose";
+                        index: number;
+                    } | {
+                        /** @enum {string} */
+                        type: "guess";
+                        answer: string;
+                    } | {
+                        /** @enum {string} */
+                        type: "pause";
+                    } | {
+                        /** @enum {string} */
+                        type: "resume";
+                    };
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    roomActivityTicket: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        ticket: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    uploadWhiteboardImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                roomId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    generation: number;
+                    data: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        width: number;
+                        height: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    whiteboardImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                imageId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        data: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    whiteboards: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    whiteboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                whiteboardId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    deleteWhiteboard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                whiteboardId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
     health: {
         parameters: {
             query?: never;
@@ -2633,7 +3854,7 @@ export interface operations {
                         revision: number;
                         rules: {
                             /** @enum {string} */
-                            feature: "room.standard" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java" | "game.stardew-valley";
+                            feature: "room.standard" | "room.activities" | "room.large" | "room.esports" | "screen.publish" | "screen.watch" | "screen.quality.game" | "game.minecraft-java" | "game.stardew-valley";
                             platforms?: ("win32" | "darwin" | "web" | "android" | "ios")[];
                             protocol: number;
                             appliesFromProtocol?: number;

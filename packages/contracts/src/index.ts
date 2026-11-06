@@ -411,6 +411,7 @@ export interface MainWindowState {
 }
 export type MainWindowAction = "minimize" | "toggle-maximize" | "close";
 export interface DesktopBridge {
+  captureWhiteboardImage?(): Promise<string | undefined>;
   gameLink?: import("./game-link").GameLinkBridge;
   notifications?: {
     show(input: import("./notifications").DesktopNotification): Promise<void>;
@@ -639,3 +640,4 @@ export * from "./mobile-downloads";
 
 export * from "./native-network";
 export * from "./game-link";
+export * from "./room-activities";

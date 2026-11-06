@@ -12,6 +12,7 @@ const proxy = {
   },
   "/api": {
     target: process.env.WEB_API_PROXY ?? "http://127.0.0.1:14310",
+    ws: true,
     changeOrigin: true,
   },
 };

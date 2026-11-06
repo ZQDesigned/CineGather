@@ -1,4 +1,9 @@
 import {
+  ActivityPreview,
+  MobileActivityPermissions,
+  useActivities,
+} from "../components/Activities";
+import {
   useEffect,
   useState,
   useRef,
@@ -63,6 +68,9 @@ import {
 import { Screen } from "../components/Screen";
 import { EsportsRoom } from "../components/EsportsRoom";
 export default function RoomScreen() {
+  const activity = useActivities();
+  const activityVisible =
+    activity.snapshot?.kind === "board" || activity.snapshot?.kind === "game";
   const state = useRuntime(),
     media = useMedia(),
     session = useSession(),
@@ -300,7 +308,8 @@ export default function RoomScreen() {
               gap: 6,
             }}
           >
-            {video}
+            {!activityVisible && video}
+            <ActivityPreview />
             {!(keyboard && tab === "chat") && (
               <View style={[styles.spread, { minHeight: 36 }]}>
                 <View style={[styles.row, { gap: 8, flex: 1 }]}>
@@ -587,7 +596,7 @@ export default function RoomScreen() {
             )}
           </View>
         </View>
-        {!compactTyping && (
+        {!compactTyping && !activityVisible && (
           <View style={{ paddingHorizontal: 16, paddingVertical: 6 }}>
             <Button
               icon={
@@ -690,6 +699,7 @@ export default function RoomScreen() {
         title="房间设置"
         close={() => setEditing(false)}
       >
+        <MobileActivityPermissions />
         <Field label="房间名称" value={name} onChangeText={setName} />
         <Field
           label={`人数上限（2–${room.capacityLimit ?? 10}）`}

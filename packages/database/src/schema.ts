@@ -553,3 +553,4 @@ export const announcementReceipts = pgTable(
 );
 
 export * from "./game-link";
+export * from "./room-activities";

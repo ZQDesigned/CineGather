@@ -4,6 +4,7 @@ import { useApp, update } from "../store";
 import * as actions from "../controller";
 import { ModalShell, useDialogOpen } from "./Modal";
 import { EsportsRoomSettings } from "./EsportsRoomSettings";
+import { ActivityPermissionSettings } from "./RoomActivities";
 export function RoomSettings() {
   const esports = useApp((s) => s.room?.mode === "esports");
   return esports ? <EsportsRoomSettings /> : <StandardRoomSettings />;
@@ -85,6 +86,7 @@ function StandardRoomSettings() {
           />
         </Form.Item>
       </Form>
+      <ActivityPermissionSettings />
     </ModalShell>
   );
 }

@@ -10,6 +10,7 @@ import {
   Wifi,
   Mic,
   Monitor,
+  History,
 } from "lucide-react-native";
 import { runtime } from "../../runtime";
 import {
@@ -113,6 +114,11 @@ export default function Settings() {
           />
         </View>
       </View>
+      <MenuRow
+        icon={History}
+        title="白板记录"
+        onPress={() => router.push("/whiteboards")}
+      />
       <View style={{ gap: 8 }}>
         <SectionHeading title="连接诊断" />
         <View style={styles.group}>

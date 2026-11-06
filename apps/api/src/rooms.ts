@@ -1,6 +1,11 @@
 import { requireFeature, requireRoomFeature } from "./feature-policy";
 import { esportsVisibility, supportsDynamicEsports } from "./session-context";
 import {
+  guardActivityShare,
+  archiveDeparting,
+  closeRoomActivities,
+} from "./room-activities";
+import {
   requireShareQuality,
   validatePublicationQuality,
 } from "./capabilities";
@@ -765,7 +770,10 @@ export async function leaveRoom(user: User, roomId: string) {
         .update(members)
         .set({ admittedUntil: null })
         .where(and(eq(members.roomId, roomId), eq(members.userId, user.id)));
-    if (wasAdmitted) await audit(tx, user.id, "room.left", roomId);
+    if (wasAdmitted) {
+      await archiveDeparting(tx, roomId, user.id);
+      await audit(tx, user.id, "room.left", roomId);
+    }
     await settleRoom(tx, roomId);
   });
   return { ok: true as const };
@@ -865,6 +873,7 @@ export async function settleRoom(
 }
 // Caller holds the room row lock. Keep all room teardown paths identical.
 export async function closeRoom(tx: Transaction, roomId: string) {
+  await closeRoomActivities(tx, roomId);
   const [closing] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
   if (closing?.mode === "esports") await esports.closeEsports(tx, roomId);
   await revokeNative(tx, roomId);
@@ -939,6 +948,12 @@ export async function acquireLease(
       await requireShareQuality(tx, user.id, quality);
       requireFeature(user, "screen.publish");
       if (quality === "game") requireFeature(user, "screen.quality.game");
+      const activitySwitch = await guardActivityShare(
+        tx,
+        roomId,
+        user.id,
+        sessionCredential(user),
+      );
       if (handoffId) {
         const [request] = await tx
           .select()
@@ -995,7 +1010,8 @@ export async function acquireLease(
           await validatePublicationQuality(tx, user.id, lease.quality, quality);
           return leaseResult(lease);
         }
-        if (!preempt && !handoffId) fail(409, "SHARE_BUSY", "已有成员正在共享");
+        if (!preempt && !handoffId && !activitySwitch)
+          fail(409, "SHARE_BUSY", "已有成员正在共享");
       }
       if (lease.holderUserId && lease.leaseId)
         previous = { userId: lease.holderUserId, leaseId: lease.leaseId };
