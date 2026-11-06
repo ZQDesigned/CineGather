@@ -8,6 +8,7 @@ import { partyWords, type PartyWord } from "./party-words";
 
 export interface PartyGame {
   kind: "draw" | "quiz";
+  wordPool?: PartyWord[];
   phase: PartyView["phase"];
   round: number;
   totalRounds: number;
@@ -23,9 +24,13 @@ export interface PartyGame {
   solvedIds: string[];
   lastGuesses: Record<string, number>;
 }
-export function newPartyGame(kind: "draw" | "quiz"): PartyGame {
+export function newPartyGame(
+  kind: "draw" | "quiz",
+  wordPool: PartyWord[] = partyWords,
+): PartyGame {
   return {
     kind,
+    wordPool: structuredClone(wordPool),
     phase: "lobby",
     round: 0,
     totalRounds: 0,
@@ -38,8 +43,9 @@ export function newPartyGame(kind: "draw" | "quiz"): PartyGame {
   };
 }
 function candidates(game: PartyGame) {
-  let available = partyWords.filter((w) => !game.used.includes(w.answer));
-  if (available.length < 3) available = [...partyWords];
+  const pool = game.wordPool ?? partyWords;
+  let available = pool.filter((w) => !game.used.includes(w.answer));
+  if (available.length < 3) available = [...pool];
   const selected: PartyWord[] = [];
   while (selected.length < 3)
     selected.push(available.splice(randomInt(available.length), 1)[0]!);

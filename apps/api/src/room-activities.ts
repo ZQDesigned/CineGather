@@ -1,3 +1,4 @@
+import { activePartyWords } from "./party-bank";
 import { sessionCredential } from "./session-context";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
@@ -389,7 +390,9 @@ export async function activityCommand(
                   live.map((m) => [m.userId, m.credentialId]),
                 ),
               }
-            : { game: newPartyGame(command.target) }),
+            : {
+                game: newPartyGame(command.target, await activePartyWords(tx)),
+              }),
         };
         await audit(tx, user.id, "room.activity_started", roomId, {
           kind: command.target,
@@ -458,6 +461,8 @@ export async function activityCommand(
         fail(409, "PARTY_NOT_ACTIVE", "当前没有聚会游戏");
       if (["start", "pause", "resume"].includes(command.action.type))
         requireControl();
+      if (command.action.type === "start")
+        state.game.wordPool = await activePartyWords(tx);
       try {
         state.game = partyCommand(
           state.game,

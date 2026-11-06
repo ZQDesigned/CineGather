@@ -1284,6 +1284,86 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/admin/party-words": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminPartyWords"];
+        put?: never;
+        post: operations["adminCreatePartyWord"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/party-words/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["adminEditPartyWord"];
+        trace?: never;
+    };
+    "/api/v1/admin/party-words/{id}/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminDeletePartyWord"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/party-words/import/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminPreviewPartyWords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/party-words/import/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["adminImportPartyWords"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/admin/registration": {
         parameters: {
             query?: never;
@@ -3222,7 +3302,7 @@ export interface operations {
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -5233,7 +5313,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -5384,7 +5464,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -5535,7 +5615,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -5684,7 +5764,7 @@ export interface operations {
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -14863,6 +14943,842 @@ export interface operations {
             };
         };
     };
+    adminPartyWords: {
+        parameters: {
+            query?: {
+                pageSize?: number;
+                page?: number;
+                status?: "all" | "enabled" | "disabled";
+                q?: unknown;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            answer: string;
+                            category: string;
+                            clues: string[];
+                            enabled: boolean;
+                            /** Format: uuid */
+                            id: string;
+                            version: number;
+                            updatedAt: string;
+                        }[];
+                        total: number;
+                        enabledCount: number;
+                        allCount: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminCreatePartyWord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    answer: string;
+                    category: string;
+                    clues: string[];
+                    enabled: boolean;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        answer: string;
+                        category: string;
+                        clues: string[];
+                        enabled: boolean;
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        updatedAt: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminEditPartyWord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    answer: string;
+                    category: string;
+                    clues: string[];
+                    enabled: boolean;
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        answer: string;
+                        category: string;
+                        clues: string[];
+                        enabled: boolean;
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        updatedAt: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminDeletePartyWord: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** @enum {boolean} */
+                        ok: true;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminPreviewPartyWords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    format: "json" | "csv";
+                    content: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        createCount: number;
+                        skipCount: number;
+                        errors: string[];
+                        sample: {
+                            answer: string;
+                            category: string;
+                            clues: string[];
+                            enabled: boolean;
+                        }[];
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminImportPartyWords: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    /** @enum {string} */
+                    format: "json" | "csv";
+                    content: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        created: number;
+                        skipped: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
     adminRegistrationPolicy: {
         parameters: {
             query?: never;
@@ -18283,7 +19199,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             name: string;
-                            permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                             builtIn: boolean;
                             memberCount: number;
                             createdAt: string;
@@ -18408,7 +19324,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -18423,7 +19339,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
@@ -18549,7 +19465,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -18564,7 +19480,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;

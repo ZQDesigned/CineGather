@@ -13,6 +13,7 @@ import {
   whiteboardImages,
   whiteboardSnapshots,
   whiteboardRecords,
+  partyWordBank,
 } from "@cinegather/database";
 import { inArray, eq } from "drizzle-orm";
 import { protocolHeaders } from "@cinegather/contracts";
@@ -969,4 +970,85 @@ test("drag erasure is authorized, atomic and undoable across several crossed obj
     operation: { type: "undo" },
   });
   expect((await call(f.host, path)).data.board.elements).toHaveLength(1);
+});
+
+test("new games snapshot enabled database questions and never send the pool to members", async () => {
+  const f = await fixture(),
+    path = `/rooms/${f.id}/activity`,
+    id = crypto.randomUUID();
+  const answer = "快照验证" + id.slice(0, 8);
+  await db
+    .insert(partyWordBank)
+    .values({
+      id,
+      answer,
+      answerKey: answer,
+      category: "验证",
+      clues: ["线索一", "线索二", "线索三"],
+    });
+  try {
+    const lobby = await call(f.host, path, {
+      type: "start",
+      target: "quiz",
+      generation: 0,
+    });
+    expect(lobby.status).toBe(201);
+    const generation = lobby.data.generation;
+    const pool = async () => {
+      const [row] = await db
+        .select()
+        .from(roomActivities)
+        .where(eq(roomActivities.roomId, f.id));
+      return (row!.state as { game: { wordPool: { answer: string }[] } }).game
+        .wordPool;
+    };
+    expect((await pool()).some((w) => w.answer === answer)).toBe(true);
+    await db
+      .update(partyWordBank)
+      .set({ enabled: false })
+      .where(eq(partyWordBank.id, id));
+    for (const who of [f.host, f.guest])
+      expect(
+        (
+          await call(who, path, {
+            type: "party",
+            generation,
+            action: { type: "ready", ready: true },
+          })
+        ).status,
+      ).toBe(201);
+    const started = await call(f.host, path, {
+      type: "party",
+      generation,
+      action: { type: "start" },
+    });
+    expect(started.status).toBe(201);
+    expect(started.data.game.wordPool).toBeUndefined();
+    expect((await pool()).some((w) => w.answer === answer)).toBe(false);
+    const frozen = await pool();
+    await db
+      .update(partyWordBank)
+      .set({ enabled: true, answer: answer + "新版" })
+      .where(eq(partyWordBank.id, id));
+    await call(f.host, path, {
+      type: "party",
+      generation,
+      action: { type: "pause" },
+    });
+    expect(await pool()).toEqual(frozen);
+    await call(f.host, path, { type: "end", generation });
+    const idle = (await call(f.host, path)).data;
+    expect(
+      (
+        await call(f.host, path, {
+          type: "start",
+          target: "draw",
+          generation: idle.generation,
+        })
+      ).status,
+    ).toBe(201);
+    expect((await pool()).some((w) => w.answer === answer + "新版")).toBe(true);
+  } finally {
+    await db.delete(partyWordBank).where(eq(partyWordBank.id, id));
+  }
 });

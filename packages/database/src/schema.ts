@@ -554,3 +554,14 @@ export const announcementReceipts = pgTable(
 
 export * from "./game-link";
 export * from "./room-activities";
+
+export const partyWordBank = pgTable("party_word_bank", {
+  id: uuid("id").primaryKey(),
+  answer: text("answer").notNull(),
+  answerKey: text("answer_key").notNull().unique(),
+  category: text("category").notNull(),
+  clues: jsonb("clues").$type<string[]>().notNull(),
+  enabled: boolean("enabled").notNull().default(true),
+  version: integer("version").notNull().default(1),
+  updatedAt: time("updated_at").notNull().defaultNow(),
+});

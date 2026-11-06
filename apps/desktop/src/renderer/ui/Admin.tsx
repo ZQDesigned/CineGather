@@ -1,3 +1,4 @@
+import { AdminPartyWords } from "./AdminPartyWords";
 import { useRetainedDialog } from "./useRetainedDialog";
 import { AdminGameLinks } from "./AdminGameLinks";
 import { AdminSessionEvents } from "./AdminSessionEvents";
@@ -128,6 +129,10 @@ const Surface = styled.section`
   }
 `;
 const actionNames: Record<string, string> = {
+  "admin.party_word_created": "新增聚会题目",
+  "admin.party_word_updated": "修改聚会题目",
+  "admin.party_word_deleted": "删除聚会题目",
+  "admin.party_words_imported": "批量导入聚会题库",
   "admin.announcement_create": "创建公告",
   "admin.announcement_edit": "编辑公告",
   "admin.announcement_publish": "发布公告",
@@ -195,6 +200,9 @@ function AdminPanel() {
   const canAudit = hasAdminPermission(user, "audit.read"),
     isSuper = !!user?.isSuperAdmin;
   const allowedTabs = [
+    ...(hasAdminPermission(user, "party-words.read")
+      ? [{ key: "party-words", label: "聚会题库" }]
+      : []),
     ...(hasAdminPermission(user, "announcements.read")
       ? [{ key: "announcements", label: "公告管理" }]
       : []),
@@ -640,6 +648,7 @@ function AdminPanel() {
         {activeTab !== "overview" &&
           activeTab !== "registration" &&
           activeTab !== "announcements" &&
+          activeTab !== "party-words" &&
           activeTab !== "games" && (
             <Input.Search
               aria-label="搜索管理数据"
@@ -664,7 +673,9 @@ function AdminPanel() {
           )}
       </div>
       <div className="admin-table" ref={tableRef}>
-        {activeTab === "games" ? (
+        {activeTab === "party-words" ? (
+          <AdminPartyWords revision={revision} height={tableHeight} />
+        ) : activeTab === "games" ? (
           <AdminGameLinks revision={revision} height={tableHeight} />
         ) : activeTab === "registration" ? (
           <AdminRegistration revision={revision} />

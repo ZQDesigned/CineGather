@@ -1,3 +1,4 @@
+import * as partyBank from "./party-bank";
 import { setCapabilities } from "./capabilities";
 import * as announcements from "./announcements";
 import {
@@ -36,6 +37,85 @@ import {
 @Controller("api/v1/admin")
 @UseGuards(AdminGuard)
 export class AdminController {
+  @Get("party-words")
+  @RequireAdminPermission("party-words.read")
+  @ApiQuery({ name: "q", required: false })
+  @ApiQuery({
+    name: "status",
+    required: false,
+    enum: ["all", "enabled", "disabled"],
+  })
+  @ApiQuery({ name: "page", required: false, type: Number })
+  @ApiQuery({ name: "pageSize", required: false, type: Number })
+  @Endpoint("adminPartyWords", c.partyBankSchema)
+  partyWords(@Query() query: unknown) {
+    return partyBank.listPartyWords(parse(c.partyBankQuery, query));
+  }
+  @Post("party-words")
+  @RequireAdminPermission("party-words.manage")
+  @Endpoint(
+    "adminCreatePartyWord",
+    c.partyWordSchema,
+    c.partyWordInput,
+    [],
+    201,
+  )
+  createPartyWord(@Req() req: AuthRequest, @Body() body: unknown) {
+    return partyBank.savePartyWord(req.user, parse(c.partyWordInput, body));
+  }
+  @Patch("party-words/:id")
+  @RequireAdminPermission("party-words.manage")
+  @Endpoint("adminEditPartyWord", c.partyWordSchema, c.partyWordUpdate, ["id"])
+  editPartyWord(
+    @Req() req: AuthRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    const { version, ...input } = parse(c.partyWordUpdate, body);
+    return partyBank.savePartyWord(req.user, input, id, version);
+  }
+  @Post("party-words/:id/delete")
+  @RequireAdminPermission("party-words.manage")
+  @Endpoint("adminDeletePartyWord", c.okSchema, c.partyWordVersion, ["id"], 201)
+  deletePartyWord(
+    @Req() req: AuthRequest,
+    @Param("id") id: string,
+    @Body() body: unknown,
+  ) {
+    return partyBank.deletePartyWord(
+      req.user,
+      id,
+      parse(c.partyWordVersion, body).version,
+    );
+  }
+  @Post("party-words/import/preview")
+  @RequireAdminPermission("party-words.manage")
+  @Endpoint(
+    "adminPreviewPartyWords",
+    c.partyImportPreviewSchema,
+    c.partyImportInput,
+    [],
+    201,
+  )
+  previewPartyWords(@Body() body: unknown) {
+    return partyBank.previewPartyImport(parse(c.partyImportInput, body));
+  }
+  @Post("party-words/import/commit")
+  @RequireAdminPermission("party-words.manage")
+  @Endpoint(
+    "adminImportPartyWords",
+    c.partyImportResultSchema,
+    c.partyImportInput,
+    [],
+    201,
+  )
+  importPartyWords(@Req() req: AuthRequest, @Body() body: unknown) {
+    return partyBank.importPartyWords(
+      req.user,
+      parse(c.partyImportInput, body),
+    );
+  }
+
   @Get("registration")
   @SuperAdminOnly()
   @Endpoint("adminRegistrationPolicy", c.adminRegistrationPolicySchema)

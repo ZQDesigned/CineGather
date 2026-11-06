@@ -103,6 +103,7 @@ export const adminRoleInput = z
       ["rooms.manage", "rooms.read"],
       ["games.manage", "games.read"],
       ["announcements.manage", "announcements.read"],
+      ["party-words.manage", "party-words.read"],
     ] as const)
       if (
         value.permissions.includes(manage) &&

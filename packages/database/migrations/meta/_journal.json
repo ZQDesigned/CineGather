@@ -197,6 +197,20 @@
       "when": 1793984938729,
       "tag": "0027_room_activities",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1793984938730,
+      "tag": "0028_party_word_bank",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1793984938731,
+      "tag": "0029_party_word_permissions",
+      "breakpoints": true
     }
   ]
 }
