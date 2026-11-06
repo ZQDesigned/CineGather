@@ -129,3 +129,81 @@ process.stdin.on('data',chunk=>{text+=chunk;for(;;){const end=text.indexOf('\\n'
     await rm(root, { recursive: true, force: true });
   }
 }, 10000);
+
+test("Stardew host detects a closed farm, tolerates an indeterminate port query and releases its native process", async () => {
+  const { spyOn } = await import("bun:test");
+  const root = await mkdtemp(join(tmpdir(), "cg-star-health-")),
+    binary = join(root, "fixture");
+  await writeFile(
+    binary,
+    `#!/usr/bin/env node
+let b='';process.stdin.on('data',d=>{b+=d;for(;;){const n=b.indexOf('\\n');if(n<0)break;const c=JSON.parse(b.slice(0,n));b=b.slice(n+1);process.stdout.write(JSON.stringify({id:c.id,ok:true,result:{state:'configured'}})+'\\n');if(c.op==='stop')process.exit(0)}});`,
+  );
+  await chmod(binary, 0o700);
+  const socket = createSocket("udp4");
+  socket.bind(0, "127.0.0.1");
+  await once(socket, "listening");
+  const port = socket.address().port,
+    memberId = crypto.randomUUID(),
+    events: unknown[] = [];
+  const config: GameTunnelConfig = {
+    game: "stardew-valley",
+    sessionId: crypto.randomUUID(),
+    memberId,
+    clientId: memberId,
+    clientSecret: "x".repeat(43),
+    revision: 1,
+    role: "host",
+    expiresAt: new Date(Date.now() + 25000).toISOString(),
+    peers: [],
+    server: {
+      host: "games.example.test",
+      port: 443,
+      tlsName: "games.example.test",
+      issuer: "https://api.example.test/api/v1/game-tunnel/identity",
+      stunServer: "games.example.test:3478",
+      audience: "cinegather-game",
+    },
+  };
+  const local = new GameLocal({
+    binaryPath: binary,
+    event: (e) => events.push(e),
+  });
+  let closed = false;
+  try {
+    await local.configure(config, port);
+    const query = spyOn(local, "probe").mockRejectedValue(
+      Object.assign(Error("query failed"), { code: "PORT_TABLE_FAILED" }),
+    );
+    try {
+      expect((await local.configure(config, port)).state).toBe("connected");
+      expect((await local.configure(config, port)).state).toBe("connected");
+    } finally {
+      query.mockRestore();
+    }
+    const done = once(socket, "close");
+    socket.close();
+    await done;
+    closed = true;
+    expect((await local.configure(config, port)).state).toBe("connected");
+    await expect(local.configure(config, port)).rejects.toThrow("共享已停止");
+    expect(local.status).toMatchObject({
+      state: "failed",
+      reason: "world-unavailable",
+    });
+    expect(events).toContainEqual(
+      expect.objectContaining({ event: "process", state: "exited" }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "port-probe",
+        game: "stardew-valley",
+        code: "WORLD_UNAVAILABLE",
+      }),
+    );
+  } finally {
+    await local.stop();
+    if (!closed) socket.close();
+    await rm(root, { recursive: true, force: true });
+  }
+});

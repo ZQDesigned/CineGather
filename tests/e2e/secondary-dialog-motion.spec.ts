@@ -549,3 +549,132 @@ test("closing the host game produces one notification and leaves an explicit rec
     active: true,
   });
 });
+
+test("game hosting only accepts discovered worlds, clears stale choices and never guesses a Stardew port", async ({
+  page,
+}) => {
+  const errors: string[] = [];
+  page.on("pageerror", (error) => errors.push(error.message));
+  await setup(page);
+  await page.evaluate(() => {
+    const fixture = {
+      worlds: [] as {
+        game?: string;
+        port: number;
+        name: string;
+        version: string;
+        protocol?: number;
+      }[],
+    };
+    Object.assign(window, {
+      discoveryFixture: fixture,
+      desktop: {
+        takeInvitation: async () => undefined,
+        onAction: () => () => {},
+        gameLink: {
+          discover: async () => fixture.worlds,
+          onConnection: () => () => {},
+        },
+      },
+    });
+  });
+  await page.goto("/#/games");
+  await page.getByRole("button", { name: "发起联机", exact: true }).click();
+  const dialog = page.getByRole("dialog"),
+    confirm = dialog.getByRole("button", { name: "发起联机", exact: true });
+  await expect(
+    dialog.getByRole("button", { name: "手动输入局域网端口" }),
+  ).toHaveCount(0);
+  await expect(dialog.getByRole("spinbutton")).toHaveCount(0);
+  await expect(confirm).toBeDisabled();
+  await page.evaluate(() => {
+    (
+      window as unknown as { discoveryFixture: { worlds: unknown[] } }
+    ).discoveryFixture.worlds = [
+      { port: 25565, name: "发现的 MC 世界", version: "1.21", protocol: 1 },
+    ];
+  });
+  await dialog.getByRole("button", { name: "重新发现" }).click();
+  await expect(dialog).toContainText("发现的 MC 世界");
+  await expect(confirm).toBeEnabled();
+  await page.evaluate(() => {
+    (
+      window as unknown as { discoveryFixture: { worlds: unknown[] } }
+    ).discoveryFixture.worlds = [];
+  });
+  await dialog.getByRole("button", { name: "重新发现" }).click();
+  await expect(confirm).toBeDisabled();
+  await expect(dialog).not.toContainText("发现的 MC 世界");
+  await dialog.getByLabel("选择游戏").click();
+  await page.getByRole("option", { name: "星露谷物语", exact: true }).click();
+  await expect(confirm).toBeDisabled();
+  await expect(dialog.getByRole("spinbutton")).toHaveCount(0);
+  await page.evaluate(() => {
+    (
+      window as unknown as { discoveryFixture: { worlds: unknown[] } }
+    ).discoveryFixture.worlds = [
+      {
+        game: "stardew-valley",
+        port: 24642,
+        name: "本机农场",
+        version: "",
+        transport: "tcp-udp",
+      },
+    ];
+  });
+  await dialog.getByRole("button", { name: "重新发现" }).click();
+  await expect(dialog).toContainText("本机农场");
+  await expect(confirm).toBeEnabled();
+  await closeWithMotion(page, () =>
+    dialog.getByRole("button", { name: "取消", exact: true }).click(),
+  );
+  await page.evaluate(
+    async (data) => {
+      const modulePath = "/store.ts";
+      const { update, useApp } = await import(modulePath);
+      const current = useApp.getState().game;
+      (
+        window as unknown as { discoveryFixture: { worlds: unknown[] } }
+      ).discoveryFixture.worlds = [];
+      update({
+        game: {
+          ...current,
+          snapshot: {
+            ...current.snapshot,
+            session: { ...data.game, game: "stardew-valley" },
+            self: {
+              memberId: data.id,
+              role: "host",
+              revision: 1,
+              leaseExpiresAt: new Date(Date.now() + 30000).toISOString(),
+            },
+          },
+          local: { state: "failed", reason: "world-unavailable" },
+        },
+      });
+    },
+    { game, id },
+  );
+  await page.getByRole("button", { name: "选择世界并恢复" }).click();
+  await expect(dialog.getByRole("spinbutton")).toHaveCount(0);
+  const resume = dialog.getByRole("button", { name: "恢复联机", exact: true });
+  await expect(resume).toBeDisabled();
+  await page.evaluate(() => {
+    (
+      window as unknown as { discoveryFixture: { worlds: unknown[] } }
+    ).discoveryFixture.worlds = [
+      {
+        game: "stardew-valley",
+        port: 24642,
+        name: "已重新开放的农场",
+        version: "",
+        transport: "tcp-udp",
+      },
+    ];
+  });
+  await dialog.getByRole("button", { name: "重新发现" }).click();
+  await expect(resume).toBeEnabled();
+  await expect(dialog).toContainText("已重新开放的农场");
+  await closeWithMotion(page, () => page.keyboard.press("Escape"));
+  expect(errors).toEqual([]);
+});

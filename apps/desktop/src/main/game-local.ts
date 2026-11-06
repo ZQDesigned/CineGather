@@ -241,23 +241,24 @@ export class GameLocal {
       }
       if (worldPort && worldPort !== this.hostPort)
         throw Error("结束当前联机后才可切换本机世界");
-      if (
-        wasHosting &&
-        (config.game ?? "minecraft-java") === "minecraft-java"
-      ) {
+      if (wasHosting) {
         const probeStarted = performance.now();
         try {
-          await this.probe(this.hostPort);
+          await this.probe(this.hostPort, config.game);
           this.hostProbeFailures = 0;
-        } catch {
+        } catch (error) {
           this.valid(epoch);
           // A busy game can miss a status request. Require two consecutive
           // renewal-time failures before disconnecting players.
-          if (++this.hostProbeFailures >= 2) {
+          const uncertainQuery =
+            config.game === "stardew-valley" &&
+            (error as NodeJS.ErrnoException).code !== "PORT_NOT_LISTENING";
+          if (uncertainQuery) this.hostProbeFailures = 0;
+          else if (++this.hostProbeFailures >= 2) {
             try {
               this.options.event?.({
                 type: "port-probe",
-                game: "minecraft-java",
+                game: config.game ?? "minecraft-java",
                 code: "WORLD_UNAVAILABLE",
                 durationMs: Math.round(performance.now() - probeStarted),
               });

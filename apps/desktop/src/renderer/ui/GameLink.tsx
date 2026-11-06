@@ -8,7 +8,6 @@ import {
   Empty,
   Form,
   Input,
-  InputNumber,
   List,
   Modal,
   Popconfirm,
@@ -194,7 +193,6 @@ export function GameLink() {
     [worlds, setWorlds] = useState<GameWorld[]>([]),
     [selectedGame, setSelectedGame] = useState<GameKind>("minecraft-java"),
     [scanning, setScanning] = useState(false),
-    [manual, setManual] = useState(false),
     [worldPort, setWorldPort] = useState<number>(),
     [name, setName] = useState("一起探索世界"),
     [code, setCode] = useState(""),
@@ -229,14 +227,22 @@ export function GameLink() {
     const epoch = ++dialogEpoch.current;
     setScanning(true);
     try {
-      const result = await bridge.discover(game);
+      const result = (await bridge.discover(game)).filter(
+        (world) => (world.game ?? "minecraft-java") === game,
+      );
       if (epoch !== dialogEpoch.current) return;
       setWorlds(result);
-      if (result.length === 1) setWorldPort(result[0]!.port);
-      if (!result.length) setManual(true);
+      setWorldPort((previous) =>
+        result.length === 1
+          ? result[0]!.port
+          : result.some((world) => world.port === previous)
+            ? previous
+            : undefined,
+      );
     } catch (error) {
       if (epoch === dialogEpoch.current) {
-        setManual(true);
+        setWorlds([]);
+        setWorldPort(undefined);
         actions.report(error);
       }
     } finally {
@@ -248,8 +254,7 @@ export function GameLink() {
       kind === "resume" ? (session?.game ?? "minecraft-java") : selectedGame;
     setSelectedGame(selected);
     setWorlds([]);
-    setWorldPort(selected === "stardew-valley" ? 24642 : undefined);
-    setManual(false);
+    setWorldPort(undefined);
     setDialog(kind);
     void scan(selected);
   };
@@ -693,10 +698,18 @@ export function GameLink() {
         onCancel={close}
         okText={shownDialog === "resume" ? "恢复联机" : "发起联机"}
         confirmLoading={busy}
-        okButtonProps={{ disabled: !worldPort || scanning }}
+        okButtonProps={{
+          disabled:
+            scanning || !worlds.some((world) => world.port === worldPort),
+        }}
         onOk={() =>
           void actions.run(async () => {
-            if (!worldPort) return;
+            if (
+              scanning ||
+              !worldPort ||
+              !worlds.some((world) => world.port === worldPort)
+            )
+              return;
             if (dialog === "resume") await gameLink.resumeHost(worldPort);
             else
               await gameLink.create(
@@ -718,10 +731,7 @@ export function GameLink() {
                   onChange={(value: GameKind) => {
                     setSelectedGame(value);
                     setWorlds([]);
-                    setWorldPort(
-                      value === "stardew-valley" ? 24642 : undefined,
-                    );
-                    setManual(value === "stardew-valley");
+                    setWorldPort(undefined);
                     void scan(value);
                   }}
                   options={Object.entries(gameTitles).map(([value, label]) => ({
@@ -744,6 +754,7 @@ export function GameLink() {
               <Space>
                 本机世界
                 <Button
+                  aria-label="重新发现"
                   type="text"
                   size="small"
                   loading={scanning}
@@ -755,70 +766,45 @@ export function GameLink() {
               </Space>
             }
           >
-            {manual ? (
-              <InputNumber
-                style={{ width: "100%" }}
-                min={1}
-                max={65535}
-                precision={0}
-                placeholder={
-                  selectedGame === "stardew-valley"
-                    ? "本机游戏端口（默认 24642）"
-                    : "游戏中显示的局域网端口"
-                }
-                value={worldPort}
-                onChange={(v) => setWorldPort(v ?? undefined)}
-              />
-            ) : (
-              <Select
-                loading={scanning}
-                placeholder="选择要与好友连接的世界"
-                value={worldPort}
-                options={worlds.map((w) => ({
-                  value: w.port,
-                  label: (
+            <Select
+              aria-label="本机世界"
+              loading={scanning}
+              placeholder="选择要与好友连接的世界"
+              value={worldPort}
+              options={worlds.map((w) => ({
+                value: w.port,
+                label: (
+                  <span
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 12,
+                      minWidth: 0,
+                    }}
+                  >
                     <span
                       style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 12,
-                        minWidth: 0,
+                        flex: 1,
+                        overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap",
                       }}
                     >
-                      <span
-                        style={{
-                          flex: 1,
-                          overflow: "hidden",
-                          textOverflow: "ellipsis",
-                          whiteSpace: "nowrap",
-                        }}
-                      >
-                        {w.name}
-                      </span>
-                      <Space size={8}>
-                        {w.version && (
-                          <Tag style={{ marginInlineEnd: 0 }}>{w.version}</Tag>
-                        )}
-                        <span style={{ color: "var(--muted)", fontSize: 12 }}>
-                          端口 {w.port}
-                        </span>
-                      </Space>
+                      {w.name}
                     </span>
-                  ),
-                }))}
-                onChange={setWorldPort}
-              />
-            )}
-            <Button
-              type="link"
-              style={{ paddingInline: 0 }}
-              onClick={() => {
-                setManual(!manual);
-                setWorldPort(undefined);
-              }}
-            >
-              {manual ? "返回发现的世界" : "手动输入局域网端口"}
-            </Button>
+                    <Space size={8}>
+                      {w.version && (
+                        <Tag style={{ marginInlineEnd: 0 }}>{w.version}</Tag>
+                      )}
+                      <span style={{ color: "var(--muted)", fontSize: 12 }}>
+                        端口 {w.port}
+                      </span>
+                    </Space>
+                  </span>
+                ),
+              }))}
+              onChange={setWorldPort}
+            />
           </Form.Item>
         </Form>
       </Modal>
