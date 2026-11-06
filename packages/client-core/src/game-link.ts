@@ -128,6 +128,7 @@ export class GameLinkCoordinator {
       return;
     }
     if (self.role === "host" && !this.hostPort) {
+      if (this.state.local.reason === "world-unavailable") return;
       this.publish({
         local: {
           state: "idle",
@@ -199,8 +200,17 @@ export class GameLinkCoordinator {
           ?.status?.()
           .catch(() => undefined);
         if (!this.current(epoch)) return;
+        if (local?.reason === "world-unavailable") {
+          this.hostPort = undefined;
+          this.activeMember = undefined;
+          this.activeRevision = undefined;
+          this.renewedAt = 0;
+        }
         this.publish({
-          error: "暂时无法同步游戏联机，请稍后重试",
+          error:
+            local?.reason === "world-unavailable"
+              ? local.message
+              : "暂时无法同步游戏联机，请稍后重试",
           ...(local ? { local } : {}),
         });
         this.options.failure?.(error);

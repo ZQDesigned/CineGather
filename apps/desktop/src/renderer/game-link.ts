@@ -59,7 +59,24 @@ export const gameLink = new GameLinkCoordinator({
         },
       }
     : {}),
-  changed: (game) => update({ game }),
+  changed: (game) => {
+    const previous = state().game;
+    update({ game });
+    if (
+      game.local.reason === "world-unavailable" &&
+      previous.local.reason !== "world-unavailable" &&
+      game.snapshot.self?.role === "host" &&
+      game.snapshot.session
+    )
+      publishClientNotification({
+        eventId: "game-world-unavailable:" + crypto.randomUUID(),
+        category: "system",
+        title: "游戏联机已暂停",
+        body: game.local.message,
+        target: "games",
+        entityId: game.snapshot.session.id,
+      });
+  },
   failure: (error) => {
     if (
       error instanceof FeatureUpdateError ||
@@ -107,6 +124,11 @@ export function bindGameLink(scope: () => string | undefined) {
         if (
           n.target === "games" &&
           n.active &&
+          !(
+            n.eventId.startsWith("game-world-unavailable:") &&
+            n.entityId === snapshot.session?.id &&
+            gameLink.state.local.reason === "world-unavailable"
+          ) &&
           !snapshot.invitations.some((i) => i.id === n.entityId) &&
           !snapshot.requests.some((r) => r.id === n.entityId)
         )

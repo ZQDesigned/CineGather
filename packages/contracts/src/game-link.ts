@@ -114,6 +114,7 @@ export const gameWorldSchema = z.union([
   }),
 ]);
 export const gameLocalStatusSchema = z.strictObject({
+  reason: z.literal("world-unavailable").optional(),
   state: z.enum([
     "idle",
     "discovering",

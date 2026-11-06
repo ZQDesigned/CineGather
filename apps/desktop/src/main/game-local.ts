@@ -54,6 +54,7 @@ export class GameLocal {
   private visitorGateway?: string;
   private native?: GameNative;
   private hostPort?: number;
+  private hostProbeFailures = 0;
   private visitorPort?: number;
   private address?: string;
   private discovery?: AbortController;
@@ -146,7 +147,15 @@ export class GameLocal {
       .then(() => this.apply(config, worldPort, epoch))
       .catch(async (error) => {
         if (epoch === this.epoch)
-          await this.fail(epoch, "游戏联机连接未完成，请重试");
+          await this.fail(
+            epoch,
+            (error as NodeJS.ErrnoException).code === "WORLD_UNAVAILABLE"
+              ? "本机游戏已关闭或局域网共享已停止，请重新开放世界后恢复联机"
+              : "游戏联机连接未完成，请重试",
+            (error as NodeJS.ErrnoException).code === "WORLD_UNAVAILABLE"
+              ? "world-unavailable"
+              : undefined,
+          );
         throw error;
       });
     this.queue = result.then(
@@ -223,6 +232,7 @@ export class GameLocal {
     this.work = new AbortController();
     const signal = this.work.signal;
     if (config.role === "host") {
+      const wasHosting = Boolean(this.hostPort);
       if (!this.hostPort) {
         if (!worldPort) throw Error("请先选择本机世界");
         await this.probe(worldPort, config.game);
@@ -231,6 +241,39 @@ export class GameLocal {
       }
       if (worldPort && worldPort !== this.hostPort)
         throw Error("结束当前联机后才可切换本机世界");
+      if (
+        wasHosting &&
+        (config.game ?? "minecraft-java") === "minecraft-java"
+      ) {
+        const probeStarted = performance.now();
+        try {
+          await this.probe(this.hostPort);
+          this.hostProbeFailures = 0;
+        } catch {
+          this.valid(epoch);
+          // A busy game can miss a status request. Require two consecutive
+          // renewal-time failures before disconnecting players.
+          if (++this.hostProbeFailures >= 2) {
+            try {
+              this.options.event?.({
+                type: "port-probe",
+                game: "minecraft-java",
+                code: "WORLD_UNAVAILABLE",
+                durationMs: Math.round(performance.now() - probeStarted),
+              });
+            } catch {
+              /* diagnostics do not control resource cleanup */
+            }
+            throw Object.assign(
+              Error(
+                "本机游戏已关闭或局域网共享已停止，请重新开放世界后恢复联机",
+              ),
+              { code: "WORLD_UNAVAILABLE" },
+            );
+          }
+        }
+        this.valid(epoch);
+      }
       const expected = new Set(config.peers.map((p) => p.memberId));
       for (const id of this.bindings.keys())
         if (!expected.has(id)) {
@@ -372,10 +415,14 @@ export class GameLocal {
     }
     return { ...this.status };
   }
-  private async fail(epoch: number, message: string) {
+  private async fail(
+    epoch: number,
+    message: string,
+    reason?: GameLocalStatus["reason"],
+  ) {
     if (epoch !== this.epoch) return;
     await this.stop();
-    this.status = { state: "failed", message };
+    this.status = { state: "failed", message, ...(reason ? { reason } : {}) };
   }
   async stop() {
     this.epoch++;
@@ -390,6 +437,7 @@ export class GameLocal {
     this.datagram = undefined;
     this.visitorGateway = undefined;
     this.hostPort = undefined;
+    this.hostProbeFailures = 0;
     this.visitorPort = undefined;
     this.address = undefined;
     this.bindings = new Map();

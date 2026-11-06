@@ -338,3 +338,61 @@ test("a created host session survives local connection failure as a recoverable 
   expect(errors.length).toBeGreaterThan(0);
   expect(errors.every(Boolean)).toBe(true);
 });
+
+test("a closed host world suspends automatic reconnect and preserves an explicit recovery hint", async () => {
+  const value = snapshot();
+  value.self!.role = "host";
+  let closed = false,
+    renews = 0,
+    attempts = 0;
+  const c = new GameLinkCoordinator({
+    api: {
+      snapshot: async () => value,
+      create: async () => value,
+      renew: async () => {
+        renews++;
+        return value;
+      },
+      ready: async () => value,
+      transport: async () =>
+        ({ memberId: value.self!.memberId, revision: 1 }) as GameTunnelConfig,
+      leave: async () => empty,
+    },
+    local: {
+      probe: async (port) => ({
+        port,
+        name: "MC",
+        version: "1.21",
+        protocol: 1,
+      }),
+      configure: async () => {
+        attempts++;
+        if (closed) throw Error("world closed");
+        return { state: "connected" };
+      },
+      status: async () => ({
+        state: "failed",
+        reason: "world-unavailable",
+        message: "局域网共享已停止，请重新开放世界后恢复联机",
+      }),
+      stop: async () => {},
+    },
+    changed: () => {},
+  });
+  await c.scope("test");
+  await c.create("MC", 25565);
+  closed = true;
+  await c.refresh();
+  const before = { renews, attempts };
+  await c.refresh();
+  await c.refresh();
+  expect({ renews, attempts }).toEqual(before);
+  expect(c.state.local).toMatchObject({
+    state: "failed",
+    reason: "world-unavailable",
+  });
+  closed = false;
+  await c.resumeHost(25565);
+  expect(c.state.local.state).toBe("connected");
+  expect(c.state.error).toBeUndefined();
+});

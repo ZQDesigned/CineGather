@@ -125,3 +125,78 @@ test("stopping during local world verification cancels stale work before a nativ
   for (const s of sockets) s.destroy();
   await new Promise<void>((r) => server.close(() => r()));
 });
+
+test("host health tolerates one missed MC probe, detects world closure and releases the native transport", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cg-world-health-")),
+    binary = join(root, "fixture");
+  await writeFile(
+    binary,
+    `#!/usr/bin/env node
+let b='';process.stdin.on('data',data=>{b+=data;for(;;){const n=b.indexOf('\\n');if(n<0)break;const c=JSON.parse(b.slice(0,n));b=b.slice(n+1);process.stdout.write(JSON.stringify({id:c.id,ok:true,result:{state:'configured'}})+'\\n');if(c.op==='stop')process.exit(0)}});`,
+  );
+  await chmod(binary, 0o700);
+  let healthy = true;
+  const sockets = new Set<import("node:net").Socket>();
+  const server = createServer((socket) => {
+    sockets.add(socket);
+    socket.on("error", () => {});
+    socket.on("close", () => sockets.delete(socket));
+    socket.once("data", () => {
+      if (!healthy) {
+        socket.destroy();
+        return;
+      }
+      const json = Buffer.from(
+        JSON.stringify({
+          version: { name: "1.21", protocol: 1 },
+          description: "world",
+        }),
+      );
+      const body = Buffer.concat([
+        Buffer.from([0]),
+        encodeGameVarInt(json.length),
+        json,
+      ]);
+      socket.write(Buffer.concat([encodeGameVarInt(body.length), body]));
+    });
+  });
+  server.listen(0, "127.0.0.1");
+  await once(server, "listening");
+  const transport = { ...config(), peers: [] },
+    events: unknown[] = [],
+    local = new GameLocal({ binaryPath: binary, event: (e) => events.push(e) });
+  const port = (server.address() as { port: number }).port;
+  try {
+    await local.configure(transport, port);
+    healthy = false;
+    expect((await local.configure(transport, port)).state).toBe("connected");
+    healthy = true;
+    expect((await local.configure(transport, port)).state).toBe("connected");
+    // A real closed listening socket must be detected on subsequent renewal.
+    for (const socket of sockets) socket.destroy();
+    await new Promise<void>((r) => server.close(() => r()));
+    expect((await local.configure(transport, port)).state).toBe("connected");
+    await expect(local.configure(transport, port)).rejects.toThrow(
+      "局域网共享已停止",
+    );
+    expect(local.status).toMatchObject({
+      state: "failed",
+      reason: "world-unavailable",
+    });
+    expect(events).toContainEqual(
+      expect.objectContaining({ event: "process", state: "exited" }),
+    );
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "port-probe",
+        code: "WORLD_UNAVAILABLE",
+      }),
+    );
+  } finally {
+    await local.stop();
+    for (const socket of sockets) socket.destroy();
+    if (server.listening)
+      await new Promise<void>((r) => server.close(() => r()));
+    await rm(root, { recursive: true, force: true });
+  }
+});

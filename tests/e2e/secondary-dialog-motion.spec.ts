@@ -422,3 +422,130 @@ test("a created game closes its form with exit motion even when the local proxy 
   ).toBeVisible();
   expect(pageErrors).toEqual([]);
 });
+
+test("closing the host game produces one notification and leaves an explicit recovery action", async ({
+  page,
+}) => {
+  await page.addInitScript(() => {
+    const status = { closed: false };
+    Object.assign(window, {
+      worldHealthFixture: status,
+      desktop: {
+        takeInvitation: async () => undefined,
+        onAction: () => () => {},
+        gameLink: {
+          discover: async () => [
+            { port: 25565, name: "健康检测世界", version: "1.21", protocol: 1 },
+          ],
+          probe: async (port: number) => ({
+            port,
+            name: "健康检测世界",
+            version: "1.21",
+            protocol: 1,
+          }),
+          configure: async () => {
+            if (status.closed) throw Error("world stopped");
+            return { state: "connected" };
+          },
+          status: async () =>
+            status.closed
+              ? {
+                  state: "failed",
+                  reason: "world-unavailable",
+                  message:
+                    "本机游戏已关闭或局域网共享已停止，请重新开放世界后恢复联机",
+                }
+              : { state: "connected" },
+          stop: async () => {},
+          onConnection: () => () => {},
+        },
+      },
+    });
+  });
+  await setup(page);
+  let created = false;
+  const joined = {
+    ...emptyGame,
+    session: game,
+    self: {
+      memberId: id,
+      role: "host",
+      revision: 1,
+      leaseExpiresAt: new Date(Date.now() + 30000).toISOString(),
+    },
+    members: [
+      {
+        id,
+        userId: id,
+        displayName: user.displayName,
+        role: "host",
+        status: "connected",
+        route: null,
+      },
+    ],
+  };
+  await page.route("**/api/v1/games**", async (route) => {
+    const path = new URL(route.request().url()).pathname;
+    if (path === "/api/v1/games" && route.request().method() === "POST")
+      created = true;
+    const body = path.endsWith("/transport")
+      ? {
+          sessionId: id,
+          memberId: id,
+          clientId: id,
+          clientSecret: "x".repeat(43),
+          revision: 1,
+          role: "host",
+          expiresAt: new Date(Date.now() + 30000).toISOString(),
+          peers: [],
+          server: {
+            host: "games.example.test",
+            port: 443,
+            tlsName: "games.example.test",
+            stunServer: "games.example.test:3478",
+            issuer: "https://api.example.test/api/v1/game-tunnel/identity",
+            audience: "cinegather-game",
+          },
+        }
+      : created
+        ? joined
+        : emptyGame;
+    await route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      headers: { "X-CineGather-Server-Time": String(Date.now()) },
+      body: JSON.stringify(body),
+    });
+  });
+  await page.goto("/#/games");
+  await page.evaluate(async () => {
+    const path = "/game-link.ts";
+    const { gameLink } = await import(path);
+    await gameLink.scope("isolated-motion-fixture");
+    await gameLink.create("MC", 25565);
+    (
+      window as unknown as { worldHealthFixture: { closed: boolean } }
+    ).worldHealthFixture.closed = true;
+    await gameLink.refresh();
+    await gameLink.refresh();
+    await gameLink.refresh();
+  });
+  await expect(
+    page.getByRole("button", { name: "选择世界并恢复" }),
+  ).toBeVisible();
+  const notices = await page.evaluate(async () => {
+    const path = "/client-notifications.ts";
+    const { notificationInbox } = await import(path);
+    return notificationInbox
+      .snapshot()
+      .filter((n: { eventId: string }) =>
+        n.eventId.startsWith("game-world-unavailable:"),
+      );
+  });
+  expect(notices).toHaveLength(1);
+  expect(notices[0]).toMatchObject({
+    title: "游戏联机已暂停",
+    target: "games",
+    active: true,
+  });
+});

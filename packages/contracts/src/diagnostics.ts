@@ -661,6 +661,7 @@ export const gameDiagnosticSchema = z.object({
       "TRAFFIC_SAMPLE",
       "SOCKET_ERROR",
       "PORT_READY",
+      "WORLD_UNAVAILABLE",
       "PORT_NOT_LISTENING",
       "PORT_TABLE_FAILED",
       "PORT_PROBE_FAILED",
