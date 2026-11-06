@@ -32,6 +32,7 @@ export function GlobalStyles() {
           /* Preserve game controls' intrinsic height; short windows scroll the column. */
           flex: 1 0 auto;
           min-height: 320px;
+          margin-bottom: 12px;
           background: #171922;
           border: 1px solid #ffffff12;
           border-radius: 18px;

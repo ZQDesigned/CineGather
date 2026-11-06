@@ -122,6 +122,7 @@ export function Whiteboard({
   elements,
   editable,
   importable,
+  exportable = true,
   canUndo,
   canRedo,
   canClear,
@@ -134,6 +135,7 @@ export function Whiteboard({
   elements: BoardElement[];
   editable: boolean;
   importable: boolean;
+  exportable?: boolean;
   canUndo: boolean;
   canRedo: boolean;
   canClear: boolean;
@@ -617,34 +619,38 @@ export function Whiteboard({
           )}
         </div>
       )}
-      <div className="collab-import">
-        {importable && (
-          <>
-            <Button loading={busy} onClick={() => void capture()}>
-              <ScanLine size={16} />
-              截取屏幕
+      {(importable || exportable) && (
+        <div className="collab-import">
+          {importable && (
+            <>
+              <Button loading={busy} onClick={() => void capture()}>
+                <ScanLine size={16} />
+                截取屏幕
+              </Button>
+              <Button disabled={busy} onClick={() => file.current?.click()}>
+                <ImagePlus size={16} />
+                上传图片
+              </Button>
+              <input
+                hidden
+                ref={file}
+                type="file"
+                accept="image/png,image/jpeg,image/webp"
+                onChange={(e) => {
+                  const chosen = e.target.files?.[0];
+                  e.target.value = "";
+                  if (chosen) void importImage(chosen);
+                }}
+              />
+            </>
+          )}
+          {exportable && (
+            <Button aria-label="导出白板" onClick={() => void exportImage()}>
+              <Download size={16} />
             </Button>
-            <Button disabled={busy} onClick={() => file.current?.click()}>
-              <ImagePlus size={16} />
-              上传图片
-            </Button>
-            <input
-              hidden
-              ref={file}
-              type="file"
-              accept="image/png,image/jpeg,image/webp"
-              onChange={(e) => {
-                const chosen = e.target.files?.[0];
-                e.target.value = "";
-                if (chosen) void importImage(chosen);
-              }}
-            />
-          </>
-        )}
-        <Button aria-label="导出白板" onClick={() => void exportImage()}>
-          <Download size={16} />
-        </Button>
-      </div>
+          )}
+        </div>
+      )}
       <Modal
         open={retained.open}
         afterClose={retained.afterClose}
