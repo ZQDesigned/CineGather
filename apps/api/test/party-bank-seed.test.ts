@@ -35,3 +35,19 @@ test("a game retains its question pool without exposing it to players", () => {
   game = tickPartyGame(game, game.deadline! + 1);
   expect(choices).toContain(game.word!.answer);
 });
+
+test("authored clues add information beyond the category instead of a generic type label", () => {
+  const generic =
+    /^(?:它|这)?是(?:一(?:种|个|处|套))?(?:职业|乐器|植物|动物|家具|工具|用品|物品|动作|场所|电器|设备|食物)[。！]?$/;
+  for (const word of partyWordSeed) {
+    for (const clue of word.clues) {
+      expect(generic.test(clue), `${word.answer}: ${clue}`).toBe(false);
+      expect(
+        clue
+          .replace(/^(?:它|这)?是(?:一(?:种|个|处|套))?/, "")
+          .replace(/[。！]$/, ""),
+        word.answer,
+      ).not.toBe(word.category);
+    }
+  }
+});
