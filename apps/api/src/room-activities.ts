@@ -1,3 +1,4 @@
+import { sessionCredential } from "./session-context";
 import { randomUUID } from "node:crypto";
 import { EventEmitter } from "node:events";
 import { and, eq, desc, sql } from "drizzle-orm";
@@ -30,6 +31,7 @@ import {
   tickPartyGame,
 } from "./party-game";
 import {
+  canEditActivityBoard,
   lockWhiteboardArchives,
   admittedActivityMembers,
   roomActivityAccess,
@@ -61,6 +63,10 @@ async function reconcile(
       delete state.participants[userId];
     }
   }
+  state.editors ??= {};
+  for (const [id, credential] of Object.entries(state.editors))
+    if (!live.some((m) => m.userId === id && m.credentialId === credential))
+      delete state.editors[id];
   const policies = await activityPolicies(tx, room.id);
   state.requests = state.requests.filter(
     (r) =>
@@ -151,6 +157,22 @@ function view(
             revision: state.board.revision,
             canUndo: state.board.undo.some((e) => e.actor === user.id),
             canRedo: state.board.redo.some((e) => e.actor === user.id),
+            canEdit: canEditActivityBoard(
+              state,
+              user.id,
+              sessionCredential(user),
+            ),
+            editorIds:
+              state.kind === "board"
+                ? [
+                    ...new Set([
+                      state.starterId!,
+                      ...Object.keys(state.editors ?? {}),
+                    ]),
+                  ].filter(Boolean)
+                : state.game?.drawerId
+                  ? [state.game.drawerId]
+                  : [],
           },
         }
       : {}),
@@ -380,17 +402,31 @@ export async function activityCommand(
       if (state.kind === "screen") stopped = await stopScreen(tx, roomId);
       state = { ...newActivity(room.name), generation: state.generation + 1 };
       await audit(tx, user.id, "room.activity_ended", roomId);
+    } else if (command.type === "board-editor") {
+      if (state.kind !== "board" || state.starterId !== user.id)
+        fail(
+          403,
+          "WHITEBOARD_STARTER_REQUIRED",
+          "仅白板发起人可以邀请或移除编辑成员",
+        );
+      const target = live.find((m) => m.userId === command.userId);
+      if (!target || command.userId === state.starterId)
+        fail(400, "INVALID_MEMBER", "请选择房间中的其他成员");
+      state.editors ??= {};
+      if (command.enabled) state.editors[command.userId] = target.credentialId;
+      else delete state.editors[command.userId];
+      await audit(tx, user.id, "room.whiteboard_editor", roomId, {
+        userId: command.userId,
+        enabled: command.enabled,
+        generation: state.generation,
+      });
     } else if (command.type === "board") {
-      if (
-        state.kind !== "board" &&
-        !(
-          state.kind === "game" &&
-          state.game?.kind === "draw" &&
-          state.game.phase === "playing" &&
-          state.game.drawerId === user.id
-        )
-      )
-        fail(403, "WHITEBOARD_NOT_EDITABLE", "当前不能绘制");
+      if (!canEditActivityBoard(state, user.id, credentialId))
+        fail(
+          403,
+          "WHITEBOARD_NOT_EDITABLE",
+          "当前仅可查看白板，请由发起人邀请编辑",
+        );
       if (command.operation.type === "clear" && state.kind === "board")
         requireControl();
       if (

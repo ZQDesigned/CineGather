@@ -125,6 +125,8 @@ export interface ActivitySnapshot {
     revision: number;
     canUndo: boolean;
     canRedo: boolean;
+    canEdit: boolean;
+    editorIds: string[];
   };
   game?: PartyView;
   requests: ActivityRequest[];
@@ -164,6 +166,12 @@ export const activityCommandSchema = z.discriminatedUnion("type", [
       message: "请选择要修改的权限",
     }),
   z.strictObject({
+    type: z.literal("board-editor"),
+    generation: z.number().int().nonnegative(),
+    userId: z.uuid(),
+    enabled: z.boolean(),
+  }),
+  z.strictObject({
     type: z.literal("board"),
     generation: z.number().int().nonnegative(),
     operation: boardOperationSchema,
@@ -180,4 +188,22 @@ export interface WhiteboardRecord {
   title: string;
   createdAt: string;
   elementCount: number;
+}
+
+export const boardPresenceInputSchema = z.strictObject({
+  generation: z.number().int().nonnegative(),
+  cursor: z.object({ x: coordinate, y: coordinate }).strict().nullable(),
+  draft: z
+    .object({
+      element: boardElementInput,
+      expectedVersion: z.number().int().positive().optional(),
+    })
+    .strict()
+    .nullable(),
+});
+export type BoardPresenceInput = z.infer<typeof boardPresenceInputSchema>;
+export interface BoardPresence extends BoardPresenceInput {
+  roomId: string;
+  userId: string;
+  name: string;
 }

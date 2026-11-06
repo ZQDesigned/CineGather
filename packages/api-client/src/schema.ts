@@ -2096,6 +2096,13 @@ export interface operations {
                     game?: boolean;
                 } | {
                     /** @enum {string} */
+                    type: "board-editor";
+                    generation: number;
+                    /** Format: uuid */
+                    userId: string;
+                    enabled: boolean;
+                } | {
+                    /** @enum {string} */
                     type: "board";
                     generation: number;
                     operation: {

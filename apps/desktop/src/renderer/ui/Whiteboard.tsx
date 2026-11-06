@@ -1,7 +1,9 @@
+import { boardCursorColor, boardLiveDraft } from "@cinegather/client-core";
 import { useEffect, useRef, useState, type PointerEvent } from "react";
 import { Input, Modal, App } from "antd";
 import {
   MousePointer2,
+  Move,
   Pencil,
   Square,
   Type,
@@ -18,13 +20,15 @@ import type {
   BoardElement,
   BoardElementInput,
   BoardOperation,
+  BoardPresence,
+  BoardPresenceInput,
 } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import { api, report } from "../controller";
 import { Button } from "./Controls";
 import { useRetainedDialog } from "./useRetainedDialog";
 import { normalizeBoardImage, screenshotBoardImage } from "../whiteboard-image";
-type Tool = "select" | "path" | "rect" | "text" | "note" | "eraser";
+type Tool = "pointer" | "select" | "path" | "rect" | "text" | "note" | "eraser";
 export function WhiteboardImage({ element }: { element: BoardElement }) {
   const [data, setData] = useState<string>();
   useEffect(() => {
@@ -119,6 +123,8 @@ export function Whiteboard({
   onOperation,
   onImage,
   contextKey = "history",
+  presence = [],
+  onPresence,
 }: {
   elements: BoardElement[];
   editable: boolean;
@@ -129,6 +135,8 @@ export function Whiteboard({
   onOperation: (operation: BoardOperation) => Promise<void>;
   onImage?: (data: string) => Promise<void>;
   contextKey?: string;
+  presence?: BoardPresence[];
+  onPresence?: (frame: Omit<BoardPresenceInput, "generation">) => void;
 }) {
   const svg = useRef<SVGSVGElement>(null),
     gesture = useRef<
@@ -140,6 +148,7 @@ export function Whiteboard({
         }
       | undefined
     >(undefined);
+  const cursor = useRef<{ x: number; y: number } | null>(null);
   const [tool, setTool] = useState<Tool>("path"),
     [color, setColor] = useState("#8161ac"),
     [draft, setDraft] = useState<BoardElementInput>(),
@@ -164,8 +173,11 @@ export function Whiteboard({
   }, [contextKey]);
   useEffect(() => {
     if (!editable) {
+      setDialog(undefined);
       gesture.current = undefined;
       setDraft(undefined);
+      setTool("pointer");
+      onPresence?.({ cursor: cursor.current, draft: null });
     }
   }, [editable]);
   function position(event: PointerEvent<SVGSVGElement>): [number, number] {
@@ -183,10 +195,13 @@ export function Whiteboard({
     }
   }
   function down(event: PointerEvent<SVGSVGElement>) {
-    if (!editable || busy || event.button !== 0) return;
+    if (busy || event.button !== 0) return;
     event.currentTarget.focus();
-    const [x, y] = position(event),
-      target = (event.target as Element)
+    const [x, y] = position(event);
+    cursor.current = { x, y };
+    onPresence?.({ cursor: cursor.current, draft: null });
+    if (!editable || tool === "pointer") return;
+    const target = (event.target as Element)
         .closest("[data-element]")
         ?.getAttribute("data-element"),
       existing = elements.find((e) => e.id === target);
@@ -232,13 +247,23 @@ export function Whiteboard({
     }
     event.currentTarget.setPointerCapture(event.pointerId);
     setDraft({ ...gesture.current.element });
+    onPresence?.({
+      cursor: cursor.current,
+      draft: boardLiveDraft(
+        gesture.current.element,
+        gesture.current.original?.version,
+      ),
+    });
   }
   function move(event: PointerEvent<SVGSVGElement>) {
+    const [x, y] = position(event);
+    cursor.current = { x, y };
     const g = gesture.current;
-    if (!g || g.pointer !== event.pointerId) return;
-    event.currentTarget.focus();
-    const [x, y] = position(event),
-      [sx, sy] = g.start;
+    if (!g || g.pointer !== event.pointerId) {
+      onPresence?.({ cursor: cursor.current, draft: null });
+      return;
+    }
+    const [sx, sy] = g.start;
     if (g.original) {
       g.element.x = g.original.x + x - sx;
       g.element.y = g.original.y + y - sy;
@@ -251,18 +276,29 @@ export function Whiteboard({
       g.element.height = Math.abs(y - sy);
     }
     setDraft({ ...g.element });
+    onPresence?.({
+      cursor: cursor.current,
+      draft: boardLiveDraft(g.element, g.original?.version),
+    });
   }
   function up() {
     const g = gesture.current;
     if (!g) return;
     gesture.current = undefined;
-    setDraft(undefined);
     const {
       authorId: _author,
       version: _version,
       ...element
     } = g.element as BoardElement;
-    void run({ type: "put", element, expectedVersion: g.original?.version });
+    void run({
+      type: "put",
+      element,
+      expectedVersion: g.original?.version,
+    }).finally(() => {
+      setDraft((current) => (current?.id === element.id ? undefined : current));
+      if (!gesture.current)
+        onPresence?.({ cursor: cursor.current, draft: null });
+    });
   }
   async function importImage(source: File | string) {
     const began = contextKey;
@@ -315,7 +351,9 @@ export function Whiteboard({
       clone.setAttribute("xmlns", "http://www.w3.org/2000/svg");
       clone.setAttribute("width", "1600");
       clone.setAttribute("height", "900");
-      clone.querySelectorAll("[data-selection]").forEach((e) => e.remove());
+      clone
+        .querySelectorAll("[data-selection], [data-transient]")
+        .forEach((e) => e.remove());
       const blob = new Blob([new XMLSerializer().serializeToString(clone)], {
           type: "image/svg+xml",
         }),
@@ -334,7 +372,8 @@ export function Whiteboard({
     }
   }
   const tools: [Tool, string, typeof Pencil][] = [
-    ["select", "选择移动", MousePointer2],
+    ["pointer", "指针", MousePointer2],
+    ["select", "选择移动", Move],
     ["path", "画笔", Pencil],
     ["rect", "矩形", Square],
     ["text", "文字", Type],
@@ -352,9 +391,17 @@ export function Whiteboard({
         onPointerDown={down}
         onPointerMove={move}
         onPointerUp={up}
+        onPointerLeave={() => {
+          if (!gesture.current) {
+            cursor.current = null;
+            onPresence?.({ cursor: null, draft: null });
+          }
+        }}
         onPointerCancel={() => {
           gesture.current = undefined;
           setDraft(undefined);
+          cursor.current = null;
+          onPresence?.({ cursor: null, draft: null });
         }}
       >
         <rect width="1600" height="900" fill="#f1eef6" />
@@ -378,47 +425,86 @@ export function Whiteboard({
             </g>
           ))}
         {draft && <BoardShape element={draft} />}
+        {presence.map((peer) => (
+          <g key={peer.userId} data-transient pointerEvents="none">
+            {peer.draft && (
+              <g opacity={0.85}>
+                <BoardShape element={peer.draft.element} />
+              </g>
+            )}
+            {peer.cursor && (
+              <g
+                data-remote-cursor={peer.userId}
+                transform={`translate(${peer.cursor.x} ${peer.cursor.y})`}
+              >
+                <path
+                  d="M0 0 L5 26 L12 18 L22 17 Z"
+                  fill={boardCursorColor(peer.userId)}
+                  stroke="white"
+                  strokeWidth={2}
+                />
+                <rect
+                  x={18}
+                  y={23}
+                  width={Math.min(330, peer.name.length * 24 + 22)}
+                  height={34}
+                  rx={8}
+                  fill={boardCursorColor(peer.userId)}
+                />
+                <text x={28} y={48} fontSize={23} fill="white">
+                  {peer.name.slice(0, 12)}
+                </text>
+              </g>
+            )}
+          </g>
+        ))}
       </svg>
-      {editable && (
+      {(editable || onPresence) && (
         <div className="collab-tools">
-          {tools.map(([value, label, Icon]) => (
-            <Button
-              key={value}
-              aria-label={label}
-              aria-pressed={tool === value}
-              className={tool === value ? "active" : ""}
-              onClick={() => setTool(value)}
-            >
-              <Icon size={17} />
-            </Button>
-          ))}
-          <input
-            aria-label="画笔颜色"
-            type="color"
-            value={color}
-            onChange={(e) => setColor(e.target.value)}
-          />
-          <Button
-            disabled={!canUndo}
-            aria-label="撤销"
-            onClick={() => void run({ type: "undo" })}
-          >
-            <Undo2 size={17} />
-          </Button>
-          <Button
-            disabled={!canRedo}
-            aria-label="重做"
-            onClick={() => void run({ type: "redo" })}
-          >
-            <Redo2 size={17} />
-          </Button>
-          {canClear && (
-            <Button
-              aria-label="清空白板"
-              onClick={() => setDialog({ kind: "clear" })}
-            >
-              <Trash2 size={17} />
-            </Button>
+          {tools
+            .filter(([value]) => editable || value === "pointer")
+            .map(([value, label, Icon]) => (
+              <Button
+                key={value}
+                aria-label={label}
+                aria-pressed={tool === value}
+                className={tool === value ? "active" : ""}
+                onClick={() => setTool(value)}
+              >
+                <Icon size={17} />
+              </Button>
+            ))}
+          {editable && (
+            <>
+              <input
+                aria-label="画笔颜色"
+                type="color"
+                value={color}
+                onChange={(e) => setColor(e.target.value)}
+              />
+              <Button
+                disabled={!canUndo}
+                aria-label="撤销"
+                onClick={() => void run({ type: "undo" })}
+              >
+                <Undo2 size={17} />
+              </Button>
+              <Button
+                disabled={!canRedo}
+                aria-label="重做"
+                onClick={() => void run({ type: "redo" })}
+              >
+                <Redo2 size={17} />
+              </Button>
+              {canClear && (
+                <Button
+                  aria-label="清空白板"
+                  onClick={() => setDialog({ kind: "clear" })}
+                >
+                  <Trash2 size={17} />
+                </Button>
+              )}
+            </>
           )}
         </div>
       )}

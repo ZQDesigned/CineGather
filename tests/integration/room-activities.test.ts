@@ -136,6 +136,12 @@ test("room members collaborate; outsiders cannot read; archive is accessible to 
   const generation = begun.data.generation;
   expect((await call(f.outsider, path)).status).toBe(403);
   expect((await call(f.guest, path)).status).toBe(200);
+  await call(f.host, path, {
+    type: "board-editor",
+    generation,
+    userId: f.guest.id,
+    enabled: true,
+  });
   const drawn = await call(f.guest, path, {
     type: "board",
     generation,
@@ -345,6 +351,12 @@ test("image upload is private, initiator-only and old images cannot be attached 
     color: "#112233",
     strokeWidth: 3,
   };
+  await call(f.host, path, {
+    type: "board-editor",
+    generation: state.generation,
+    userId: f.guest.id,
+    enabled: true,
+  });
   const drawn = (
     await call(f.host, path, {
       type: "board",
@@ -656,3 +668,235 @@ test("switching from screen to board promptly revokes the exact publisher after 
     control.mockRestore();
   }
 });
+
+test("whiteboard is starter-only until directly granted; revoke and switching remove editing rights", async () => {
+  const f = await fixture(),
+    path = `/rooms/${f.id}/activity`;
+  const state = (
+    await call(f.host, path, { type: "start", target: "board", generation: 0 })
+  ).data;
+  const edit = (generation: number) => ({
+    type: "board",
+    generation,
+    operation: {
+      type: "put",
+      element: {
+        id: crypto.randomUUID(),
+        kind: "path",
+        x: 0,
+        y: 0,
+        width: 1,
+        height: 1,
+        color: "#112233",
+        strokeWidth: 3,
+        points: [
+          [10, 20],
+          [30, 40],
+        ],
+      },
+    },
+  });
+  expect((await call(f.guest, path, edit(state.generation))).status).toBe(403);
+  expect((await call(f.guest, path)).data.board.canEdit).toBe(false);
+  expect(
+    (
+      await call(f.guest, path, {
+        type: "board-editor",
+        generation: state.generation,
+        userId: f.guest.id,
+        enabled: true,
+      })
+    ).status,
+  ).toBe(403);
+  expect(
+    (
+      await call(f.host, path, {
+        type: "board-editor",
+        generation: state.generation,
+        userId: f.guest.id,
+        enabled: true,
+      })
+    ).status,
+  ).toBe(201);
+  expect((await call(f.guest, path)).data.board.canEdit).toBe(true);
+  expect((await call(f.guest, path, edit(state.generation))).status).toBe(201);
+  await call(f.host, path, {
+    type: "board-editor",
+    generation: state.generation,
+    userId: f.guest.id,
+    enabled: false,
+  });
+  expect(
+    (
+      await call(f.guest, path, {
+        type: "board",
+        generation: state.generation,
+        operation: { type: "undo" },
+      })
+    ).status,
+  ).toBe(403);
+  expect((await call(f.guest, path, edit(state.generation))).status).toBe(403);
+  await call(f.host, path, { type: "end", generation: state.generation });
+  const next = (
+    await call(f.guest, path, {
+      type: "start",
+      target: "board",
+      generation: state.generation + 1,
+    })
+  ).data;
+  expect(next.board.editorIds).toEqual([f.guest.id]);
+  expect((await call(f.host, path, edit(next.generation))).status).toBe(403);
+});
+
+test("editing grants bind to the room admission and cannot survive device takeover", async () => {
+  const f = await fixture(),
+    path = `/rooms/${f.id}/activity`;
+  const state = (
+    await call(f.host, path, { type: "start", target: "board", generation: 0 })
+  ).data;
+  await call(f.host, path, {
+    type: "board-editor",
+    generation: state.generation,
+    userId: f.guest.id,
+    enabled: true,
+  });
+  const replacement = crypto.randomUUID();
+  await db.insert(credentials).values({
+    id: replacement,
+    userId: f.guest.id,
+    kind: "account",
+    secretHash: hash(crypto.randomUUID()),
+    expiresAt: new Date(Date.now() + 3600000),
+  });
+  await db
+    .update(roomSessions)
+    .set({ credentialId: replacement })
+    .where(eq(roomSessions.credentialId, f.guest.credentialId));
+  const snapshot = (await call(f.host, path)).data;
+  expect(snapshot.board.editorIds).not.toContain(f.guest.id);
+});
+
+test("live board previews stream at 20 Hz without writes, enforce permissions and clear on disconnect", async () => {
+  const f = await fixture(),
+    path = `/rooms/${f.id}/activity`;
+  const state = (
+    await call(f.host, path, { type: "start", target: "board", generation: 0 })
+  ).data;
+  const { WebSocket } = await import("ws");
+  async function peer(who: Person) {
+    const ticket = (await call(who, path + "/ticket", {})).data.ticket;
+    const socket = new WebSocket(
+      origin.replace("http:", "ws:") + "/api/v1/room-activities/ws",
+    );
+    type Frame = {
+      type: string;
+      board: { editorIds: string[]; canEdit: boolean };
+      presence: {
+        draft: { element: { id: string } } | null;
+        left?: boolean;
+        userId: string;
+      };
+    };
+    const queue: Frame[] = [];
+    socket.on("message", (raw) => queue.push(JSON.parse(raw.toString())));
+    async function receive(predicate: (m: Frame) => boolean) {
+      const end = Date.now() + 2500;
+      while (Date.now() < end) {
+        const i = queue.findIndex(predicate);
+        if (i >= 0) return queue.splice(i, 1)[0]!;
+        await Bun.sleep(10);
+      }
+      throw Error("Missing realtime message");
+    }
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+    socket.send(JSON.stringify({ ticket }));
+    await receive((m) => m.type === "snapshot");
+    return { socket, queue, receive };
+  }
+  const host = await peer(f.host),
+    guest = await peer(f.guest);
+  const element = {
+    id: crypto.randomUUID(),
+    kind: "path",
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    color: "#112233",
+    strokeWidth: 3,
+    points: [
+      [1, 2],
+      [3, 4],
+    ],
+  };
+  const frame = (draft: unknown) =>
+    JSON.stringify({
+      type: "presence",
+      presence: {
+        generation: state.generation,
+        cursor: { x: 22, y: 44 },
+        draft,
+      },
+    });
+  try {
+    guest.socket.send(frame({ element }));
+    guest.socket.send(frame(null));
+    expect(
+      (await host.receive((m) => m.type === "presence")).presence.draft,
+    ).toBeNull();
+    expect(
+      host.queue.filter((m) => m.type === "presence" && !!m.presence.draft),
+    ).toHaveLength(0);
+    for (let i = 0; i < 24; i++) {
+      host.socket.send(frame({ element }));
+      await Bun.sleep(50);
+    }
+    expect(guest.socket.readyState).toBe(WebSocket.OPEN);
+    expect(host.socket.readyState).toBe(WebSocket.OPEN);
+    expect(
+      guest.queue.filter((m) => m.type === "presence" && !!m.presence.draft)
+        .length,
+    ).toBeGreaterThanOrEqual(20);
+    expect((await call(f.host, path)).data.board.elements).toHaveLength(0);
+    await call(f.host, path, {
+      type: "board-editor",
+      generation: state.generation,
+      userId: f.guest.id,
+      enabled: true,
+    });
+    await host.receive(
+      (m) => m.type === "patch" && m.board.editorIds.includes(f.guest.id),
+    );
+    await guest.receive((m) => m.type === "patch" && m.board.canEdit);
+    guest.socket.send(frame({ element }));
+    expect(
+      (await host.receive((m) => m.type === "presence" && !!m.presence.draft))
+        .presence.draft!.element.id,
+    ).toBe(element.id);
+    await call(f.host, path, {
+      type: "board-editor",
+      generation: state.generation,
+      userId: f.guest.id,
+      enabled: false,
+    });
+    await guest.receive((m) => m.type === "patch" && !m.board.canEdit);
+    await host.receive((m) => m.type === "presence" && !!m.presence.left);
+    guest.socket.send(frame({ element }));
+    guest.socket.send(frame(null));
+    expect(
+      (await host.receive((m) => m.type === "presence" && !m.presence.left))
+        .presence.draft,
+    ).toBeNull();
+    guest.socket.close();
+    expect(
+      (await host.receive((m) => m.type === "presence" && !!m.presence.left))
+        .presence.userId,
+    ).toBe(f.guest.id);
+  } finally {
+    host.socket.close();
+    guest.socket.close();
+  }
+}, 10000);

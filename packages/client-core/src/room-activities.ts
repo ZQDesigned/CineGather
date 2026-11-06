@@ -2,6 +2,8 @@ import type {
   ActivityCommand,
   ActivitySnapshot,
   BoardElement,
+  BoardPresence,
+  BoardPresenceInput,
 } from "@cinegather/contracts";
 export interface ActivityPatch {
   type: "patch";
@@ -11,6 +13,8 @@ export interface ActivityPatch {
     revision: number;
     canUndo: boolean;
     canRedo: boolean;
+    canEdit: boolean;
+    editorIds: string[];
     put: BoardElement[];
     remove: string[];
   };
@@ -37,6 +41,8 @@ export function applyActivityPatch(
             revision: patch.board.revision,
             canUndo: patch.board.canUndo,
             canRedo: patch.board.canRedo,
+            canEdit: patch.board.canEdit,
+            editorIds: patch.board.editorIds,
             elements: [...elements.values()],
           },
         }
@@ -45,6 +51,7 @@ export function applyActivityPatch(
 }
 export interface RoomActivityClientState {
   snapshot?: ActivitySnapshot;
+  presence?: BoardPresence[];
   status: "idle" | "connecting" | "connected" | "reconnecting" | "failed";
   error?: string;
 }
@@ -55,6 +62,11 @@ export class RoomActivityClient {
   private roomId?: string;
   private epoch = 0;
   private timer?: ReturnType<typeof setTimeout>;
+  private presenceTimer?: ReturnType<typeof setTimeout>;
+  private presenceExpiry?: ReturnType<typeof setInterval>;
+  private lastPresenceAt = 0;
+  private outgoingPresence?: BoardPresenceInput;
+  private peerExpiry = new Map<string, number>();
   private attempt = 0;
   private serial = 0;
   private pending = new Map<
@@ -88,12 +100,28 @@ export class RoomActivityClient {
     if (this.roomId === roomId && this.value.status !== "failed") return;
     this.disconnect();
     this.roomId = roomId;
+    this.presenceExpiry = setInterval(() => {
+      const presence = (this.value.presence ?? []).filter(
+        (p) => (this.peerExpiry.get(p.userId) ?? 0) > Date.now(),
+      );
+      if (
+        presence.length !== this.value.presence?.length &&
+        this.value.presence?.length
+      )
+        this.set({ ...this.value, presence });
+    }, 1000);
     void this.open(this.epoch);
   }
   disconnect() {
     this.epoch++;
     this.roomId = undefined;
     clearTimeout(this.timer);
+    clearTimeout(this.presenceTimer);
+    clearInterval(this.presenceExpiry);
+    this.presenceTimer = undefined;
+    this.outgoingPresence = undefined;
+    this.peerExpiry.clear();
+    this.lastPresenceAt = 0;
     this.socket?.close();
     this.socket = undefined;
     this.attempt = 0;
@@ -133,7 +161,7 @@ export class RoomActivityClient {
             if (message.snapshot.roomId !== this.roomId)
               throw Error("Room mismatch");
             this.attempt = 0;
-            this.set({ status: "connected", snapshot: message.snapshot });
+            this.acceptSnapshot(message.snapshot);
           } else if (message.type === "patch") {
             const next =
               this.value.snapshot &&
@@ -142,7 +170,25 @@ export class RoomActivityClient {
               ws.close();
               return;
             }
-            this.set({ status: "connected", snapshot: next });
+            this.acceptSnapshot(next);
+          } else if (message.type === "presence") {
+            const peer = message.presence as BoardPresence & { left?: boolean };
+            const snapshot = this.value.snapshot;
+            if (
+              !snapshot ||
+              peer.roomId !== snapshot.roomId ||
+              peer.generation !== snapshot.generation
+            )
+              return;
+            this.peerExpiry.set(peer.userId, Date.now() + 5000);
+            const presence = (this.value.presence ?? []).filter(
+              (p) => p.userId !== peer.userId,
+            );
+            if (!peer.left && (peer.cursor || peer.draft)) presence.push(peer);
+            this.set({
+              ...this.value,
+              presence: this.filterPresence(snapshot, presence),
+            });
           } else if (message.type === "ack" || message.type === "error") {
             const pending = this.pending.get(message.id);
             if (!pending) return;
@@ -188,11 +234,76 @@ export class RoomActivityClient {
       ...this.value,
       status: "reconnecting",
       error: "正在重新连接房间活动",
+      presence: [],
     });
     this.timer = setTimeout(
       () => void this.open(epoch),
       Math.min(15000, 1000 * 2 ** this.attempt++),
     );
+  }
+  private filterPresence(
+    snapshot: ActivitySnapshot,
+    presence: BoardPresence[],
+  ) {
+    return presence
+      .filter(
+        (p) =>
+          p.roomId === snapshot.roomId && p.generation === snapshot.generation,
+      )
+      .map((p) => {
+        const current =
+          p.draft &&
+          snapshot.board?.elements.find((e) => e.id === p.draft!.element.id);
+        const editable =
+          snapshot.board?.editorIds?.includes(p.userId) &&
+          (snapshot.kind === "board" || snapshot.game?.phase === "playing");
+        const validDraft =
+          editable &&
+          p.draft &&
+          (current
+            ? current.version === p.draft.expectedVersion
+            : p.draft.expectedVersion === undefined);
+        return validDraft ? p : { ...p, draft: null };
+      });
+  }
+  private acceptSnapshot(snapshot: ActivitySnapshot) {
+    this.set({
+      status: "connected",
+      snapshot,
+      presence: this.filterPresence(snapshot, this.value.presence ?? []),
+    });
+  }
+  sendPresence(
+    frame: Omit<BoardPresenceInput, "generation">,
+    expected: Pick<ActivitySnapshot, "roomId" | "generation">,
+  ) {
+    if (
+      this.value.status !== "connected" ||
+      this.socket?.readyState !== 1 ||
+      this.value.snapshot?.roomId !== expected.roomId ||
+      this.value.snapshot?.generation !== expected.generation
+    )
+      return;
+    this.outgoingPresence = { ...frame, generation: expected.generation };
+    if (this.presenceTimer) return;
+    const flush = () => {
+      this.presenceTimer = undefined;
+      const next = this.outgoingPresence;
+      this.outgoingPresence = undefined;
+      if (
+        !next ||
+        this.value.status !== "connected" ||
+        this.socket?.readyState !== 1 ||
+        this.socket.bufferedAmount > 128_000 ||
+        this.value.snapshot?.generation !== next.generation
+      )
+        return;
+      this.lastPresenceAt = Date.now();
+      this.socket.send(JSON.stringify({ type: "presence", presence: next }));
+    };
+    const delay = Math.max(0, 50 - (Date.now() - this.lastPresenceAt));
+    if (!delay) flush();
+    else this.presenceTimer = setTimeout(flush, delay);
   }
   assertContext(expected: Pick<ActivitySnapshot, "roomId" | "generation">) {
     const current = this.value.snapshot;

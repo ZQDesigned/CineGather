@@ -345,7 +345,7 @@ export function RoomActivityControls() {
   );
 }
 export function RoomActivityStage() {
-  const { snapshot: current } = useRoomActivity(),
+  const { snapshot: current, presence = [] } = useRoomActivity(),
     userId = useApp((s) => s.user?.id),
     [answer, setAnswer] = useState(""),
     [busy, setBusy] = useState(false),
@@ -367,11 +367,7 @@ export function RoomActivityStage() {
   const board = snapshot.board!,
     game = snapshot.game,
     controlled = snapshot.ownerId === userId || snapshot.starterId === userId;
-  const editable =
-    snapshot.kind === "board" ||
-    (game?.kind === "draw" &&
-      game.phase === "playing" &&
-      game.drawerId === userId);
+  const editable = board.canEdit;
   const party = async (action: PartyAction) => {
     setBusy(true);
     try {
@@ -406,6 +402,12 @@ export function RoomActivityStage() {
         <strong>
           {snapshot.kind === "board" ? "协作白板" : names[game!.kind]}
         </strong>
+        {snapshot.kind === "board" && (
+          <>
+            <span>{editable ? "可编辑" : "仅查看"}</span>
+            <WhiteboardEditors />
+          </>
+        )}
         {game && (
           <>
             <span>
@@ -502,6 +504,10 @@ export function RoomActivityStage() {
         <Whiteboard
           contextKey={`${current?.roomId}:${current?.generation}:${Boolean(active)}:${game?.phase ?? "board"}`}
           elements={board.elements}
+          presence={presence}
+          onPresence={(frame) => {
+            if (active && current) roomActivities.sendPresence(frame, current);
+          }}
           editable={Boolean(active && editable)}
           importable={
             snapshot.kind === "board" && snapshot.starterId === userId
@@ -511,11 +517,14 @@ export function RoomActivityStage() {
           canClear={controlled || game?.drawerId === userId}
           onOperation={(operation) =>
             roomActivities
-              .command({
-                type: "board",
-                generation: snapshot.generation,
-                operation,
-              })
+              .command(
+                {
+                  type: "board",
+                  generation: snapshot.generation,
+                  operation,
+                },
+                snapshot,
+              )
               .then(() => {})
           }
           onImage={async (data) => {
@@ -847,6 +856,92 @@ export function WhiteboardHistory({
         cancelText="取消"
       >
         <p>仅删除你的记录，不影响其他成员的白板。</p>
+      </Modal>
+    </>
+  );
+}
+
+function WhiteboardEditors() {
+  const { snapshot, status } = useRoomActivity(),
+    userId = useApp((s) => s.user?.id),
+    members = useApp((s) => s.media.participants);
+  const [target, setTarget] = useState<{
+    roomId: string;
+    generation: number;
+  }>();
+  const retained = useRetainedDialog(target),
+    display = useRef<{
+      members: { id: string; name: string }[];
+      editors: string[];
+    }>({ members: [], editors: [] });
+  if (
+    retained.open &&
+    snapshot &&
+    snapshot.roomId === target?.roomId &&
+    snapshot?.generation === target?.generation
+  )
+    display.current = {
+      members: members
+        .filter((m) => m.id !== snapshot.starterId)
+        .map((m) => ({ id: m.id, name: m.name })),
+      editors: snapshot.board?.editorIds ?? [],
+    };
+  useEffect(() => {
+    setTarget(undefined);
+  }, [snapshot?.roomId, snapshot?.generation, snapshot?.starterId]);
+  return (
+    <>
+      {snapshot?.kind === "board" && snapshot.starterId === userId && (
+        <Button
+          onClick={() =>
+            setTarget({
+              roomId: snapshot.roomId,
+              generation: snapshot.generation,
+            })
+          }
+        >
+          邀请编辑
+        </Button>
+      )}
+      <Modal
+        title="协作成员"
+        open={retained.open}
+        afterClose={retained.afterClose}
+        onCancel={() => setTarget(undefined)}
+        footer={null}
+        centered
+        destroyOnHidden
+      >
+        {display.current.members.length ? (
+          display.current.members.map((member) => {
+            const enabled = display.current.editors.includes(member.id);
+            return (
+              <div key={member.id} className="whiteboard-record">
+                <span>{member.name}</span>
+                <Button
+                  disabled={status !== "connected"}
+                  onClick={() => {
+                    const context = retained.value;
+                    if (context)
+                      void execute(
+                        {
+                          type: "board-editor",
+                          generation: context.generation,
+                          userId: member.id,
+                          enabled: !enabled,
+                        },
+                        context,
+                      );
+                  }}
+                >
+                  {enabled ? "收回编辑权限" : "邀请编辑"}
+                </Button>
+              </div>
+            );
+          })
+        ) : (
+          <p>还没有其他成员</p>
+        )}
       </Modal>
     </>
   );

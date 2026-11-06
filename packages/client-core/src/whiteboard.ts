@@ -1,6 +1,7 @@
 import type {
   BoardEdit,
   BoardElement,
+  BoardElementInput,
   BoardOperation,
   WhiteboardDocument,
 } from "@cinegather/contracts";
@@ -86,4 +87,24 @@ export function editWhiteboard(
   if (JSON.stringify(board).length > 2_000_000)
     throw Error("白板内容过多，请先整理画布");
   return board;
+}
+
+export function boardCursorColor(userId: string) {
+  let hash = 0;
+  for (const char of userId) hash = (hash * 31 + char.charCodeAt(0)) | 0;
+  return ["#7952b3", "#167d8d", "#b14569", "#a16b16", "#28764f", "#4369b0"][
+    Math.abs(hash) % 6
+  ]!;
+}
+
+export function boardLiveDraft(
+  input: BoardElementInput,
+  expectedVersion?: number,
+) {
+  const {
+    authorId: _author,
+    version: _version,
+    ...element
+  } = input as BoardElement;
+  return { element, expectedVersion };
 }

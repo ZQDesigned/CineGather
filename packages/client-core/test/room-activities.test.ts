@@ -9,7 +9,14 @@ const initial: ActivitySnapshot = {
   ownerId: "host",
   requests: [],
   permissions: [],
-  board: { revision: 1, elements: [], canUndo: false, canRedo: false },
+  board: {
+    revision: 1,
+    elements: [],
+    canUndo: false,
+    canRedo: false,
+    canEdit: true,
+    editorIds: ["host"],
+  },
 };
 test("board patches preserve other strokes and reject a missed base revision", () => {
   const element = {
@@ -33,6 +40,8 @@ test("board patches preserve other strokes and reject a missed base revision", (
       revision: 2,
       canUndo: false,
       canRedo: false,
+      canEdit: true,
+      editorIds: ["host"],
       put: [element],
       remove: [],
     },
@@ -96,4 +105,99 @@ test("an actionable history-capacity rejection stops automatic retries", async (
     error: "白板记录已满",
   });
   client.disconnect();
+});
+
+test("live previews arrive before commit, then clear on commit, permission removal and disconnect", async () => {
+  const { RoomActivityClient } = await import("../src/room-activities");
+  const sent: string[] = [];
+  const socket = {
+    readyState: 1,
+    send: (s: string) => sent.push(s),
+    close: () => {},
+  } as unknown as WebSocket;
+  const client = new RoomActivityClient({
+    origin: () => "http://localhost",
+    ticket: async () => ({ ticket: "t" }),
+    socket: () => socket,
+  });
+  client.connect("room");
+  await new Promise((r) => setTimeout(r, 0));
+  const receive = (m: unknown) =>
+    socket.onmessage!({ data: JSON.stringify(m) } as MessageEvent);
+  const snapshot = {
+    ...initial,
+    board: { ...initial.board!, canEdit: true, editorIds: ["host", "peer"] },
+  };
+  receive({ type: "snapshot", snapshot });
+  const element = {
+    id: "stroke",
+    kind: "path",
+    x: 0,
+    y: 0,
+    width: 1,
+    height: 1,
+    color: "#112233",
+    strokeWidth: 3,
+    points: [[1, 2]],
+  };
+  receive({
+    type: "presence",
+    presence: {
+      roomId: "room",
+      generation: 1,
+      userId: "peer",
+      name: "好友",
+      cursor: { x: 1, y: 2 },
+      draft: { element },
+    },
+  });
+  expect(client.getSnapshot().presence?.[0]?.draft?.element.id).toBe("stroke");
+  receive({
+    type: "snapshot",
+    snapshot: {
+      ...snapshot,
+      board: {
+        ...snapshot.board,
+        elements: [{ ...element, version: 2, authorId: "peer" }],
+      },
+    },
+  });
+  expect(client.getSnapshot().presence?.[0]?.draft).toBeNull();
+  receive({
+    type: "presence",
+    presence: {
+      roomId: "room",
+      generation: 1,
+      userId: "peer",
+      name: "好友",
+      cursor: { x: 3, y: 4 },
+      draft: { element: { ...element, id: "second" } },
+    },
+  });
+  receive({
+    type: "snapshot",
+    snapshot: {
+      ...snapshot,
+      board: { ...snapshot.board, editorIds: ["host"] },
+    },
+  });
+  expect(client.getSnapshot().presence?.[0]?.draft).toBeNull();
+  expect(client.getSnapshot().presence?.[0]?.cursor).toEqual({ x: 3, y: 4 });
+  receive({
+    type: "presence",
+    presence: {
+      roomId: "room",
+      generation: 0,
+      userId: "old",
+      name: "旧活动",
+      cursor: { x: 1, y: 2 },
+      draft: null,
+    },
+  });
+  expect(client.getSnapshot().presence).toHaveLength(1);
+  for (let i = 0; i < 100; i++)
+    client.sendPresence({ cursor: { x: i, y: i }, draft: null }, snapshot);
+  expect(sent.length).toBeLessThanOrEqual(1);
+  client.disconnect();
+  expect(client.getSnapshot().presence).toBeUndefined();
 });

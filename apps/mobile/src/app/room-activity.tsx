@@ -9,7 +9,11 @@ import type { ActivityTarget, PartyAction } from "@cinegather/contracts";
 import { activities, startActivity } from "../activities";
 import { runtime } from "../runtime";
 import { useSession } from "../components/use-runtime";
-import { useActivities, MobileWhiteboard } from "../components/Activities";
+import {
+  useActivities,
+  MobileWhiteboard,
+  MobileWhiteboardEditors,
+} from "../components/Activities";
 import { Screen } from "../components/Screen";
 import { Button, Label, Field, Dialog, styles } from "../components/ui";
 const names: Record<ActivityTarget, string> = {
@@ -19,7 +23,7 @@ const names: Record<ActivityTarget, string> = {
   screen: "屏幕共享",
 };
 export default function RoomActivity() {
-  const { snapshot, status, error } = useActivities(),
+  const { snapshot, status, error, presence } = useActivities(),
     userId = useSession().user?.id;
   const [answer, setAnswer] = useState(""),
     [now, setNow] = useState(Date.now()),
@@ -338,11 +342,9 @@ export default function RoomActivity() {
         <MobileWhiteboard
           contextKey={`${snapshot.roomId}:${generation}:${game?.phase ?? snapshot.kind}`}
           elements={board?.elements ?? []}
-          editable={
-            enabled &&
-            (snapshot.kind === "board" ||
-              (game?.phase === "playing" && game.drawerId === userId))
-          }
+          editable={enabled && board?.canEdit}
+          presence={presence}
+          onPresence={(frame) => activities.sendPresence(frame, snapshot)}
           canUndo={board?.canUndo}
           canRedo={board?.canRedo}
           canClear={controlled || game?.drawerId === userId}
@@ -354,6 +356,10 @@ export default function RoomActivity() {
           }
         />
       </View>
+      <MobileWhiteboardEditors />
+      {snapshot.kind === "board" && (
+        <Label muted>{board?.canEdit ? "可编辑" : "仅查看"}</Label>
+      )}
       {snapshot.kind === "board" && snapshot.starterId === userId && (
         <Button disabled={!enabled} onPress={chooseImage}>
           加入图片 / 系统截图

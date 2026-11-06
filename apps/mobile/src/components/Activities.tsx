@@ -1,3 +1,4 @@
+import { boardCursorColor, boardLiveDraft } from "@cinegather/client-core";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   View,
@@ -23,6 +24,8 @@ import type {
   BoardElement,
   BoardElementInput,
   BoardOperation,
+  BoardPresence,
+  BoardPresenceInput,
 } from "@cinegather/contracts";
 import { activities } from "../activities";
 import { runtime } from "../runtime";
@@ -148,6 +151,8 @@ export function MobileWhiteboard({
   canUndo = false,
   canRedo = false,
   canClear = false,
+  presence = [],
+  onPresence,
   onOperation,
 }: {
   elements: BoardElement[];
@@ -157,10 +162,12 @@ export function MobileWhiteboard({
   canUndo?: boolean;
   canRedo?: boolean;
   canClear?: boolean;
+  presence?: BoardPresence[];
+  onPresence?: (frame: Omit<BoardPresenceInput, "generation">) => void;
   onOperation?: (operation: BoardOperation) => Promise<unknown>;
 }) {
   const [tool, setTool] = useState<
-      "path" | "rect" | "note" | "text" | "move" | "erase"
+      "pointer" | "path" | "rect" | "note" | "text" | "move" | "erase"
     >("path"),
     [color, setColor] = useState("#8161ac"),
     [draft, setDraft] = useState<BoardElementInput>(),
@@ -177,8 +184,18 @@ export function MobileWhiteboard({
     color,
     width,
     onOperation,
+    onPresence,
   });
-  context.current = { elements, editable, tool, color, width, onOperation };
+  context.current = {
+    elements,
+    editable,
+    tool,
+    color,
+    width,
+    onOperation,
+    onPresence,
+  };
+  const touchStart = useRef<[number, number]>([0, 0]);
   const gesture = useRef<
     | {
         element: BoardElementInput;
@@ -189,13 +206,17 @@ export function MobileWhiteboard({
   >(undefined);
   const responder = useRef(
     PanResponder.create({
-      onStartShouldSetPanResponder: () => context.current.editable,
+      onStartShouldSetPanResponder: () =>
+        !!context.current.onPresence || context.current.editable,
       onPanResponderTerminationRequest: () => false,
       onPanResponderGrant: (e) => {
         const c = context.current,
           scale = 1600 / c.width,
           x = Math.round(e.nativeEvent.locationX * scale),
           y = Math.round(e.nativeEvent.locationY * scale);
+        touchStart.current = [x, y];
+        c.onPresence?.({ cursor: { x, y }, draft: null });
+        if (!c.editable || c.tool === "pointer") return;
         const existing = [...c.elements]
           .reverse()
           .find((el) =>
@@ -249,13 +270,17 @@ export function MobileWhiteboard({
         }
         gesture.current = { element: el, start: [x, y] };
         setDraft({ ...el });
+        c.onPresence?.({ cursor: { x, y }, draft: boardLiveDraft(el) });
       },
       onPanResponderMove: (_e, state) => {
         const g = gesture.current;
-        if (!g) return;
         const scale = 1600 / context.current.width,
-          x = Math.round(g.start[0] + state.dx * scale),
-          y = Math.round(g.start[1] + state.dy * scale);
+          x = Math.round(touchStart.current[0] + state.dx * scale),
+          y = Math.round(touchStart.current[1] + state.dy * scale);
+        if (!g) {
+          context.current.onPresence?.({ cursor: { x, y }, draft: null });
+          return;
+        }
         if (g.original) {
           g.element.x = g.original.x + state.dx * scale;
           g.element.y = g.original.y + state.dy * scale;
@@ -268,11 +293,14 @@ export function MobileWhiteboard({
           g.element.height = Math.abs(y - g.start[1]);
         }
         setDraft({ ...g.element });
+        context.current.onPresence?.({
+          cursor: { x, y },
+          draft: boardLiveDraft(g.element, g.original?.version),
+        });
       },
       onPanResponderRelease: () => {
         const g = gesture.current;
         gesture.current = undefined;
-        setDraft(undefined);
         if (g) {
           const {
             authorId: _a,
@@ -285,10 +313,18 @@ export function MobileWhiteboard({
               element,
               expectedVersion: g.original?.version,
             })
-            .catch((e) => runtime.fail(e));
-        }
+            .catch((e) => runtime.fail(e))
+            .finally(() => {
+              setDraft((current) =>
+                current?.id === element.id ? undefined : current,
+              );
+              if (!gesture.current)
+                context.current.onPresence?.({ cursor: null, draft: null });
+            });
+        } else context.current.onPresence?.({ cursor: null, draft: null });
       },
       onPanResponderTerminate: () => {
+        context.current.onPresence?.({ cursor: null, draft: null });
         gesture.current = undefined;
         setDraft(undefined);
       },
@@ -298,6 +334,9 @@ export function MobileWhiteboard({
     gesture.current = undefined;
     setDraft(undefined);
     setTextOpen(false);
+    if (!editable) setTool("pointer");
+    context.current.onPresence?.({ cursor: null, draft: null });
+    return () => context.current.onPresence?.({ cursor: null, draft: null });
   }, [editable, contextKey]);
   return (
     <View style={{ gap: 10 }}>
@@ -326,12 +365,51 @@ export function MobileWhiteboard({
             ))}
           {draft && <Shape element={draft} />}
         </Svg>
+        <Svg
+          style={{ position: "absolute", inset: 0 }}
+          width="100%"
+          height="100%"
+          viewBox="0 0 1600 900"
+          pointerEvents="none"
+        >
+          {presence.map((peer) => (
+            <G key={peer.userId}>
+              {peer.draft && (
+                <G opacity={0.85}>
+                  <Shape element={peer.draft.element} />
+                </G>
+              )}
+              {peer.cursor && (
+                <G transform={`translate(${peer.cursor.x} ${peer.cursor.y})`}>
+                  <Path
+                    d="M0 0 L0 28 L8 21 L15 34 L21 31 L14 18 L25 18 Z"
+                    fill={boardCursorColor(peer.userId)}
+                    stroke="#fff"
+                    strokeWidth={2}
+                  />
+                  <Rect
+                    x={24}
+                    y={22}
+                    width={Math.min(peer.name.length, 20) * 20 + 20}
+                    height={32}
+                    rx={8}
+                    fill={boardCursorColor(peer.userId)}
+                  />
+                  <SvgText x={34} y={44} fontSize={20} fill="#fff">
+                    {peer.name.slice(0, 20)}
+                  </SvgText>
+                </G>
+              )}
+            </G>
+          ))}
+        </Svg>
       </View>
       {editable && (
         <>
           <View style={[styles.row, { flexWrap: "wrap", gap: 6 }]}>
             {(
               [
+                ["pointer", "指针"],
                 ["path", "画笔"],
                 ["rect", "矩形"],
                 ["text", "文字"],
@@ -477,7 +555,7 @@ export function MobileWhiteboard({
   );
 }
 export function ActivityPreview() {
-  const { snapshot, error } = useActivities();
+  const { snapshot, error, presence } = useActivities();
   return (
     <View style={{ gap: 8 }}>
       {snapshot && ["board", "game"].includes(snapshot.kind) && (
@@ -497,6 +575,7 @@ export function ActivityPreview() {
               <MobileWhiteboard
                 elements={snapshot.board.elements}
                 exportable={false}
+                presence={presence}
               />
             ) : (
               <Label>{snapshot.game?.clue ?? "进入活动面板参加游戏"}</Label>
@@ -562,5 +641,85 @@ export function MobileActivityPermissions() {
           );
         })}
     </View>
+  );
+}
+
+export function MobileWhiteboardEditors() {
+  const { snapshot, status } = useActivities(),
+    userId = useSession().user?.id,
+    media = useMedia();
+  const [open, setOpen] = useState(false);
+  const display = useRef<
+    | {
+        context: { roomId: string; generation: number };
+        members: { id: string; name: string }[];
+        editors: string[];
+      }
+    | undefined
+  >(undefined);
+  if (
+    open &&
+    snapshot?.kind === "board" &&
+    snapshot.starterId === userId &&
+    display.current?.context.roomId === snapshot.roomId &&
+    display.current.context.generation === snapshot.generation
+  )
+    display.current = {
+      context: { roomId: snapshot.roomId, generation: snapshot.generation },
+      members: media.members.filter((m) => m.id !== userId),
+      editors: snapshot.board?.editorIds ?? [],
+    };
+  useEffect(
+    () => setOpen(false),
+    [snapshot?.roomId, snapshot?.generation, snapshot?.starterId],
+  );
+  return (
+    <>
+      {snapshot?.kind === "board" && snapshot.starterId === userId && (
+        <Button
+          onPress={() => {
+            display.current = {
+              context: {
+                roomId: snapshot.roomId,
+                generation: snapshot.generation,
+              },
+              members: media.members.filter((m) => m.id !== userId),
+              editors: snapshot.board?.editorIds ?? [],
+            };
+            setOpen(true);
+          }}
+        >
+          邀请编辑
+        </Button>
+      )}
+      <Dialog visible={open} title="协作成员" close={() => setOpen(false)}>
+        {display.current?.members.map((member) => {
+          const enabled = display.current!.editors.includes(member.id);
+          return (
+            <View key={member.id} style={styles.spread}>
+              <Label>{member.name}</Label>
+              <Button
+                disabled={status !== "connected"}
+                onPress={async () => {
+                  const saved = display.current!;
+                  await activities.command(
+                    {
+                      type: "board-editor",
+                      generation: saved.context.generation,
+                      userId: member.id,
+                      enabled: !enabled,
+                    },
+                    saved.context,
+                  );
+                }}
+              >
+                {enabled ? "收回编辑权限" : "邀请编辑"}
+              </Button>
+            </View>
+          );
+        })}
+        {!display.current?.members.length && <Label>还没有其他成员</Label>}
+      </Dialog>
+    </>
   );
 }

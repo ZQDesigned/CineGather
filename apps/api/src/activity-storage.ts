@@ -32,6 +32,7 @@ export interface ActivityData {
   board: WhiteboardDocument;
   game?: PartyGame;
   participants: Record<string, string>;
+  editors?: Record<string, string>;
   requests: (ActivityRequest & { credentialId: string })[];
   seenLeaseId?: string;
   screenGrant?: {
@@ -50,6 +51,7 @@ export function newActivity(title: string): ActivityData {
     title,
     board: emptyWhiteboard(),
     participants: {},
+    editors: {},
     requests: [],
   };
 }
@@ -188,6 +190,7 @@ export async function archiveDeparting(
     await saveBoard(tx, state, [userId]);
     delete state.participants[userId];
   }
+  if (state.editors) delete state.editors[userId];
   state.requests = state.requests.filter((r) => r.userId !== userId);
   if (state.screenGrant?.userId === userId) delete state.screenGrant;
   if (state.game) {
@@ -251,4 +254,22 @@ export async function requireActivityCapacity(
 
 export async function lockWhiteboardArchives(tx: Transaction) {
   await tx.execute(sql`select pg_advisory_xact_lock(74921006)`);
+}
+
+export function canEditActivityBoard(
+  state: ActivityData,
+  userId: string,
+  credentialId?: string,
+) {
+  if (state.kind === "board")
+    return (
+      state.starterId === userId ||
+      (!!credentialId && state.editors?.[userId] === credentialId)
+    );
+  return (
+    state.kind === "game" &&
+    state.game?.kind === "draw" &&
+    state.game.phase === "playing" &&
+    state.game.drawerId === userId
+  );
 }

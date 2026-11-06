@@ -1,3 +1,4 @@
+import { allowBoardPresence } from "./board-presence";
 import { randomBytes } from "node:crypto";
 import { HttpException } from "@nestjs/common";
 import { WebSocketServer, WebSocket } from "ws";
@@ -5,6 +6,8 @@ import type { Server, IncomingMessage } from "node:http";
 import type { Duplex } from "node:stream";
 import {
   activityCommandSchema,
+  boardPresenceInputSchema,
+  type BoardPresence,
   type ActivitySnapshot,
   type User,
 } from "@cinegather/contracts";
@@ -42,6 +45,31 @@ export function attachActivityGateway(
     perMessageDeflate: false,
   });
   const sessions = new Map<string, WebSocket>();
+  const peers = new Map<
+    WebSocket,
+    {
+      roomId: string;
+      valid(): ActivitySnapshot | undefined;
+      send(value: unknown): void;
+    }
+  >();
+  const broadcast = (
+    sender: WebSocket,
+    value:
+      | BoardPresence
+      | { roomId: string; generation: number; userId: string; left: true },
+  ) => {
+    for (const [socket, peer] of peers) {
+      const snapshot = peer.valid();
+      if (
+        socket !== sender &&
+        peer.roomId === value.roomId &&
+        snapshot?.generation === value.generation &&
+        socket.bufferedAmount < 128_000
+      )
+        peer.send({ type: "presence", presence: value });
+    }
+  };
   const upgrade = (req: IncomingMessage, socket: Duplex, head: Buffer) => {
     if (req.url?.split("?")[0] !== "/api/v1/room-activities/ws") return;
     const origin = req.headers.origin;
@@ -64,7 +92,11 @@ export function attachActivityGateway(
       previous: ActivitySnapshot | undefined,
       busy = false,
       dirty = false,
-      closed = false;
+      closed = false,
+      authorized = false;
+    let authorizedAt = 0,
+      lastPresence: BoardPresence | undefined;
+    let presenceCount = 0;
     let windowAt = Date.now(),
       count = 0,
       queued = 0,
@@ -124,8 +156,28 @@ export function attachActivityGateway(
               : undefined,
           });
         }
+        const oldPresence = lastPresence;
         previous = next;
+        authorized = true;
+        authorizedAt = Date.now();
+        if (
+          oldPresence &&
+          !allowBoardPresence(next, {
+            generation: oldPresence.generation,
+            cursor: oldPresence.cursor,
+            draft: oldPresence.draft,
+          })
+        ) {
+          broadcast(ws, {
+            roomId: oldPresence.roomId,
+            generation: oldPresence.generation,
+            userId: oldPresence.userId,
+            left: true,
+          });
+          lastPresence = undefined;
+        }
       } catch {
+        authorized = false;
         ws.close(1008, "Room admission expired");
       } finally {
         busy = false;
@@ -135,7 +187,11 @@ export function attachActivityGateway(
         }
       }
     };
-    const interval = setInterval(() => void refresh(), 3000);
+    const changed = () => {
+      authorized = false;
+      void refresh();
+    };
+    const interval = setInterval(() => void refresh(), 1000);
     interval.unref();
     ws.on("message", (raw, binary) => {
       if (binary) {
@@ -145,12 +201,19 @@ export function attachActivityGateway(
       if (Date.now() - windowAt >= 1000) {
         windowAt = Date.now();
         count = 0;
+        presenceCount = 0;
       }
-      if (++count > 12) {
+      if (++count > 60) {
         ws.close(1008, "Rate limit");
         return;
       }
-      let input: { ticket?: string; id?: string; command?: unknown };
+      let input: {
+        ticket?: string;
+        id?: string;
+        command?: unknown;
+        type?: string;
+        presence?: unknown;
+      };
       try {
         input = JSON.parse(raw.toString());
       } catch {
@@ -172,8 +235,40 @@ export function attachActivityGateway(
         const session = sessionCredential(entry.user)!;
         sessions.get(session)?.close(1000, "Reconnected");
         sessions.set(session, ws);
-        activityEvents.on(entry.roomId, refresh);
+        peers.set(ws, {
+          roomId: entry.roomId,
+          valid: () =>
+            authorized && Date.now() - authorizedAt < 3000
+              ? previous
+              : undefined,
+          send,
+        });
+        activityEvents.on(entry.roomId, changed);
         void refresh();
+        return;
+      }
+      if (input.type === "presence") {
+        if (
+          ++presenceCount > 25 ||
+          !authorized ||
+          Date.now() - authorizedAt >= 3000 ||
+          !previous ||
+          maintenance()
+        )
+          return;
+        const frame = boardPresenceInputSchema.safeParse(input.presence);
+        if (!frame.success || !allowBoardPresence(previous, frame.data)) return;
+        lastPresence = {
+          ...frame.data,
+          roomId: identity.roomId,
+          userId: identity.user.id,
+          name: identity.user.displayName,
+        };
+        broadcast(ws, lastPresence);
+        return;
+      }
+      if (count - presenceCount > 12) {
+        ws.close(1008, "Command rate limit");
         return;
       }
       const parsed = activityCommandSchema.safeParse(input.command);
@@ -237,10 +332,19 @@ export function attachActivityGateway(
     ws.on("error", () => ws.close());
     ws.once("close", () => {
       closed = true;
+      authorized = false;
+      if (lastPresence)
+        broadcast(ws, {
+          roomId: lastPresence.roomId,
+          generation: lastPresence.generation,
+          userId: lastPresence.userId,
+          left: true,
+        });
+      peers.delete(ws);
       clearTimeout(authTimeout);
       clearInterval(interval);
       if (identity) {
-        activityEvents.off(identity.roomId, refresh);
+        activityEvents.off(identity.roomId, changed);
         const key = sessionCredential(identity.user)!;
         if (sessions.get(key) === ws) sessions.delete(key);
       }
