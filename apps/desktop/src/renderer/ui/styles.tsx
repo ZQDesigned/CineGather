@@ -33,11 +33,25 @@ export function GlobalStyles() {
           overflow: hidden;
         }
         .room-activity-stage > header {
-          padding: 16px 18px;
+          min-height: 56px;
+          padding: 8px 18px;
+          flex-wrap: nowrap;
           border-bottom: 1px solid #ffffff0e;
         }
         .room-activity-stage > header > strong {
           flex: 1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .room-activity-stage > header > span {
+          flex-shrink: 0;
+          white-space: nowrap;
+        }
+        .room-activity-stage > header > button {
+          height: 32px;
+          flex-shrink: 0;
         }
         .room-activity-stage > header > span,
         .party-scores small {
@@ -162,6 +176,26 @@ export function GlobalStyles() {
           justify-content: flex-start;
           height: auto;
           text-align: left;
+        }
+        .whiteboard-editor {
+          display: flex;
+          align-items: center;
+          gap: 16px;
+          padding: 12px 0;
+        }
+        .whiteboard-editor + .whiteboard-editor {
+          border-top: 1px solid #ffffff12;
+        }
+        .whiteboard-editor > span {
+          flex: 1;
+          min-width: 0;
+          overflow: hidden;
+          text-overflow: ellipsis;
+          white-space: nowrap;
+        }
+        .whiteboard-editor > button {
+          flex: 0 0 auto;
+          height: 36px;
         }
         .whiteboard-record small {
           display: block;

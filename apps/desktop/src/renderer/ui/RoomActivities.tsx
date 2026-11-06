@@ -916,7 +916,7 @@ function WhiteboardEditors() {
           display.current.members.map((member) => {
             const enabled = display.current.editors.includes(member.id);
             return (
-              <div key={member.id} className="whiteboard-record">
+              <div key={member.id} className="whiteboard-editor">
                 <span>{member.name}</span>
                 <Button
                   disabled={status !== "connected"}
