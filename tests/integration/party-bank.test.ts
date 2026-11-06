@@ -24,24 +24,20 @@ async function person(superadmin = false, readOnly = false) {
   const id = crypto.randomUUID(),
     token = crypto.randomUUID();
   ids.push(id);
-  await db
-    .insert(users)
-    .values({
-      id,
-      username: "bank_" + id.slice(0, 8),
-      passwordHash: "fixture",
-      displayName: "题库验证",
-      isSuperAdmin: superadmin,
-    });
-  await db
-    .insert(credentials)
-    .values({
-      id: crypto.randomUUID(),
-      userId: id,
-      kind: "account",
-      secretHash: hash(token),
-      expiresAt: new Date(Date.now() + 3600000),
-    });
+  await db.insert(users).values({
+    id,
+    username: "bank_" + id.slice(0, 8),
+    passwordHash: "fixture",
+    displayName: "题库验证",
+    isSuperAdmin: superadmin,
+  });
+  await db.insert(credentials).values({
+    id: crypto.randomUUID(),
+    userId: id,
+    kind: "account",
+    secretHash: hash(token),
+    expiresAt: new Date(Date.now() + 3600000),
+  });
   if (readOnly) {
     const rid = crypto.randomUUID();
     roleIds.push(rid);
@@ -199,4 +195,21 @@ test("enabled pool excludes stopped/deleted questions and rejects insufficient b
     }),
   ).rejects.toThrow("启用的题目不足");
   expect((await activePartyWords(db)).length).toBeGreaterThanOrEqual(400);
+});
+
+test("bulk preview accepts a valid 400-question payload above the normal API body limit", async () => {
+  const input = {
+    format: "json",
+    content: JSON.stringify(
+      Array.from({ length: 400 }, (_, i) => word("批量导入验证" + i)),
+    ),
+  };
+  expect(Buffer.byteLength(JSON.stringify(input))).toBeGreaterThan(65536);
+  const result = await call(root, "/import/preview", input);
+  expect(result.status).toBe(201);
+  expect(result.data).toMatchObject({
+    createCount: 400,
+    skipCount: 0,
+    errors: [],
+  });
 });

@@ -223,6 +223,7 @@ export async function createApp({
   });
   app.use(maintenanceGate(maintenanceFile));
   app.use("/api/v1/rooms/:roomId/activity/images", json({ limit: "3mb" }));
+  app.use("/api/v1/admin/party-words/import", json({ limit: "2mb" }));
   const activitiesGateway = attachActivityGateway(
     app.getHttpServer(),
     () => !!readMaintenance(maintenanceFile),
