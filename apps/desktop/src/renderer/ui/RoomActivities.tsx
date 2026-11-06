@@ -571,25 +571,22 @@ export function RoomActivityStage() {
       {game && (
         <>
           {game.players.length > 0 && (
-            <div className="party-scores">
-              {[...game.players]
-                .sort((a, b) => b.score - a.score)
-                .map((p) => (
-                  <div key={p.id}>
-                    <span>
-                      {p.name}
-                      {p.id === game.drawerId ? "（画手）" : ""}
-                    </span>
-                    <strong>{p.score}</strong>
-                    {game.solvedIds.includes(p.id) ? (
-                      <Tag color="green">已答对</Tag>
-                    ) : p.ready ? (
-                      <small>已准备</small>
-                    ) : (
-                      <small>旁观</small>
-                    )}
-                  </div>
-                ))}
+            <div className="party-players">
+              {game.players.map((p) => (
+                <div key={p.id}>
+                  <span>
+                    {p.name}
+                    {p.id === game.drawerId ? "（画手）" : ""}
+                  </span>
+                  {game.solvedIds.includes(p.id) ? (
+                    <Tag color="green">已答对</Tag>
+                  ) : p.ready ? (
+                    <small>已准备</small>
+                  ) : (
+                    <small>旁观</small>
+                  )}
+                </div>
+              ))}
             </div>
           )}
           {game.phase === "playing" &&

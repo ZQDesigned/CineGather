@@ -46,11 +46,8 @@ function candidates(game: PartyGame) {
   return selected;
 }
 function nextRound(game: PartyGame, now: number) {
-  game.round++;
-  game.solvedIds = [];
-  game.lastGuesses = {};
   if (
-    game.round > game.totalRounds ||
+    game.round >= game.totalRounds ||
     game.players.filter((p) => p.ready).length < 2
   ) {
     game.phase = "finished";
@@ -58,6 +55,9 @@ function nextRound(game: PartyGame, now: number) {
     game.choices = [];
     return;
   }
+  game.round++;
+  game.solvedIds = [];
+  game.lastGuesses = {};
   game.choices = candidates(game);
   game.word = undefined;
   if (game.kind === "draw") {
@@ -108,7 +108,6 @@ export function partyCommand(
       player = {
         ...actor,
         ready: action.ready,
-        score: 0,
         eligibleRound: game.round + 1,
       };
       game.players.push(player);
@@ -131,7 +130,6 @@ export function partyCommand(
     game.order = ready.map((p) => p.id);
     game.totalRounds = game.kind === "draw" ? ready.length : 6;
     game.players.forEach((p) => {
-      p.score = 0;
       p.eligibleRound = 1;
     });
     game.round = 0;
@@ -175,12 +173,7 @@ export function partyCommand(
   const normalize = (s: string) =>
     s.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
   if (normalize(action.answer) === normalize(game.word!.answer)) {
-    player.score += Math.max(20, 100 - game.solvedIds.length * 20);
     game.solvedIds.push(actor.id);
-    if (game.kind === "draw") {
-      const drawer = game.players.find((p) => p.id === game.drawerId);
-      if (drawer) drawer.score += 20;
-    }
     const guessers = game.players.filter(
       (p) =>
         p.ready &&
@@ -206,12 +199,17 @@ export function partyView(
   return {
     kind: game.kind,
     phase: game.phase,
-    round: game.round,
+    round: Math.min(game.round, game.totalRounds),
     totalRounds: game.totalRounds,
     deadline: game.deadline,
     serverTime: now,
     drawerId: game.drawerId,
-    players: game.players,
+    players: game.players.map(({ id, name, ready, eligibleRound }) => ({
+      id,
+      name,
+      ready,
+      eligibleRound,
+    })),
     solvedIds: game.solvedIds,
     ...(game.phase === "choosing" && game.drawerId === userId
       ? { choices: game.choices.map((w) => w.answer) }

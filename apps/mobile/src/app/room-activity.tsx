@@ -368,24 +368,21 @@ export default function RoomActivity() {
       {game && (
         <>
           <View style={{ gap: 8 }}>
-            {[...game.players]
-              .sort((a, b) => b.score - a.score)
-              .map((p) => (
-                <View key={p.id} style={styles.spread}>
-                  <Label>
-                    {p.name}
-                    {p.id === game.drawerId ? "（画手）" : ""}
-                  </Label>
-                  <Label>
-                    {p.score} 分{" "}
-                    {game.solvedIds.includes(p.id)
-                      ? "已答对"
-                      : p.ready
-                        ? "已准备"
-                        : "旁观"}
-                  </Label>
-                </View>
-              ))}
+            {game.players.map((p) => (
+              <View key={p.id} style={styles.spread}>
+                <Label>
+                  {p.name}
+                  {p.id === game.drawerId ? "（画手）" : ""}
+                </Label>
+                <Label>
+                  {game.solvedIds.includes(p.id)
+                    ? "已答对"
+                    : p.ready
+                      ? "已准备"
+                      : "旁观"}
+                </Label>
+              </View>
+            ))}
           </View>
           {game.phase === "playing" &&
             game.drawerId !== userId &&

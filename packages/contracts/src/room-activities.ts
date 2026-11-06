@@ -94,7 +94,6 @@ export interface PartyPlayer {
   id: string;
   name: string;
   ready: boolean;
-  score: number;
   eligibleRound: number;
 }
 export interface PartyView {

@@ -61,7 +61,7 @@ export function GlobalStyles() {
         .activity-board-content .collab-tools,
         .activity-board-content .collab-import,
         .room-activity-stage > .party-status,
-        .room-activity-stage > .party-scores,
+        .room-activity-stage > .party-players,
         .room-activity-stage > .party-answer {
           flex-shrink: 0;
         }
@@ -88,7 +88,7 @@ export function GlobalStyles() {
           flex-shrink: 0;
         }
         .room-activity-stage > header > span,
-        .party-scores small {
+        .party-players small {
           color: var(--muted);
         }
         .collab-board {
@@ -157,22 +157,19 @@ export function GlobalStyles() {
           text-align: center;
           background: radial-gradient(ellipse at center, #342849, #161821);
         }
-        .party-scores {
+        .party-players {
           display: flex;
           flex-wrap: wrap;
           gap: 10px;
           padding: 14px;
         }
-        .party-scores > div {
+        .party-players > div {
           display: flex;
           gap: 10px;
           align-items: center;
           background: #242635;
           border-radius: 10px;
           padding: 10px 12px;
-        }
-        .party-scores strong {
-          color: #c7adff;
         }
         .party-answer {
           padding: 0 14px 14px;
