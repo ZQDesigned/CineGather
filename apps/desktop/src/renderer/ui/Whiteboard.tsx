@@ -1,5 +1,5 @@
 import { boardCursorColor, boardLiveDraft } from "@cinegather/client-core";
-import { useEffect, useRef, useState, type PointerEvent } from "react";
+import { useEffect, useId, useRef, useState, type PointerEvent } from "react";
 import { Input, Modal, App } from "antd";
 import {
   MousePointer2,
@@ -148,7 +148,11 @@ export function Whiteboard({
         }
       | undefined
     >(undefined);
+  const drawingClip = useId();
   const cursor = useRef<{ x: number; y: number } | null>(null);
+  const pointerPosition = useRef<{ x: number; y: number } | null>(null);
+  const publishPresence = useRef(onPresence);
+  publishPresence.current = onPresence;
   const [tool, setTool] = useState<Tool>("path"),
     [color, setColor] = useState("#8161ac"),
     [draft, setDraft] = useState<BoardElementInput>(),
@@ -170,7 +174,63 @@ export function Whiteboard({
     gesture.current = undefined;
     setDraft(undefined);
     setSelected(undefined);
+    pointerPosition.current = null;
+    cursor.current = null;
   }, [contextKey]);
+  useEffect(() => {
+    const canvas = svg.current;
+    if (!canvas) return;
+    let frame = 0;
+    const refresh = () => {
+      frame = 0;
+      const screen = pointerPosition.current;
+      const matrix = canvas.getScreenCTM();
+      if (!screen || !matrix) return;
+      // CSS pixels belong to this window only. Reproject through the live SVG
+      // matrix whenever its size or position changes, even without pointermove.
+      const point = new DOMPoint(screen.x, screen.y).matrixTransform(
+        matrix.inverse(),
+      );
+      const box = canvas.viewBox.baseVal;
+      const inside =
+        point.x >= box.x &&
+        point.y >= box.y &&
+        point.x <= box.x + box.width &&
+        point.y <= box.y + box.height;
+      const next = inside
+        ? { x: Math.round(point.x), y: Math.round(point.y) }
+        : null;
+      if (cursor.current?.x === next?.x && cursor.current?.y === next?.y)
+        return;
+      cursor.current = next;
+      const current = gesture.current;
+      publishPresence.current?.({
+        cursor: next,
+        draft: current
+          ? boardLiveDraft(current.element, current.original?.version)
+          : null,
+      });
+    };
+    const schedule = () => {
+      if (!frame) frame = requestAnimationFrame(refresh);
+    };
+    const observer = new ResizeObserver(schedule);
+    observer.observe(canvas);
+    const stage = canvas.closest(".room-activity-stage");
+    if (stage) observer.observe(stage);
+    window.addEventListener("resize", schedule);
+    window.addEventListener("scroll", schedule, true);
+    window.visualViewport?.addEventListener("resize", schedule);
+    window.visualViewport?.addEventListener("scroll", schedule);
+    return () => {
+      observer.disconnect();
+      cancelAnimationFrame(frame);
+      window.removeEventListener("resize", schedule);
+      window.removeEventListener("scroll", schedule, true);
+      window.visualViewport?.removeEventListener("resize", schedule);
+      window.visualViewport?.removeEventListener("scroll", schedule);
+    };
+  }, []);
   useEffect(() => {
     if (!editable) {
       setDialog(undefined);
@@ -181,6 +241,7 @@ export function Whiteboard({
     }
   }, [editable]);
   function position(event: PointerEvent<SVGSVGElement>): [number, number] {
+    pointerPosition.current = { x: event.clientX, y: event.clientY };
     const point = svg.current!.createSVGPoint();
     point.x = event.clientX;
     point.y = event.clientY;
@@ -196,8 +257,9 @@ export function Whiteboard({
   }
   function down(event: PointerEvent<SVGSVGElement>) {
     if (busy || event.button !== 0) return;
-    event.currentTarget.focus();
+    event.currentTarget.focus({ preventScroll: true });
     const [x, y] = position(event);
+    if (x < 0 || x > 1600 || y < 0 || y > 900) return;
     cursor.current = { x, y };
     onPresence?.({ cursor: cursor.current, draft: null });
     if (!editable || tool === "pointer") return;
@@ -257,7 +319,8 @@ export function Whiteboard({
   }
   function move(event: PointerEvent<SVGSVGElement>) {
     const [x, y] = position(event);
-    cursor.current = { x, y };
+    cursor.current =
+      x >= 0 && x <= 1600 && y >= 0 && y <= 900 ? { x, y } : null;
     const g = gesture.current;
     if (!g || g.pointer !== event.pointerId) {
       onPresence?.({ cursor: cursor.current, draft: null });
@@ -386,6 +449,7 @@ export function Whiteboard({
         ref={svg}
         className="collab-canvas"
         viewBox="0 0 1600 900"
+        preserveAspectRatio="xMidYMid meet"
         aria-label="协作白板"
         tabIndex={0}
         onPointerDown={down}
@@ -393,6 +457,7 @@ export function Whiteboard({
         onPointerUp={up}
         onPointerLeave={() => {
           if (!gesture.current) {
+            pointerPosition.current = null;
             cursor.current = null;
             onPresence?.({ cursor: null, draft: null });
           }
@@ -400,35 +465,43 @@ export function Whiteboard({
         onPointerCancel={() => {
           gesture.current = undefined;
           setDraft(undefined);
+          pointerPosition.current = null;
           cursor.current = null;
           onPresence?.({ cursor: null, draft: null });
         }}
       >
+        <defs>
+          <clipPath id={drawingClip}>
+            <rect width="1600" height="900" />
+          </clipPath>
+        </defs>
         <rect width="1600" height="900" fill="#f1eef6" />
-        {elements
-          .filter((e) => e.id !== draft?.id)
-          .map((element) => (
-            <g key={`${contextKey}:${element.id}`} data-element={element.id}>
-              <BoardShape element={element} />
-              {selected === element.id && tool === "select" && (
-                <rect
-                  data-selection
-                  x={element.x - 3}
-                  y={element.y - 3}
-                  width={element.width + 6}
-                  height={element.height + 6}
-                  fill="none"
-                  stroke="#9d7bcc"
-                  strokeDasharray="8 5"
-                />
-              )}
-            </g>
-          ))}
-        {draft && <BoardShape element={draft} />}
+        <g clipPath={`url(#${drawingClip})`}>
+          {elements
+            .filter((e) => e.id !== draft?.id)
+            .map((element) => (
+              <g key={`${contextKey}:${element.id}`} data-element={element.id}>
+                <BoardShape element={element} />
+                {selected === element.id && tool === "select" && (
+                  <rect
+                    data-selection
+                    x={element.x - 3}
+                    y={element.y - 3}
+                    width={element.width + 6}
+                    height={element.height + 6}
+                    fill="none"
+                    stroke="#9d7bcc"
+                    strokeDasharray="8 5"
+                  />
+                )}
+              </g>
+            ))}
+          {draft && <BoardShape element={draft} />}
+        </g>
         {presence.map((peer) => (
           <g key={peer.userId} data-transient pointerEvents="none">
             {peer.draft && (
-              <g opacity={0.85}>
+              <g opacity={0.85} clipPath={`url(#${drawingClip})`}>
                 <BoardShape element={peer.draft.element} />
               </g>
             )}

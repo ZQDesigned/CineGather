@@ -32,7 +32,48 @@ export function GlobalStyles() {
           border-radius: 18px;
           overflow: hidden;
         }
+        .view-column:has(
+          > .room-activity-stage[data-canvas="true"][data-active="true"]
+        ) {
+          overflow-y: auto;
+          scrollbar-gutter: stable;
+        }
+        .view-column:has(
+            > .room-activity-stage[data-canvas="true"][data-active="true"]
+          )
+          > * {
+          flex-shrink: 0;
+        }
+        .room-activity-stage[data-canvas="true"] {
+          display: flex;
+          flex-direction: column;
+          flex: 1 0 320px;
+          min-height: 320px;
+          overflow: clip;
+        }
+        .room-activity-stage > .activity-board-content,
+        .activity-board-content > .collab-board {
+          display: flex;
+          flex-direction: column;
+          flex: 1;
+          min-height: 0;
+        }
+        .activity-board-content .collab-canvas {
+          flex: 1 1 0;
+          height: 0;
+          min-height: 0;
+          aspect-ratio: auto;
+          background: #101116;
+        }
+        .activity-board-content .collab-tools,
+        .activity-board-content .collab-import,
+        .room-activity-stage > .party-status,
+        .room-activity-stage > .party-scores,
+        .room-activity-stage > .party-answer {
+          flex-shrink: 0;
+        }
         .room-activity-stage > header {
+          flex-shrink: 0;
           min-height: 56px;
           padding: 8px 18px;
           flex-wrap: nowrap;
