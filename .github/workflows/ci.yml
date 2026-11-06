@@ -67,6 +67,7 @@ jobs:
         env:
           CG_PROTOCOL_TEST: "1"
       - run: bun install --frozen-lockfile
+      - run: bun test apps/desktop/test/stardew-worlds.test.ts
       - run: bun run setup
       - run: bun tools/native-preview-check.ts --probe-default
       - run: bun run dist:win

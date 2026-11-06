@@ -7,6 +7,41 @@ import { join } from "node:path";
 import type { GameTunnelConfig } from "@cinegather/contracts";
 import { GameLocal } from "../src/main/game-local";
 
+test("port probing records readiness and missing-service reasons without starting the native transport", async () => {
+  const events: unknown[] = [],
+    local = new GameLocal({
+      binaryPath: "must-not-start",
+      event: (event) => events.push(event),
+    }),
+    socket = createSocket("udp4");
+  socket.bind(0, "127.0.0.1");
+  await once(socket, "listening");
+  const port = socket.address().port;
+  try {
+    await local.probe(port, "stardew-valley");
+    expect(events).toContainEqual(
+      expect.objectContaining({
+        type: "port-probe",
+        game: "stardew-valley",
+        code: "PORT_READY",
+      }),
+    );
+  } finally {
+    const closed = once(socket, "close");
+    socket.close();
+    await closed;
+  }
+  await expect(local.probe(port, "stardew-valley")).rejects.toThrow("合作农场");
+  expect(events).toContainEqual(
+    expect.objectContaining({
+      type: "port-probe",
+      game: "stardew-valley",
+      code: "PORT_NOT_LISTENING",
+    }),
+  );
+  await local.stop();
+});
+
 test("Stardew local host and guest configure the complete production gateway path and clean the fixed game port", async () => {
   const root = await mkdtemp(join(tmpdir(), "cg-stardew-local-")),
     binary = join(root, "transport-fixture"),

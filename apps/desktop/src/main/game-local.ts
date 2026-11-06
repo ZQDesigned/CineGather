@@ -1,5 +1,6 @@
 import { createHash } from "node:crypto";
 import { createServer } from "node:net";
+import { performance } from "node:perf_hooks";
 import {
   gameTunnelConfigSchema,
   type GameTunnelConfig,
@@ -7,7 +8,13 @@ import {
   type GameKind,
 } from "@cinegather/contracts";
 import { GameDatagram, type GameDatagramEvent } from "./game-datagram";
-import { probeStardewWorld, discoverStardewWorlds } from "./stardew-worlds";
+import { probeStardewWorld } from "./stardew-worlds";
+export interface GamePortProbeEvent {
+  type: "port-probe";
+  game: GameKind;
+  code: string;
+  durationMs: number;
+}
 import {
   GameNative,
   type GameNativeEvent,
@@ -59,7 +66,13 @@ export class GameLocal {
       binaryPath: string;
       development?: boolean;
       caFile?: string;
-      event?(event: GameNativeEvent | GameProxyEvent | GameDatagramEvent): void;
+      event?(
+        event:
+          | GameNativeEvent
+          | GameProxyEvent
+          | GameDatagramEvent
+          | GamePortProbeEvent,
+      ): void;
       connection?(event: GameConnectionObservation): void;
     },
   ) {}
@@ -87,13 +100,40 @@ export class GameLocal {
     const controller = new AbortController();
     this.discovery = controller;
     return game === "stardew-valley"
-      ? discoverStardewWorlds()
+      ? this.probe(24642, game)
+          .then((world) => [world])
+          .catch(() => [])
       : discoverMinecraftWorlds({ signal: controller.signal });
   }
-  probe(port: number, game: GameKind = "minecraft-java") {
-    return game === "stardew-valley"
-      ? probeStardewWorld(port)
-      : probeMinecraftWorld(port);
+  async probe(port: number, game: GameKind = "minecraft-java") {
+    const start = performance.now();
+    const record = (code: string) => {
+      try {
+        this.options.event?.({
+          type: "port-probe",
+          game,
+          code,
+          durationMs: Math.round(performance.now() - start),
+        });
+      } catch {
+        /* diagnostics cannot change probe outcome */
+      }
+    };
+    try {
+      const world = await (game === "stardew-valley"
+        ? probeStardewWorld(port)
+        : probeMinecraftWorld(port));
+      record("PORT_READY");
+      return world;
+    } catch (error) {
+      const code = (error as NodeJS.ErrnoException).code;
+      record(
+        typeof code === "string" && /^[A-Z_0-9]{1,64}$/.test(code)
+          ? code
+          : "PORT_PROBE_FAILED",
+      );
+      throw error;
+    }
   }
   private valid(epoch: number) {
     if (epoch !== this.epoch) throw Error("游戏联机操作已取消");

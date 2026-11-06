@@ -27,8 +27,10 @@ export function projectGameDiagnostic(
   )
     name = `gateway-${event.type}`;
   if (event.type === "datagram") name = "datagram";
+  if (event.type === "port-probe") name = "port-probe";
   const candidate = {
     ...context,
+    game: event.game ?? context.game,
     event: name,
     route: event.route,
     dropped: event.dropped,

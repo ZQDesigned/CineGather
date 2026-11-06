@@ -75,3 +75,22 @@ test("Stardew datagram diagnostics preserve queue and mapping evidence without p
   });
   expect(JSON.stringify(data)).not.toMatch(/private|secret/);
 });
+test("local port probe diagnostics preserve Windows failure codes and the selected game", () => {
+  const result = projectGameDiagnostic(
+    {
+      type: "port-probe",
+      game: "stardew-valley",
+      code: "EACCES",
+      durationMs: 12,
+      stdout: "private endpoint table",
+    },
+    { game: "minecraft-java" },
+  );
+  expect(result).toMatchObject({
+    event: "port-probe",
+    game: "stardew-valley",
+    code: "EACCES",
+    durationMs: 12,
+  });
+  expect(JSON.stringify(result)).not.toContain("private");
+});
