@@ -54,3 +54,5 @@ export * from "./whiteboard";
 export * from "./room-activities";
 
 export * from "./whiteboard-eraser";
+
+export * from "./whiteboard-stroke";

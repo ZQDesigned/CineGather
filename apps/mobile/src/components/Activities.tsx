@@ -1,4 +1,9 @@
-import { boardCursorColor, boardLiveDraft } from "@cinegather/client-core";
+import {
+  boardCursorColor,
+  boardLiveDraft,
+  boardStrokePath,
+  appendBoardSamples,
+} from "@cinegather/client-core";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   View,
@@ -101,7 +106,7 @@ function Shape({ element: e }: { element: BoardElementInput }) {
     return (
       <Path
         transform={`translate(${e.x} ${e.y})`}
-        d={e.points?.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`).join(" ")}
+        d={boardStrokePath(e.points)}
         stroke={e.color}
         strokeWidth={e.strokeWidth}
         strokeLinecap="round"
@@ -212,8 +217,8 @@ export function MobileWhiteboard({
       onPanResponderGrant: (e) => {
         const c = context.current,
           scale = 1600 / c.width,
-          x = Math.round(e.nativeEvent.locationX * scale),
-          y = Math.round(e.nativeEvent.locationY * scale);
+          x = e.nativeEvent.locationX * scale,
+          y = e.nativeEvent.locationY * scale;
         touchStart.current = [x, y];
         c.onPresence?.({ cursor: { x, y }, draft: null });
         if (!c.editable || c.tool === "pointer") return;
@@ -275,8 +280,8 @@ export function MobileWhiteboard({
       onPanResponderMove: (_e, state) => {
         const g = gesture.current;
         const scale = 1600 / context.current.width,
-          x = Math.round(touchStart.current[0] + state.dx * scale),
-          y = Math.round(touchStart.current[1] + state.dy * scale);
+          x = touchStart.current[0] + state.dx * scale,
+          y = touchStart.current[1] + state.dy * scale;
         if (!g) {
           context.current.onPresence?.({ cursor: { x, y }, draft: null });
           return;
@@ -285,7 +290,7 @@ export function MobileWhiteboard({
           g.element.x = g.original.x + state.dx * scale;
           g.element.y = g.original.y + state.dy * scale;
         } else if (g.element.kind === "path") {
-          if (g.element.points!.length < 1024) g.element.points!.push([x, y]);
+          appendBoardSamples(g.element.points!, [[x, y]]);
         } else {
           g.element.x = Math.min(g.start[0], x);
           g.element.y = Math.min(g.start[1], y);

@@ -1,5 +1,7 @@
 import {
   boardCursorColor,
+  boardStrokePath,
+  appendBoardSamples,
   boardLiveDraft,
   boardSweepHits,
 } from "@cinegather/client-core";
@@ -69,9 +71,7 @@ export function BoardShape({ element }: { element: BoardElementInput }) {
     return (
       <path
         transform={`translate(${element.x} ${element.y})`}
-        d={element.points
-          ?.map((p, i) => `${i ? "L" : "M"}${p[0]} ${p[1]}`)
-          .join(" ")}
+        d={boardStrokePath(element.points)}
         fill="none"
         stroke={element.color}
         strokeWidth={element.strokeWidth}
@@ -265,13 +265,16 @@ export function Whiteboard({
       onPresence?.({ cursor: cursor.current, draft: null });
     }
   }, [editable]);
-  function position(event: PointerEvent<SVGSVGElement>): [number, number] {
+  function position(event: {
+    clientX: number;
+    clientY: number;
+  }): [number, number] {
     pointerPosition.current = { x: event.clientX, y: event.clientY };
     const point = svg.current!.createSVGPoint();
     point.x = event.clientX;
     point.y = event.clientY;
     const p = point.matrixTransform(svg.current!.getScreenCTM()!.inverse());
-    return [Math.round(p.x), Math.round(p.y)];
+    return [p.x, p.y];
   }
   async function run(operation: BoardOperation) {
     try {
@@ -364,7 +367,22 @@ export function Whiteboard({
       g.element.x = g.original.x + x - sx;
       g.element.y = g.original.y + y - sy;
     } else if (g.element.kind === "path") {
-      if (g.element.points!.length < 1024) g.element.points!.push([x, y]);
+      const native = event.nativeEvent;
+      const samples = native.getCoalescedEvents?.() ?? [];
+      const matrix = svg.current!.getScreenCTM()!.inverse();
+      appendBoardSamples(
+        g.element.points!,
+        [...samples, native].map((sample) => {
+          const point = new DOMPoint(
+            sample.clientX,
+            sample.clientY,
+          ).matrixTransform(matrix);
+          return [
+            Math.round(point.x * 100) / 100,
+            Math.round(point.y * 100) / 100,
+          ];
+        }),
+      );
     } else {
       g.element.x = Math.min(sx, x);
       g.element.y = Math.min(sy, y);
@@ -377,7 +395,9 @@ export function Whiteboard({
       draft: boardLiveDraft(g.element, g.original?.version),
     });
   }
-  function up() {
+  function up(event: PointerEvent<SVGSVGElement>) {
+    if (gesture.current?.element.kind === "path" && !gesture.current.original)
+      move(event);
     erasing.current = undefined;
     const g = gesture.current;
     if (!g) return;

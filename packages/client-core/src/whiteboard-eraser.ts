@@ -1,4 +1,5 @@
 import type { BoardElement } from "@cinegather/contracts";
+import { boardStrokePolyline } from "./whiteboard-stroke";
 type Point = readonly [number, number];
 function distance(point: Point, a: Point, b: Point) {
   const dx = b[0] - a[0],
@@ -44,7 +45,7 @@ export function boardSweepHits(
     const reach =
       radius + (e.kind === "path" || e.kind === "rect" ? e.strokeWidth / 2 : 0);
     if (e.kind === "path") {
-      const points = (e.points ?? []).map(
+      const points = boardStrokePolyline(e.points).map(
         ([x, y]) => [x + e.x, y + e.y] as Point,
       );
       return points.some((p, i) =>
