@@ -333,3 +333,71 @@ test("visual-mode refinement updates only unchanged authored rows and is idempot
     }),
   ).rejects.toThrow("rollback visual refinement test");
 });
+
+test("modern game migration installs authored content and preserves admin changes on replay", async () => {
+  const { sql } = await import("drizzle-orm");
+  const { partyModernGameWords } = await import(
+    "../../apps/api/src/party-modern-game-words"
+  );
+  const migration = await Bun.file(
+    new URL(
+      "../../packages/database/migrations/0034_party_modern_game_words.sql",
+      import.meta.url,
+    ),
+  ).text();
+  const rows = await db
+    .select()
+    .from(partyWordBank)
+    .where(
+      inArray(
+        partyWordBank.answer,
+        partyModernGameWords.map((w) => w.answer),
+      ),
+    );
+  expect(rows).toHaveLength(150);
+  for (const authored of partyModernGameWords) {
+    expect(rows.find((r) => r.answer === authored.answer)).toMatchObject({
+      ...authored,
+      enabled: true,
+    });
+  }
+  await expect(
+    db.transaction(async (tx) => {
+      const target = rows.find((r) => r.answer === "阿米娅")!;
+      const missing = rows.find((r) => r.answer === "可莉")!;
+      await tx
+        .update(partyWordBank)
+        .set({
+          category: "管理员保留分类",
+          clues: ["管理员线索一", "管理员线索二", "管理员线索三"],
+          modes: ["quiz"],
+          enabled: false,
+          version: 12,
+        })
+        .where(eq(partyWordBank.id, target.id));
+      await tx.delete(partyWordBank).where(eq(partyWordBank.id, missing.id));
+      for (let i = 0; i < 2; i++) await tx.execute(sql.raw(migration));
+      const [kept] = await tx
+        .select()
+        .from(partyWordBank)
+        .where(eq(partyWordBank.id, target.id));
+      expect(kept).toMatchObject({
+        category: "管理员保留分类",
+        clues: ["管理员线索一", "管理员线索二", "管理员线索三"],
+        modes: ["quiz"],
+        enabled: false,
+        version: 12,
+      });
+      const restored = await tx
+        .select()
+        .from(partyWordBank)
+        .where(eq(partyWordBank.answer, missing.answer));
+      expect(restored).toHaveLength(1);
+      expect(restored[0]).toMatchObject({
+        ...partyModernGameWords.find((w) => w.answer === missing.answer)!,
+        enabled: true,
+      });
+      throw Error("rollback modern game migration test");
+    }),
+  ).rejects.toThrow("rollback modern game migration test");
+});

@@ -7,10 +7,10 @@ import {
   partyView,
   tickPartyGame,
 } from "../src/party-game";
-test("1500 unique usable seed questions with three distinct progressive clues", () => {
-  expect(partyWordSeed).toHaveLength(1500);
+test("1650 unique usable seed questions with three distinct progressive clues", () => {
+  expect(partyWordSeed).toHaveLength(1650);
   expect(new Set(partyWordSeed.map((w) => partyAnswerKey(w.answer))).size).toBe(
-    1500,
+    1650,
   );
   for (const word of partyWordSeed) {
     expect(partyWordInput.safeParse({ ...word, enabled: true }).success).toBe(
@@ -18,6 +18,49 @@ test("1500 unique usable seed questions with three distinct progressive clues", 
     );
     expect(new Set(word.clues).size).toBe(3);
   }
+});
+
+test("modern game pack has curated clues and explicit drawing suitability", async () => {
+  const { partyModernGameWords } = await import(
+    "../src/party-modern-game-words"
+  );
+  expect(partyModernGameWords).toHaveLength(150);
+  expect(
+    Object.fromEntries(
+      [...new Set(partyModernGameWords.map((w) => w.category))].map(
+        (category) => [
+          category,
+          partyModernGameWords.filter((w) => w.category === category).length,
+        ],
+      ),
+    ),
+  ).toEqual({
+    明日方舟: 35,
+    王者荣耀: 20,
+    原神: 25,
+    "崩坏：星穹铁道": 25,
+    无畏契约: 20,
+    三角洲行动: 15,
+    和平精英: 10,
+  });
+  for (const w of partyModernGameWords) {
+    expect(w.modes).toContain("quiz");
+    for (const clue of w.clues) {
+      expect(
+        partyAnswerKey(clue).includes(partyAnswerKey(w.answer)),
+        w.answer,
+      ).toBe(false);
+      expect(clue.includes(w.category), w.answer).toBe(false);
+    }
+  }
+  for (const answer of ["理智", "公开招募", "零号大坝", "烽火地带", "超体对抗"])
+    expect(
+      partyModernGameWords.find((w) => w.answer === answer)?.modes,
+    ).toEqual(["quiz"]);
+  for (const answer of ["阿米娅", "能天使", "可莉", "帕姆", "吉利服"])
+    expect(
+      partyModernGameWords.find((w) => w.answer === answer)?.modes,
+    ).toContain("draw");
 });
 test("a game retains its question pool without exposing it to players", () => {
   const pool = partyWordSeed.slice(30, 33).map((w) => structuredClone(w));

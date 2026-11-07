@@ -239,6 +239,13 @@
       "when": 1794066991359,
       "tag": "0033_party_word_visual_modes",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1794066991360,
+      "tag": "0034_party_modern_game_words",
+      "breakpoints": true
     }
   ]
 }
