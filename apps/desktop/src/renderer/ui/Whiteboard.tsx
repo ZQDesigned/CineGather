@@ -256,12 +256,12 @@ export function Whiteboard({
     };
   }, []);
   useEffect(() => {
+    setTool(editable ? "path" : "pointer");
     if (!editable) {
       setDialog(undefined);
       erasing.current = undefined;
       gesture.current = undefined;
       setDraft(undefined);
-      setTool("pointer");
       onPresence?.({ cursor: cursor.current, draft: null });
     }
   }, [editable]);

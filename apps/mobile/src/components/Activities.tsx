@@ -334,7 +334,7 @@ export function MobileWhiteboard({
     gesture.current = undefined;
     setDraft(undefined);
     setTextOpen(false);
-    if (!editable) setTool("pointer");
+    setTool(editable ? "path" : "pointer");
     context.current.onPresence?.({ cursor: null, draft: null });
     return () => context.current.onPresence?.({ cursor: null, draft: null });
   }, [editable, contextKey]);
