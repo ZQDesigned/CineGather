@@ -8,6 +8,7 @@ import { webRTCEncoderProbe } from "./encoder-probe";
 import { windowsWhipSmoke } from "./windows-whip-smoke";
 import { nativePreviewSmoke } from "./native-preview-smoke";
 import { verifyPackagedDefaultServer } from "./desktop-default-server-smoke";
+import { verifyWebActivityOrigin } from "./web-activity-smoke";
 import { unzipSync, strFromU8 } from "fflate";
 
 const { version } = await Bun.file("apps/desktop/package.json").json();
@@ -82,6 +83,7 @@ try {
   ).toBe(true);
   const page = await app.firstWindow();
   await verifyPackagedDefaultServer(page);
+  await verifyWebActivityOrigin();
   // Exercise the real main/preload foreground gate, not a renderer-only mock.
   await app.evaluate(({ BrowserWindow }) => {
     const window = BrowserWindow.getAllWindows()[0]!;
