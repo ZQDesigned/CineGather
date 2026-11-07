@@ -15,6 +15,11 @@ Var cgSavedError
 Var cgLogFailures
 Var cgFailedTarget
 Var cgFailedPath
+!ifndef BUILD_UNINSTALLER
+  Var cgLockMessage
+  Var cgLockExit
+  Var cgLockDirectory
+!endif
 
 !macro cgRecord PREFIX STAGE DETAIL CODE WIN32
   StrCpy $cgStage "${STAGE}"
@@ -101,6 +106,35 @@ FunctionEnd
   FunctionEnd
 !else
   !insertmacro cgFunctions ""
+  Function cgCheckFileLocks
+    Push $0
+    Push $1
+    Push $2
+    StrCpy $2 0
+    IfErrors 0 +2
+      StrCpy $2 1
+    StrCpy $cgLockMessage ""
+    InitPluginsDir
+    File /oname=$PLUGINSDIR\cg-installer-locks.ps1 "${BUILD_RESOURCES_DIR}\installer-locks.ps1"
+    Delete "$PLUGINSDIR\cg-lock-message.txt"
+    nsExec::ExecToStack /TIMEOUT=30000 '"$SYSDIR\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "$PLUGINSDIR\cg-installer-locks.ps1" -InstallDirectory "$cgLockDirectory" -ReportPath "$PLUGINSDIR\cg-lock-message.txt" -AttemptId "$cgUpdateId"'
+    Pop $cgLockExit
+    Pop $1
+    ClearErrors
+    FileOpen $0 "$PLUGINSDIR\cg-lock-message.txt" r
+    ${IfNot} ${Errors}
+      FileReadUTF16LE $0 $cgLockMessage
+      FileClose $0
+    ${EndIf}
+    ${If} $2 == 1
+      SetErrors
+    ${Else}
+      ClearErrors
+    ${EndIf}
+    Pop $2
+    Pop $1
+    Pop $0
+  FunctionEnd
   Function .onInstSuccess
     !insertmacro cgRecord "" "install-success" "$INSTDIR" "0" ""
   FunctionEnd
@@ -136,11 +170,13 @@ FunctionEnd
   !insertmacro cgRecord "un." "uninstaller-init" "$INSTDIR" "" ""
 !macroend
 
-; Same control flow as app-builder-lib 26.15.3 handleUninstallResult.
+; Preserve the vendor uninstaller/rollback path. The NEW installer handles
+; external locks even when the installed OLD uninstaller has no retry support.
 ; Record both old and new uninstaller results, including a legacy binary which
 ; cannot supply its original first failed file. Do not claim that a snapshot
 ; after the fact proves a transient historical file lock.
-!macro cgUninstallResult PHASE
+!macro cgUninstallResult PHASE ROOT_KEY
+  cgResult_${PHASE}:
   ${If} ${Errors}
     !insertmacro cgRecord "" "uninstaller-launch-failed" "$INSTDIR" "" ""
     Call cgFailureSnapshot
@@ -149,16 +185,43 @@ FunctionEnd
   !insertmacro cgRecord "" "${PHASE}" "$INSTDIR" "$R0" ""
   ${If} $R0 != 0
     Call cgFailureSnapshot
-    MessageBox MB_OK|MB_ICONEXCLAMATION "安装未能完成，请完全退出映聚后重试。$\r$\n如果问题持续发生，请联系开发者并提供诊断日志。$\r$\n日志位置：$LOCALAPPDATA\CGInstallDiagnostics\installer-logs"
+    !insertmacro readReg $cgLockDirectory "${ROOT_KEY}" "${INSTALL_REGISTRY_KEY}" InstallLocation
+    ${If} $cgLockDirectory == ""
+      StrCpy $cgLockDirectory "$INSTDIR"
+    ${EndIf}
+    cgPrompt_${PHASE}:
+    Call cgCheckFileLocks
+    ${If} $cgLockExit == 10
+      !insertmacro cgRecord "" "external-lock-detected" "$cgLockMessage" "10" ""
+    ${ElseIf} $cgLockExit != 0
+      !insertmacro cgRecord "" "external-lock-query-failed" "$cgLockExit" "" ""
+    ${EndIf}
+    ${If} $cgLockMessage == ""
+      StrCpy $cgLockMessage "安装未能完成。请关闭可能正在使用映聚文件的程序后点击“重试”，或点击“取消”稍后更新。$\r$\n如果问题持续发生，请联系开发者并提供安装诊断日志。"
+    ${EndIf}
+    MessageBox MB_RETRYCANCEL|MB_ICONEXCLAMATION "$cgLockMessage" IDRETRY cgRetry_${PHASE}
+    !insertmacro cgRecord "" "install-retry-cancelled" "$cgLockDirectory" "2" ""
     SetErrorLevel 2
     Quit
+    cgRetry_${PHASE}:
+    !insertmacro cgRecord "" "install-retry-requested" "$cgLockDirectory" "" ""
+    Call cgCheckFileLocks
+    ${If} $cgLockExit == 10
+      Goto cgPrompt_${PHASE}
+    ${EndIf}
+    ; The vendor's uninstallOldVersion macro is declared later in installUtil;
+    ; call its forward-declared function with the same root-key argument.
+    Push "${ROOT_KEY}"
+    Call uninstallOldVersion
+    Pop $0
+    Goto cgResult_${PHASE}
   ${EndIf}
 !macroend
 !macro customUnInstallCheck
-  !insertmacro cgUninstallResult "old-uninstall-result"
+  !insertmacro cgUninstallResult "old-uninstall-result" "SHELL_CONTEXT"
 !macroend
 !macro customUnInstallCheckCurrentUser
-  !insertmacro cgUninstallResult "old-uninstall-currentuser-result"
+  !insertmacro cgUninstallResult "old-uninstall-currentuser-result" "HKEY_CURRENT_USER"
 !macroend
 
 ; Based on the pinned vendor atomicRMDir. Retain its traversal, self-uninstaller
