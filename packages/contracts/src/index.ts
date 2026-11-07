@@ -129,6 +129,7 @@ export const friendSearchSchema = z.object({
     .object({ userId: z.uuid(), username: z.string(), displayName: z.string() })
     .nullable(),
 });
+export const roomBanInput = z.strictObject({ username: usernameInput });
 export const moderationInput = z.strictObject({
   ban: z.boolean().default(false),
 });

@@ -1461,23 +1461,32 @@ export async function updateMemberPermissions(
       .catch(() => {});
   return result;
 }
-export async function moderate(
+async function moderateTarget(
   user: User,
   roomId: string,
-  targetId: string,
+  lookup: { userId: string } | { username: string },
   ban: boolean,
 ) {
   roomId = uuid(roomId);
-  targetId = uuid(targetId);
   await db.transaction(async (tx) => {
     await requireMember(tx, roomId, user.id, true, true);
-    if (targetId === user.id)
-      fail(400, "CANNOT_KICK_OWNER", "房主不能移除自己");
     const [target] = await tx
       .select()
       .from(users)
-      .where(eq(users.id, targetId));
-    if (!target) fail(404, "USER_NOT_FOUND", "成员不存在");
+      .where(
+        "userId" in lookup
+          ? eq(users.id, lookup.userId)
+          : eq(users.username, lookup.username),
+      );
+    if (!target)
+      fail(
+        404,
+        "USER_NOT_FOUND",
+        "userId" in lookup ? "成员不存在" : "未找到此用户名对应的账号",
+      );
+    const targetId = target.id;
+    if (targetId === user.id)
+      fail(400, "CANNOT_KICK_OWNER", "房主不能封禁或移除自己");
     const [parent] = await tx.select().from(rooms).where(eq(rooms.id, roomId));
     if (parent?.mode === "esports")
       await esports.clearEsportsMember(tx, roomId, targetId);
@@ -1529,6 +1538,21 @@ export async function moderate(
   });
   return { ok: true as const };
 }
+export async function moderate(
+  user: User,
+  roomId: string,
+  targetId: string,
+  ban: boolean,
+) {
+  return moderateTarget(user, roomId, { userId: uuid(targetId) }, ban);
+}
+export async function banByUsername(
+  user: User,
+  roomId: string,
+  username: string,
+) {
+  return moderateTarget(user, roomId, { username }, true);
+}
 export async function unban(user: User, roomId: string, targetId: string) {
   roomId = uuid(roomId);
   targetId = uuid(targetId);
@@ -1547,7 +1571,11 @@ export async function listBans(user: User, roomId: string) {
     await requireMember(tx, roomId, user.id, true);
     return {
       items: await tx
-        .select({ userId: users.id, displayName: users.displayName })
+        .select({
+          userId: users.id,
+          displayName: users.displayName,
+          username: users.username,
+        })
         .from(bans)
         .innerJoin(users, eq(users.id, bans.userId))
         .where(eq(bans.roomId, roomId))

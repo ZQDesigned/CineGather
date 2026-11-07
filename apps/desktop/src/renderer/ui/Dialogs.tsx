@@ -23,7 +23,7 @@ import { FriendSearch } from "./FriendSearch";
 import { FriendRemark } from "./FriendRemark";
 import { FriendRoomPicker, RoomInvitationInbox } from "./RoomInvitations";
 import { RoomRequestInbox } from "./RoomJoinRequests";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Copy, Monitor, AppWindow, RefreshCw, Shield } from "lucide-react";
 import { useApp, update, type Modal } from "../store";
 import * as actions from "../controller";
@@ -561,55 +561,79 @@ function SourcePicker() {
   );
 }
 function Bans() {
+  const open = useDialogOpen();
+  const visible = useRef({ open, epoch: 0, load: 0 });
+  if (visible.current.open !== open) {
+    visible.current.open = open;
+    visible.current.epoch++;
+  }
+  const [busy, setBusy] = useState(false);
   const [room] = useState(() => useApp.getState().room!);
-  const [items, setItems] = useState<{ userId: string; displayName: string }[]>(
-    [],
-  );
+  const [items, setItems] = useState<
+    { userId: string; displayName: string; username?: string | null }[]
+  >([]);
   const [target, setTarget] = useState("");
-  const load = async () =>
-    setItems(
-      unwrap(
-        await actions.api.GET("/api/v1/rooms/{roomId}/bans", {
-          params: { path: { roomId: room.id } },
-        }),
-      ).items,
+  const load = async () => {
+    const epoch = visible.current.epoch;
+    const sequence = ++visible.current.load;
+    const result = unwrap(
+      await actions.api.GET("/api/v1/rooms/{roomId}/bans", {
+        params: { path: { roomId: room.id } },
+      }),
     );
+    if (
+      visible.current.open &&
+      visible.current.epoch === epoch &&
+      visible.current.load === sequence
+    )
+      setItems(result.items);
+  };
   useEffect(() => {
-    void load().catch(actions.report);
-  }, []);
+    if (open) void load().catch(actions.report);
+  }, [open]);
   return (
-    <ModalShell
-      title="房间黑名单"
-      subtitle="仅房主可以禁止或恢复成员的加入权限。"
-    >
+    <ModalShell title="房间黑名单">
       <Form
         layout="vertical"
         onFinish={() => {
+          if (busy) return;
+          const epoch = visible.current.epoch;
           void actions.run(async () => {
-            unwrap(
-              await actions.api.DELETE(
-                "/api/v1/rooms/{roomId}/members/{userId}",
-                {
-                  params: { path: { roomId: room.id, userId: target.trim() } },
-                  body: { ban: true },
-                },
-              ),
-            );
-            setTarget("");
-            await load();
+            setBusy(true);
+            try {
+              unwrap(
+                await actions.api.POST("/api/v1/rooms/{roomId}/bans", {
+                  params: { path: { roomId: room.id } },
+                  body: { username: target.trim() },
+                }),
+              );
+              await load();
+              if (visible.current.open && visible.current.epoch === epoch)
+                setTarget("");
+            } finally {
+              setBusy(false);
+            }
           });
         }}
       >
-        <Form.Item label="要封禁的用户 ID" required>
+        <Form.Item label="要封禁的用户名" required>
           <Space.Compact block>
             <Input
-              aria-label="要封禁的用户 ID"
-              placeholder="输入完整用户 ID"
+              aria-label="要封禁的用户名"
+              placeholder="输入完整用户名"
               value={target}
+              maxLength={32}
+              disabled={busy}
+              autoComplete="off"
               onChange={(event) => setTarget(event.target.value)}
               required
             />
-            <Button danger htmlType="submit" icon={<Shield size={16} />}>
+            <Button
+              danger
+              htmlType="submit"
+              loading={busy}
+              icon={<Shield size={16} />}
+            >
               封禁成员
             </Button>
           </Space.Compact>
@@ -625,7 +649,10 @@ function Bans() {
         {items.map((member) => (
           <div className="friend" key={member.userId}>
             <Avatar className="amber">{member.displayName[0]}</Avatar>
-            <span>{member.displayName}</span>
+            <span>
+              {member.displayName}
+              {member.username ? `（${member.username}）` : ""}
+            </span>
             <Button
               onClick={() =>
                 void actions.run(async () => {

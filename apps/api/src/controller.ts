@@ -566,11 +566,30 @@ export class ApiController {
       parse(c.moderationInput, body).ban,
     );
   }
+  @Post("rooms/:roomId/bans")
+  @Endpoint("banByUsername", c.okSchema, c.roomBanInput, ["roomId"], 201)
+  banByUsername(
+    @Req() req: AuthRequest,
+    @Param("roomId") roomId: string,
+    @Body() body: unknown,
+  ) {
+    return r.banByUsername(
+      req.user,
+      roomId,
+      parse(c.roomBanInput, body).username,
+    );
+  }
   @Get("rooms/:roomId/bans")
   @Endpoint(
     "listBans",
     z.object({
-      items: z.array(z.object({ userId: z.uuid(), displayName: z.string() })),
+      items: z.array(
+        z.object({
+          userId: z.uuid(),
+          displayName: z.string(),
+          username: z.string().nullable().optional(),
+        }),
+      ),
     }),
     undefined,
     ["roomId"],

@@ -1300,3 +1300,76 @@ describe("room owner controls", () => {
     }
   });
 });
+
+test("room owners ban by exact account username and retain moderation permissions, audit and unban behavior", async () => {
+  const owner = await account("用户名封禁房主");
+  const target = await account("相同昵称");
+  const other = await account("相同昵称");
+  const r = await room(owner.token);
+  await req(`/rooms/${r.id}/join`, target.token, {});
+  const [targetUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, target.id));
+  const [ownerUser] = await db
+    .select()
+    .from(users)
+    .where(eq(users.id, owner.id));
+  const path = `/rooms/${r.id}/bans`;
+  expect(
+    (await req(path, target.token, { username: targetUser!.username })).status,
+  ).toBe(403);
+  expect(
+    (await req(path, target.token, { username: "unknown_account" })).status,
+  ).toBe(403);
+  expect(
+    (
+      await req(path, owner.token, {
+        username: "missing_" + crypto.randomUUID().slice(0, 8),
+      })
+    ).status,
+  ).toBe(404);
+  expect(
+    (await req(path, owner.token, { username: ownerUser!.username })).status,
+  ).toBe(400);
+  expect(
+    (await req(path, owner.token, { username: "invalid username" })).status,
+  ).toBe(400);
+  expect(
+    (
+      await req(path, owner.token, {
+        username: `  ${targetUser!.username!.toUpperCase()}  `,
+      })
+    ).status,
+  ).toBe(201);
+  const blocked = await req(path, owner.token);
+  expect(blocked.body.items).toEqual([
+    {
+      userId: target.id,
+      username: targetUser!.username,
+      displayName: "相同昵称",
+    },
+  ]);
+  expect((await req(`/rooms/${r.id}/join`, target.token, {})).body.code).toBe(
+    "ROOM_BANNED",
+  );
+  expect((await req(`/rooms/${r.id}/join`, other.token, {})).status).toBe(201);
+  const logs = await db
+    .select()
+    .from(auditLogs)
+    .where(eq(auditLogs.targetId, r.id));
+  expect(
+    logs.some(
+      (l) =>
+        l.action === "member.banned" &&
+        (l.details as { userId?: string }).userId === target.id,
+    ),
+  ).toBe(true);
+  expect(
+    (await req(`${path}/${target.id}`, owner.token, undefined, "DELETE"))
+      .status,
+  ).toBe(200);
+  expect((await req(`/rooms/${r.id}/join`, target.token, {})).status).toBe(201);
+  for (const person of [target, other, owner])
+    await req(`/rooms/${r.id}/leave`, person.token, {});
+});

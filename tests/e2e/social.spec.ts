@@ -69,9 +69,9 @@ test("friends and owner moderation work across independent real room clients", a
     ).toHaveCount(0);
     await friend.getByRole("menuitem", { name: "好友", exact: true }).click();
     await friend.getByRole("tab", { name: /^好友申请/ }).click();
-    const friendId = await friend.evaluate(async () => {
+    const friendUsername = await friend.evaluate(async () => {
       const { useApp } = await import("/store.ts" as string);
-      return useApp.getState().user.id as string;
+      return useApp.getState().user.username as string;
     });
     await expect(friend.locator(".friend")).toContainText("社交房主");
     await friend.getByRole("button", { name: "接受", exact: true }).click();
@@ -99,7 +99,7 @@ test("friends and owner moderation work across independent real room clients", a
       .getByRole("button", { name: "返回当前房间", exact: true })
       .click();
     await page.getByRole("button", { name: "管理房间黑名单" }).click();
-    await page.getByLabel("要封禁的用户 ID").fill(friendId!);
+    await page.getByLabel("要封禁的用户名").fill(friendUsername!);
     await page.getByRole("button", { name: "封禁成员", exact: true }).click();
     await expect(page.locator(".friend")).toContainText("社交成员");
     await expect(
