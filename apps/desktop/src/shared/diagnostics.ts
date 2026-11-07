@@ -584,6 +584,25 @@ export function nativeProcessRows(entries: DiagnosticRecord[]) {
       ...e.native,
     }));
 }
+export function nativeStartupRows(entries: DiagnosticRecord[]) {
+  return entries
+    .filter(
+      (e) =>
+        e.kind === "event" &&
+        e.event?.name === "native-startup-progress" &&
+        e.native?.progress,
+    )
+    .map((e) => ({
+      at: e.at,
+      monotonicMs: e.monotonicMs,
+      session: e.session,
+      hostSession: e.native?.hostSession,
+      shareAttempt: e.native?.shareAttempt,
+      hostPid: e.native?.hostPid,
+      hostGeneration: e.native?.hostGeneration,
+      ...e.native!.progress,
+    }));
+}
 export async function diagnosticArchive(
   entries: DiagnosticRecord[],
   metadata: Record<string, unknown>,
@@ -638,6 +657,9 @@ export async function diagnosticArchive(
             nativeNetworkEvents: safe.some(
               (e) => e.event?.name === "native-network-result",
             ),
+            nativeStartupEvents: safe.some(
+              (e) => e.event?.name === "native-startup-progress",
+            ),
             nativeProcessEvents: safe.some(
               (e) => e.event?.name === "native-host-spawn",
             ),
@@ -669,6 +691,26 @@ export async function diagnosticArchive(
     ),
     "native-network.csv": strToU8(csv(nativeNetworkRows(safe), networkColumns)),
     "native-process.csv": strToU8(csv(nativeProcessRows(safe), processColumns)),
+    "native-startup.csv": strToU8(
+      csv(nativeStartupRows(safe), [
+        "at",
+        "monotonicMs",
+        "session",
+        "hostSession",
+        "shareAttempt",
+        "hostPid",
+        "hostGeneration",
+        "sequence",
+        "span",
+        "commandSequence",
+        "command",
+        "sourceKind",
+        "stage",
+        "state",
+        "elapsedMs",
+        "waitMs",
+      ]),
+    ),
     "native-pipeline.csv": strToU8(
       csv(nativePipeline(safe), [
         "at",
@@ -737,6 +779,7 @@ export async function diagnosticArchive(
     ),
     "README.txt": strToU8(
       guide +
+        "\n原生启动排障：native-startup.csv 记录命令、来源类型、启动子阶段及图形锁等待。span 标识同一操作，commandSequence 对应宿主命令编号；begin/complete/failed 是阶段起止，waiting 表示阶段尚未完成（图形锁阶段表示尚未获取锁），acquired 表示已获取图形锁，held 表示持锁期间仍未完成。elapsedMs 从该阶段开始累计，waitMs 是已完成的锁获取等待；两者之差可用于观察持锁耗时。独立看门狗在阶段持续超过 250ms 时补报，持续等待每秒至多一次；正常快速状态查询不逐条记录。超时事件的 pendingProgress 保留尚未结束的阶段。startAckMs 是启动命令确认耗时，sourceReadyMs 是确认后等到输出活动且来源宽度可用的耗时，不等同于第一帧编码/呈现耗时。新字段仅在新宿主提供时存在，旧包缺失不代表没有阻塞。\n" +
         "\n原生连接排障：native-network.csv 按 shareAttempt（单次共享）与 hostSession（单个子进程）关联，分别记录 WHIP POST、DELETE 清理、授权 API 请求和连接阶段。POST 失败不会被 DELETE 成功覆盖。curlCode 是 libcurl 错误码，osError 是操作系统网络错误码（Windows 与 macOS 含义不同）；未报告的字段留空，0 不能推断网络或证书正常。TLS 后端为 Schannel 时不采集不受支持的 tlsVerifyResult；tlsNativeCode 仅在库报告数值状态时提供，不保留原始错误文本。dns/tcp/tls/requestReady/firstByte/totalMs 是从单次 libcurl 传输起点计的累计耗时，不是各阶段独立耗时；未到达阶段留空，不能当作零耗时。wallMs 包含调用实际墙钟耗时。dtls 阶段从 ICE 报告已连接、移交 DTLS 时开始计。阶段事件与 phaseDurationMs 使用主进程单调时钟观测，受 IPC 调度影响，与 libcurl 内部计时不能直接等同；phase 持续未退出时需用后续失败/停止事件的 connectionElapsedMs 对照。native-process.csv 包含 PID、进程代次、启动用途、就绪耗时、退出码/信号、重建触发及前一进程编号，可区分用户停止、协议超时、异常退出与导出时的诊断探测。实时事件立即追加到既有两小时滚动历史；磁盘写入失败仍按既有 storage issue/fallback 规则报告，未记录不能当作未发生。旧版本未采集这些字段时，文件可为空，仅表示证据不足。\n" +
         (installer
           ? "\n升级诊断见 upgrade/history.ndjson 和 upgrade/status.json；包含安装路径（用户目录已遮盖）、相关进程名、阶段、退出码及文件占用。即时占用探测不能证明历史原因；legacy 卸载器可能无法提供最初失败文件。cleanup-complete 仅表示应用清理回调已返回，进程是否实际退出需对照 process-cleanup 记录。win32Code 是 NSIS Rename 失败后立即读取的线程错误码，NSIS 内部可能包含多次系统调用，应结合阶段及源、目标文件证据解释；files[].code 是稍后进行的 DELETE 权限探测，不能当作原始操作错误码。\n"

@@ -2,6 +2,7 @@ import { randomUUID } from "node:crypto";
 import { z } from "zod";
 import {
   nativeNetworkSchema,
+  nativeProgressSchema,
   type NativeNetwork,
   type nativeDiagnosticSchema,
   type nativeHostTriggerSchema,
@@ -134,6 +135,11 @@ export class NativeCaptureEvents {
     timings: NonNullable<Native["stageTimings"]>;
   };
   private networkSeen = new Set<string>();
+  private progressSpans = new Map<
+    string,
+    Map<number, z.infer<typeof nativeProgressSchema>>
+  >();
+  private progressSeen = new Map<string, Map<number, number>>();
   constructor(
     private readonly sink: (e: NativeCaptureEvent) => void,
     private readonly now: () => number = () => performance.now(),
@@ -165,7 +171,11 @@ export class NativeCaptureEvents {
     try {
       this.sink({
         name,
-        native: { ...native, ...this.snapshot(native.hostSession) },
+        native: {
+          ...native,
+          ...this.snapshot(native.hostSession),
+          ...(native.progress ? { progress: native.progress } : {}),
+        },
       });
     } catch {
       /* Recording never controls capture. */
@@ -190,8 +200,12 @@ export class NativeCaptureEvents {
       Object.assign(host, { shareAttempt: this.attempt.id });
     }
     this.hosts.set(session, host);
-    while (this.hosts.size > 16)
-      this.hosts.delete(this.hosts.keys().next().value!);
+    while (this.hosts.size > 16) {
+      const retired = this.hosts.keys().next().value!;
+      this.hosts.delete(retired);
+      this.progressSpans.delete(retired);
+      this.progressSeen.delete(retired);
+    }
     this.emit("native-host-spawn", host);
     if (previous) this.emit("native-host-rebuild", host);
   }
@@ -295,6 +309,31 @@ export class NativeCaptureEvents {
         : { cleanupNetwork: network }),
     });
     return network;
+  }
+  progress(session: string, raw: unknown) {
+    const parsed = nativeProgressSchema.safeParse(raw);
+    const host = this.hosts.get(session);
+    if (!parsed.success || !host) return;
+    const value = parsed.data;
+    const seen = this.progressSeen.get(session) ?? new Map<number, number>();
+    if (value.sequence <= (seen.get(value.span) ?? 0)) return;
+    seen.set(value.span, value.sequence);
+    while (seen.size > 1024) seen.delete(seen.keys().next().value!);
+    this.progressSeen.set(session, seen);
+    const spans =
+      this.progressSpans.get(session) ?? new Map<number, typeof value>();
+    if (value.state === "complete" || value.state === "failed")
+      spans.delete(value.span);
+    else spans.set(value.span, value);
+    while (spans.size > 64) spans.delete(spans.keys().next().value!);
+    this.progressSpans.set(session, spans);
+    host.pendingProgress = [...spans.values()];
+    if (value.sequence > (host.progress?.sequence ?? 0)) host.progress = value;
+    this.emit("native-startup-progress", {
+      hostSession: session,
+      progress: value,
+    });
+    return value;
   }
   record(name: string, native: Native = {}) {
     this.emit(name, native);

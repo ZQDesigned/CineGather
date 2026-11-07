@@ -204,6 +204,7 @@ test("export is a deflated ZIP with raw timeline, coverage, replay intervals and
     "native-network.csv",
     "native-pipeline.csv",
     "native-process.csv",
+    "native-startup.csv",
     "summary.json",
     "timeline.ndjson",
   ]);

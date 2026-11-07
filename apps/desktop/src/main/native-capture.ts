@@ -337,6 +337,27 @@ export class NativeCapture {
               hostExitReason: issue,
             });
           }
+          if (line.startsWith("CG_HOST_PROGRESS ")) {
+            try {
+              const progress = this.events.progress(
+                session,
+                JSON.parse(line.slice(17)),
+              );
+              if (
+                progress &&
+                this.child === child &&
+                this.diagnosticStatus?.hostSession === session
+              ) {
+                this.diagnosticStatus = {
+                  ...this.diagnosticStatus,
+                  ...this.events.snapshot(session),
+                  hostEventAt: Date.now(),
+                };
+              }
+            } catch {
+              /* Malformed progress cannot control capture or leak raw text. */
+            }
+          }
           if (line.startsWith("CG_HOST_NETWORK ")) {
             try {
               const network = this.events.network(
@@ -723,6 +744,7 @@ export class NativeCapture {
         ) - Date.now(),
       );
       if (remainingMs <= 0) throw new Error("共享授权已过期");
+      const startCommandAt = performance.now();
       await pipe.call({
         type: "start",
         ...(this.windows
@@ -739,6 +761,13 @@ export class NativeCapture {
         token: publication.token,
         remainingMs,
       });
+      this.diagnosticStatus = {
+        ...this.diagnosticStatus,
+        startAckMs: performance.now() - startCommandAt,
+      };
+      this.events.record("native-start-accepted", this.diagnosticStatus);
+      const sourceWaitAt = performance.now();
+      this.events.record("native-source-wait", this.diagnosticStatus);
       this.started = true;
       this.activeWindow = selection.window;
       this.activeDisplayId = selection.displayId;
@@ -757,6 +786,11 @@ export class NativeCapture {
             ),
           );
         if (status.outputPhase === "active" && status.sourceWidth > 0) {
+          this.diagnosticStatus = {
+            ...this.diagnosticStatus,
+            sourceReadyMs: performance.now() - sourceWaitAt,
+          };
+          this.events.record("native-source-ready", this.diagnosticStatus);
           if (this.diagnosticStatus?.deviceAudioFallback)
             this.options.audioFallback?.();
           this.poll = setInterval(() => void this.check(), 1000);
@@ -764,6 +798,11 @@ export class NativeCapture {
         }
         await new Promise((resolve) => setTimeout(resolve, 100));
       }
+      this.diagnosticStatus = {
+        ...this.diagnosticStatus,
+        sourceReadyMs: performance.now() - sourceWaitAt,
+      };
+      this.events.record("native-source-timeout", this.diagnosticStatus);
       this.events.record("native-connection-timeout", this.diagnosticStatus);
       throw new Error("共享启动已取消或超时");
     } catch (error) {

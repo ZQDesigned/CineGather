@@ -2,8 +2,9 @@
 // pointers.
 #define NOMINMAX
 #define WIN32_LEAN_AND_MEAN
-#include "network-diagnostics.hpp"
+#include "capture-progress.hpp"
 #include "encoder-selection.hpp"
+#include "network-diagnostics.hpp"
 #include "preview-control.hpp"
 #include "source-swap.hpp"
 #include <algorithm>
@@ -75,6 +76,13 @@ static fs::path executable() {
   check(n > 0 && n < 32768, "host-path");
   return fs::path(std::wstring(p, n));
 }
+static cinegather::CaptureProgress progress([](const std::string &record) {
+  std::fprintf(stderr, "CG_HOST_PROGRESS %s\n", record.c_str());
+  std::fflush(stderr);
+});
+using Stage = cinegather::CaptureProgress::Stage;
+static cinegather::CaptureProgress::Source sourceKind =
+    cinegather::CaptureProgress::Source::None;
 static DWORD ownerPid;
 static HANDLE ownerProcess;
 static fs::path rootDir, working;
@@ -505,6 +513,7 @@ struct ExactWindow {
   obs_source_t *source;
   std::atomic<winrt_capture *> capture{nullptr};
   std::atomic<bool> tried{false};
+  cinegather::CaptureDimensions dimensions;
 };
 static void *exactCreate(obs_data_t *settings, obs_source_t *source) {
   auto hwnd =
@@ -516,12 +525,18 @@ static void *exactCreate(obs_data_t *settings, obs_source_t *source) {
 }
 static void exactHide(void *raw) {
   auto *w = static_cast<ExactWindow *>(raw);
-  obs_enter_graphics();
+  w->dimensions.set(0, 0);
+  if (!w->capture && !w->tried)
+    return;
+  auto freeing = progress.span(Stage::WindowFree);
+  cinegather::CaptureGraphicsLock graphics(progress, Stage::WindowFreeGraphics,
+                                           obs_enter_graphics,
+                                           obs_leave_graphics);
   auto *previous = w->capture.exchange(nullptr);
   if (previous)
     winrt_capture_free(previous);
+  w->dimensions.set(0, 0);
   w->tried = false;
-  obs_leave_graphics();
 }
 static void exactTick(void *raw, float) {
   auto *w = static_cast<ExactWindow *>(raw);
@@ -532,11 +547,21 @@ static void exactTick(void *raw, float) {
   }
   if (!w->capture && !w->tried) {
     w->tried = true;
-    obs_enter_graphics();
+    auto initializing = progress.span(Stage::WindowInit);
+    cinegather::CaptureGraphicsLock graphics(
+        progress, Stage::WindowInitGraphics, obs_enter_graphics,
+        obs_leave_graphics);
     if (obs_source_enabled(w->source) && obs_source_showing(w->source) &&
         IsWindow(w->hwnd) && windowPid(w->hwnd) == w->pid)
       w->capture = winrt_capture_init_window(FALSE, w->hwnd, TRUE, TRUE);
-    obs_leave_graphics();
+    w->dimensions.set(winrt_capture_width(w->capture),
+                      winrt_capture_height(w->capture));
+  } else if (w->capture) {
+    cinegather::CaptureGraphicsLock graphics(
+        progress, Stage::WindowSizeGraphics, obs_enter_graphics,
+        obs_leave_graphics);
+    w->dimensions.set(winrt_capture_width(w->capture),
+                      winrt_capture_height(w->capture));
   }
 }
 static void exactDestroy(void *raw) {
@@ -546,22 +571,19 @@ static void exactDestroy(void *raw) {
 static void exactRender(void *raw, gs_effect_t *) {
   auto *w = static_cast<ExactWindow *>(raw);
   if (IsWindow(w->hwnd) && windowPid(w->hwnd) == w->pid && w->capture &&
-      winrt_capture_active(w->capture))
+      winrt_capture_active(w->capture)) {
     winrt_capture_render(w->capture);
+    // OBS renders on its graphics thread. Publish the size after first render
+    // and every resize without ever making control/status wait for graphics.
+    w->dimensions.set(winrt_capture_width(w->capture),
+                      winrt_capture_height(w->capture));
+  }
 }
 static uint32_t exactWidth(void *raw) {
-  auto *w = static_cast<ExactWindow *>(raw);
-  obs_enter_graphics();
-  const uint32_t value = winrt_capture_width(w->capture);
-  obs_leave_graphics();
-  return value;
+  return static_cast<ExactWindow *>(raw)->dimensions.width();
 }
 static uint32_t exactHeight(void *raw) {
-  auto *w = static_cast<ExactWindow *>(raw);
-  obs_enter_graphics();
-  const uint32_t value = winrt_capture_height(w->capture);
-  obs_leave_graphics();
-  return value;
+  return static_cast<ExactWindow *>(raw)->dimensions.height();
 }
 static HMONITOR monitorHandle(const std::string &key) {
   struct State {
@@ -978,6 +1000,7 @@ static void outputStopped(void *, calldata_t *d) {
   outputPhase = 3;
 }
 static void stopCapture() {
+  auto trace = progress.span(Stage::Cleanup);
   // Detach/release capture before waiting on WHIP signaling teardown.
   if (videoSource)
     obs_source_set_enabled(videoSource, false);
@@ -1025,9 +1048,22 @@ static void stopCapture() {
 }
 static Data status() {
   auto d = data();
-  cinegather::previewStats(output, d.get());
-  for (const auto &entry : std::vector<std::pair<const char *, std::optional<cinegather::NetworkTrace>>>{{"network", networkTelemetry.connection()}, {"cleanupNetwork", networkTelemetry.cleanup()}}) {
-    if (entry.second) { auto *n = obs_data_create_from_json(entry.second->json().c_str()); obs_data_set_obj(d.get(), entry.first, n); obs_data_release(n); }
+  {
+    auto trace = progress.span(Stage::StatusPreview, false);
+    cinegather::previewStats(output, d.get());
+  }
+  {
+    auto trace = progress.span(Stage::StatusNetwork, false);
+    for (const auto &entry : std::vector<
+             std::pair<const char *, std::optional<cinegather::NetworkTrace>>>{
+             {"network", networkTelemetry.connection()},
+             {"cleanupNetwork", networkTelemetry.cleanup()}}) {
+      if (entry.second) {
+        auto *n = obs_data_create_from_json(entry.second->json().c_str());
+        obs_data_set_obj(d.get(), entry.first, n);
+        obs_data_release(n);
+      }
+    }
   }
   obs_data_set_string(d.get(), "transportPhase", transportPhaseName());
   obs_data_set_int(d.get(), "transportErrorCode", transportErrorCode);
@@ -1078,17 +1114,23 @@ static Data status() {
                       : outputPhase == 1 ? "starting"
                       : outputPhase == 3 ? "failed"
                                          : "stopped");
-  obs_data_set_int(d.get(), "sourceWidth",
-                   videoSource ? obs_source_get_width(videoSource) : 0);
-  obs_data_set_int(d.get(), "sourceHeight",
-                   videoSource ? obs_source_get_height(videoSource) : 0);
-  obs_data_set_bool(d.get(), "sourcesActive", videoSource != nullptr);
-  obs_data_set_bool(d.get(), "outputActive",
-                    output && obs_output_active(output));
-  obs_data_set_bool(d.get(), "videoSourceActive",
-                    videoSource && obs_source_active(videoSource));
-  obs_data_set_bool(d.get(), "audioSourceActive",
-                    audioSource && obs_source_active(audioSource));
+  {
+    auto trace = progress.span(Stage::StatusSize, false);
+    obs_data_set_int(d.get(), "sourceWidth",
+                     videoSource ? obs_source_get_width(videoSource) : 0);
+    obs_data_set_int(d.get(), "sourceHeight",
+                     videoSource ? obs_source_get_height(videoSource) : 0);
+  }
+  {
+    auto trace = progress.span(Stage::StatusOutput, false);
+    obs_data_set_bool(d.get(), "sourcesActive", videoSource != nullptr);
+    obs_data_set_bool(d.get(), "outputActive",
+                      output && obs_output_active(output));
+    obs_data_set_bool(d.get(), "videoSourceActive",
+                      videoSource && obs_source_active(videoSource));
+    obs_data_set_bool(d.get(), "audioSourceActive",
+                      audioSource && obs_source_active(audioSource));
+  }
   obs_data_set_string(d.get(), "requestedEncoder", requestedEncoder.c_str());
   obs_data_set_string(d.get(), "selectedEncoder", selectedEncoder.c_str());
   obs_data_set_string(d.get(), "encoderBackend", selectedBackend.c_str());
@@ -1097,36 +1139,48 @@ static Data status() {
   obs_data_set_bool(d.get(), "deviceAudioFallback", deviceFallback);
   obs_data_set_string(d.get(), "encoderFailure", lastFailure.c_str());
   obs_data_set_int(d.get(), "outputStopCode", stopCode);
-  if (engineReady)
-    obs_data_set_double(d.get(), "activeFps", obs_get_active_fps());
-  if (output) {
-    obs_data_set_int(d.get(), "outputTotalFrames",
-                     obs_output_get_total_frames(output));
-    obs_data_set_int(d.get(), "outputSkippedFrames",
-                     obs_output_get_frames_dropped(output));
-    obs_data_set_int(d.get(), "outputBytes",
-                     obs_output_get_total_bytes(output));
-    obs_data_set_double(d.get(), "outputCongestion",
-                        obs_output_get_congestion(output));
+  {
+    auto trace = progress.span(Stage::StatusRender, false);
+    if (engineReady)
+      obs_data_set_double(d.get(), "activeFps", obs_get_active_fps());
   }
-  if (engineReady) {
-    obs_data_set_double(d.get(), "averageFrameRenderTime",
-                        obs_get_average_frame_time_ns());
-    obs_data_set_int(d.get(), "renderTotalFrames", obs_get_total_frames());
-    obs_data_set_int(d.get(), "renderSkippedFrames", obs_get_lagged_frames());
-  }
-  if (audioSource) {
-    auto *a = static_cast<ProcessAudio *>(obs_obj_get_data(audioSource));
-    if (a) {
-      obs_data_set_int(d.get(), "audioFramesCaptured", a->frames);
-      obs_data_set_int(d.get(), "audioTimestampFallbacks",
-                       a->timestampFallbacks);
-      obs_data_set_double(d.get(), "audioCaptureDelayMs",
-                          double(a->delayNs) / 1e6);
+  {
+    auto trace = progress.span(Stage::StatusOutput, false);
+    if (output) {
+      obs_data_set_int(d.get(), "outputTotalFrames",
+                       obs_output_get_total_frames(output));
+      obs_data_set_int(d.get(), "outputSkippedFrames",
+                       obs_output_get_frames_dropped(output));
+      obs_data_set_int(d.get(), "outputBytes",
+                       obs_output_get_total_bytes(output));
+      obs_data_set_double(d.get(), "outputCongestion",
+                          obs_output_get_congestion(output));
     }
-    if (a && a->failed)
-      obs_data_set_string(d.get(), "audioCaptureError",
-                          "声音采集已中断，请重新共享");
+  }
+  {
+    auto trace = progress.span(Stage::StatusRender, false);
+    if (engineReady) {
+      obs_data_set_double(d.get(), "averageFrameRenderTime",
+                          obs_get_average_frame_time_ns());
+      obs_data_set_int(d.get(), "renderTotalFrames", obs_get_total_frames());
+      obs_data_set_int(d.get(), "renderSkippedFrames", obs_get_lagged_frames());
+    }
+  }
+  {
+    auto trace = progress.span(Stage::StatusAudio, false);
+    if (audioSource) {
+      auto *a = static_cast<ProcessAudio *>(obs_obj_get_data(audioSource));
+      if (a) {
+        obs_data_set_int(d.get(), "audioFramesCaptured", a->frames);
+        obs_data_set_int(d.get(), "audioTimestampFallbacks",
+                         a->timestampFallbacks);
+        obs_data_set_double(d.get(), "audioCaptureDelayMs",
+                            double(a->delayNs) / 1e6);
+      }
+      if (a && a->failed)
+        obs_data_set_string(d.get(), "audioCaptureError",
+                            "声音采集已中断，请重新共享");
+    }
   }
   auto list = array();
   for (const auto &attempt : attempts) {
@@ -1170,24 +1224,29 @@ static void configureVideo(int adapter, int width, int height, int fps) {
   check(obs_reset_video(&vi) == OBS_VIDEO_SUCCESS, "graphics-initialization");
   // OBS retains its graphics device across obs_reset_video. Verify the actual
   // D3D device, rather than trusting the requested video-info adapter field.
-  obs_enter_graphics();
-  auto *device = static_cast<ID3D11Device *>(gs_get_device_obj());
-  ComPtr<IDXGIDevice> dxgiDevice;
-  ComPtr<IDXGIAdapter> actual;
-  ComPtr<IDXGIFactory1> factory;
-  ComPtr<IDXGIAdapter1> expected;
+  bool matched = false;
   DXGI_ADAPTER_DESC actualDesc{};
-  DXGI_ADAPTER_DESC1 expectedDesc{};
-  const bool matched =
-      device && SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&dxgiDevice))) &&
-      SUCCEEDED(dxgiDevice->GetAdapter(&actual)) &&
-      SUCCEEDED(actual->GetDesc(&actualDesc)) &&
-      SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))) &&
-      SUCCEEDED(factory->EnumAdapters1(UINT(adapter), &expected)) &&
-      SUCCEEDED(expected->GetDesc1(&expectedDesc)) &&
-      actualDesc.AdapterLuid.HighPart == expectedDesc.AdapterLuid.HighPart &&
-      actualDesc.AdapterLuid.LowPart == expectedDesc.AdapterLuid.LowPart;
-  obs_leave_graphics();
+  {
+    cinegather::CaptureGraphicsLock graphicsLock(
+        progress, Stage::AdapterGraphics, obs_enter_graphics,
+        obs_leave_graphics);
+    auto *device = static_cast<ID3D11Device *>(gs_get_device_obj());
+    ComPtr<IDXGIDevice> dxgiDevice;
+    ComPtr<IDXGIAdapter> actual;
+    ComPtr<IDXGIFactory1> factory;
+    ComPtr<IDXGIAdapter1> expected;
+    DXGI_ADAPTER_DESC1 expectedDesc{};
+    matched =
+        device &&
+        SUCCEEDED(device->QueryInterface(IID_PPV_ARGS(&dxgiDevice))) &&
+        SUCCEEDED(dxgiDevice->GetAdapter(&actual)) &&
+        SUCCEEDED(actual->GetDesc(&actualDesc)) &&
+        SUCCEEDED(CreateDXGIFactory1(IID_PPV_ARGS(&factory))) &&
+        SUCCEEDED(factory->EnumAdapters1(UINT(adapter), &expected)) &&
+        SUCCEEDED(expected->GetDesc1(&expectedDesc)) &&
+        actualDesc.AdapterLuid.HighPart == expectedDesc.AdapterLuid.HighPart &&
+        actualDesc.AdapterLuid.LowPart == expectedDesc.AdapterLuid.LowPart;
+  }
   check(matched, "graphics-adapter-mismatch");
   graphicsAdapter = adapter;
   graphicsVendor = actualDesc.VendorId;
@@ -1250,37 +1309,44 @@ static void prepareScene(obs_data_t *config, cinegather::CaptureScene &next, boo
       next.scene = obs_scene_create("CineGather native scene");
       check(next.scene, "scene-create");
       auto settings = data();
-      if (synthetic)
-        next.video =
-            obs_source_create("cg_test_pattern", "CineGather synthetic pattern",
-                              settings.get(), nullptr);
-      else if (obs_data_has_user_value(config, "displayId")) {
-        refreshMonitors();
-        int64_t id = obs_data_get_int(config, "displayId");
-        auto found = std::find_if(monitors.begin(), monitors.end(),
-                                  [&](const Monitor &m) { return m.id == id; });
-        check(found != monitors.end(), "display-unavailable");
-        obs_data_set_string(settings.get(), "monitor_id", found->key.c_str());
-        obs_data_set_bool(settings.get(), "capture_cursor", false);
-        obs_data_set_int(settings.get(), "method", 2);
-        next.video = obs_source_create("monitor_capture", "CineGather screen",
-                                        settings.get(), nullptr);
-      } else {
-        auto hwnd = reinterpret_cast<HWND>(
-            uintptr_t(obs_data_get_int(config, "windowId")));
-        check(IsWindow(hwnd) &&
-                  windowPid(hwnd) == DWORD(obs_data_get_int(config, "pid")) &&
-                  !ownProcess(windowPid(hwnd)),
-              "window-unavailable");
-        obs_data_set_int(settings.get(), "windowId", int64_t(uintptr_t(hwnd)));
-        obs_data_set_int(settings.get(), "pid", windowPid(hwnd));
-        next.video = obs_source_create("cg_hwnd_capture", "CineGather window",
-                                        settings.get(), nullptr);
+      {
+        auto trace = progress.span(Stage::VideoSource);
+        if (synthetic)
+          next.video = obs_source_create("cg_test_pattern",
+                                         "CineGather synthetic pattern",
+                                         settings.get(), nullptr);
+        else if (obs_data_has_user_value(config, "displayId")) {
+          refreshMonitors();
+          int64_t id = obs_data_get_int(config, "displayId");
+          auto found =
+              std::find_if(monitors.begin(), monitors.end(),
+                           [&](const Monitor &m) { return m.id == id; });
+          check(found != monitors.end(), "display-unavailable");
+          obs_data_set_string(settings.get(), "monitor_id", found->key.c_str());
+          obs_data_set_bool(settings.get(), "capture_cursor", false);
+          obs_data_set_int(settings.get(), "method", 2);
+          next.video = obs_source_create("monitor_capture", "CineGather screen",
+                                         settings.get(), nullptr);
+        } else {
+          auto hwnd = reinterpret_cast<HWND>(
+              uintptr_t(obs_data_get_int(config, "windowId")));
+          check(IsWindow(hwnd) &&
+                    windowPid(hwnd) == DWORD(obs_data_get_int(config, "pid")) &&
+                    !ownProcess(windowPid(hwnd)),
+                "window-unavailable");
+          obs_data_set_int(settings.get(), "windowId",
+                           int64_t(uintptr_t(hwnd)));
+          obs_data_set_int(settings.get(), "pid", windowPid(hwnd));
+          next.video = obs_source_create("cg_hwnd_capture", "CineGather window",
+                                         settings.get(), nullptr);
+        }
+        check(next.video, "source-create");
       }
-      check(next.video, "source-create");
       obs_source_set_muted(next.video, true);
       if (!synthetic && obs_data_get_bool(config, "systemAudio")) {
-        next.audio = obs_source_create("cg_process_audio", "CineGather shared audio", config, nullptr);
+        auto trace = progress.span(Stage::AudioSource);
+        next.audio = obs_source_create(
+            "cg_process_audio", "CineGather shared audio", config, nullptr);
         check(next.audio && obs_obj_get_data(next.audio), "audio-initialization");
         obs_source_set_audio_mixers(next.audio, 1);
       }
@@ -1303,7 +1369,10 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
   lastFailure.clear();
   selectedEncoder.clear();
   selectedBackend.clear();
-  captureAdapter = synthetic ? -1 : captureAdapterForSource(config);
+  {
+    auto trace = progress.span(Stage::Adapter);
+    captureAdapter = synthetic ? -1 : captureAdapterForSource(config);
+  }
   auto options =
       cinegather::encoderCandidates(choices, requestedEncoder, captureAdapter);
   const std::string server = obs_data_get_string(config, "server");
@@ -1324,7 +1393,10 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       check(c.available, "encoder-unavailable");
       if (obs_data_get_bool(config, "resetGraphics"))
         restartEngine(c.adapter);
-      resetVideo(c.adapter, width, height, fps);
+      {
+        auto trace = progress.span(Stage::VideoReset);
+        resetVideo(c.adapter, width, height, fps);
+      }
       check(encoderExists(c.obsId.c_str()) &&
                 std::any_of(choices.begin(), choices.end(),
                             [&](const Choice &current) {
@@ -1335,16 +1407,30 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       captureStats(captureArrivedBase, captureCopiedBase, captureStamp);
       deviceFallback = false;
       cinegather::CaptureScene next;
-      prepareScene(config, next, synthetic);
-      auto *item = obs_scene_add(next.scene, next.video);
-      obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_SCALE_INNER);
-      vec2 bounds; vec2_set(&bounds, float(width), float(height));
-      obs_sceneitem_set_bounds(item, &bounds);
-      if (next.audio) obs_scene_add(next.scene, next.audio);
-      std::swap(scene, next.scene); std::swap(videoSource, next.video); std::swap(audioSource, next.audio);
-      obs_set_output_source(0, obs_scene_get_source(scene));
-      createVideoEncoder(c, bitrate);
+      {
+        auto trace = progress.span(Stage::Scene);
+        prepareScene(config, next, synthetic);
+      }
+      {
+        auto trace = progress.span(Stage::SceneBind);
+        auto *item = obs_scene_add(next.scene, next.video);
+        obs_sceneitem_set_bounds_type(item, OBS_BOUNDS_SCALE_INNER);
+        vec2 bounds;
+        vec2_set(&bounds, float(width), float(height));
+        obs_sceneitem_set_bounds(item, &bounds);
+        if (next.audio)
+          obs_scene_add(next.scene, next.audio);
+        std::swap(scene, next.scene);
+        std::swap(videoSource, next.video);
+        std::swap(audioSource, next.audio);
+        obs_set_output_source(0, obs_scene_get_source(scene));
+      }
+      {
+        auto trace = progress.span(Stage::VideoEncoder);
+        createVideoEncoder(c, bitrate);
+      }
       if (!synthetic && obs_data_get_bool(config, "systemAudio")) {
+        auto trace = progress.span(Stage::AudioEncoder);
         auto audioSettings = data();
         obs_data_set_int(audioSettings.get(), "bitrate", 160);
         audioEncoder = obs_audio_encoder_create(
@@ -1358,15 +1444,20 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       obs_data_set_string(serviceSettings.get(), "bearer_token",
                           obs_data_get_string(config, "token"));
       if (!synthetic || localWhip) {
+        auto trace = progress.span(Stage::Service);
         service = obs_service_create("whip_custom", "CineGather WHIP",
                                      serviceSettings.get(), nullptr);
         check(service, "whip-service");
       }
-      output = obs_output_create(synthetic && !localWhip ? "cg_packet_probe"
-                                 : audioEncoder          ? "whip_output"
-                                                         : "whip_output_video",
-                                 "CineGather native output", nullptr, nullptr);
-      check(output, "output-create");
+      {
+        auto trace = progress.span(Stage::Output);
+        output =
+            obs_output_create(synthetic && !localWhip ? "cg_packet_probe"
+                              : audioEncoder          ? "whip_output"
+                                                      : "whip_output_video",
+                              "CineGather native output", nullptr, nullptr);
+        check(output, "output-create");
+      }
       obs_output_set_video_encoder(output, videoEncoder);
       if (audioEncoder)
         obs_output_set_audio_encoder(output, audioEncoder, 0);
@@ -1379,8 +1470,11 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
       outputPhase = 1;
       stopCode = -1;
       nvencRerouted = false;
-      check(obs_output_initialize_encoders(output, 0),
-            "encoder-initialization");
+      {
+        auto trace = progress.span(Stage::EncoderInitialize);
+        check(obs_output_initialize_encoders(output, 0),
+              "encoder-initialization");
+      }
       check(c.backend != "nvenc" || !nvencRerouted, "encoder-adapter-reroute");
       if (c.backend == "qsv") {
         using ReadLuid = bool (*)(uint64_t *);
@@ -1388,7 +1482,10 @@ static void startCapture(obs_data_t *config, bool synthetic = false) {
         uint64_t actualLuid = 0;
         check(read && read(&actualLuid) && actualLuid == graphicsLuid, "encoder-adapter-reroute");
       }
-      check(obs_output_start(output), "encoder-initialization");
+      {
+        auto trace = progress.span(Stage::OutputStart);
+        check(obs_output_start(output), "encoder-initialization");
+      }
       selectedEncoder = c.id;
       selectedBackend = c.backend;
       attempts.push_back({c.id, c.backend, "started"});
@@ -1566,8 +1663,15 @@ static void switchSource(obs_data_t *config) {
   try {
     cinegather::CaptureScene next;
     prepareScene(config, next);
-    next.warm(configuredWidth, configuredHeight, [] { return deadlineNs > os_gettime_ns(); });
-    next.commit(scene, videoSource, audioSource);
+    {
+      auto trace = progress.span(Stage::SourceWarm);
+      next.warm(configuredWidth, configuredHeight,
+                [] { return deadlineNs > os_gettime_ns(); });
+    }
+    {
+      auto trace = progress.span(Stage::SourceCommit);
+      next.commit(scene, videoSource, audioSource);
+    }
     // Keep the active encoder/WHIP publication stable during atomic swaps.
     captureAdapter = nextAdapter;
   } catch (...) {
@@ -1657,7 +1761,10 @@ static Data handle(obs_data_t *command) {
     }
     deadlineNs = expires;
     startupDeadlineNs = 0;
-    return status();
+    auto trace = progress.span(Stage::StartAck);
+    auto ack = data();
+    obs_data_set_bool(ack.get(), "accepted", true);
+    return ack;
   }
   throw std::runtime_error("unknown-command");
 }
@@ -1704,7 +1811,6 @@ int wmain(int argc, wchar_t **argv) {
   CoInitializeEx(nullptr, COINIT_MULTITHREADED);
   fs::create_directories(working);
   try {
-    init();
     // A blocked capture/driver/signaling call cannot extend the publication
     // lease.
     struct Watchdog {
@@ -1722,6 +1828,7 @@ int wmain(int argc, wchar_t **argv) {
             std::fflush(stderr);
             TerminateProcess(GetCurrentProcess(), 3);
           }
+          progress.poll();
           Sleep(20);
         }
       }};
@@ -1731,6 +1838,10 @@ int wmain(int argc, wchar_t **argv) {
           worker.join();
       }
     } watchdog;
+    {
+      auto trace = progress.span(Stage::EngineInit);
+      init();
+    }
     std::string input;
     HANDLE in = GetStdHandle(STD_INPUT_HANDLE);
     while (!quitting && WaitForSingleObject(ownerProcess, 0) == WAIT_TIMEOUT) {
@@ -1756,9 +1867,20 @@ int wmain(int argc, wchar_t **argv) {
         std::string line = input.substr(0, pos);
         input.erase(0, pos + 1);
         auto response = data();
+        Data command(obs_data_create_from_json(line.c_str()), obs_data_release);
+        const auto type = command
+                              ? cinegather::CaptureProgress::command(
+                                    obs_data_get_string(command.get(), "type"))
+                              : cinegather::CaptureProgress::Command::Unknown;
+        if (type == cinegather::CaptureProgress::Command::Start ||
+            type == cinegather::CaptureProgress::Command::Switch)
+          sourceKind = obs_data_has_user_value(command.get(), "displayId")
+                           ? cinegather::CaptureProgress::Source::Screen
+                           : cinegather::CaptureProgress::Source::Window;
+        else if (type == cinegather::CaptureProgress::Command::Probe)
+          sourceKind = cinegather::CaptureProgress::Source::Synthetic;
+        auto commandTrace = progress.beginCommand(type, sourceKind);
         try {
-          Data command(obs_data_create_from_json(line.c_str()),
-                       obs_data_release);
           check(bool(command), "malformed-command");
           auto result = handle(command.get());
           obs_data_set_bool(response.get(), "ok", true);
@@ -1768,6 +1890,7 @@ int wmain(int argc, wchar_t **argv) {
           obs_data_set_bool(response.get(), "ok", false);
           obs_data_set_string(response.get(), "error", e.what());
         }
+        auto replyTrace = progress.span(Stage::ReplyWrite, false);
         const char *json = obs_data_get_json(response.get());
         std::fputs(json ? json : "{}", stdout);
         std::fputc('\n', stdout);

@@ -144,3 +144,99 @@ test("phase observations cannot regress on late status messages and terminal tim
   expect(entries.at(-1)?.native.connectionElapsedMs).toBe(8100);
   expect(entries.at(-1)?.native.stageTimings?.setupMs).toBe(90);
 });
+
+test("native stage evidence survives timeout/rebuild/export and rejects raw data or invalid phases", async () => {
+  const events: import("../src/main/native-capture-events").NativeCaptureEvent[] =
+    [];
+  const journal = new NativeCaptureEvents((e) => events.push(e));
+  const host = crypto.randomUUID();
+  journal.spawn(host, 12, "sources");
+  journal.beginShare();
+  const progress = {
+    sequence: 1,
+    span: 3,
+    commandSequence: 4,
+    command: "start",
+    sourceKind: "window",
+    stage: "window-init-graphics",
+    state: "waiting",
+    elapsedMs: 1200,
+  };
+  // Avoid accepting arbitrary stages, strings, window titles or raw commands.
+  const observe = (raw: unknown) => journal.progress(host, raw);
+  expect(typeof journal.progress).toBe("function");
+  observe(progress);
+  expect(journal.snapshot()).toMatchObject({
+    progress,
+    pendingProgress: [progress],
+  });
+  observe({
+    ...progress,
+    sequence: 2,
+    state: "acquired",
+    waitMs: 1300,
+    elapsedMs: 1300,
+  });
+  observe({
+    ...progress,
+    sequence: 3,
+    state: "held",
+    waitMs: 1300,
+    elapsedMs: 2500,
+  });
+  journal.record("native-host-timeout", {
+    ...journal.snapshot(),
+    hostExitReason: "response-timeout",
+  });
+  const snapshot = journal.snapshot();
+  const record = safeDiagnosticRecord({
+    v: 1,
+    at: 1,
+    monotonicMs: 1,
+    session: crypto.randomUUID(),
+    sequence: 1,
+    kind: "event",
+    event: { name: "native-host-timeout" },
+    native: snapshot,
+  });
+  expect(record.native?.pendingProgress?.[0]).toMatchObject({
+    state: "held",
+    waitMs: 1300,
+    elapsedMs: 2500,
+  });
+  const before = events.length;
+  observe({ ...progress, sequence: 4, title: "private title" });
+  observe({ ...progress, sequence: 4, stage: "https://secret" });
+  observe({ ...progress, sequence: 4, elapsedMs: NaN });
+  expect(events).toHaveLength(before);
+  observe({
+    ...progress,
+    sequence: 4,
+    state: "complete",
+    waitMs: 1300,
+    elapsedMs: 2600,
+  });
+  expect(journal.snapshot().pendingProgress).toEqual([]);
+  observe(progress); // delayed old begin/wait must never resurrect a finished span
+  expect(journal.snapshot().pendingProgress).toEqual([]);
+  journal.exit(host, "response-timeout", null, "SIGKILL");
+  journal.endShare("failed");
+  journal.spawn(crypto.randomUUID(), 13, "sources");
+  expect(journal.snapshot().progress).toBeUndefined();
+  expect(JSON.stringify(events)).not.toMatch(/private title|https:/);
+  const { diagnosticArchive } = await import("../src/shared/diagnostics");
+  const { unzipSync, strFromU8 } = await import("fflate");
+  const bytes = await diagnosticArchive(
+    [
+      record,
+      { ...record, sequence: 2, event: { name: "native-startup-progress" } },
+    ],
+    {},
+    {},
+  );
+  const files = unzipSync(bytes);
+  expect(strFromU8(files["native-startup.csv"]!)).toContain(
+    "window-init-graphics",
+  );
+  expect(strFromU8(files["timeline.ndjson"]!)).toContain('"waitMs":1300');
+});
