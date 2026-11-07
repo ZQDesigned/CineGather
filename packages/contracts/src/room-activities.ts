@@ -81,6 +81,11 @@ export const partyActionSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("choose"),
     index: z.number().int().min(0).max(2),
+    choicesRevision: z.number().int().nonnegative().optional(),
+  }),
+  z.strictObject({
+    type: z.literal("reroll"),
+    choicesRevision: z.number().int().nonnegative().optional(),
   }),
   z.strictObject({
     type: z.literal("guess"),
@@ -107,6 +112,10 @@ export interface PartyView {
   players: PartyPlayer[];
   solvedIds: string[];
   choices?: string[];
+  choicesRevision?: number;
+  rerollsRemaining?: number;
+  rerollAvailableAt?: number;
+  canReroll?: boolean;
   answer?: string;
   category?: string;
   wordLength?: number;

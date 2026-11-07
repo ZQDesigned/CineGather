@@ -25,6 +25,7 @@ const names: Record<ActivityTarget, string> = {
 export default function RoomActivity() {
   const { snapshot, status, error, presence } = useActivities(),
     userId = useSession().user?.id;
+  const [partyBusy, setPartyBusy] = useState(false);
   const [answer, setAnswer] = useState(""),
     [now, setNow] = useState(Date.now()),
     [image, setImage] = useState<string>(),
@@ -71,6 +72,15 @@ export default function RoomActivity() {
     game = snapshot.game,
     board = snapshot.board,
     me = game?.players.find((p) => p.id === userId);
+  const rerollSeconds = Math.max(
+    0,
+    Math.ceil(
+      ((game?.rerollAvailableAt ?? 0) -
+        clock.current.server -
+        (now - clock.current.local)) /
+        1000,
+    ),
+  );
   const enabled = status === "connected",
     generation = snapshot.generation;
   async function start(target: ActivityTarget, requestId?: string) {
@@ -105,8 +115,14 @@ export default function RoomActivity() {
       );
   }
   async function party(action: PartyAction) {
-    await activities.command({ type: "party", generation, action }, snapshot);
-    if (action.type === "guess") setAnswer("");
+    if (partyBusy) return;
+    setPartyBusy(true);
+    try {
+      await activities.command({ type: "party", generation, action }, snapshot);
+      if (action.type === "guess") setAnswer("");
+    } finally {
+      setPartyBusy(false);
+    }
   }
   async function chooseImage() {
     const chosen = await ImagePicker.launchImageLibraryAsync({
@@ -315,12 +331,45 @@ export default function RoomActivity() {
               {game.choices.map((word, index) => (
                 <Button
                   key={word}
-                  disabled={!enabled}
-                  onPress={() => party({ type: "choose", index })}
+                  disabled={!enabled || partyBusy}
+                  onPress={() =>
+                    party({
+                      type: "choose",
+                      index,
+                      choicesRevision: game.choicesRevision,
+                    })
+                  }
                 >
                   {word}
                 </Button>
               ))}
+              {game.rerollsRemaining !== undefined && (
+                <Button
+                  disabled={
+                    !enabled ||
+                    partyBusy ||
+                    game.rerollsRemaining <= 0 ||
+                    !game.canReroll ||
+                    rerollSeconds > 0 ||
+                    (game.deadline ?? 0) <=
+                      clock.current.server + (now - clock.current.local)
+                  }
+                  onPress={() =>
+                    party({
+                      type: "reroll",
+                      choicesRevision: game.choicesRevision,
+                    })
+                  }
+                >
+                  {game.rerollsRemaining <= 0
+                    ? "换词次数已用完"
+                    : !game.canReroll
+                      ? "暂无更多题目"
+                      : rerollSeconds > 0
+                        ? `换一组（${rerollSeconds}秒）`
+                        : `换一组（剩余 ${game.rerollsRemaining} 次）`}
+                </Button>
+              )}
             </View>
           ) : game.answer ? (
             <Label>题目：{game.answer}</Label>

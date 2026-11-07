@@ -392,6 +392,15 @@ export function RoomActivityStage() {
         ),
       )
     : 0;
+  const rerollSeconds = Math.max(
+    0,
+    Math.ceil(
+      ((game?.rerollAvailableAt ?? 0) -
+        clock.current.server -
+        (now - clock.current.local)) /
+        1000,
+    ),
+  );
   const me = game?.players.find((p) => p.id === userId);
   return (
     <section
@@ -477,11 +486,42 @@ export function RoomActivityStage() {
                 <Button
                   key={word}
                   disabled={busy}
-                  onClick={() => void party({ type: "choose", index })}
+                  onClick={() =>
+                    void party({
+                      type: "choose",
+                      index,
+                      choicesRevision: game.choicesRevision,
+                    })
+                  }
                 >
                   {word}
                 </Button>
               ))}
+              {game.rerollsRemaining !== undefined && (
+                <Button
+                  disabled={
+                    busy ||
+                    game.rerollsRemaining <= 0 ||
+                    !game.canReroll ||
+                    rerollSeconds > 0 ||
+                    seconds <= 0
+                  }
+                  onClick={() =>
+                    void party({
+                      type: "reroll",
+                      choicesRevision: game.choicesRevision,
+                    })
+                  }
+                >
+                  {game.rerollsRemaining <= 0
+                    ? "换词次数已用完"
+                    : !game.canReroll
+                      ? "暂无更多题目"
+                      : rerollSeconds > 0
+                        ? `换一组（${rerollSeconds}秒）`
+                        : `换一组（剩余 ${game.rerollsRemaining} 次）`}
+                </Button>
+              )}
             </div>
           ) : game.answer ? (
             <strong>

@@ -20,6 +20,10 @@ export interface PartyGame {
   drawerId?: string;
   word?: PartyWord;
   choices: PartyWord[];
+  choicesRevision?: number;
+  rerollsUsed?: number;
+  rerollAvailableAt?: number;
+  choiceHistory?: string[];
   used: string[];
   solvedIds: string[];
   lastGuesses: Record<string, number>;
@@ -42,10 +46,27 @@ export function newPartyGame(
     lastGuesses: {},
   };
 }
-function candidates(game: PartyGame) {
+function replacementPool(game: PartyGame) {
   const pool = game.wordPool ?? partyWords;
-  let available = pool.filter((w) => !game.used.includes(w.answer));
-  if (available.length < 3) available = [...pool];
+  const unseen = pool.filter(
+    (w) =>
+      !game.used.includes(w.answer) &&
+      !(game.choiceHistory ?? game.choices.map((c) => c.answer)).includes(
+        w.answer,
+      ),
+  );
+  if (unseen.length >= 3) return unseen;
+  // Small custom banks may reuse earlier sets, but never offer the same set
+  // that the drawer has just rejected or consume a use without replacements.
+  return pool.filter((w) => !game.choices.some((c) => c.answer === w.answer));
+}
+function candidates(game: PartyGame, replacements?: PartyWord[]) {
+  const pool = game.wordPool ?? partyWords;
+  let available = replacements
+    ? [...replacements]
+    : pool.filter((w) => !game.used.includes(w.answer));
+  if (!replacements && available.length < 3) available = [...pool];
+  if (available.length < 3) throw Error("暂无更多题目可更换");
   const selected: PartyWord[] = [];
   while (selected.length < 3)
     selected.push(available.splice(randomInt(available.length), 1)[0]!);
@@ -65,6 +86,10 @@ function nextRound(game: PartyGame, now: number) {
   game.solvedIds = [];
   game.lastGuesses = {};
   game.choices = candidates(game);
+  game.choicesRevision = (game.choicesRevision ?? 0) + 1;
+  game.rerollsUsed = 0;
+  game.rerollAvailableAt = undefined;
+  game.choiceHistory = game.choices.map((w) => w.answer);
   game.word = undefined;
   if (game.kind === "draw") {
     game.drawerId = game.order[(game.round - 1) % game.order.length];
@@ -83,7 +108,7 @@ function choose(game: PartyGame, index: number, now: number) {
   game.used.push(game.word.answer);
   game.choices = [];
   game.phase = "playing";
-  game.deadline = now + (game.kind === "draw" ? 60_000 : 45_000);
+  game.deadline = now + (game.kind === "draw" ? 90_000 : 45_000);
 }
 function results(game: PartyGame, now: number) {
   game.phase = "results";
@@ -159,9 +184,44 @@ export function partyCommand(
     delete game.remaining;
     return game;
   }
+  if (action.type === "reroll") {
+    if (
+      game.kind !== "draw" ||
+      game.phase !== "choosing" ||
+      actor.id !== game.drawerId
+    )
+      throw Error("仅当前画手可以在选词时换一组");
+    if (
+      action.choicesRevision !== undefined &&
+      action.choicesRevision !== (game.choicesRevision ?? 0)
+    )
+      throw Error("题目已更新，请重新选择");
+    if ((game.rerollsUsed ?? 0) >= 3) throw Error("本轮换词次数已用完");
+    if (now < (game.rerollAvailableAt ?? 0))
+      throw Error("换词需间隔 2 秒，请稍后重试");
+    const pool = replacementPool(game);
+    if (pool.length < 3) throw Error("暂无更多题目可更换");
+    game.choiceHistory = [
+      ...new Set([
+        ...(game.choiceHistory ?? []),
+        ...game.choices.map((w) => w.answer),
+      ]),
+    ];
+    game.choices = candidates(game, pool);
+    game.choiceHistory.push(...game.choices.map((w) => w.answer));
+    game.choicesRevision = (game.choicesRevision ?? 0) + 1;
+    game.rerollsUsed = (game.rerollsUsed ?? 0) + 1;
+    game.rerollAvailableAt = now + 2000;
+    return game;
+  }
   if (action.type === "choose") {
     if (game.phase !== "choosing" || actor.id !== game.drawerId)
       throw Error("当前不能选词");
+    if (
+      action.choicesRevision !== undefined &&
+      action.choicesRevision !== (game.choicesRevision ?? 0)
+    )
+      throw Error("题目已更新，请重新选择");
     choose(game, action.index, now);
     return game;
   }
@@ -218,7 +278,13 @@ export function partyView(
     })),
     solvedIds: game.solvedIds,
     ...(game.phase === "choosing" && game.drawerId === userId
-      ? { choices: game.choices.map((w) => w.answer) }
+      ? {
+          choices: game.choices.map((w) => w.answer),
+          choicesRevision: game.choicesRevision ?? 0,
+          rerollsRemaining: Math.max(0, 3 - (game.rerollsUsed ?? 0)),
+          rerollAvailableAt: game.rerollAvailableAt,
+          canReroll: replacementPool(game).length >= 3,
+        }
       : {}),
     ...(reveal && game.word ? { answer: game.word.answer } : {}),
     ...(game.word

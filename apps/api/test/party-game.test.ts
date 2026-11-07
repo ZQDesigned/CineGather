@@ -93,3 +93,88 @@ test("legacy finished games expose a bounded round and no scores", () => {
   expect(view.round).toBe(view.totalRounds);
   expect(view.players.some((p) => "score" in p)).toBe(false);
 });
+
+test("drawer can reroll three times per turn with a server-enforced two-second cooldown and private choices", () => {
+  let game = ready("draw");
+  const deadline = game.deadline;
+  let view = partyView(game, "a", 1000);
+  expect(view.rerollsRemaining).toBe(3);
+  expect(view.canReroll).toBe(true);
+  expect(partyView(game, "b", 1000).rerollsRemaining).toBeUndefined();
+  expect(() => partyCommand(game, names[1]!, { type: "reroll" }, 1000)).toThrow(
+    "画手",
+  );
+  const seen = new Set(game.choices.map((w) => w.answer));
+  for (let i = 0; i < 3; i++) {
+    const now = 1000 + i * 2000;
+    const oldRevision = view.choicesRevision;
+    game = partyCommand(
+      game,
+      names[0]!,
+      { type: "reroll", choicesRevision: oldRevision },
+      now,
+    );
+    view = partyView(game, "a", now);
+    expect(view.choices).toHaveLength(3);
+    expect(view.choices!.some((w) => seen.has(w))).toBe(false);
+    view.choices!.forEach((w) => seen.add(w));
+    expect(view.rerollsRemaining).toBe(2 - i);
+    expect(view.rerollAvailableAt).toBe(now + 2000);
+    expect(view.choicesRevision).toBeGreaterThan(oldRevision!);
+    expect(game.deadline).toBe(deadline);
+    if (i < 2)
+      expect(() =>
+        partyCommand(game, names[0]!, { type: "reroll" }, now + 1999),
+      ).toThrow("2 秒");
+    expect(() =>
+      partyCommand(
+        game,
+        names[0]!,
+        { type: "choose", index: 0, choicesRevision: oldRevision },
+        now,
+      ),
+    ).toThrow("题目已更新");
+  }
+  expect(() => partyCommand(game, names[0]!, { type: "reroll" }, 7000)).toThrow(
+    "次数已用完",
+  );
+  game = partyCommand(
+    game,
+    names[0]!,
+    { type: "choose", index: 0, choicesRevision: view.choicesRevision },
+    7000,
+  );
+  expect(game.deadline).toBe(97000);
+  expect(tickPartyGame(game, 96999).phase).toBe("playing");
+  expect(tickPartyGame(game, 97000).phase).toBe("results");
+  game = tickPartyGame(game, 97000);
+  game = tickPartyGame(game, game.deadline!);
+  expect(partyView(game, "b", game.deadline! - 1).rerollsRemaining).toBe(3);
+});
+
+test("reroll is unavailable after selection, during pause, to quiz players, or when no replacement set exists", () => {
+  let game = ready("draw");
+  const original = structuredClone(game);
+  game = partyCommand(game, names[0]!, { type: "pause" }, 1200);
+  expect(() =>
+    partyCommand(game, names[0]!, { type: "reroll" }, 1300),
+  ).toThrow();
+  game = partyCommand(game, names[0]!, { type: "resume" }, 1400);
+  game = partyCommand(game, names[0]!, { type: "choose", index: 0 }, 1500);
+  expect(() =>
+    partyCommand(game, names[0]!, { type: "reroll" }, 1600),
+  ).toThrow();
+  expect(() =>
+    partyCommand(ready("quiz"), names[0]!, { type: "reroll" }, 1500),
+  ).toThrow();
+  expect(ready("quiz").deadline).toBe(46000);
+  const small = { ...original, wordPool: original.choices };
+  expect(partyView(small, "a", 1000).canReroll).toBe(false);
+  expect(() =>
+    partyCommand(small, names[0]!, { type: "reroll" }, 1000),
+  ).toThrow("暂无更多题目");
+  expect(small.rerollsUsed ?? 0).toBe(0);
+  const auto = tickPartyGame(original, original.deadline!);
+  expect(auto.deadline).toBe(original.deadline! + 90000);
+  expect(partyView(auto, "a", 16000).rerollsRemaining).toBeUndefined();
+});

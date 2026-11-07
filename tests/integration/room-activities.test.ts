@@ -977,15 +977,13 @@ test("new games snapshot enabled database questions and never send the pool to m
     path = `/rooms/${f.id}/activity`,
     id = crypto.randomUUID();
   const answer = "快照验证" + id.slice(0, 8);
-  await db
-    .insert(partyWordBank)
-    .values({
-      id,
-      answer,
-      answerKey: answer,
-      category: "验证",
-      clues: ["线索一", "线索二", "线索三"],
-    });
+  await db.insert(partyWordBank).values({
+    id,
+    answer,
+    answerKey: answer,
+    category: "验证",
+    clues: ["线索一", "线索二", "线索三"],
+  });
   try {
     const lobby = await call(f.host, path, {
       type: "start",
@@ -1051,4 +1049,60 @@ test("new games snapshot enabled database questions and never send the pool to m
   } finally {
     await db.delete(partyWordBank).where(eq(partyWordBank.id, id));
   }
+});
+
+test("drawing rerolls are private, revision guarded, and cooldown cannot be bypassed by repeated HTTP requests", async () => {
+  const f = await fixture(),
+    path = `/rooms/${f.id}/activity`;
+  const lobby = await call(f.host, path, {
+    type: "start",
+    target: "draw",
+    generation: 0,
+  });
+  expect(lobby.status).toBe(201);
+  const generation = lobby.data.generation;
+  const party = (who: Person, action: unknown) =>
+    call(who, path, { type: "party", generation, action });
+  for (const who of [f.host, f.guest])
+    expect((await party(who, { type: "ready", ready: true })).status).toBe(201);
+  const started = await party(f.host, { type: "start" });
+  const drawer = started.data.game.drawerId === f.host.id ? f.host : f.guest;
+  const other = drawer === f.host ? f.guest : f.host;
+  const before = (await call(drawer, path)).data.game;
+  expect(before.rerollsRemaining).toBe(3);
+  expect((await party(other, { type: "reroll" })).status).toBe(409);
+  const result = await party(drawer, {
+    type: "reroll",
+    choicesRevision: before.choicesRevision,
+  });
+  expect(result.status).toBe(201);
+  expect(result.data.game.rerollsRemaining).toBe(2);
+  expect(
+    result.data.game.choices.some((w: string) => before.choices.includes(w)),
+  ).toBe(false);
+  expect((await party(drawer, { type: "reroll" })).status).toBe(409);
+  expect(
+    (
+      await party(drawer, {
+        type: "choose",
+        index: 0,
+        choicesRevision: before.choicesRevision,
+      })
+    ).status,
+  ).toBe(409);
+  const peer = (await call(other, path)).data.game;
+  expect(peer.choices).toBeUndefined();
+  expect(peer.rerollAvailableAt).toBeUndefined();
+  const chosen = await party(drawer, {
+    type: "choose",
+    index: 0,
+    choicesRevision: result.data.game.choicesRevision,
+  });
+  expect(chosen.status).toBe(201);
+  expect(
+    chosen.data.game.deadline - chosen.data.game.serverTime,
+  ).toBeGreaterThan(89000);
+  expect(
+    chosen.data.game.deadline - chosen.data.game.serverTime,
+  ).toBeLessThanOrEqual(90000);
 });
