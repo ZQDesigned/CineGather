@@ -55,9 +55,15 @@ foreach($mode in @('currentuser','allusers')){
    $marker=Join-Path $evidence ($mode+'-'+$cancel+'-ready');$release=Join-Path $evidence ($mode+'-'+$cancel+'-release')
    $held=Start-Process $locker -ArgumentList @(('"'+(Join-Path $root 'CineGather.exe')+'"'),('"'+$marker+'"'),('"'+$release+'"')) -PassThru
    for($i=0;$i -lt 100 -and !(Test-Path $marker);$i++){Start-Sleep -Milliseconds 100};if(!(Test-Path $marker)){throw 'locker-not-ready'}
-   $running=Start-Process $installer -ArgumentList @('/S','--updated',('/'+$mode)) -PassThru
+   $attempt=[guid]::NewGuid().ToString()
+   $running=Start-Process $installer -ArgumentList @('/S','--updated',('/'+$mode),('/CGUPDATEID='+$attempt)) -PassThru
    $d=AwaitDialog
+   @{mode=$mode;cancel=$cancel;text=$d.Text;hasRetry=$d.Retry} | ConvertTo-Json | Set-Content (Join-Path $evidence ($mode+'-'+$cancel+'-dialog.json'))
    if(!$d.Retry -or $d.Text -notmatch 'CineGatherLockFixture'){throw ('External owner and Retry/Cancel not shown: '+$d.Text)}
+   $reportPath=Join-Path $env:LOCALAPPDATA ('CGInstallDiagnostics\installer-logs\snapshot-'+$attempt+'-file-locks.json')
+   $report=Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
+   if($report.processes.pid -notcontains $held.Id -or $report.files.code -notcontains 32){throw 'lock-diagnostic-owner-or-error-missing'}
+   Copy-Item $reportPath (Join-Path $evidence ($mode+'-'+$cancel+'-snapshot.json'))
    if($held.HasExited){throw 'foreign-process-killed'}
    if($cancel){
     [CGRetryDialog]::Click($d.Handle,2)
