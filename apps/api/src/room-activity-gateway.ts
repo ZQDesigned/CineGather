@@ -1,3 +1,4 @@
+import { startActivityHeartbeat } from "./activity-heartbeat";
 import { allowBoardPresence } from "./board-presence";
 import { randomBytes } from "node:crypto";
 import { HttpException } from "@nestjs/common";
@@ -94,6 +95,7 @@ export function attachActivityGateway(
       dirty = false,
       closed = false,
       authorized = false;
+    let stopHeartbeat: (() => void) | undefined;
     let authorizedAt = 0,
       lastPresence: BoardPresence | undefined;
     let presenceCount = 0;
@@ -231,6 +233,7 @@ export function attachActivityGateway(
           return;
         }
         identity = entry;
+        stopHeartbeat = startActivityHeartbeat(ws);
         clearTimeout(authTimeout);
         const session = sessionCredential(entry.user)!;
         sessions.get(session)?.close(1000, "Reconnected");
@@ -332,6 +335,7 @@ export function attachActivityGateway(
     ws.on("error", () => ws.close());
     ws.once("close", () => {
       closed = true;
+      stopHeartbeat?.();
       authorized = false;
       if (lastPresence)
         broadcast(ws, {

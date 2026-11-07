@@ -249,7 +249,10 @@ export function RoomActivityControls() {
           <History size={16} />
           白板记录
         </Button>
-        {status === "reconnecting" && <small>正在恢复活动连接…</small>}
+        {status === "reconnecting" &&
+          (snapshot?.kind === "board" || snapshot?.kind === "game") && (
+            <small>正在恢复活动连接…</small>
+          )}
         {status === "failed" && (
           <>
             <small>{error ?? "活动暂不可用"}</small>

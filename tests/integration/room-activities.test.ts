@@ -1106,3 +1106,47 @@ test("drawing rerolls are private, revision guarded, and cooldown cannot be bypa
     chosen.data.game.deadline - chosen.data.game.serverTime,
   ).toBeLessThanOrEqual(90000);
 });
+
+test("idle activity gateway emits protocol keepalives without edits or new application messages", async () => {
+  const f = await fixture(),
+    path = `/rooms/${f.id}/activity`;
+  const { WebSocket } = await import("ws");
+  const ticket = (await call(f.host, path + "/ticket", {})).data.ticket;
+  const socket = new WebSocket(
+    origin.replace("http:", "ws:") + "/api/v1/room-activities/ws",
+  );
+  const messages: {
+    type: string;
+    snapshot?: { kind: string; revision: number };
+  }[] = [];
+  socket.on("message", (raw) => messages.push(JSON.parse(raw.toString())));
+  try {
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+    });
+    socket.send(JSON.stringify({ ticket }));
+    const deadline = Date.now() + 3000;
+    while (!messages.length) {
+      if (Date.now() > deadline) throw Error("No idle snapshot");
+      await Bun.sleep(10);
+    }
+    expect(messages[0]!.snapshot?.kind).toBe("idle");
+    const revision = messages[0]!.snapshot!.revision;
+    await new Promise<void>((resolve, reject) => {
+      const timeout = setTimeout(
+        () => reject(Error("No protocol keepalive")),
+        25000,
+      );
+      socket.once("ping", () => {
+        clearTimeout(timeout);
+        resolve();
+      });
+    });
+    expect(socket.readyState).toBe(WebSocket.OPEN);
+    expect(messages).toHaveLength(1);
+    expect((await call(f.host, path)).data.revision).toBe(revision);
+  } finally {
+    socket.terminate();
+  }
+}, 30000);
