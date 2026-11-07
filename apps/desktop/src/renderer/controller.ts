@@ -1,4 +1,8 @@
-import { gameLink, bindGameLink } from "./features/games/game-link";
+import {
+  gameLink,
+  bindGameLink,
+  configureGameLink,
+} from "./features/games/game-link";
 import { FeatureCompatibility } from "@cinegather/client-core";
 import { FeatureUpdateError } from "@cinegather/api-client";
 import {
@@ -9,7 +13,10 @@ import {
 } from "@cinegather/contracts";
 import { allowedShareQuality, type Quality } from "@cinegather/contracts";
 import { EsportsRuntime } from "./features/esports/esports";
-import { AnnouncementClient, announcementNotification } from "./features/announcements/announcements";
+import {
+  AnnouncementClient,
+  announcementNotification,
+} from "./features/announcements/announcements";
 import { shouldAdvanceUpdateRequirement } from "../shared/update-requirement";
 import { reconcileAudioDevices } from "./features/audio/audio-devices";
 import { RoomCuePlayer, RoomPresenceCues } from "./features/rooms/room-cues";
@@ -54,7 +61,10 @@ import {
 } from "./platform";
 import { restoreSettings } from "../shared/settings";
 import { defaultNotificationPreferences } from "@cinegather/contracts";
-import { FriendRequests, friendRequestNotification } from "./features/friends/friends";
+import {
+  FriendRequests,
+  friendRequestNotification,
+} from "./features/friends/friends";
 import { FriendVolumes } from "./features/friends/friend-volumes";
 import { ApprovedRoomEntry } from "./features/rooms/approved-room-entry";
 import { DiagnosticRecorder } from "./features/diagnostics/diagnostic-recorder";
@@ -121,6 +131,8 @@ export const api = createApi(baseUrl, () => sessionToken, {
   },
   onUpdateRequired: requireClientUpdate,
 });
+configureGameLink({ api, report });
+
 export const featureCompatibility = new FeatureCompatibility(
   () => ({
     platform:

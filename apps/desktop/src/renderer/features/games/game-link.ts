@@ -4,33 +4,49 @@ import {
   GameLinkCoordinator,
 } from "@cinegather/client-core";
 import { gameConnectionObservationSchema } from "@cinegather/contracts";
-import { api, report } from "../../controller";
+import type { createApi } from "@cinegather/api-client";
 import { update, state, useApp } from "../../store";
 import {
   publishClientNotification,
   notificationInbox,
 } from "../notifications/client-notifications";
+type GameLinkServices = {
+  api: ReturnType<typeof createApi>;
+  report: (error: unknown) => void;
+};
+// The application supplies shared services after creating its API client.
+// Keeping this boundary explicit avoids importing the application orchestrator.
+let services: GameLinkServices;
+export function configureGameLink(dependencies: GameLinkServices) {
+  services = dependencies;
+}
 const path = (sessionId: string) => ({ path: { sessionId } });
 export const gameLink = new GameLinkCoordinator({
   api: {
-    snapshot: async () => unwrap(await api.GET("/api/v1/games")),
-    create: async (body) => unwrap(await api.POST("/api/v1/games", { body })),
+    snapshot: async () => unwrap(await services.api.GET("/api/v1/games")),
+    create: async (body) =>
+      unwrap(await services.api.POST("/api/v1/games", { body })),
     ready: async (id) =>
       unwrap(
-        await api.POST("/api/v1/games/{sessionId}/ready", { params: path(id) }),
+        await services.api.POST("/api/v1/games/{sessionId}/ready", {
+          params: path(id),
+        }),
       ),
     renew: async (id, revision) =>
       unwrap(
-        await api.POST("/api/v1/games/{sessionId}/renew", {
+        await services.api.POST("/api/v1/games/{sessionId}/renew", {
           params: path(id),
           body: { revision },
         }),
       ),
     transport: async (id) => {
       const started = performance.now();
-      const result = await api.GET("/api/v1/games/{sessionId}/transport", {
-        params: path(id),
-      });
+      const result = await services.api.GET(
+        "/api/v1/games/{sessionId}/transport",
+        {
+          params: path(id),
+        },
+      );
       const receivedAtMs = Date.now();
       const roundTripMs = performance.now() - started;
       const config = unwrap(result);
@@ -43,7 +59,9 @@ export const gameLink = new GameLinkCoordinator({
     },
     leave: async (id) =>
       unwrap(
-        await api.POST("/api/v1/games/{sessionId}/leave", { params: path(id) }),
+        await services.api.POST("/api/v1/games/{sessionId}/leave", {
+          params: path(id),
+        }),
       ),
   },
   ...(window.desktop?.gameLink
@@ -82,7 +100,7 @@ export const gameLink = new GameLinkCoordinator({
       error instanceof FeatureUpdateError ||
       (error instanceof ApiError && error.status === 401)
     )
-      report(error);
+      services.report(error);
   },
 });
 export function bindGameLink(scope: () => string | undefined) {
@@ -158,7 +176,7 @@ export function bindGameLink(scope: () => string | undefined) {
       gameLink.state.snapshot.self?.role !== "host"
     )
       return;
-    void api
+    void services.api
       .POST("/api/v1/games/{sessionId}/members/{memberId}/connection", {
         params: {
           path: { sessionId: event.sessionId, memberId: event.memberId },

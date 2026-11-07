@@ -1,272 +1,52 @@
-import { requestFriendGame } from "./modules/games/game-link";
-import { participantOwner } from "@cinegather/contracts";
-import * as announcements from "./modules/announcements/announcements";
-import * as queue from "./modules/rooms/share-requests";
-import { listSessions, revokeDevices } from "./modules/accounts/account-sessions";
-import { sessionDevice } from "./modules/accounts/session-device";
+import * as c from "@cinegather/contracts";
 import {
   Body,
   Controller,
   Delete,
   Get,
   Headers,
+  HttpException,
+  Inject,
   Param,
-  Patch,
   Post,
   Query,
   Req,
-  Res,
-  HttpCode,
-  HttpException,
-  Inject,
 } from "@nestjs/common";
-import {
-  ApiBearerAuth,
-  ApiQuery,
-  ApiHeader,
-  ApiExcludeEndpoint,
-} from "@nestjs/swagger";
+import { ApiBearerAuth, ApiHeader, ApiQuery, ApiTags } from "@nestjs/swagger";
 import { z } from "zod";
-import type { Response } from "express";
-import * as c from "@cinegather/contracts";
-import * as r from "./modules/rooms/rooms";
-import * as s from "./modules/social/social";
+import { Endpoint, parse, type AuthRequest } from "../../core/http";
+import { Metrics } from "../../core/metrics";
 import {
-  inviteFriendToRoom,
   dismissRoomInvitation,
-} from "./modules/social/friend-room-invitations";
-import * as presence from "./modules/social/presence";
-import { requestFriendRoom, decideRoomRequest } from "./modules/social/friend-room-requests";
-import { revokeSession } from "./modules/accounts/auth";
-import {
-  registerAccount,
-  loginAccount,
-  changeAccountPassword,
-  changeAccountProfile,
-} from "./modules/accounts/accounts";
-import { db } from "./core/context";
-import { media } from "./modules/media/media";
-import { Endpoint, parse, type AuthRequest } from "./core/http";
-import { fail } from "./core/errors";
-import { readRegistrationPolicy } from "./modules/accounts/registration";
-import type { UpdateEvents } from "./modules/updates/update-events";
-import { Metrics } from "./core/metrics";
-import { ServerDiagnostics } from "./core/server-diagnostics";
-const serverDiagnostics = new ServerDiagnostics();
+  inviteFriendToRoom,
+} from "../social/friend-room-invitations";
+import * as r from "./rooms";
+import * as queue from "./share-requests";
 
 @ApiBearerAuth()
+@ApiTags("Api")
 @Controller("api/v1")
-export class ApiController {
+export class RoomsController {
   constructor(@Inject(Metrics) private readonly metrics: Metrics) {}
-  @Get("health")
-  @Endpoint(
-    "health",
-    z.object({
-      ok: z.literal(true),
-      database: z.literal("up"),
-      media: z.literal("up"),
-      version: z.string(),
-      runtime: z.string(),
-    }),
-  )
-  async health() {
-    await db.execute("SELECT 1");
-    await media.client.listRooms();
-    return {
-      ok: true,
-      database: "up",
-      media: "up",
-      version: "0.1.0",
-      runtime:
-        typeof Bun !== "undefined"
-          ? `bun ${Bun.version}`
-          : `node ${process.versions.node}`,
-    };
-  }
 
-  @Get("me")
-  @Endpoint("me", c.userSchema)
-  me(@Req() req: AuthRequest) {
-    return req.user;
-  }
-  @Post("presence/heartbeat")
-  @Endpoint("heartbeatPresence", c.presenceSchema, undefined, [], 201)
-  heartbeatPresence(@Req() req: AuthRequest) {
-    return presence.heartbeatPresence(req.user.id, req.sessionId!);
-  }
-  @Get("presence")
-  @Endpoint("getPresence", c.presenceSchema)
-  getPresence(@Req() req: AuthRequest) {
-    return presence.readPresence(req.user.id);
-  }
-  @Post("presence")
-  @Endpoint("setPresence", c.presenceSchema, c.presenceSchema, [], 201)
-  setPresence(@Req() req: AuthRequest, @Body() body: unknown) {
-    return presence.setPresence(
-      req.user.id,
-      parse(c.presenceSchema, body).visibility,
-    );
-  }
-  @Get("client-policy")
-  @Endpoint("clientPolicy", c.clientPolicySchema)
-  clientPolicy(@Req() req: AuthRequest) {
-    return c.clientPolicySchema.parse(req.app.get("cinegather.clientPolicy"));
-  }
-  @Get("feature-policy")
-  @Endpoint("featurePolicy", c.featurePolicySchema)
-  featurePolicy(@Req() req: AuthRequest) {
-    return (
-      req.app.get(
-        "cinegather.featurePolicy",
-      ) as import("./modules/updates/feature-policy").FeaturePolicyStore
-    ).snapshot();
-  }
   @Post("rooms/:roomId/join-admission")
   @Endpoint("joinAdmission", c.okSchema, undefined, ["roomId"], 201)
   joinAdmission(@Req() req: AuthRequest, @Param("roomId") id: string) {
     return r.joinAdmission(req.user, id);
   }
+
   @Post("rooms/:roomId/watch-admission")
   @Endpoint("watchAdmission", c.okSchema, undefined, ["roomId"], 201)
   watchAdmission(@Req() req: AuthRequest, @Param("roomId") id: string) {
     return r.watchAdmission(req.user, id);
   }
-  @Get("client-events")
-  @ApiExcludeEndpoint()
-  clientEvents(@Req() req: AuthRequest, @Res() res: Response) {
-    (req.app.get("cinegather.updateEvents") as UpdateEvents).connect(
-      req,
-      res,
-      () => c.clientPolicySchema.parse(req.app.get("cinegather.clientPolicy")),
-      req.app.get("cinegather.featurePolicy"),
-    );
-  }
-  @Get("announcements")
-  @Endpoint("announcementFeed", c.announcementFeedSchema)
-  announcements() {
-    return announcements.announcementFeed();
-  }
-  @Get("announcements/inbox")
-  @Endpoint("announcementInbox", c.announcementInboxSchema)
-  announcementInbox(@Req() req: AuthRequest) {
-    return announcements.announcementInbox(req.user);
-  }
-  @Post("announcements/receive")
-  @Endpoint(
-    "receiveAnnouncements",
-    c.announcementClaimsSchema,
-    c.announcementIdsInput,
-    [],
-    201,
-  )
-  receiveAnnouncements(@Req() req: AuthRequest, @Body() body: unknown) {
-    return announcements.receiveAnnouncements(
-      req.user,
-      parse(c.announcementIdsInput, body).ids,
-    );
-  }
-  @Post("announcements/read")
-  @Endpoint(
-    "readAnnouncements",
-    c.announcementClaimsSchema,
-    c.announcementIdsInput,
-    [],
-    201,
-  )
-  readAnnouncements(@Req() req: AuthRequest, @Body() body: unknown) {
-    return announcements.receiveAnnouncements(
-      req.user,
-      parse(c.announcementIdsInput, body).ids,
-      true,
-    );
-  }
-  @Post("announcements/:announcementId/receive")
-  @Endpoint(
-    "receiveAnnouncement",
-    c.announcementReceiptSchema,
-    undefined,
-    ["announcementId"],
-    201,
-  )
-  receiveAnnouncement(
-    @Req() req: AuthRequest,
-    @Param("announcementId") id: string,
-  ) {
-    return announcements.receiveAnnouncement(req.user, id);
-  }
-  @Post("announcements/:announcementId/read")
-  @Endpoint(
-    "readAnnouncement",
-    c.announcementReceiptSchema,
-    undefined,
-    ["announcementId"],
-    201,
-  )
-  readAnnouncement(
-    @Req() req: AuthRequest,
-    @Param("announcementId") id: string,
-  ) {
-    return announcements.receiveAnnouncement(req.user, id, true);
-  }
-  @Get("registration")
-  @Endpoint("registrationPolicy", c.registrationPolicySchema)
-  async registrationPolicy() {
-    return { enabled: (await readRegistrationPolicy()).enabled };
-  }
-  @Post("accounts/register")
-  @Endpoint("registerAccount", c.sessionSchema, c.registerInput, [], 201)
-  register(@Req() req: AuthRequest, @Body() body: unknown) {
-    return registerAccount(parse(c.registerInput, body), req.user, device(req));
-  }
-  @Post("accounts/login")
-  @Endpoint("loginAccount", c.sessionSchema, c.loginInput, [], 201)
-  login(@Req() req: AuthRequest, @Body() body: unknown) {
-    return loginAccount(
-      parse(c.loginInput, body),
-      req.ip ?? "unknown",
-      device(req),
-    );
-  }
-  @Post("accounts/password")
-  @Endpoint("changeAccountPassword", c.sessionSchema, c.passwordInput, [], 201)
-  password(@Req() req: AuthRequest, @Body() body: unknown) {
-    return changeAccountPassword(
-      req.user,
-      parse(c.passwordInput, body),
-      device(req),
-    );
-  }
-  @Patch("accounts/profile")
-  @Endpoint("changeAccountProfile", c.userSchema, c.profileInput)
-  profile(@Req() req: AuthRequest, @Body() body: unknown) {
-    return changeAccountProfile(req.user, parse(c.profileInput, body));
-  }
-  @Get("accounts/sessions")
-  @Endpoint("listDeviceSessions", c.deviceSessionsSchema)
-  sessions(@Req() req: AuthRequest) {
-    return listSessions(req.user);
-  }
-  @Delete("accounts/sessions")
-  @Endpoint("revokeOtherSessions", c.okSchema)
-  revokeOthers(@Req() req: AuthRequest) {
-    return revokeDevices(req.user);
-  }
-  @Delete("accounts/sessions/:sessionId")
-  @Endpoint("revokeDeviceSession", c.okSchema, undefined, ["sessionId"])
-  revokeDevice(@Req() req: AuthRequest, @Param("sessionId") id: string) {
-    return revokeDevices(req.user, id);
-  }
-  @Delete("session")
-  @Endpoint("revokeSession", c.okSchema)
-  async logout(@Req() req: AuthRequest) {
-    await revokeSession(req.headers.authorization!);
-    return { ok: true };
-  }
+
   @Get("rooms")
   @Endpoint("listRooms", z.object({ items: z.array(c.roomSchema) }))
   rooms(@Req() req: AuthRequest) {
     return r.listRooms(req.user);
   }
+
   @Post("rooms")
   @ApiHeader({ name: "idempotency-key", required: false })
   @Endpoint("createRoom", c.roomSchema, c.roomInput, [], 201)
@@ -277,11 +57,13 @@ export class ApiController {
   ) {
     return r.createRoom(req.user, parse(c.roomInput, body), key);
   }
+
   @Get("rooms/:roomId")
   @Endpoint("getRoom", c.roomSchema, undefined, ["roomId"])
   room(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
     return r.getRoom(req.user, roomId);
   }
+
   @Post("rooms/:roomId/settings")
   @Endpoint(
     "updateRoomSettings",
@@ -301,6 +83,7 @@ export class ApiController {
       parse(c.roomSettingsInput, body),
     );
   }
+
   @Post("rooms/:roomId/join")
   @Endpoint("joinRoom", c.joinSchema, c.joinInput, ["roomId"], 201)
   async join(
@@ -321,11 +104,13 @@ export class ApiController {
       throw error;
     }
   }
+
   @Post("rooms/:roomId/leave")
   @Endpoint("leaveRoom", c.okSchema, undefined, ["roomId"], 201)
   leave(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
     return r.leaveRoom(req.user, roomId);
   }
+
   @Post("rooms/:roomId/invites")
   @Endpoint("createInvite", c.inviteSchema, c.inviteInput, ["roomId"], 201)
   invite(
@@ -335,6 +120,7 @@ export class ApiController {
   ) {
     return r.createInvite(req.user, roomId, parse(c.inviteInput, body));
   }
+
   @Delete("rooms/:roomId/invites/:inviteId")
   @Endpoint("revokeInvite", c.okSchema, undefined, ["roomId", "inviteId"])
   revokeInvite(
@@ -344,21 +130,25 @@ export class ApiController {
   ) {
     return r.revokeInvite(req.user, roomId, inviteId);
   }
+
   @Get("rooms/:roomId/share-requests")
   @Endpoint("listShareRequests", c.shareRequestsSchema, undefined, ["roomId"])
   shareQueue(@Req() req: AuthRequest, @Param("roomId") id: string) {
     return queue.readQueue(req.user, id);
   }
+
   @Post("rooms/:roomId/share-requests")
   @Endpoint("requestShareHandoff", c.okSchema, undefined, ["roomId"], 201)
   requestShare(@Req() req: AuthRequest, @Param("roomId") id: string) {
     return queue.requestShare(req.user, id);
   }
+
   @Delete("rooms/:roomId/share-requests")
   @Endpoint("cancelShareHandoff", c.okSchema, undefined, ["roomId"])
   cancelShare(@Req() req: AuthRequest, @Param("roomId") id: string) {
     return queue.cancelShareRequest(req.user, id);
   }
+
   @Post("rooms/:roomId/share-requests/:requestId/approve")
   @Endpoint(
     "approveShareHandoff",
@@ -374,6 +164,7 @@ export class ApiController {
   ) {
     return queue.decideShareRequest(req.user, id, rid, true);
   }
+
   @Post("rooms/:roomId/share-requests/:requestId/reject")
   @Endpoint(
     "rejectShareHandoff",
@@ -389,6 +180,7 @@ export class ApiController {
   ) {
     return queue.decideShareRequest(req.user, id, rid, false);
   }
+
   @Post("rooms/:roomId/share-requests/:requestId/acquire")
   @Endpoint(
     "acceptShareHandoff",
@@ -411,6 +203,7 @@ export class ApiController {
       parse(c.shareQualityInput, body ?? {}).quality,
     );
   }
+
   @Post("rooms/:roomId/share-lease")
   @Endpoint("acquireLease", c.leaseSchema, c.shareQualityInput, ["roomId"], 201)
   lease(
@@ -426,6 +219,7 @@ export class ApiController {
       parse(c.shareQualityInput, body ?? {}).quality,
     );
   }
+
   @Post("rooms/:roomId/share-lease/preempt")
   @Endpoint("preemptShare", c.leaseSchema, c.shareQualityInput, ["roomId"], 201)
   preemptShare(
@@ -441,6 +235,7 @@ export class ApiController {
       parse(c.shareQualityInput, body ?? {}).quality,
     );
   }
+
   @Post("rooms/:roomId/members/:userId/owner")
   @Endpoint("transferOwner", c.roomSchema, undefined, ["roomId", "userId"], 201)
   transferOwner(
@@ -450,6 +245,7 @@ export class ApiController {
   ) {
     return r.transferOwner(req.user, roomId, userId);
   }
+
   @Delete("rooms/:roomId/members/:userId/share")
   @Endpoint("stopMemberShare", c.okSchema, undefined, ["roomId", "userId"])
   stopMemberShare(
@@ -459,6 +255,7 @@ export class ApiController {
   ) {
     return r.stopMemberShare(req.user, roomId, userId);
   }
+
   @Post("rooms/:roomId/members/:userId/permissions")
   @Endpoint(
     "updateMemberPermissions",
@@ -480,6 +277,7 @@ export class ApiController {
       parse(c.memberPermissionsInput, body),
     );
   }
+
   @Post("rooms/:roomId/members/:userId/microphone/mute")
   @Endpoint(
     "muteMember",
@@ -497,6 +295,7 @@ export class ApiController {
     parse(c.muteMicrophoneInput, body);
     return r.muteMember(req.user, roomId, userId);
   }
+
   @Post("rooms/:roomId/members/:userId/accompaniment/stop")
   @Endpoint(
     "stopMemberAccompaniment",
@@ -514,6 +313,7 @@ export class ApiController {
     parse(c.stopAccompanimentInput, body);
     return r.stopMemberAccompaniment(req.user, roomId, userId);
   }
+
   @Post("rooms/:roomId/share-lease/renew")
   @Endpoint("renewLease", c.leaseSchema, c.leaseInput, ["roomId"], 201)
   renew(
@@ -523,6 +323,7 @@ export class ApiController {
   ) {
     return r.renewLease(req.user, roomId, parse(c.leaseInput, body));
   }
+
   @Post("rooms/:roomId/share-lease/native")
   @Endpoint(
     "nativePublication",
@@ -542,6 +343,7 @@ export class ApiController {
       parse(c.nativeShareInput, body),
     );
   }
+
   @Delete("rooms/:roomId/share-lease")
   @Endpoint("releaseLease", c.okSchema, c.leaseInput, ["roomId"])
   release(
@@ -551,6 +353,7 @@ export class ApiController {
   ) {
     return r.releaseLease(req.user, roomId, parse(c.leaseInput, body));
   }
+
   @Delete("rooms/:roomId/members/:userId")
   @Endpoint("moderate", c.okSchema, c.moderationInput, ["roomId", "userId"])
   moderate(
@@ -566,6 +369,7 @@ export class ApiController {
       parse(c.moderationInput, body).ban,
     );
   }
+
   @Post("rooms/:roomId/bans")
   @Endpoint("banByUsername", c.okSchema, c.roomBanInput, ["roomId"], 201)
   banByUsername(
@@ -579,6 +383,7 @@ export class ApiController {
       parse(c.roomBanInput, body).username,
     );
   }
+
   @Get("rooms/:roomId/bans")
   @Endpoint(
     "listBans",
@@ -597,6 +402,7 @@ export class ApiController {
   bans(@Req() req: AuthRequest, @Param("roomId") roomId: string) {
     return r.listBans(req.user, roomId);
   }
+
   @Delete("rooms/:roomId/bans/:userId")
   @Endpoint("unban", c.okSchema, undefined, ["roomId", "userId"])
   unban(
@@ -606,6 +412,7 @@ export class ApiController {
   ) {
     return r.unban(req.user, roomId, userId);
   }
+
   @Post("rooms/:roomId/messages")
   @ApiHeader({ name: "idempotency-key", required: false })
   @Endpoint("postMessage", c.messageSchema, c.messageInput, ["roomId"], 201)
@@ -622,6 +429,7 @@ export class ApiController {
       key,
     );
   }
+
   @Get("rooms/:roomId/messages")
   @ApiQuery({ name: "cursor", required: false, type: "string" })
   @ApiQuery({
@@ -640,6 +448,7 @@ export class ApiController {
   ) {
     return r.getMessages(req.user, roomId, cursor, after);
   }
+
   @Post("rooms/:roomId/friend-invitations")
   @Endpoint(
     "inviteFriendToRoom",
@@ -656,6 +465,7 @@ export class ApiController {
     const input = parse(c.esportsFriendInviteInput, body);
     return inviteFriendToRoom(req.user, roomId, input.userId, input.seat);
   }
+
   @Delete("room-invitations/:inviteId")
   @Endpoint("dismissRoomInvitation", c.okSchema, undefined, ["inviteId"])
   dismissRoomInvitation(
@@ -664,131 +474,4 @@ export class ApiController {
   ) {
     return dismissRoomInvitation(req.user, inviteId);
   }
-  @Get("friends/search")
-  @ApiQuery({ name: "username", required: true, type: String })
-  @Endpoint("searchFriend", c.friendSearchSchema)
-  searchFriend(@Req() req: AuthRequest, @Query("username") username: unknown) {
-    return s.searchFriend(req.user, parse(c.usernameInput, username));
-  }
-  @Post("friends/:userId/game-requests")
-  @Endpoint(
-    "requestFriendGame",
-    z.strictObject({
-      id: z.uuid(),
-      expiresAt: z.iso.datetime({ offset: true }),
-    }),
-    undefined,
-    ["userId"],
-    201,
-  )
-  requestFriendGame(@Req() req: AuthRequest, @Param("userId") userId: string) {
-    return requestFriendGame(req.user, userId);
-  }
-  @Post("friends/:userId/room-requests")
-  @Endpoint(
-    "requestFriendRoom",
-    c.friendRoomInviteSentSchema,
-    undefined,
-    ["userId"],
-    201,
-  )
-  requestFriendRoom(@Req() req: AuthRequest, @Param("userId") userId: string) {
-    return requestFriendRoom(req.user, userId);
-  }
-  @Post("room-requests/:requestId/approve")
-  @Endpoint("approveRoomRequest", c.okSchema, undefined, ["requestId"], 201)
-  approveRoomRequest(
-    @Req() req: AuthRequest,
-    @Param("requestId") requestId: string,
-  ) {
-    return decideRoomRequest(req.user, requestId, true);
-  }
-  @Post("room-requests/:requestId/reject")
-  @Endpoint("rejectRoomRequest", c.okSchema, undefined, ["requestId"], 201)
-  rejectRoomRequest(
-    @Req() req: AuthRequest,
-    @Param("requestId") requestId: string,
-  ) {
-    return decideRoomRequest(req.user, requestId, false);
-  }
-  @Get("friends")
-  @Endpoint("listFriends", c.friendsSchema)
-  friends(@Req() req: AuthRequest) {
-    return s.listFriends(req.user);
-  }
-  @Post("friends")
-  @Endpoint("requestFriend", c.okSchema, c.friendInput, [], 201)
-  friend(@Req() req: AuthRequest, @Body() body: unknown) {
-    return s.requestFriend(req.user, parse(c.friendInput, body).userId);
-  }
-  @Post("friends/:userId/accept")
-  @Endpoint("acceptFriend", c.okSchema, undefined, ["userId"], 201)
-  accept(@Req() req: AuthRequest, @Param("userId") userId: string) {
-    return s.acceptFriend(req.user, userId);
-  }
-  @Delete("friends/:userId")
-  @Endpoint("removeFriend", c.okSchema, undefined, ["userId"])
-  remove(@Req() req: AuthRequest, @Param("userId") userId: string) {
-    return s.removeFriend(req.user, userId);
-  }
-  @Patch("friends/:userId/preferences")
-  @Endpoint("updateFriendPreferences", c.okSchema, c.friendPreferencesInput, [
-    "userId",
-  ])
-  preferences(
-    @Req() req: AuthRequest,
-    @Param("userId") userId: string,
-    @Body() body: unknown,
-  ) {
-    return s.updateFriendPreferences(
-      req.user,
-      userId,
-      parse(c.friendPreferencesInput, body),
-    );
-  }
-  @Get("diagnostics")
-  @Endpoint("diagnostics", c.diagnosticServerSchema)
-  async diagnostics() {
-    const active = await media.client.listRooms();
-    return {
-      ...this.metrics.snapshot(),
-      activeRooms: active.length,
-      ...(await serverDiagnostics.snapshot()),
-    };
-  }
-  @Post("livekit/webhook")
-  @HttpCode(200)
-  async webhook(
-    @Req() req: AuthRequest & { rawBody?: Buffer },
-    @Res() res: Response,
-  ) {
-    if (!req.rawBody) fail(400, "INVALID_WEBHOOK", "缺少原始请求体");
-    let event;
-    try {
-      event = await media.webhooks.receive(
-        req.rawBody.toString(),
-        req.headers.authorization,
-      );
-    } catch {
-      fail(401, "INVALID_WEBHOOK_SIGNATURE", "事件签名无效");
-    }
-    if (event.room?.name && /^[a-f0-9-]{36}$/i.test(event.room.name))
-      await r.reconcileRoom(
-        event.room.name,
-        event.event === "participant_left" && event.participant
-          ? (participantOwner(event.participant.identity) ??
-              event.participant.identity)
-          : undefined,
-      );
-    res.json({ ok: true });
-  }
-}
-
-function device(req: AuthRequest) {
-  return sessionDevice({
-    platform: req.get("X-CineGather-Platform"),
-    version: req.get("X-CineGather-Version"),
-    agent: req.get("User-Agent"),
-    address: req.ip,
-  });
 }

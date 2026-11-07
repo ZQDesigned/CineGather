@@ -38,7 +38,12 @@ import {
 } from "./modules/esports/esports-controller";
 import { admissionSecretValid } from "./modules/esports/esports-admission";
 import { AdminController } from "./modules/admin/admin-controller";
-import { ApiController } from "./controller";
+import { SystemController } from "./core/system-controller";
+import { AccountsController } from "./modules/accounts/accounts-controller";
+import { SocialController } from "./modules/social/social-controller";
+import { RoomsController } from "./modules/rooms/rooms-controller";
+import { AnnouncementsController } from "./modules/announcements/announcements-controller";
+import { MediaController } from "./modules/media/media-controller";
 import { GameLinkController } from "./modules/games/game-link-controller";
 import {
   AuthGuard,
@@ -129,7 +134,12 @@ class TacticalPauses implements OnModuleInit, OnModuleDestroy {
 @Module({
   controllers: [
     RoomActivityController,
-    ApiController,
+    SystemController,
+    AccountsController,
+    SocialController,
+    RoomsController,
+    AnnouncementsController,
+    MediaController,
     GameLinkController,
     GameTunnelController,
     AdminController,
