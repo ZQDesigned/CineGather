@@ -20,14 +20,9 @@ jobs:
     timeout-minutes: 18
     steps:
       - uses: actions/checkout@v4
-      - uses: oven-sh/setup-bun@v2
-        with:
-          bun-version: 1.4.3
       - uses: actions/setup-node@v4
         with:
           node-version: 24.18.1
-      - run: bun install --frozen-lockfile
-      - run: bun run setup
       - name: Download immutable released baseline
         shell: pwsh
         run: |
@@ -44,8 +39,9 @@ jobs:
           7z x '.local/installer-lock-build/extract/$PLUGINSDIR/app-64.7z' '-o.local/installer-lock-build/payload' -y | Out-Null
           if ($LASTEXITCODE -ne 0) { throw 'Payload extraction failed' }
           $payload=(Resolve-Path .local/installer-lock-build/payload).Path
+          Copy-Item (Join-Path $payload 'resources/LICENSE') LICENSE
           Set-Location apps/desktop
-          bunx electron-builder --win nsis --x64 --prepackaged $payload --publish never
+          npm exec --yes --package=electron-builder@26.15.3 -- electron-builder --win nsis --x64 --prepackaged $payload --config.electronVersion=44.9.0 --publish never
           if ($LASTEXITCODE -ne 0) { throw 'NSIS build failed' }
       - name: Verify actual external lock dialog and manual retry
         shell: pwsh
