@@ -138,6 +138,26 @@ export function installerDiagnosticDirectory(
     : undefined;
 }
 
+// NSIS resolves $LOCALAPPDATA to ProgramData in an all-users install, while
+// PowerShell and Electron keep using the current user's environment variable.
+// Read both locations so an elevated upgrade does not split exported evidence.
+export function installerDiagnosticDirectories(
+  localAppData = process.env.LOCALAPPDATA,
+  programData = process.env.ProgramData,
+  platform: NodeJS.Platform = process.platform,
+) {
+  if (platform !== "win32") return [];
+  return [
+    ...new Set(
+      [localAppData, programData]
+        .filter((root): root is string => Boolean(root))
+        .map((root) =>
+          win32.join(root, "CGInstallDiagnostics", "installer-logs"),
+        ),
+    ),
+  ];
+}
+
 export class InstallerJournal {
   readonly attempt = randomUUID();
   failures = 0;
@@ -205,7 +225,7 @@ function existsSize(path: string) {
   }
 }
 export async function readInstallerDiagnostics(
-  directory?: string,
+  directory?: string | readonly string[],
 ): Promise<InstallerEvidence> {
   const result: InstallerEvidence = {
     available: false,
@@ -216,19 +236,30 @@ export async function readInstallerDiagnostics(
   };
   if (!directory) return result;
   try {
-    const files: { name: string; stat: Stats }[] = [];
-    for (const name of (await readdir(directory)).filter((n) =>
-      owned.test(n),
-    )) {
+    const files: { name: string; path: string; stat: Stats }[] = [];
+    const directories =
+      typeof directory === "string" ? [directory] : [...new Set(directory)];
+    for (const [index, root] of directories.entries()) {
       try {
-        const stat = await lstat(join(directory, name));
-        if (stat.isFile()) files.push({ name, stat });
-      } catch {
-        result.issues.push(name + ":metadata-unavailable");
+        const names = await readdir(root);
+        result.available = true;
+        for (const name of names.filter((n) => owned.test(n))) {
+          try {
+            const path = join(root, name),
+              stat = await lstat(path);
+            if (stat.isFile()) files.push({ name, path, stat });
+          } catch {
+            result.issues.push(name + ":metadata-unavailable");
+          }
+        }
+      } catch (error) {
+        result.issues.push(
+          `directory-${index}:` +
+            ((error as NodeJS.ErrnoException).code ?? "read-failed"),
+        );
       }
     }
     files.sort((a, b) => b.stat.mtimeMs - a.stat.mtimeMs);
-    result.available = true;
     let bytes = 0;
     for (const f of files) {
       if (
@@ -240,7 +271,7 @@ export async function readInstallerDiagnostics(
         continue;
       }
       try {
-        const buffer = await readFile(join(directory, f.name));
+        const buffer = await readFile(f.path);
         const lines = f.name.endsWith(".tsv")
           ? buffer
               .toString("utf16le")

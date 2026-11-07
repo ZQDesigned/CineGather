@@ -158,7 +158,7 @@ function Read-JournalText([string]$Path){
 }
 Collect 'installer-journals' {
  $target=Join-Path $destination 'installer-journals';New-Item -ItemType Directory -Path $target | Out-Null
- $sources=@((Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs'),(Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs'))
+ $sources=@((Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs'),(Join-Path $env:LOCALAPPDATA 'CineGather\installer-logs'),(Join-Path ([Environment]::GetFolderPath('CommonApplicationData')) 'CGInstallDiagnostics\installer-logs')) | Select-Object -Unique
  $owned='^(app-[a-f0-9-]+\.jsonl|nsis-\d+-\d+\.tsv|snapshot-[a-z0-9-]+\.json|process-cleanup(\.previous|\.legacy)?\.jsonl)$';$result=@();$total=0;$count=0
  foreach($source in $sources){if(!(Test-Path -LiteralPath $source)){continue};$dir=Get-Item -LiteralPath $source;if($dir.Attributes -band [IO.FileAttributes]::ReparsePoint){continue}
   foreach($f in @(Get-ChildItem -LiteralPath $source -File | Where-Object {$_.Name -match $owned -and !($_.Attributes -band [IO.FileAttributes]::ReparsePoint)} | Sort-Object LastWriteTimeUtc -Descending)){

@@ -176,3 +176,76 @@ test("diagnostic storage is separate from the common custom LocalAppData CineGat
       .startsWith(".."),
   ).toBe(true);
 });
+
+test("export combines current-user and all-users installer logs when an elevated upgrade splits its evidence", async () => {
+  const root = await mkdtemp(join(tmpdir(), "cg-install-scopes-"));
+  const { mkdir } = await import("node:fs/promises");
+  const user = join(root, "user"),
+    shared = join(root, "shared");
+  try {
+    await mkdir(user);
+    await mkdir(shared);
+    await writeFile(
+      join(user, "snapshot-test.json"),
+      JSON.stringify({
+        v: 1,
+        at: 2000,
+        phase: "rollback-attempted",
+        failedPath: "E:\\CG\\CineGather.exe",
+        files: [
+          {
+            path: "E:\\CG\\CineGather.exe",
+            code: 32,
+            owners: [{ pid: 123, name: "Game.exe" }],
+          },
+        ],
+      }),
+    );
+    await writeFile(
+      join(shared, "nsis-42-1.tsv"),
+      Buffer.from(
+        "v1\t116444736030000000\t42\ttest\t0.1.40\told-uninstall-result\tE:\\CG\t2\t\n",
+        "utf16le",
+      ),
+    );
+    const evidence = await readInstallerDiagnostics([
+      user,
+      shared,
+      user,
+      join(root, "missing"),
+    ]);
+    expect(evidence.available).toBe(true);
+    expect(evidence.records).toHaveLength(2);
+    expect(evidence.records[0]).toMatchObject({
+      phase: "rollback-attempted",
+      files: [{ code: 32, owners: [{ name: "Game.exe" }] }],
+    });
+    expect(evidence.records[1]).toMatchObject({
+      phase: "old-uninstall-result",
+      code: 2,
+    });
+    expect(evidence.issues.some((i) => i.includes("ENOENT"))).toBe(true);
+    const archive = unzipSync(await diagnosticArchive([], {}, {}, evidence));
+    const history = strFromU8(archive["upgrade/history.ndjson"]!);
+    expect(history).toContain("Game.exe");
+    expect(history).toContain("old-uninstall-result");
+  } finally {
+    await rm(root, { recursive: true, force: true });
+  }
+});
+
+test("installer export discovers both Windows log scopes without changing the app journal location", async () => {
+  const { installerDiagnosticDirectories } = await import(
+    "../src/main/installer-diagnostics"
+  );
+  const local = "C:\\Users\\Alice\\AppData\\Local";
+  expect(
+    installerDiagnosticDirectories(local, "C:\\ProgramData", "win32"),
+  ).toEqual([
+    "C:\\Users\\Alice\\AppData\\Local\\CGInstallDiagnostics\\installer-logs",
+    "C:\\ProgramData\\CGInstallDiagnostics\\installer-logs",
+  ]);
+  expect(
+    installerDiagnosticDirectories(local, "C:\\ProgramData", "darwin"),
+  ).toEqual([]);
+});
