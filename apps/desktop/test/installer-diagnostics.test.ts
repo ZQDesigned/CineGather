@@ -5,7 +5,7 @@ import { join } from "node:path";
 import {
   InstallerJournal,
   readInstallerDiagnostics,
-} from "../src/main/installer-diagnostics";
+} from "../src/main/updates/installer-diagnostics";
 import { diagnosticArchive } from "../src/shared/diagnostics";
 import { unzipSync, strFromU8 } from "fflate";
 
@@ -164,7 +164,7 @@ test("failed move evidence preserves both paths and file hashes without confusin
 
 test("diagnostic storage is separate from the common custom LocalAppData CineGather install directory", async () => {
   const { installerDiagnosticDirectory } = await import(
-    "../src/main/installer-diagnostics"
+    "../src/main/updates/installer-diagnostics"
   );
   const { win32 } = await import("node:path");
   const local = "C:\\Users\\Alice\\AppData\\Local";
@@ -236,7 +236,7 @@ test("export combines current-user and all-users installer logs when an elevated
 
 test("installer export discovers both Windows log scopes without changing the app journal location", async () => {
   const { installerDiagnosticDirectories } = await import(
-    "../src/main/installer-diagnostics"
+    "../src/main/updates/installer-diagnostics"
   );
   const local = "C:\\Users\\Alice\\AppData\\Local";
   expect(

@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { createServer, createConnection, type Socket } from "node:net";
 import { once } from "node:events";
-import { GameProxy } from "../src/main/game-proxy";
+import { GameProxy } from "../src/main/games/game-proxy";
 
 async function echo(prefix = "") {
   const sockets = new Set<Socket>();

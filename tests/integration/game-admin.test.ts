@@ -16,7 +16,7 @@ import {
   type AdminGameMember,
 } from "@cinegather/contracts";
 import { createApp } from "../../apps/api/src/app";
-import { db, hash } from "../../apps/api/src/context";
+import { db, hash } from "../../apps/api/src/core/context";
 let app: Awaited<ReturnType<typeof createApp>>, origin: string;
 const people: string[] = [],
   roles: string[] = [];

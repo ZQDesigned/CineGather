@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { projectGPUInfo } from "../src/main/encoder-info";
+import { projectGPUInfo } from "../src/main/capture/encoder-info";
 test("complete GPU projection retains driver/profile evidence without private paths or unreported-profile guesses", () => {
   const projected = projectGPUInfo({
     gpuDevice: [

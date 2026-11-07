@@ -14,7 +14,7 @@ import {
 } from "@cinegather/database";
 import { protocolHeaders, gameTunnelConfigSchema } from "@cinegather/contracts";
 import { createApp } from "../../apps/api/src/app";
-import { db, hash } from "../../apps/api/src/context";
+import { db, hash } from "../../apps/api/src/core/context";
 let app: Awaited<ReturnType<typeof createApp>>,
   origin: string,
   directory: string;
@@ -222,7 +222,7 @@ test("relay admission binds proxy names, role, peer secret, allowed visitor and 
   const { host, guest, sid } = await admitted();
   const owner = (await call(`/games/${sid}/transport`, host)).data,
     visitor = (await call(`/games/${sid}/transport`, guest)).data;
-  const { gameProxyName } = await import("../../apps/api/src/game-tunnel-auth");
+  const { gameProxyName } = await import("../../apps/api/src/modules/games/game-tunnel-auth");
   const peer = owner.peers[0];
   const good = {
     user: { user: owner.memberId, metas: null },
@@ -268,10 +268,10 @@ for (const game of ["minecraft-java", "stardew-valley"] as const)
           { createServer, createConnection } = await import("node:net"),
           { once } = { once: nodeOnce };
         const { GameNative } = await import(
-            "../../apps/desktop/src/main/game-native"
+            "../../apps/desktop/src/main/games/game-native"
           ),
           { GameProxy } = await import(
-            "../../apps/desktop/src/main/game-proxy"
+            "../../apps/desktop/src/main/games/game-proxy"
           );
         const port = async () => {
           const s = createServer();
@@ -357,7 +357,7 @@ for (const game of ["minecraft-java", "stardew-valley"] as const)
         echo.listen(0, "127.0.0.1");
         await once(echo, "listening");
         const { GameDatagram } = await import(
-          "../../apps/desktop/src/main/game-datagram"
+          "../../apps/desktop/src/main/games/game-datagram"
         );
         const datagram = new GameDatagram();
         const udpEcho = createSocket("udp4");
@@ -543,7 +543,7 @@ for (const game of ["minecraft-java", "stardew-valley"] as const)
 
 test("game tokens reject a changed issuer, audience, signature algorithm and expired authorization", async () => {
   const { GameTunnelAuthority, gameAuthority } = await import(
-      "../../apps/api/src/game-tunnel-auth"
+      "../../apps/api/src/modules/games/game-tunnel-auth"
     ),
     { sign } = await import("node:crypto");
   const authority = gameAuthority(),
@@ -631,7 +631,7 @@ test.skipIf(!clockHelper)(
   "a server clock 3.5 seconds ahead is rebased for native configure and repeated lease renewal",
   async () => {
     const { GameNative } = await import(
-      "../../apps/desktop/src/main/game-native"
+      "../../apps/desktop/src/main/games/game-native"
     );
     const { alignGameAuthorization } = await import(
       "../../packages/client-core/src/game-authorization"
@@ -639,7 +639,7 @@ test.skipIf(!clockHelper)(
     const host = await person(true);
     const sid = (await call("/games", host, { name: "时钟偏差回归" })).data
       .session.id;
-    const events: import("../../apps/desktop/src/main/game-native").GameNativeEvent[] =
+    const events: import("../../apps/desktop/src/main/games/game-native").GameNativeEvent[] =
       [];
     const native = new GameNative({
       binaryPath: clockHelper!,

@@ -3,7 +3,7 @@ import {
   nativeIdentity,
   nativeOwner,
   requireNativeLease,
-} from "../src/native-authority";
+} from "../src/modules/media/native-authority";
 const user = "b22aae66-1d3f-43f7-b958-f551a8623609";
 const leaseId = "c22aae66-1d3f-43f7-b958-f551a8623609";
 const lease = {

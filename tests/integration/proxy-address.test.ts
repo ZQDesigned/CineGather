@@ -116,7 +116,7 @@ test("verified accounts behind one NAT have independent API quotas; invalid bear
     expect((await get("not-a-credential")).status).toBe(401);
   } finally {
     await app.close();
-    const { db } = await import("../../apps/api/src/context"),
+    const { db } = await import("../../apps/api/src/core/context"),
       { users, credentials, auditLogs, idempotency } = await import(
         "@cinegather/database"
       ),

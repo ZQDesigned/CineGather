@@ -3,7 +3,7 @@ import {
   parseSfuMetrics,
   parseNetworkCounters,
   ServerDiagnostics,
-} from "../src/server-diagnostics";
+} from "../src/core/server-diagnostics";
 test("SFU metrics combine only known counters and enum labels without leaking names or IPs", () => {
   const rows = parseSfuMetrics(
     'livekit_packet_bytes{direction="outgoing",country="secret",node_id="private-node"} 12\nlivekit_packet_bytes{direction="outgoing",country="elsewhere"} 8\nuser_token{value="secret"} 1\nlivekit_packet_total{direction="incoming"} NaN\nlivekit_forward_latency 300',

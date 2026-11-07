@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { createSocket, type Socket as UDPSocket } from "node:dgram";
 import { createConnection } from "node:net";
 import { once } from "node:events";
-import { GameDatagram } from "../src/main/game-datagram";
+import { GameDatagram } from "../src/main/games/game-datagram";
 
 const grant = (id = crypto.randomUUID(), ttlMs = 10000) => ({
   id,

@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { cdnClientIp } from "../src/client-ip";
+import { cdnClientIp } from "../src/core/client-ip";
 const resolve = cdnClientIp(["192.0.2.0/24", "2001:db8:1::/48"]);
 test("CDN headers require both a trusted local proxy and a trusted CDN transport peer", () => {
   expect(resolve(true, "192.0.2.9", "198.51.100.3")).toBe("198.51.100.3");

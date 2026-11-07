@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, expect, test } from "bun:test";
 import { createApp } from "../../apps/api/src/app";
-import { db, hash } from "../../apps/api/src/context";
+import { db, hash } from "../../apps/api/src/core/context";
 import {
   createDatabase,
   users,
@@ -76,7 +76,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app.close();
-  const { media } = await import("../../apps/api/src/media");
+  const { media } = await import("../../apps/api/src/modules/media/media");
   for (const id of roomIds) await media.deleteRoom(id);
   if (people.length) {
     const owned = await db
@@ -464,7 +464,7 @@ test("revoking hosting capability ends its game without changing the account or 
     .set({ gameHostEnabled: false })
     .where(eq(users.id, host.id));
   const { reconcileGameHost } = await import(
-    "../../apps/api/src/game-link-access"
+    "../../apps/api/src/modules/games/game-link-access"
   );
   await reconcileGameHost(host.id);
   expect((await call("/games", host)).data.session).toBeNull();

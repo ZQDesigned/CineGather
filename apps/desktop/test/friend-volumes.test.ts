@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { FriendVolumes } from "../src/renderer/friend-volumes";
+import { FriendVolumes } from "../src/renderer/features/friends/friend-volumes";
 const peer = (volume = 100) => ({
   userId: "friend",
   status: "accepted" as const,

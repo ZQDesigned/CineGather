@@ -3,7 +3,7 @@ import { mkdtemp, writeFile, rename, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createApp } from "../../apps/api/src/app";
-import { readClientPolicy } from "../../apps/api/src/client-policy";
+import { readClientPolicy } from "../../apps/api/src/modules/updates/client-policy";
 test("public update stream delivers policy and atomic release changes over one request, including to old clients", async () => {
   const directory = await mkdtemp(join(tmpdir(), "cg-events-"));
   const app = await createApp({
@@ -64,13 +64,13 @@ test("a signed push forces the updater and downloads in-room without requesting 
     "../../packages/client-core/src/update-events"
   );
   const { UpdateController } = await import(
-    "../../apps/desktop/src/main/update-controller"
+    "../../apps/desktop/src/main/updates/update-controller"
   );
   const { verifyRelease } = await import(
-    "../../apps/desktop/src/main/update-release"
+    "../../apps/desktop/src/main/updates/update-release"
   );
   const { automaticallyDownload } = await import(
-    "../../apps/desktop/src/main/update-scheduler"
+    "../../apps/desktop/src/main/updates/update-scheduler"
   );
   const directory = await mkdtemp(join(tmpdir(), "cg-signed-events-"));
   const app = await createApp({

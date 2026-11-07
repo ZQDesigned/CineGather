@@ -1,5 +1,5 @@
 import { useApp } from "../store";
-import { announcementActive } from "../announcements";
+import { announcementActive } from "../features/announcements/announcements";
 import { App as AntApp, ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import type { ReactNode } from "react";

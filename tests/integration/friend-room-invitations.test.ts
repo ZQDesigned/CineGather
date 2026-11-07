@@ -1,7 +1,7 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
 import { createApp } from "../../apps/api/src/app";
-import { hash } from "../../apps/api/src/context";
+import { hash } from "../../apps/api/src/core/context";
 import {
   createDatabase,
   users,

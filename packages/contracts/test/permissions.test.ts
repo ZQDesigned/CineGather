@@ -5,7 +5,7 @@ import {
   adminRoleInput,
   registerInput,
   adminRoleAssignment,
-} from "../src";
+} from "../src/index";
 test("an audit-only administrator cannot operate accounts or rooms", () => {
   const access = { isSuperAdmin: false, permissions: ["audit.read"] as const };
   expect(hasAdminAccess(access)).toBe(true);

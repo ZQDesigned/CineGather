@@ -1,6 +1,6 @@
 import { afterAll, beforeAll, expect, test } from "bun:test";
 import { randomUUID } from "node:crypto";
-import { hash } from "../../apps/api/src/context";
+import { hash } from "../../apps/api/src/core/context";
 import { createApp } from "../../apps/api/src/app";
 import { createDatabase, users, credentials } from "@cinegather/database";
 import { inArray } from "drizzle-orm";

@@ -1,6 +1,6 @@
 import { test, expect } from "bun:test";
 import { createApp } from "../../apps/api/src/app";
-import { readClientPolicy } from "../../apps/api/src/client-policy";
+import { readClientPolicy } from "../../apps/api/src/modules/updates/client-policy";
 test("real API serves public compatibility policy, returns426 before incompatible workflows and preserves cleanup/CORS", async () => {
   const app = await createApp({
     clientPolicy: readClientPolicy({ CLIENT_MIN_VERSION_WINDOWS: "0.1.3" }),

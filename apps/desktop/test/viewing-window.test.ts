@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { allowedViewingWindow } from "../src/main/viewing-window-policy";
+import { allowedViewingWindow } from "../src/main/windows/viewing-window-policy";
 test("only the dedicated same-origin viewing entry can create a child", () => {
   for (const main of [
     "http://127.0.0.1:5173/index.html",

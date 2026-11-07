@@ -1,5 +1,5 @@
 import { expect, test, mock } from "bun:test";
-import { AccompanimentHost } from "../src/main/accompaniment";
+import { AccompanimentHost } from "../src/main/audio/accompaniment";
 
 test("application selections are opaque, revalidated, and stale requests cannot stop a newer capture", async () => {
   let targets = [

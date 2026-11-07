@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { MediaGateway } from "../src/media";
+import { MediaGateway } from "../src/modules/media/media";
 import { TrackSource } from "livekit-server-sdk";
 
 test("share permission changes preserve microphone bans and never leave an empty unrestricted publish grant", async () => {

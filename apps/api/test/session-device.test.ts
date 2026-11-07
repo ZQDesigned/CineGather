@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { sessionDevice } from "../src/session-device";
+import { sessionDevice } from "../src/modules/accounts/session-device";
 test("records a bounded human-readable client label without storing raw user agent", () => {
   const device = sessionDevice({
     platform: "win32",

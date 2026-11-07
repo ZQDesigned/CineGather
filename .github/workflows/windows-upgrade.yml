@@ -9,26 +9,26 @@ on:
         default: windows-latest
   push:
     paths:
-      - tools/windows-upgrade-smoke.ps1
+      - tools/validation/windows/upgrade-smoke.ps1
       - apps/desktop/resources/installer.nsh
       - apps/desktop/resources/installer-processes.ps1
       - apps/desktop/resources/installer-diagnostics.nsh
       - apps/desktop/resources/installer-diagnostics.ps1
       - apps/desktop/electron-builder.yml
-      - tools/windows-installer-diagnostics-smoke.ps1
+      - tools/validation/windows/installer-diagnostics-smoke.ps1
       - apps/desktop/package.json
       - bun.lock
-      - tools/noise-package-smoke.ts
-      - tools/window-chrome-smoke.ts
-      - tools/windows-identity-probe.ts
-      - tools/windows-in-app-upgrade-smoke.ts
-      - tools/windows-shortcut-probe.ps1
-      - apps/desktop/src/main/window-chrome.ts
-      - tools/viewing-window-smoke.ts
-      - tools/viewing-window-controls-smoke.ts
-      - apps/desktop/src/main/viewing-window-policy.ts
-      - apps/desktop/src/renderer/ui/ViewingWindow.tsx
-      - tools/update-gate-smoke.ts
+      - tools/validation/noise-package-smoke.ts
+      - tools/validation/window-chrome-smoke.ts
+      - tools/validation/windows/identity-probe.ts
+      - tools/validation/windows/in-app-upgrade-smoke.ts
+      - tools/validation/windows/shortcut-probe.ps1
+      - apps/desktop/src/main/windows/window-chrome.ts
+      - tools/validation/viewing-window-smoke.ts
+      - tools/validation/viewing-window-controls-smoke.ts
+      - apps/desktop/src/main/windows/viewing-window-policy.ts
+      - apps/desktop/src/renderer/features/sharing/ui/ViewingWindow.tsx
+      - tools/validation/update-gate-smoke.ts
       - .github/workflows/windows-upgrade.yml
 jobs:
   upgrade:
@@ -50,7 +50,7 @@ jobs:
       - run: bun run setup
       - name: Verify installed encoder probe cleanup and unrelated process isolation
         shell: pwsh
-        run: ./tools/windows-probe-cleanup-smoke.ps1
+        run: ./tools/validation/windows/probe-cleanup-smoke.ps1
       - name: Reuse capture runtime only when native sources match
         shell: pwsh
         run: |
@@ -58,7 +58,7 @@ jobs:
           New-Item -ItemType Directory -Force .local/windows-upgrade | Out-Null
           $reuse = $false
           try {
-            bun tools/released-native-runtime.ts
+            bun tools/publishing/released-native-runtime.ts
             if ($LASTEXITCODE -ne 0) { throw 'Released installer verification failed' }
             & 7z x .local/windows-upgrade/released-setup.exe '-o.local/upgrade-archive' -y | Out-Null
             if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
@@ -86,40 +86,40 @@ jobs:
           VITE_API_URL: https://cgplat.zqdesigned.city
           VITE_WEB_URL: https://cgplat.zqdesigned.city
         run: |
-          bun ../../tools/icons.ts
-          bun ../../tools/game-link-build.ts
+          bun ../../tools/build/icons.ts
+          bun ../../tools/build/game-link.ts
           bun run build
-          bun ../../tools/third-party.ts win32 x64
+          bun ../../tools/build/third-party.ts win32 x64
           bunx electron-builder --win --x64 --publish never
       - name: Verify packaged game helper IPC and library inventory
-        run: bun tools/game-package-smoke.ts apps/desktop/release/win-unpacked/resources/game-link
+        run: bun tools/validation/game-package-smoke.ts apps/desktop/release/win-unpacked/resources/game-link
       - name: Verify packaged offline speech enhancement
-        run: bun tools/noise-package-smoke.ts
+        run: bun tools/validation/noise-package-smoke.ts
       - name: Verify packaged native encoder inventory and real H264 packets
-        run: bun tools/windows-native-smoke.ts apps/desktop/release/win-unpacked/resources/capture/obs
+        run: bun tools/validation/windows/native-smoke.ts apps/desktop/release/win-unpacked/resources/capture/obs
       - name: Verify packaged Windows caption controls
-        run: bun tools/window-chrome-smoke.ts
+        run: bun tools/validation/window-chrome-smoke.ts
       - name: Verify packaged viewing window lifecycle
-        run: bun tools/viewing-window-smoke.ts
+        run: bun tools/validation/viewing-window-smoke.ts
       - name: Verify actual viewing window buttons
-        run: bun tools/viewing-window-controls-smoke.ts apps/desktop/release/win-unpacked/CineGather.exe
+        run: bun tools/validation/viewing-window-controls-smoke.ts apps/desktop/release/win-unpacked/CineGather.exe
       - name: Verify stable mandatory update notification
-        run: bun tools/update-gate-smoke.ts
+        run: bun tools/validation/update-gate-smoke.ts
       - name: Verify old-to-new upgrade with a locked capture helper
         shell: pwsh
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
-          ./tools/windows-upgrade-smoke.ps1 -UpgradeInstaller "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+          ./tools/validation/windows/upgrade-smoke.ps1 -UpgradeInstaller "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - name: Verify in-app updates preserve installed shortcuts and Windows identity
         shell: pwsh
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
-          bun tools/windows-in-app-upgrade-smoke.ts "apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+          bun tools/validation/windows/in-app-upgrade-smoke.ts "apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - name: Verify installer failure evidence and Connection Diagnostics export
         shell: pwsh
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
-          ./tools/windows-installer-diagnostics-smoke.ps1 -Installer "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+          ./tools/validation/windows/installer-diagnostics-smoke.ps1 -Installer "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - uses: actions/upload-artifact@v4
         if: always()
         with:

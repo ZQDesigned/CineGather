@@ -5,8 +5,8 @@ import {
   newerVersion,
   updateMode,
   type Release,
-} from "../src/main/update-release";
-import { UpdateController } from "../src/main/update-controller";
+} from "../src/main/updates/update-release";
+import { UpdateController } from "../src/main/updates/update-controller";
 const keys = generateKeyPairSync("ed25519");
 const publicKey = keys.publicKey
   .export({ type: "spki", format: "pem" })
@@ -208,7 +208,7 @@ test("downloaded bytes must still match signed metadata immediately before execu
   const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
-  const { verifyInstaller } = await import("../src/main/update-release");
+  const { verifyInstaller } = await import("../src/main/updates/update-release");
   const dir = await mkdtemp(join(tmpdir(), "cg-update-"));
   const file = join(dir, "setup.exe");
   try {
@@ -221,7 +221,7 @@ test("downloaded bytes must still match signed metadata immediately before execu
   }
 });
 test("release CLI output is accepted by the real verifier", async () => {
-  const { signRelease } = await import("../../../tools/update-release");
+  const { signRelease } = await import("../../../tools/publishing/update-release");
   const raw = signRelease(
     release,
     keys.privateKey.export({ type: "pkcs8", format: "pem" }).toString(),
@@ -238,7 +238,7 @@ test("release CLI output is accepted by the real verifier", async () => {
   ).toThrow();
 });
 test("feed requests are bounded, refuse redirects and accept only signed responses", async () => {
-  const { fetchRelease } = await import("../src/main/update-release");
+  const { fetchRelease } = await import("../src/main/updates/update-release");
   let options: RequestInit | undefined;
   const request = (async (_url: unknown, init: RequestInit) => {
     options = init;
@@ -260,7 +260,7 @@ test("feed requests are bounded, refuse redirects and accept only signed respons
 });
 
 test("the NSIS provider keeps the exact signed release when callers mutate their copy", async () => {
-  const { SignedReleaseProvider } = await import("../src/main/update-provider");
+  const { SignedReleaseProvider } = await import("../src/main/updates/update-provider");
   const copy = structuredClone(release);
   const provider = new SignedReleaseProvider(
     {
@@ -296,7 +296,7 @@ test("an update check cannot replace a release while its cancelled download is s
 });
 
 test("Windows transport validates the installer again before handing execution to NSIS", async () => {
-  const { windowsDownloader } = await import("../src/main/windows-update");
+  const { windowsDownloader } = await import("../src/main/updates/windows-update");
   const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -339,7 +339,7 @@ test("Windows transport validates the installer again before handing execution t
 });
 
 test("cancelling during the NSIS pre-download check prevents subsequent network download", async () => {
-  const { windowsDownloader } = await import("../src/main/windows-update");
+  const { windowsDownloader } = await import("../src/main/updates/windows-update");
   let checked!: () => void;
   let downloads = 0;
   const updater = {
@@ -447,7 +447,7 @@ test("raising the cutoff discards an obsolete cached update and allows checking 
 });
 
 test("a compatibility cutoff raised during installation preparation prevents execution of the obsolete installer", async () => {
-  const { windowsDownloader } = await import("../src/main/windows-update");
+  const { windowsDownloader } = await import("../src/main/updates/windows-update");
   const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -528,7 +528,7 @@ test("same-cutoff metadata changes preserve an in-flight installer and its progr
 });
 
 test("installation diagnostics distinguish verification, cleanup and handoff failures while preserving installation behavior", async () => {
-  const { windowsDownloader } = await import("../src/main/windows-update");
+  const { windowsDownloader } = await import("../src/main/updates/windows-update");
   const { mkdtemp, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");

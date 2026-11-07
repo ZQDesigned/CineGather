@@ -4,7 +4,7 @@ import {
   adminPermissionSchema,
   adminRoleInput,
   clientNotificationSchema,
-} from "../src";
+} from "../src/index";
 test("announcement draft input bounds plain text and permissions require paired read access", () => {
   expect(
     announcementInput.parse({

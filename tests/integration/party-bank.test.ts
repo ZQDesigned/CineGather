@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, test, expect } from "bun:test";
 import { createApp } from "../../apps/api/src/app";
-import { db, hash } from "../../apps/api/src/context";
+import { db, hash } from "../../apps/api/src/core/context";
 import {
   users,
   credentials,
@@ -11,7 +11,7 @@ import {
 } from "@cinegather/database";
 import { eq, inArray, like } from "drizzle-orm";
 import { protocolHeaders } from "@cinegather/contracts";
-import { activePartyWords } from "../../apps/api/src/party-bank";
+import { activePartyWords } from "../../apps/api/src/modules/party/party-bank";
 const prefix = "验题" + crypto.randomUUID().slice(0, 8),
   ids: string[] = [],
   roleIds: string[] = [];
@@ -337,7 +337,7 @@ test("visual-mode refinement updates only unchanged authored rows and is idempot
 test("modern game migration installs authored content and preserves admin changes on replay", async () => {
   const { sql } = await import("drizzle-orm");
   const { partyModernGameWords } = await import(
-    "../../apps/api/src/party-modern-game-words"
+    "../../apps/api/src/modules/party/data/party-modern-game-words"
   );
   const migration = await Bun.file(
     new URL(

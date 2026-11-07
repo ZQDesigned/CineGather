@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
   configureHardwareEncoding,
   hardwareEncodingPolicy,
-} from "../src/main/encoding-policy";
+} from "../src/main/capture/encoding-policy";
 function commandLine(initial: Record<string, string> = {}) {
   const flags = new Map(Object.entries(initial));
   return {

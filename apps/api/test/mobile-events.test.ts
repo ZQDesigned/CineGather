@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import express from "express";
 import { createServer } from "node:http";
 import type { AddressInfo } from "node:net";
-import { UpdateEvents } from "../src/update-events";
-import { readClientPolicy } from "../src/client-policy";
+import { UpdateEvents } from "../src/modules/updates/update-events";
+import { readClientPolicy } from "../src/modules/updates/client-policy";
 
 test("mobile event connections receive policy and announcements without desktop release channels", async () => {
   const events = new UpdateEvents();

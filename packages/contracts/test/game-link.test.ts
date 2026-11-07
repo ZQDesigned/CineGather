@@ -10,7 +10,7 @@ import {
   currentFeatureProtocols,
   gameWorldSchema,
   gameLookupSchema,
-} from "../src";
+} from "../src/index";
 
 test("Stardew is one game for vanilla and SMAPI with its own compatibility gate", () => {
   expect(

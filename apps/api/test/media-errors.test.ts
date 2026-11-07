@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { media } from "../src/media";
+import { media } from "../src/modules/media/media";
 test("LiveKit's missing in-memory room response is absent state while other internal errors remain failures", async () => {
   const original = media.client.listParticipants;
   try {

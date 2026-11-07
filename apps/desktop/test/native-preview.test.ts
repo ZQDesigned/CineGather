@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { NativeCapture } from "../src/main/native-capture";
+import { NativeCapture } from "../src/main/capture/native-capture";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";

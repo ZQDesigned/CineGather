@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NativeCapture } from "../src/main/native-capture";
+import { NativeCapture } from "../src/main/capture/native-capture";
 
 test("encoder inventory follows the selected screen or exact window and clears a cancelled selection", async () => {
   const root = await mkdtemp(join(tmpdir(), "cg-encoder-source-"));

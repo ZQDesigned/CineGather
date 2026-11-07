@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { hashRoomPassword, verifyRoomPassword } from "../src/passwords";
+import { hashRoomPassword, verifyRoomPassword } from "../src/modules/accounts/passwords";
 
 test("room password hashes use unique salts, match exactly and never store the password", async () => {
   const password = " 一起看123 ";

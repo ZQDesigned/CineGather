@@ -3,7 +3,7 @@ import { mobileUpdateIndexSchema } from "@cinegather/contracts";
 import {
   selectMobilePolicy,
   mobileCompatibilityFailure,
-} from "../src/mobile-updates";
+} from "../src/modules/updates/mobile-updates";
 const index = () =>
   mobileUpdateIndexSchema.parse({
     format: 1,
@@ -104,7 +104,7 @@ test("release validation rejects unsafe URLs, impossible floors and duplicate ru
 });
 
 test("self-hosted Expo server selects exact runtime and refuses traversal or missing signatures", async () => {
-  const { MobileUpdateStore } = await import("../src/mobile-update-store");
+  const { MobileUpdateStore } = await import("../src/modules/updates/mobile-update-store");
   const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
   const { join } = await import("node:path");
   const root = await mkdtemp("/tmp/cg-mobile-updates-");

@@ -2,19 +2,19 @@ name: windows-overlay
 on:
   push:
     paths:
-      - apps/desktop/src/main/member-overlay.ts
-      - apps/desktop/src/main/overlay-stacking.ts
-      - apps/desktop/src/main/windows-overlay.ts
+      - apps/desktop/src/main/windows/member-overlay.ts
+      - apps/desktop/src/main/windows/overlay-stacking.ts
+      - apps/desktop/src/main/windows/windows-overlay.ts
       - apps/desktop/src/preload/member-overlay.ts
-      - tools/overlay-topmost-smoke.ts
+      - tools/validation/overlay-topmost-smoke.ts
       - .github/workflows/overlay-windows.yml
   pull_request:
     paths:
-      - apps/desktop/src/main/member-overlay.ts
-      - apps/desktop/src/main/overlay-stacking.ts
-      - apps/desktop/src/main/windows-overlay.ts
+      - apps/desktop/src/main/windows/member-overlay.ts
+      - apps/desktop/src/main/windows/overlay-stacking.ts
+      - apps/desktop/src/main/windows/windows-overlay.ts
       - apps/desktop/src/preload/member-overlay.ts
-      - tools/overlay-topmost-smoke.ts
+      - tools/validation/overlay-topmost-smoke.ts
       - .github/workflows/overlay-windows.yml
 jobs:
   native-z-order:
@@ -29,4 +29,4 @@ jobs:
         with:
           node-version: 24.18.1
       - run: bun install --frozen-lockfile
-      - run: bun tools/overlay-topmost-smoke.ts
+      - run: bun tools/validation/overlay-topmost-smoke.ts

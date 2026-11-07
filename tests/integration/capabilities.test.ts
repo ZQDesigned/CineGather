@@ -10,7 +10,7 @@ import {
   userRoles,
 } from "@cinegather/database";
 import { eq, inArray } from "drizzle-orm";
-import { media } from "../../apps/api/src/media";
+import { media } from "../../apps/api/src/modules/media/media";
 
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 let app: Awaited<ReturnType<typeof createApp>>, base: string;

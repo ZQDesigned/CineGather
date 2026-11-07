@@ -10,7 +10,7 @@ import {
   idempotency,
 } from "@cinegather/database";
 import { eq, inArray } from "drizzle-orm";
-import { media } from "../../apps/api/src/media";
+import { media } from "../../apps/api/src/modules/media/media";
 let app: Awaited<ReturnType<typeof createApp>>, base: string;
 if (
   !["127.0.0.1", "localhost"].includes(

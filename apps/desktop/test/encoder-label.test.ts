@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { automaticEncoderLabel } from "../src/renderer/encoder-label";
+import { automaticEncoderLabel } from "../src/renderer/features/sharing/encoder-label";
 import type { NativeEncoderInventory } from "@cinegather/contracts";
 const inventory: NativeEncoderInventory = {
   adapters: [

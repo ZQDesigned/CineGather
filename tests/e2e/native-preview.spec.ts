@@ -1,6 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
-import { NativeProtocol } from "../../apps/desktop/src/main/native-protocol";
+import { NativeProtocol } from "../../apps/desktop/src/main/capture/native-protocol";
 import type { NativePreviewOffer } from "@cinegather/contracts";
 import { spawn } from "node:child_process";
 import { createInterface } from "node:readline";

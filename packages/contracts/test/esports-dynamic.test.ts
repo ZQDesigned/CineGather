@@ -7,7 +7,7 @@ import {
   esportsCapacityTotal,
   coachVoiceAllowed,
   defaultEsportsConfiguration,
-} from "../src";
+} from "../src/index";
 test("dynamic teams validate distinct stable ids and independent player/coach limits", () => {
   const groups = Array.from({ length: 6 }, (_, i) => ({
     id: "group-" + i,

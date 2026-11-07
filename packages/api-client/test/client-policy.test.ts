@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { createApi } from "../src";
+import { createApi } from "../src/index";
 test("client identity is attached to requests and 426 invokes the mandatory-update hook", async () => {
   const received = new Map<string, string | null>();
   const required: string[] = [];
@@ -35,7 +35,7 @@ test("client identity is attached to requests and 426 invokes the mandatory-upda
   }
 });
 test("feature rejection carries its own update requirement and never invokes global update callbacks", async () => {
-  const { FeatureUpdateError, unwrap } = await import("../src");
+  const { FeatureUpdateError, unwrap } = await import("../src/index");
   let forced = 0;
   const issue = {
     scope: "feature",

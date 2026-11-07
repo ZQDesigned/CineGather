@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { HoldToTalk, shortcutKeys } from "../src/main/push-to-talk";
+import { HoldToTalk, shortcutKeys } from "../src/main/input/push-to-talk";
 
 test("global PTT maps modifier groups per platform and rejects ambiguous or unsupported shortcuts", () => {
   expect(shortcutKeys("CommandOrControl+Shift+Space", "win32")).toEqual([

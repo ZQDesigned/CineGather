@@ -5,7 +5,7 @@ import {
   joinInput,
   leaseInput,
   messageInput,
-} from "../src";
+} from "../src/index";
 
 describe("untrusted client input", () => {
   test("rejects empty names and forged identities rather than trusting a userId", () => {

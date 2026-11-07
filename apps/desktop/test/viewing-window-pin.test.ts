@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { setViewingWindowPinned } from "../src/main/viewing-window-policy";
+import { setViewingWindowPinned } from "../src/main/windows/viewing-window-policy";
 
 test("Windows viewing pin uses a topmost level above the shell and returns actual state", () => {
   const calls: unknown[] = [];

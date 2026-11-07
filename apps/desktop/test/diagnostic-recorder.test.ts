@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { DiagnosticRecorder } from "../src/renderer/diagnostic-recorder";
+import { DiagnosticRecorder } from "../src/renderer/features/diagnostics/diagnostic-recorder";
 import { type DiagnosticRecord } from "@cinegather/contracts";
 import { defaultSettings } from "../src/shared/settings";
 import type { MediaSession } from "@cinegather/media-core";

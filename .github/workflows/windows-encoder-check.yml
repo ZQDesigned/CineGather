@@ -8,7 +8,7 @@ on:
       - native/capture/encoder-selection.hpp
       - native/capture/patch-qsv-adapter.py
       - native/capture/test/encoder-selection.cpp
-      - tools/windows-native-smoke.ts
+      - tools/validation/windows/native-smoke.ts
       - .github/workflows/windows-encoder-check.yml
 jobs:
   native-encoders:
@@ -28,7 +28,7 @@ jobs:
           CG_PROTOCOL_TEST: "1"
       - run: bun install --frozen-lockfile
       - run: bun run setup
-      - run: bun tools/windows-native-smoke.ts .local/native-runtime/windows/obs
+      - run: bun tools/validation/windows/native-smoke.ts .local/native-runtime/windows/obs
       - uses: actions/upload-artifact@v4
         if: always()
         with:

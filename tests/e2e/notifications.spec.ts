@@ -35,7 +35,7 @@ test("notification preferences, merged history, sharing privacy and account isol
     page.evaluate(
       async ({ id, body, groupId }) => {
         const { publishClientNotification } = await import(
-          "/client-notifications.ts" as string
+          "/features/notifications/client-notifications.ts" as string
         );
         publishClientNotification({
           eventId: id,

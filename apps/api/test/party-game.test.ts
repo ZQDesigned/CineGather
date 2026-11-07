@@ -4,7 +4,7 @@ import {
   partyCommand,
   partyView,
   tickPartyGame,
-} from "../src/party-game";
+} from "../src/modules/party/party-game";
 const names = [
   { id: "a", name: "甲" },
   { id: "b", name: "乙" },

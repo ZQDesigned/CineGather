@@ -4,7 +4,7 @@ import type {
   Streams,
   DisplayMediaRequestHandlerOpts,
 } from "electron";
-import { configureDisplayCapture } from "../src/main/capture";
+import { configureDisplayCapture } from "../src/main/capture/capture";
 import type { CaptureSelection } from "@cinegather/contracts";
 
 type Handler = NonNullable<

@@ -4,7 +4,7 @@ on:
     branches: [feat/windows-installer-diagnostic-roots]
     paths:
       - .github/workflows/windows-installer-lock-check.yml
-      - tools/windows-installer-lock-retry-smoke.ps1
+      - tools/validation/windows/installer-lock-retry-smoke.ps1
       - apps/desktop/resources/installer*.nsh
       - apps/desktop/resources/installer*.ps1
   workflow_dispatch:
@@ -47,7 +47,7 @@ jobs:
         shell: pwsh
         run: |
           $candidate=if ('${{ inputs.baseline-only }}' -eq 'true') { '.local/installer-lock-build/baseline.exe' } else { 'apps/desktop/release/CineGather-0.1.40-win-x64-setup.exe' }
-          ./tools/windows-installer-lock-retry-smoke.ps1 -Baseline .local/installer-lock-build/baseline.exe -Installer $candidate
+          ./tools/validation/windows/installer-lock-retry-smoke.ps1 -Baseline .local/installer-lock-build/baseline.exe -Installer $candidate
       - uses: actions/upload-artifact@v4
         if: always()
         with:

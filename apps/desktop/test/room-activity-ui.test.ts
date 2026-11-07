@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { PartyView } from "@cinegather/contracts";
-import { activityMemberStatus } from "../src/renderer/room-activity-ui";
+import { activityMemberStatus } from "../src/renderer/features/activities/room-activity-ui";
 
 const game: PartyView = {
   kind: "draw",

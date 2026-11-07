@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { RoomPresenceCues } from "../src/renderer/room-cues";
+import { RoomPresenceCues } from "../src/renderer/features/rooms/room-cues";
 import { defaultSettings, settingsSchema } from "../src/shared/settings";
 const summary = (ids: string[], state = "connected") => ({
   state,
@@ -52,7 +52,7 @@ test("older preferences default room sounds on and explicit off persists", () =>
 });
 
 test("disabled sounds and a removed output device remain silent without queuing", async () => {
-  const { RoomCuePlayer } = await import("../src/renderer/room-cues");
+  const { RoomCuePlayer } = await import("../src/renderer/features/rooms/room-cues");
   let plays = 0;
   let enabled = false;
   const audio = {
@@ -78,7 +78,7 @@ test("disabled sounds and a removed output device remain silent without queuing"
   expect(plays).toBe(0);
 });
 test("a newer cue or disabling playback cancels a pending device selection", async () => {
-  const { RoomCuePlayer } = await import("../src/renderer/room-cues");
+  const { RoomCuePlayer } = await import("../src/renderer/features/rooms/room-cues");
   const pending: (() => void)[] = [];
   const played: string[] = [];
   const audio = {

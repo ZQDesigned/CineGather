@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { trustedURL, allowedExternal } from "../src/main/security";
+import { trustedURL, allowedExternal } from "../src/main/infrastructure/security";
 test("IPC trust compares origin and rejects lookalike hosts and privileged external protocols", () => {
   expect(
     trustedURL("https://localhost:5173.evil.test/", "http://localhost:5173"),
@@ -14,7 +14,7 @@ test("IPC trust compares origin and rejects lookalike hosts and privileged exter
   expect(allowedExternal("https://example.com")).toBe(true);
 });
 test("trusted pages may capture a microphone and explicitly selected screen, but never a camera", async () => {
-  const { permissionAllowed } = await import("../src/main/security");
+  const { permissionAllowed } = await import("../src/main/infrastructure/security");
   expect(permissionAllowed("media", ["video"])).toBe(false);
   expect(permissionAllowed("media", ["audio"])).toBe(true);
   expect(permissionAllowed("media", ["audio", "video"])).toBe(false);
@@ -25,7 +25,7 @@ test("trusted pages may capture a microphone and explicitly selected screen, but
 });
 
 test("Electron display capture with empty media types requires a live source approval and never authorizes a camera", async () => {
-  const { permissionAllowed } = await import("../src/main/security");
+  const { permissionAllowed } = await import("../src/main/infrastructure/security");
   expect(permissionAllowed("media", [], true)).toBe(true);
   expect(permissionAllowed("media", [])).toBe(false);
   expect(permissionAllowed("media", undefined, true)).toBe(false);

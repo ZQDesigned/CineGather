@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
   ShareDebugMetrics,
   type ShareDebugSample,
-} from "../src/renderer/share-debug";
+} from "../src/renderer/features/sharing/share-debug";
 const track = (local: boolean, at: number) => ({
   track: "screen",
   participant: "a".repeat(64),

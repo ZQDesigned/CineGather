@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import { mkdtemp, writeFile, chmod, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
-import { GameNative } from "../src/main/game-native";
+import { GameNative } from "../src/main/games/game-native";
 import { projectGameDiagnostic } from "../src/shared/game-diagnostics";
 import type { GameTunnelConfig } from "@cinegather/contracts";
 const transport = (): GameTunnelConfig => ({

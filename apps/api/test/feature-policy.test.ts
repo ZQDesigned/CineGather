@@ -7,7 +7,7 @@ import {
   bindFeatureClient,
   requireFeature,
   requireRoomFeature,
-} from "../src/feature-policy";
+} from "../src/modules/updates/feature-policy";
 import {
   currentFeatureProtocols,
   emptyFeaturePolicy,

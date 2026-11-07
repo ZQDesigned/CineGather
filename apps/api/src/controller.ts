@@ -1,9 +1,9 @@
-import { requestFriendGame } from "./game-link";
+import { requestFriendGame } from "./modules/games/game-link";
 import { participantOwner } from "@cinegather/contracts";
-import * as announcements from "./announcements";
-import * as queue from "./share-requests";
-import { listSessions, revokeDevices } from "./account-sessions";
-import { sessionDevice } from "./session-device";
+import * as announcements from "./modules/announcements/announcements";
+import * as queue from "./modules/rooms/share-requests";
+import { listSessions, revokeDevices } from "./modules/accounts/account-sessions";
+import { sessionDevice } from "./modules/accounts/session-device";
 import {
   Body,
   Controller,
@@ -29,29 +29,29 @@ import {
 import { z } from "zod";
 import type { Response } from "express";
 import * as c from "@cinegather/contracts";
-import * as r from "./rooms";
-import * as s from "./social";
+import * as r from "./modules/rooms/rooms";
+import * as s from "./modules/social/social";
 import {
   inviteFriendToRoom,
   dismissRoomInvitation,
-} from "./friend-room-invitations";
-import * as presence from "./presence";
-import { requestFriendRoom, decideRoomRequest } from "./friend-room-requests";
-import { revokeSession } from "./auth";
+} from "./modules/social/friend-room-invitations";
+import * as presence from "./modules/social/presence";
+import { requestFriendRoom, decideRoomRequest } from "./modules/social/friend-room-requests";
+import { revokeSession } from "./modules/accounts/auth";
 import {
   registerAccount,
   loginAccount,
   changeAccountPassword,
   changeAccountProfile,
-} from "./accounts";
-import { db } from "./context";
-import { media } from "./media";
-import { Endpoint, parse, type AuthRequest } from "./http";
-import { fail } from "./errors";
-import { readRegistrationPolicy } from "./registration";
-import type { UpdateEvents } from "./update-events";
-import { Metrics } from "./metrics";
-import { ServerDiagnostics } from "./server-diagnostics";
+} from "./modules/accounts/accounts";
+import { db } from "./core/context";
+import { media } from "./modules/media/media";
+import { Endpoint, parse, type AuthRequest } from "./core/http";
+import { fail } from "./core/errors";
+import { readRegistrationPolicy } from "./modules/accounts/registration";
+import type { UpdateEvents } from "./modules/updates/update-events";
+import { Metrics } from "./core/metrics";
+import { ServerDiagnostics } from "./core/server-diagnostics";
 const serverDiagnostics = new ServerDiagnostics();
 
 @ApiBearerAuth()
@@ -118,7 +118,7 @@ export class ApiController {
     return (
       req.app.get(
         "cinegather.featurePolicy",
-      ) as import("./feature-policy").FeaturePolicyStore
+      ) as import("./modules/updates/feature-policy").FeaturePolicyStore
     ).snapshot();
   }
   @Post("rooms/:roomId/join-admission")

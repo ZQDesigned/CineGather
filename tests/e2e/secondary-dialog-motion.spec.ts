@@ -403,7 +403,7 @@ test("a created game closes its form with exit motion even when the local proxy 
   await page.getByRole("button", { name: "发起联机", exact: true }).click();
   await expect(page.getByRole("dialog")).toContainText("本机 MC 世界");
   await page.evaluate(async () => {
-    const modulePath = "/game-link.ts";
+    const modulePath = "/features/games/game-link.ts";
     const { gameLink } = await import(modulePath);
     await gameLink.scope("isolated-motion-fixture");
   });
@@ -519,7 +519,7 @@ test("closing the host game produces one notification and leaves an explicit rec
   });
   await page.goto("/#/games");
   await page.evaluate(async () => {
-    const path = "/game-link.ts";
+    const path = "/features/games/game-link.ts";
     const { gameLink } = await import(path);
     await gameLink.scope("isolated-motion-fixture");
     await gameLink.create("MC", 25565);
@@ -534,7 +534,7 @@ test("closing the host game produces one notification and leaves an explicit rec
     page.getByRole("button", { name: "选择世界并恢复" }),
   ).toBeVisible();
   const notices = await page.evaluate(async () => {
-    const path = "/client-notifications.ts";
+    const path = "/features/notifications/client-notifications.ts";
     const { notificationInbox } = await import(path);
     return notificationInbox
       .snapshot()

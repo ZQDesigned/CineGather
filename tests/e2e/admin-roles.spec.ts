@@ -21,7 +21,7 @@ test("superadmin grants roles; normal and limited administrators see only their 
   };
   const root = await register("root"),
     member = await register("member");
-  execFileSync("bun", ["tools/superadmin.ts", "grant", root.user.id], {
+  execFileSync("bun", ["tools/operations/superadmin.ts", "grant", root.user.id], {
     stdio: "pipe",
   });
   async function login(target: Page, user: { username: string }) {

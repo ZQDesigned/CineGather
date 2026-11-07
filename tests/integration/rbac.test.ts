@@ -43,7 +43,7 @@ let root: Awaited<ReturnType<typeof account>>,
   manager: Awaited<ReturnType<typeof account>>,
   member: Awaited<ReturnType<typeof account>>;
 async function cli(command: string, id: string) {
-  const child = Bun.spawn(["bun", "tools/superadmin.ts", command, id], {
+  const child = Bun.spawn(["bun", "tools/operations/superadmin.ts", command, id], {
     stdout: "pipe",
     stderr: "pipe",
   });
@@ -287,7 +287,7 @@ test("CLI refuses to remove the final superadmin, including two concurrent revoc
   const isolated = new URL(process.env.DATABASE_URL!);
   isolated.searchParams.set("options", `-csearch_path=${schema}`);
   async function localCli(command: string, id: string) {
-    const child = Bun.spawn(["bun", "tools/superadmin.ts", command, id], {
+    const child = Bun.spawn(["bun", "tools/operations/superadmin.ts", command, id], {
       env: { ...process.env, DATABASE_URL: isolated.toString() },
       stdout: "pipe",
       stderr: "pipe",

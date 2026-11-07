@@ -13,8 +13,8 @@ import {
   bans,
 } from "@cinegather/database";
 import { eq, inArray, or } from "drizzle-orm";
-import { media } from "../../apps/api/src/media";
-import { reconcileRoom } from "../../apps/api/src/rooms";
+import { media } from "../../apps/api/src/modules/media/media";
+import { reconcileRoom } from "../../apps/api/src/modules/rooms/rooms";
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 let app: Awaited<ReturnType<typeof createApp>>;
 let base: string;

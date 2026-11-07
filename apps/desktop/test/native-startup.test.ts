@@ -2,8 +2,8 @@ import { expect, test } from "bun:test";
 import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { NativeCapture } from "../src/main/native-capture";
-import type { NativeCaptureEvent } from "../src/main/native-capture-events";
+import { NativeCapture } from "../src/main/capture/native-capture";
+import type { NativeCaptureEvent } from "../src/main/capture/native-capture-events";
 
 async function fixture(hang = false) {
   const root = await mkdtemp(join(tmpdir(), "cg-native-startup-"));

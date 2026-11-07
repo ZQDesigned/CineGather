@@ -29,7 +29,7 @@ test("packaged superadmin uses the shared role editor, preserves edit fields and
   });
   expect(memberResponse.ok()).toBe(true);
   const member = await memberResponse.json();
-  execFileSync("bun", ["tools/superadmin.ts", "grant", account.user.id], {
+  execFileSync("bun", ["tools/operations/superadmin.ts", "grant", account.user.id], {
     stdio: "pipe",
   });
   const profile = await mkdtemp(join(tmpdir(), "cg-admin-roles-"));

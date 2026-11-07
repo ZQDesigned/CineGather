@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import * as core from "../src";
+import * as core from "../src/index";
 import type { RoomInfo } from "@cinegather/contracts";
 type Scope = { roomId: string; session: string; revision: number };
 type Sync = { refresh(): Promise<void> };

@@ -45,7 +45,7 @@
     "typescript": "~6.0.3"
   },
   "scripts": {
-    "start": "bun ../../tools/mobile-dev.ts",
+    "start": "bun ../../tools/mobile/dev.ts",
     "android": "expo run:android --port 8088",
     "ios": "expo run:ios --port 8088",
     "typecheck": "tsc --noEmit"

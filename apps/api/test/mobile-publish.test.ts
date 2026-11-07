@@ -2,7 +2,7 @@ import { test, expect } from "bun:test";
 import { mkdtemp, mkdir, writeFile, readFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { generateKeyPairSync, verify, createHash } from "node:crypto";
-import { publishMobileUpdate } from "../../../tools/mobile-publish";
+import { publishMobileUpdate } from "../../../tools/mobile/publish";
 test("publishing signs Expo manifests and hashes assets before atomically advancing the policy", async () => {
   const root = await mkdtemp("/tmp/cg-ota-publish-");
   const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });

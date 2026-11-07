@@ -1,4 +1,4 @@
-import { gameLink, bindGameLink } from "./game-link";
+import { gameLink, bindGameLink } from "./features/games/game-link";
 import { FeatureCompatibility } from "@cinegather/client-core";
 import { FeatureUpdateError } from "@cinegather/api-client";
 import {
@@ -8,11 +8,11 @@ import {
   type FeatureUpdateIssue,
 } from "@cinegather/contracts";
 import { allowedShareQuality, type Quality } from "@cinegather/contracts";
-import { EsportsRuntime } from "./esports";
-import { AnnouncementClient, announcementNotification } from "./announcements";
+import { EsportsRuntime } from "./features/esports/esports";
+import { AnnouncementClient, announcementNotification } from "./features/announcements/announcements";
 import { shouldAdvanceUpdateRequirement } from "../shared/update-requirement";
-import { reconcileAudioDevices } from "./audio-devices";
-import { RoomCuePlayer, RoomPresenceCues } from "./room-cues";
+import { reconcileAudioDevices } from "./features/audio/audio-devices";
+import { RoomCuePlayer, RoomPresenceCues } from "./features/rooms/room-cues";
 import enterCue from "./assets/room-enter.wav";
 import leaveCue from "./assets/room-leave.wav";
 import { createApi, unwrap, ApiError } from "@cinegather/api-client";
@@ -38,13 +38,13 @@ import type {
   RoomInvitation,
 } from "@cinegather/contracts";
 import { state, update, defaults, useApp } from "./store";
-import { bindWatchVisibility } from "./watch-visibility";
+import { bindWatchVisibility } from "./features/sharing/watch-visibility";
 import {
   bindClientNotifications,
   publishClientNotification,
   notificationInbox,
   clientNotificationEnabled,
-} from "./client-notifications";
+} from "./features/notifications/client-notifications";
 import { serverOrigin } from "./server-address";
 import {
   capabilities,
@@ -54,15 +54,15 @@ import {
 } from "./platform";
 import { restoreSettings } from "../shared/settings";
 import { defaultNotificationPreferences } from "@cinegather/contracts";
-import { FriendRequests, friendRequestNotification } from "./friends";
-import { FriendVolumes } from "./friend-volumes";
-import { ApprovedRoomEntry } from "./approved-room-entry";
-import { DiagnosticRecorder } from "./diagnostic-recorder";
-import { ProcessAudio } from "./process-audio";
+import { FriendRequests, friendRequestNotification } from "./features/friends/friends";
+import { FriendVolumes } from "./features/friends/friend-volumes";
+import { ApprovedRoomEntry } from "./features/rooms/approved-room-entry";
+import { DiagnosticRecorder } from "./features/diagnostics/diagnostic-recorder";
+import { ProcessAudio } from "./features/audio/process-audio";
 import {
   deviceAudioTitle,
   deviceAudioDescription,
-} from "./audio-compatibility";
+} from "./features/audio/audio-compatibility";
 import { version } from "../../package.json";
 import { clientPolicySchema, clientUpdateOrigin } from "@cinegather/contracts";
 let sessionToken = localStorage.getItem("cinegather.session") ?? undefined;

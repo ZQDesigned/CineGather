@@ -23,7 +23,7 @@ if (
   throw Error("Run esports integration against its isolated database");
 let app: Awaited<ReturnType<typeof createApp>>, origin: string;
 let gateway: ReturnType<
-  typeof import("../../apps/api/src/esports-dev-gateway").startEsportsDevGateway
+  typeof import("../../apps/api/src/modules/esports/esports-dev-gateway").startEsportsDevGateway
 >;
 const created: string[] = [];
 const createdRoles: string[] = [];
@@ -72,7 +72,7 @@ beforeAll(async () => {
   await app.listen(0, "127.0.0.1");
   origin = await app.getUrl();
   const { startEsportsDevGateway } = await import(
-    "../../apps/api/src/esports-dev-gateway"
+    "../../apps/api/src/modules/esports/esports-dev-gateway"
   );
   gateway = startEsportsDevGateway({
     port: 17882,
@@ -84,14 +84,14 @@ beforeAll(async () => {
 afterAll(async () => {
   gateway?.stop(true);
   await app?.close();
-  const { media } = await import("../../apps/api/src/media");
+  const { media } = await import("../../apps/api/src/modules/media/media");
   const matches = created.length
     ? await db
         .select({ id: rooms.id })
         .from(rooms)
         .where(inArray(rooms.ownerUserId, created))
     : [];
-  const { closeEsports } = await import("../../apps/api/src/esports");
+  const { closeEsports } = await import("../../apps/api/src/modules/esports/esports");
   for (const room of matches) {
     await db.transaction((tx) => closeEsports(tx, room.id));
     for (const child of await media.client.listRooms())
@@ -414,7 +414,7 @@ test("signed media admission rejects cross-seat and expired watch tokens; commit
   const video = await conn(lease.publicationId, warm.watch.revision);
   expect(video.status).toBe(201);
   const { admitMediaToken } = await import(
-    "../../apps/api/src/esports-admission"
+    "../../apps/api/src/modules/esports/esports-admission"
   );
   await expect(admitMediaToken(video.body.token)).resolves.toBeUndefined();
   const committed = await req(`/rooms/${room.id}/esports/watch`, viewer.token, {
@@ -559,7 +559,7 @@ test("warm timeout, device takeover and explicit leave revoke every child scope"
     })
   ).body;
   const { admitMediaToken } = await import(
-    "../../apps/api/src/esports-admission"
+    "../../apps/api/src/modules/esports/esports-admission"
   );
   const { esportsWatches } = await import("@cinegather/database");
   await db
@@ -766,7 +766,7 @@ test("abnormal player disconnect reserves the seat for two minutes, while explic
     kind: "player",
     team: "b",
   });
-  const { reconcileRoom } = await import("../../apps/api/src/rooms");
+  const { reconcileRoom } = await import("../../apps/api/src/modules/rooms/rooms");
   await reconcileRoom(room.id, owner.id);
   const [seat] = await db
     .select()
@@ -840,7 +840,7 @@ test("native publications are independent per player: stopping one leaves the ot
       })
     ).body;
     const { admitMediaToken } = await import(
-      "../../apps/api/src/esports-admission"
+      "../../apps/api/src/modules/esports/esports-admission"
     );
     await expect(admitMediaToken(browser.token)).resolves.toBeUndefined();
     const native = await req(
@@ -875,7 +875,7 @@ test("native publications are independent per player: stopping one leaves the ot
     .from(esportsPublications)
     .where(eq(esportsPublications.roomId, room.id));
   expect(remaining!.userId).toBe(player.id);
-  const { media } = await import("../../apps/api/src/media");
+  const { media } = await import("../../apps/api/src/modules/media/media");
   const [ingress] = await media.ingress.listIngress({
     ingressId: remaining!.ingressId!,
   });
@@ -903,7 +903,7 @@ test("admission lock lasts until the SFU join acknowledgment so seat revocation 
     changed = false;
   const acknowledged = new Promise<void>((r) => (release = r));
   const { admitMediaToken } = await import(
-    "../../apps/api/src/esports-admission"
+    "../../apps/api/src/modules/esports/esports-admission"
   );
   const pending = admitMediaToken(voice.token, async () => {
     entered = true;
@@ -975,7 +975,7 @@ test("the production WebSocket relay receives a genuine SFU join response while 
     },
   );
   const { admitMediaToken } = await import(
-    "../../apps/api/src/esports-admission"
+    "../../apps/api/src/modules/esports/esports-admission"
   );
   await req(`/rooms/${room.id}/esports/members/${owner.id}/seat`, owner.token, {
     kind: "director",

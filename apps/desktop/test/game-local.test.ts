@@ -5,8 +5,8 @@ import { mkdtemp, writeFile, readFile, chmod, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { GameTunnelConfig } from "@cinegather/contracts";
-import { GameLocal } from "../src/main/game-local";
-import { encodeGameVarInt } from "../src/main/minecraft-worlds";
+import { GameLocal } from "../src/main/games/game-local";
+import { encodeGameVarInt } from "../src/main/games/minecraft-worlds";
 function config(): GameTunnelConfig {
   const memberId = crypto.randomUUID(),
     guest = crypto.randomUUID(),

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
   decodeNativeNetwork,
   NativeCaptureEvents,
-} from "../src/main/native-capture-events";
+} from "../src/main/capture/native-capture-events";
 import { safeDiagnosticRecord } from "@cinegather/contracts";
 const wire = {
   sequence: 1,
@@ -146,7 +146,7 @@ test("phase observations cannot regress on late status messages and terminal tim
 });
 
 test("native stage evidence survives timeout/rebuild/export and rejects raw data or invalid phases", async () => {
-  const events: import("../src/main/native-capture-events").NativeCaptureEvent[] =
+  const events: import("../src/main/capture/native-capture-events").NativeCaptureEvent[] =
     [];
   const journal = new NativeCaptureEvents((e) => events.push(e));
   const host = crypto.randomUUID();

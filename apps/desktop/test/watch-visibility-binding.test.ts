@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { bindWatchVisibility } from "../src/renderer/watch-visibility";
+import { bindWatchVisibility } from "../src/renderer/features/sharing/watch-visibility";
 function surface() {
   const target = new EventTarget();
   const value = Object.assign(target, {

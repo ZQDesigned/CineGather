@@ -9,12 +9,12 @@ import {
   userRoles,
 } from "@cinegather/database";
 import { eq, inArray } from "drizzle-orm";
-import { setCapabilities } from "../../apps/api/src/capabilities";
+import { setCapabilities } from "../../apps/api/src/modules/accounts/capabilities";
 import {
   readRegistrationPolicy,
   updateRegistrationPolicy,
-} from "../../apps/api/src/registration";
-import { registerAccount } from "../../apps/api/src/accounts";
+} from "../../apps/api/src/modules/accounts/registration";
+import { registerAccount } from "../../apps/api/src/modules/accounts/accounts";
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 const ids: string[] = [];
 const roles: string[] = [];

@@ -13,8 +13,8 @@ import {
   adminRoles,
 } from "@cinegather/database";
 import { eq, inArray } from "drizzle-orm";
-import { hash, token } from "../../apps/api/src/context";
-import { media } from "../../apps/api/src/media";
+import { hash, token } from "../../apps/api/src/core/context";
+import { media } from "../../apps/api/src/modules/media/media";
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 let app: Awaited<ReturnType<typeof createApp>>;
 let base: string;

@@ -4,7 +4,7 @@ import {
   notificationDelivery,
 } from "../src/shared/notifications";
 import { defaultNotificationPreferences } from "@cinegather/contracts";
-import { friendRequestNotification } from "../src/renderer/friends";
+import { friendRequestNotification } from "../src/renderer/features/friends/friends";
 import { shouldFallbackNotification } from "../src/shared/notification-permission";
 
 function fixture() {

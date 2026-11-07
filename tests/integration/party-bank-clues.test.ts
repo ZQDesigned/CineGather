@@ -1,8 +1,8 @@
 import { expect, test } from "bun:test";
-import { db } from "../../apps/api/src/context";
+import { db } from "../../apps/api/src/core/context";
 import { partyWordBank } from "@cinegather/database";
 import { eq, sql } from "drizzle-orm";
-import { partyWordSeed } from "../../apps/api/src/party-word-seed";
+import { partyWordSeed } from "../../apps/api/src/modules/party/party-word-seed";
 test("clue migration corrects original content but preserves edits, disabled state and deletions", async () => {
   if (!process.env.DATABASE_URL?.includes("activities_tests"))
     throw Error("isolated test database required");

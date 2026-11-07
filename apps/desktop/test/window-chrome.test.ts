@@ -6,7 +6,7 @@ import {
   mainWindowState,
   configureWindowsAppIdentity,
   windowsAppId,
-} from "../src/main/window-chrome";
+} from "../src/main/windows/window-chrome";
 test("Windows uses a frameless window without a native caption overlay", () => {
   expect(mainWindowChrome("win32")).toEqual({
     titleBarStyle: "hidden",

@@ -1,12 +1,12 @@
 import { expect, test } from "bun:test";
-import { partyWordSeed } from "../src/party-word-seed";
+import { partyWordSeed } from "../src/modules/party/party-word-seed";
 import { partyWordInput, partyAnswerKey } from "@cinegather/contracts";
 import {
   newPartyGame,
   partyCommand,
   partyView,
   tickPartyGame,
-} from "../src/party-game";
+} from "../src/modules/party/party-game";
 test("1650 unique usable seed questions with three distinct progressive clues", () => {
   expect(partyWordSeed).toHaveLength(1650);
   expect(new Set(partyWordSeed.map((w) => partyAnswerKey(w.answer))).size).toBe(
@@ -22,7 +22,7 @@ test("1650 unique usable seed questions with three distinct progressive clues", 
 
 test("modern game pack has curated clues and explicit drawing suitability", async () => {
   const { partyModernGameWords } = await import(
-    "../src/party-modern-game-words"
+    "../src/modules/party/data/party-modern-game-words"
   );
   expect(partyModernGameWords).toHaveLength(150);
   expect(
@@ -96,7 +96,7 @@ test("authored clues add information beyond the category instead of a generic ty
 });
 
 test("expanded bank spans many themes, targets compatible games, and never spells out the answer in new clues", async () => {
-  const { partyWordExpansion } = await import("../src/party-word-expansion");
+  const { partyWordExpansion } = await import("../src/modules/party/data/party-word-expansion");
   expect(partyWordExpansion).toHaveLength(1100);
   expect(
     new Set(partyWordSeed.map((w) => w.category)).size,

@@ -1,25 +1,25 @@
-import { gameTunnelHttp } from "./game-tunnel-http";
-import { RoomActivityController } from "./room-activity-controller";
-import { attachActivityGateway } from "./room-activity-gateway";
+import { gameTunnelHttp } from "./modules/games/game-tunnel-http";
+import { RoomActivityController } from "./modules/activities/room-activity-controller";
+import { attachActivityGateway } from "./modules/activities/room-activity-gateway";
 import {
   tickRoomActivities,
   cleanupWhiteboardArchives,
-} from "./room-activities";
-import { GameTunnelController } from "./game-tunnel-controller";
+} from "./modules/activities/room-activities";
+import { GameTunnelController } from "./modules/games/game-tunnel-controller";
 import { json, urlencoded } from "express";
-import { gameTransaction } from "./game-link-access";
+import { gameTransaction } from "./modules/games/game-link-access";
 import { z } from "zod";
 import { featureUpdateIssueSchema } from "@cinegather/contracts";
 import { join } from "node:path";
-import { FeaturePolicyStore } from "./feature-policy";
+import { FeaturePolicyStore } from "./modules/updates/feature-policy";
 import type { FeaturePolicy } from "@cinegather/contracts";
-import { reconcileTacticalPauses } from "./esports-configuration";
-import { MobileUpdateStore } from "./mobile-update-store";
-import { serveMobileUpdate } from "./mobile-update-http";
+import { reconcileTacticalPauses } from "./modules/esports/esports-configuration";
+import { MobileUpdateStore } from "./modules/updates/mobile-update-store";
+import { serveMobileUpdate } from "./modules/updates/mobile-update-http";
 import {
   mobileCompatibilityFailure,
   mobileUpdateExempt,
-} from "./mobile-updates";
+} from "./modules/updates/mobile-updates";
 import "reflect-metadata";
 import {
   Module,
@@ -31,30 +31,30 @@ import type { NestExpressApplication } from "@nestjs/platform-express";
 import { SwaggerModule, DocumentBuilder } from "@nestjs/swagger";
 import type { Request, Response, NextFunction } from "express";
 import { randomUUID } from "node:crypto";
-import { AnnouncementScheduler } from "./announcement-scheduler";
+import { AnnouncementScheduler } from "./modules/announcements/announcement-scheduler";
 import {
   EsportsController,
   EsportsAdmissionController,
-} from "./esports-controller";
-import { admissionSecretValid } from "./esports-admission";
-import { AdminController } from "./admin-controller";
+} from "./modules/esports/esports-controller";
+import { admissionSecretValid } from "./modules/esports/esports-admission";
+import { AdminController } from "./modules/admin/admin-controller";
 import { ApiController } from "./controller";
-import { GameLinkController } from "./game-link-controller";
+import { GameLinkController } from "./modules/games/game-link-controller";
 import {
   AuthGuard,
   ErrorFilter,
   requestIdentity,
   type AuthRequest,
-} from "./http";
-import { cdnClientIp } from "./client-ip";
+} from "./core/http";
+import { cdnClientIp } from "./core/client-ip";
 import { config } from "./config";
-import { database } from "./context";
-import { reconcileAll } from "./rooms";
-import { Metrics } from "./metrics";
-import { UpdateEvents } from "./update-events";
-import { compatibilityFailure } from "./client-policy";
-import { attachEsportsGateway } from "./esports-gateway";
-import { readMaintenance, maintenanceGate } from "./maintenance";
+import { database } from "./core/context";
+import { reconcileAll } from "./modules/rooms/rooms";
+import { Metrics } from "./core/metrics";
+import { UpdateEvents } from "./modules/updates/update-events";
+import { compatibilityFailure } from "./modules/updates/client-policy";
+import { attachEsportsGateway } from "./modules/esports/esports-gateway";
+import { readMaintenance, maintenanceGate } from "./core/maintenance";
 import type { ClientPolicy } from "@cinegather/contracts";
 class Reconciler implements OnModuleInit, OnModuleDestroy {
   private timer?: ReturnType<typeof setInterval>;

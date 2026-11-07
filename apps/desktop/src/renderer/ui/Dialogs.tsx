@@ -1,5 +1,5 @@
-import { EsportsSeatInvite } from "./EsportsRoom";
-import { AnnouncementDialog } from "./Announcements";
+import { EsportsSeatInvite } from "../features/esports/ui/EsportsRoom";
+import { AnnouncementDialog } from "../features/announcements/ui/Announcements";
 import {
   Select,
   Checkbox,
@@ -13,16 +13,16 @@ import {
   Space,
   Spin,
 } from "antd";
-import { Button, TextArea, Input } from "./Controls";
-import { Settings } from "./Settings";
-import { ClientDownload } from "./ClientDownload";
-import { UpdateDialog } from "./Updates";
-import { RoomSettings } from "./RoomSettings";
-import { Diagnostics } from "./Diagnostics";
-import { FriendSearch } from "./FriendSearch";
-import { FriendRemark } from "./FriendRemark";
-import { FriendRoomPicker, RoomInvitationInbox } from "./RoomInvitations";
-import { RoomRequestInbox } from "./RoomJoinRequests";
+import { Button, TextArea, Input } from "../features/rooms/ui/Controls";
+import { Settings } from "../features/settings/ui/Settings";
+import { ClientDownload } from "../features/updates/ui/ClientDownload";
+import { UpdateDialog } from "../features/updates/ui/Updates";
+import { RoomSettings } from "../features/rooms/ui/RoomSettings";
+import { Diagnostics } from "../features/diagnostics/ui/Diagnostics";
+import { FriendSearch } from "../features/friends/ui/FriendSearch";
+import { FriendRemark } from "../features/friends/ui/FriendRemark";
+import { FriendRoomPicker, RoomInvitationInbox } from "../features/rooms/ui/RoomInvitations";
+import { RoomRequestInbox } from "../features/rooms/ui/RoomJoinRequests";
 import { useEffect, useRef, useState } from "react";
 import { Copy, Monitor, AppWindow, RefreshCw, Shield } from "lucide-react";
 import { useApp, update, type Modal } from "../store";
@@ -30,12 +30,12 @@ import * as actions from "../controller";
 import { unwrap } from "@cinegather/api-client";
 import { parseInvitation } from "@cinegather/client-core";
 import { DialogLifecycle, ModalShell, useDialogOpen } from "./Modal";
-import { useSourcePreviews } from "./useSourcePreviews";
+import { useSourcePreviews } from "../features/sharing/ui/useSourcePreviews";
 import { capabilities } from "../platform";
 import {
   deviceAudioTitle,
   deviceAudioDescription,
-} from "../audio-compatibility";
+} from "../features/audio/audio-compatibility";
 export function Dialogs() {
   const modal = useApp((s) => s.modal);
   const [shown, setShown] = useState<Modal>(modal);

@@ -4,7 +4,7 @@ import { createHash } from "node:crypto";
 import {
   readNativeBaseline,
   withNativeBaseline,
-} from "../../../tools/mobile-native-baseline";
+} from "../../../tools/mobile/native-baseline";
 function config() {
   return {
     version: "0.1.0",

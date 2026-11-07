@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import * as c from "../src";
+import * as c from "../src/index";
 
 test("quality entitlement defaults closed and falls back without changing basic profiles", () => {
   expect(c.allowedShareQuality("game", undefined)).toBe("cinema");

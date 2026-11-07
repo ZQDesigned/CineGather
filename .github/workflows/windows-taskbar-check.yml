@@ -9,9 +9,9 @@ on:
   push:
     branches: [feat/windows-taskbar-upgrade]
     paths:
-      - tools/windows-in-app-upgrade-smoke.ts
-      - tools/windows-shortcut-probe.ps1
-      - tools/windows-identity-probe.ts
+      - tools/validation/windows/in-app-upgrade-smoke.ts
+      - tools/validation/windows/shortcut-probe.ps1
+      - tools/validation/windows/identity-probe.ts
       - .github/workflows/windows-taskbar-check.yml
 permissions:
   contents: read
@@ -62,19 +62,19 @@ jobs:
         shell: pwsh
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
-          ./tools/windows-upgrade-smoke.ps1 -UpgradeInstaller "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+          ./tools/validation/windows/upgrade-smoke.ps1 -UpgradeInstaller "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - name: Verify actual viewing window controls with the reused build
-        run: bun tools/viewing-window-controls-smoke.ts apps/desktop/release/win-unpacked/CineGather.exe
+        run: bun tools/validation/viewing-window-controls-smoke.ts apps/desktop/release/win-unpacked/CineGather.exe
       - name: Verify actual in-app upgrade and uninstall
         shell: pwsh
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
-          bun tools/windows-in-app-upgrade-smoke.ts "apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+          bun tools/validation/windows/in-app-upgrade-smoke.ts "apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - name: Verify failure evidence and diagnostics export with the reused build
         shell: pwsh
         run: |
           $version = (Get-Content apps/desktop/package.json | ConvertFrom-Json).version
-          ./tools/windows-installer-diagnostics-smoke.ps1 -Installer "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
+          ./tools/validation/windows/installer-diagnostics-smoke.ps1 -Installer "$PWD/apps/desktop/release/CineGather-$version-win-x64-setup.exe"
       - name: Collect installer evidence even when baseline installation fails
         if: always()
         shell: pwsh

@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { nativeFailure } from "../src/main/native-failure";
+import { nativeFailure } from "../src/main/capture/native-failure";
 test("native encoder failures explain recovery without silently changing the selected backend", () => {
   expect(
     (nativeFailure(new Error("encoder-adapter-reroute")) as Error).message,

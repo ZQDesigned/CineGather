@@ -7,13 +7,13 @@ import {
   UpdateScheduler,
   UPDATE_INTERVAL,
   automaticallyDownload,
-} from "../src/main/update-scheduler";
+} from "../src/main/updates/update-scheduler";
 import {
   PendingUpdateStore,
   installPendingUpdate,
-} from "../src/main/pending-update";
-import { verifyRelease } from "../src/main/update-release";
-import { UpdateController } from "../src/main/update-controller";
+} from "../src/main/updates/pending-update";
+import { verifyRelease } from "../src/main/updates/update-release";
+import { UpdateController } from "../src/main/updates/update-controller";
 import { defaultSettings, settingsSchema } from "../src/shared/settings";
 test("automatic checks run once per hour, coalesce resume and do not retry rapidly on errors", async () => {
   let now = 0,

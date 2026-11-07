@@ -4,13 +4,13 @@ on:
   push:
     paths:
       - .github/workflows/windows-notifications.yml
-      - apps/desktop/src/main/notifications.ts
+      - apps/desktop/src/main/windows/notifications.ts
       - apps/desktop/src/preload/notification-card.ts
-      - tools/notification-smoke.ts
-      - tools/do-not-disturb-smoke.ts
+      - tools/validation/notification-smoke.ts
+      - tools/validation/do-not-disturb-smoke.ts
       - apps/desktop/src/main/index.ts
       - apps/desktop/src/preload/index.ts
-      - apps/desktop/src/renderer/ui/DoNotDisturb.tsx
+      - apps/desktop/src/renderer/features/notifications/ui/DoNotDisturb.tsx
 jobs:
   notifications:
     runs-on: windows-latest
@@ -25,11 +25,11 @@ jobs:
           node-version: 24.18.1
       - run: bun install --frozen-lockfile
       - run: bun run setup
-      - run: bun tools/icons.ts
+      - run: bun tools/build/icons.ts
       - run: bun test apps/desktop/test/notifications.test.ts packages/media-core/test/watch-profile.test.ts
       - run: bun run --filter @cinegather/desktop build
-      - run: bun tools/notification-smoke.ts
-      - run: bun tools/do-not-disturb-smoke.ts
+      - run: bun tools/validation/notification-smoke.ts
+      - run: bun tools/validation/do-not-disturb-smoke.ts
       - uses: actions/upload-artifact@v4
         if: always()
         with:

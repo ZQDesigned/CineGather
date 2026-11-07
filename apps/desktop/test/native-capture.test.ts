@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { NativeProtocol } from "../src/main/native-protocol";
+import { NativeProtocol } from "../src/main/capture/native-protocol";
 
 test("native pipe correlates commands, rejects late data after timeout, and bounds response size", async () => {
   const writes: string[] = [];
@@ -60,7 +60,7 @@ test("a failed native command preserves its cause for queued cleanup requests", 
 });
 
 test("native transport failure and exit survive cleanup and a fresh diagnostic probe", async () => {
-  const { NativeCapture } = await import("../src/main/native-capture");
+  const { NativeCapture } = await import("../src/main/capture/native-capture");
   const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -161,7 +161,7 @@ test("an invalid multi-response packet immediately rejects the pending operation
 });
 
 test("screen audio captures the system mix without an application while window audio retains fresh app identity", async () => {
-  const { selectNativeSource } = await import("../src/main/native-selection");
+  const { selectNativeSource } = await import("../src/main/capture/native-selection");
   const windows = [
     {
       windowId: 12,
@@ -203,7 +203,7 @@ test("screen audio captures the system mix without an application while window a
 });
 
 test("canceling source selection discards a delayed native enumeration result", async () => {
-  const { NativeCapture } = await import("../src/main/native-capture");
+  const { NativeCapture } = await import("../src/main/capture/native-capture");
   const { mkdtemp, mkdir, writeFile, access, rm } = await import(
     "node:fs/promises"
   );
@@ -243,7 +243,7 @@ const fs=require('node:fs');require('node:readline').createInterface({input:proc
 });
 
 test("development capture excludes the Electron application hosting the room playback", async () => {
-  const { selectNativeSource } = await import("../src/main/native-selection");
+  const { selectNativeSource } = await import("../src/main/capture/native-selection");
   const windows = [
     {
       windowId: 7,
@@ -272,7 +272,7 @@ test("development capture excludes the Electron application hosting the room pla
 });
 
 test("source thumbnails preserve native identity, stay bounded and cannot capture unlisted or own sources", async () => {
-  const { NativeCapture } = await import("../src/main/native-capture");
+  const { NativeCapture } = await import("../src/main/capture/native-capture");
   const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
     "node:fs/promises"
   );
@@ -327,7 +327,7 @@ const fs=require('node:fs');require('node:readline').createInterface({input:proc
 });
 
 test("an exclusion-filter failure stops native capture and revokes its room lease", async () => {
-  const { NativeCapture } = await import("../src/main/native-capture");
+  const { NativeCapture } = await import("../src/main/capture/native-capture");
   const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
     "node:fs/promises"
   );
@@ -405,7 +405,7 @@ const fs=require('node:fs');let active=false;require('node:readline').createInte
 });
 
 test("Windows manual encoder reaches the host, real-session evidence survives repeated synthetic exports, and failed initialization revokes the lease", async () => {
-  const { NativeCapture } = await import("../src/main/native-capture");
+  const { NativeCapture } = await import("../src/main/capture/native-capture");
   const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
     "node:fs/promises"
   );
@@ -489,7 +489,7 @@ const fs=require('node:fs');let selected='',active=false;const status=()=>({scre
 });
 
 test("native startup failure retains only a fixed boot stage, never raw third-party stderr", async () => {
-  const { NativeCapture } = await import("../src/main/native-capture");
+  const { NativeCapture } = await import("../src/main/capture/native-capture");
   const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -520,7 +520,7 @@ console.error('raw vendor https://secret/?token=private');console.error('CG_HOST
 
 for (const roomMode of ["standard", "esports"] as const)
   test(`native ${roomMode} source switching renews the scoped lease and never recreates its WHIP publication`, async () => {
-    const { NativeCapture } = await import("../src/main/native-capture");
+    const { NativeCapture } = await import("../src/main/capture/native-capture");
     const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
       "node:fs/promises"
     );
@@ -609,7 +609,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line',line=>
   });
 
 test("a transient native HTTP failure is journaled immediately and survives helper rebuild for export", async () => {
-  const { NativeCapture } = await import("../src/main/native-capture");
+  const { NativeCapture } = await import("../src/main/capture/native-capture");
   const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");
@@ -643,7 +643,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line',line=>
     { mode: 0o755 },
   );
   const expiresAt = new Date(Date.now() + 20000).toISOString(),
-    events: import("../src/main/native-capture-events").NativeCaptureEvent[] =
+    events: import("../src/main/capture/native-capture-events").NativeCaptureEvent[] =
       [];
   let invalidResponse = false;
   const server = Bun.serve({
@@ -751,7 +751,7 @@ require('node:readline').createInterface({input:process.stdin}).on('line',line=>
   expect(events.at(-1)?.native.hostExitReason).toBe("shutdown");
 });
 test("native publication refusals report only the scoped feature requirement before capture starts", async () => {
-  const { NativeCapture } = await import("../src/main/native-capture");
+  const { NativeCapture } = await import("../src/main/capture/native-capture");
   const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
   const { tmpdir } = await import("node:os");
   const { join } = await import("node:path");

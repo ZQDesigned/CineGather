@@ -1,6 +1,6 @@
 import { beforeAll, afterAll, test, expect } from "bun:test";
 import { createApp } from "../../apps/api/src/app";
-import { db, hash } from "../../apps/api/src/context";
+import { db, hash } from "../../apps/api/src/core/context";
 import {
   users,
   credentials,
@@ -500,7 +500,7 @@ test("websocket sends board deltas and a reused command id does not undo twice",
 
 test("screen acquisition cannot bypass a board and consumes only the approving credential's grant", async () => {
   const { guardActivityShare } = await import(
-    "../../apps/api/src/room-activities"
+    "../../apps/api/src/modules/activities/room-activities"
   );
   const f = await fixture(),
     path = `/rooms/${f.id}/activity`;
@@ -533,7 +533,7 @@ test("screen acquisition cannot bypass a board and consumes only the approving c
 
 test("archive cleanup preserves receipts and image references while removing expired orphan data", async () => {
   const { cleanupWhiteboardArchives } = await import(
-    "../../apps/api/src/room-activities"
+    "../../apps/api/src/modules/activities/room-activities"
   );
   const f = await fixture(),
     old = new Date(Date.now() - 172800000),
@@ -621,7 +621,7 @@ test("independent permission switches do not restore each other's stale values",
 
 test("switching from screen to board promptly revokes the exact publisher after commit", async () => {
   const { spyOn } = await import("bun:test");
-  const { media } = await import("../../apps/api/src/media");
+  const { media } = await import("../../apps/api/src/modules/media/media");
   const f = await fixture(),
     leaseId = crypto.randomUUID();
   await db

@@ -3,8 +3,8 @@ import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { generateKeyPairSync, verify } from "node:crypto";
 import { createApp } from "../../apps/api/src/app";
-import { readClientPolicy } from "../../apps/api/src/client-policy";
-import { publishMobileUpdate } from "../../tools/mobile-publish";
+import { readClientPolicy } from "../../apps/api/src/modules/updates/client-policy";
+import { publishMobileUpdate } from "../../tools/mobile/publish";
 test("old mobile clients can obtain signed OTA while business requests enforce both version floors", async () => {
   const dir = await mkdtemp("/tmp/cg-mobile-http-");
   const keys = generateKeyPairSync("rsa", { modulusLength: 2048 });

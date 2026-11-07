@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { OverlayStacking } from "../src/main/overlay-stacking";
+import { OverlayStacking } from "../src/main/windows/overlay-stacking";
 
 // Only the native window boundary is substituted; recovery/lifecycle logic is real.
 function fixture(platform: NodeJS.Platform = "win32") {

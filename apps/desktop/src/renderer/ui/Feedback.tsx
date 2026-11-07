@@ -5,7 +5,7 @@ import { useApp, update } from "../store";
 import {
   publishClientNotification,
   clientNotificationEnabled,
-} from "../client-notifications";
+} from "../features/notifications/client-notifications";
 
 export function Feedback() {
   const lastErrorReminder = useRef<

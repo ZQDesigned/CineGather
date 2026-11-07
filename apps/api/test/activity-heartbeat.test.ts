@@ -1,7 +1,7 @@
 import { expect, test } from "bun:test";
 import { WebSocketServer, WebSocket } from "ws";
 import { once, EventEmitter } from "node:events";
-import { startActivityHeartbeat } from "../src/activity-heartbeat";
+import { startActivityHeartbeat } from "../src/modules/activities/activity-heartbeat";
 async function pair(autoPong = true) {
   const server = new WebSocketServer({ host: "127.0.0.1", port: 0 });
   await once(server, "listening");

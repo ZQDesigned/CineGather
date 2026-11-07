@@ -1,0 +1,214 @@
+import { _electron, expect } from "@playwright/test";
+import { mkdtemp, mkdir, writeFile, rm } from "node:fs/promises";
+import { resolve, join } from "node:path";
+const directory = await mkdtemp(resolve(".local/window-visibility-"));
+const entry = join(directory, "fixture.ts");
+await writeFile(
+  entry,
+  `
+import {app,BrowserWindow,screen} from 'electron';
+import {createRequire} from 'node:module';
+import {WindowVisibilityMonitor} from ${JSON.stringify(resolve("apps/desktop/src/main/windows/watch-visibility.ts"))};
+import {nativeWindowVisibility} from ${JSON.stringify(resolve("apps/desktop/src/main/windows/native-window-visibility.ts"))};
+app.whenReady().then(async()=>{
+ const area=screen.getPrimaryDisplay().workArea;
+ const bounds={x:area.x+40,y:area.y+40,width:800,height:560};
+ const make=async(title,bg)=>{const w=new BrowserWindow({...bounds,show:false,frame:false,backgroundColor:bg,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false,backgroundThrottling:false}});await w.loadURL('data:text/html,<title>'+title+'</title><body style="margin:0;background:'+bg+'">'+title);w.setTitle(title);return w};
+ const main=await make('Visibility main','#102a50');main.show();main.focus();
+ let child,hud,blocked=false;const changes=[];
+ const ffi=process.platform==='win32'?createRequire(__filename)('koffi'):undefined;
+ const user=ffi?.load('user32.dll');
+ const getStyle=user?.func('intptr_t __stdcall GetWindowLongPtrW(uintptr_t window,int index)');
+ const setStyle=user?.func('intptr_t __stdcall SetWindowLongPtrW(uintptr_t window,int index,intptr_t value)');
+ const getAlpha=user?.func('int __stdcall GetLayeredWindowAttributes(uintptr_t window,void *key,void *alpha,void *flags)');
+ const hudDetails=()=>{
+  if(!hud||!getStyle)return undefined;
+  const handle=hud.getNativeWindowHandle().readBigUInt64LE(),alpha=Buffer.alloc(1),flags=Buffer.alloc(4);
+  return {extendedStyle:Number(getStyle(handle,-20)),layerAttributesAvailable:!!getAlpha(handle,null,alpha,flags),alpha:alpha[0],layerFlags:flags.readUInt32LE()};
+ };
+ const probe=nativeWindowVisibility(process.platform);
+ const monitor=new WindowVisibilityMonitor({windows:()=>[main,child].filter(Boolean),blocked:()=>blocked,probe,changed:value=>changes.push(value)});
+ const cover=await make('Visibility opaque cover','#802030');
+ cover.setAlwaysOnTop(true,'screen-saver');
+ const second=await make('Visibility second cover','#206030');second.setAlwaysOnTop(true,'screen-saver');
+ globalThis.visibilityFixture={
+  read(){return{visible:monitor.sync(),changes:[...changes],mainFocused:main.isFocused(),mainShown:main.isVisible(),mainMinimized:main.isMinimized(),hud:hudDetails()}},
+  watch(value){return monitor.watch(value)},
+  async mode(mode){
+   if(mode==='full'){cover.setOpacity(1);cover.setBounds({x:bounds.x-30,y:bounds.y-30,width:bounds.width+60,height:bounds.height+60});cover.show();cover.focus();}
+   if(mode==='partial'){cover.setOpacity(1);cover.setBounds({x:bounds.x+bounds.width/2,y:bounds.y-30,width:bounds.width,height:bounds.height+60});cover.show();cover.focus();}
+   if(mode==='transparent'){cover.setOpacity(0.35);}
+   if(mode==='multiple'){cover.setOpacity(1);cover.setBounds({x:bounds.x-30,y:bounds.y-30,width:bounds.width/2+35,height:bounds.height+60});cover.show();second.setBounds({x:bounds.x+bounds.width/2,y:bounds.y-30,width:bounds.width/2+30,height:bounds.height+60});second.show();second.focus();}
+   if(mode==='uncover'){cover.hide();second.hide();hud?.hide();main.restore();main.show();main.focus();}
+   if(mode==='transparent-hud'){
+    cover.hide();second.hide();main.restore();main.show();main.focus();
+    hud=new BrowserWindow({...bounds,x:bounds.x-30,y:bounds.y-30,width:bounds.width+60,height:bounds.height+60,frame:false,transparent:true,backgroundColor:'#00000000',show:false,focusable:false,webPreferences:{sandbox:true,contextIsolation:true,nodeIntegration:false}});
+    await hud.loadURL('data:text/html,<body style="margin:0;background:transparent"><span style="background:purple;color:white">Transparent HUD</span>');
+    hud.setAlwaysOnTop(true,'screen-saver');hud.setIgnoreMouseEvents(true);hud.setOpacity(0.99);hud.setOpacity(1);hud.showInactive();
+   }
+   if(mode==='click-through-only'||mode==='tool-window-only'){
+    const handle=hud.getNativeWindowHandle().readBigUInt64LE();
+    const flags=Number(getStyle(handle,-20))&~(0x20|0x80);
+    setStyle(handle,-20,flags|(mode==='click-through-only'?0x20:0x80));
+   }
+   if(mode==='minimize'){main.minimize();}
+   if(mode==='hide'){main.hide();}
+   if(mode==='child'){child=await make('Visibility viewing child','#202080');child.setBounds({x:bounds.x+60,y:bounds.y+60,width:360,height:240});child.setAlwaysOnTop(true,'screen-saver');child.show();child.focus();}
+   if(mode==='child-hide'){child.hide();}
+   if(mode==='child-close'){child.destroy();child=undefined;}
+   if(mode==='lock'){blocked=true;}
+   if(mode==='unlock'){blocked=false;}
+   monitor.sync();
+  },
+  dispose(){monitor.dispose();cover.destroy();second.destroy();hud?.destroy();child?.destroy();main.destroy();},
+ };
+ app.on('before-quit',()=>monitor.dispose());
+});
+`,
+);
+const built = await Bun.build({
+  entrypoints: [entry],
+  target: "node",
+  format: "cjs",
+  external: ["electron"],
+});
+if (!built.success)
+  throw new AggregateError(built.logs, "Visibility fixture build failed");
+const main = join(directory, "main.cjs");
+await writeFile(main, await built.outputs[0]!.text());
+const app = await _electron.launch({
+  args: [main, "--user-data-dir=" + join(directory, "profile"), "--mute-audio"],
+});
+interface Fixture {
+  read(): {
+    visible: boolean;
+    mainFocused: boolean;
+    changes: boolean[];
+    hud?: {
+      extendedStyle: number;
+      alpha: number;
+      layerFlags: number;
+      layerAttributesAvailable: boolean;
+    };
+  };
+  watch(value: boolean): boolean;
+  mode(mode: string): Promise<void>;
+  dispose(): void;
+}
+const read = () =>
+  app.evaluate(() =>
+    (
+      globalThis as unknown as { visibilityFixture: Fixture }
+    ).visibilityFixture.read(),
+  );
+let currentMode = "initial";
+const mode = (value: string) => {
+  currentMode = value;
+  return app.evaluate(
+    (_, value) =>
+      (
+        globalThis as unknown as { visibilityFixture: Fixture }
+      ).visibilityFixture.mode(value),
+    value,
+  );
+};
+const visible = (expected: boolean) =>
+  expect
+    .poll(async () => (await read()).visible, {
+      timeout: 10000,
+      message: "Window visibility after " + currentMode,
+    })
+    .toBe(expected);
+try {
+  await expect
+    .poll(() =>
+      app.evaluate(() =>
+        Boolean(
+          (globalThis as unknown as { visibilityFixture?: Fixture })
+            .visibilityFixture,
+        ),
+      ),
+    )
+    .toBe(true);
+  await app.evaluate(() =>
+    (
+      globalThis as unknown as { visibilityFixture: Fixture }
+    ).visibilityFixture.watch(true),
+  );
+  await visible(true);
+  await mode("partial");
+  await visible(true);
+  expect((await read()).mainFocused).toBe(false);
+  await mode("full");
+  await visible(false);
+  await mode("transparent");
+  await visible(true);
+  await mode("multiple");
+  await visible(false);
+  await mode("uncover");
+  await visible(true);
+  if (process.platform === "win32") {
+    await mode("transparent-hud");
+    const output = resolve(".local/watch-visibility-verification");
+    await mkdir(output, { recursive: true });
+    for (const variant of [
+      "transparent-hud",
+      "click-through-only",
+      "tool-window-only",
+    ]) {
+      if (variant !== "transparent-hud") await mode(variant);
+      const observed = await read();
+      await writeFile(
+        join(output, "win32-" + variant + ".json"),
+        JSON.stringify(observed),
+      );
+      const flags = observed.hud!.extendedStyle;
+      expect(Boolean(flags & 0x20)).toBe(variant !== "tool-window-only");
+      if (variant !== "transparent-hud")
+        expect(Boolean(flags & 0x80)).toBe(variant === "tool-window-only");
+      await visible(true);
+    }
+    await mode("uncover");
+  }
+  await mode("minimize");
+  await visible(false);
+  await mode("uncover");
+  await visible(true);
+  await mode("hide");
+  await visible(false);
+  await mode("uncover");
+  await mode("full");
+  await visible(false);
+  await mode("child");
+  await visible(true);
+  await mode("lock");
+  await visible(false);
+  await mode("unlock");
+  await visible(true);
+  await mode("child-hide");
+  await visible(false);
+  await mode("child-close");
+  await visible(false);
+  const result = {
+    platform: process.platform,
+    partialVisibilityKeepsVideo: true,
+    focusIndependent: true,
+    fullAndMultipleOcclusionPauses: true,
+    transparentCoverKeepsVideo: true,
+    transparentHudKeepsVideo: process.platform === "win32" ? true : undefined,
+    minimizeHideAndRestore: true,
+    viewingChildKeepsVideo: true,
+    lockAndChildCleanup: true,
+    productionTestDataCreated: false,
+  };
+  const output = resolve(".local/watch-visibility-verification");
+  await mkdir(output, { recursive: true });
+  await writeFile(
+    join(output, process.platform + ".json"),
+    JSON.stringify(result, null, 2),
+  );
+  console.log(JSON.stringify(result));
+} finally {
+  await app.close();
+  await rm(directory, { recursive: true, force: true });
+}

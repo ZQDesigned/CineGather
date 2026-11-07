@@ -6,7 +6,7 @@ import { win32 } from "node:path";
 import {
   probeStardewWorld,
   windowsUdpPortPresent,
-} from "../src/main/stardew-worlds";
+} from "../src/main/games/stardew-worlds";
 
 test("Windows reads exclusive UDP listeners without attempting to rebind the game's socket", async () => {
   const table =

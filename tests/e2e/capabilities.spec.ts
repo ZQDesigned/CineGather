@@ -34,7 +34,7 @@ test("account capabilities use a single form and preserve cancellation and saved
   };
   const root = await create("root"),
     member = await create("member");
-  execFileSync("bun", ["tools/superadmin.ts", "grant", root.user.id], {
+  execFileSync("bun", ["tools/operations/superadmin.ts", "grant", root.user.id], {
     stdio: "pipe",
   });
   await page.goto("/admin");

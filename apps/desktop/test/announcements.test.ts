@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
   AnnouncementClient,
   announcementActive,
-} from "../src/renderer/announcements";
+} from "../src/renderer/features/announcements/announcements";
 import type { Announcement } from "@cinegather/contracts";
 const at = Date.now();
 const announcement: Announcement = {
@@ -84,7 +84,7 @@ test("old-account work cannot create notices after logout, and valid public cach
 
 test("announcement notification expiry follows server time even when the device clock is offset", async () => {
   const { announcementNotification } = await import(
-    "../src/renderer/announcements"
+    "../src/renderer/features/announcements/announcements"
   );
   const n = announcementNotification(
     { ...announcement, body: "a".repeat(4000) },

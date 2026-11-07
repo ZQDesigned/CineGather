@@ -5,7 +5,7 @@ import { mkdtemp, writeFile, chmod, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { GameTunnelConfig } from "@cinegather/contracts";
-import { GameLocal } from "../src/main/game-local";
+import { GameLocal } from "../src/main/games/game-local";
 
 test("port probing records readiness and missing-service reasons without starting the native transport", async () => {
   const events: unknown[] = [],

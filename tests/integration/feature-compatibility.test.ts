@@ -4,7 +4,7 @@ import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
 import { createApp } from "../../apps/api/src/app";
-import { readClientPolicy } from "../../apps/api/src/client-policy";
+import { readClientPolicy } from "../../apps/api/src/modules/updates/client-policy";
 import { createDatabase, users, rooms, auditLogs } from "@cinegather/database";
 import { inArray, eq } from "drizzle-orm";
 import {
@@ -79,7 +79,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app.close();
-  const { media } = await import("../../apps/api/src/media");
+  const { media } = await import("../../apps/api/src/modules/media/media");
   for (const id of roomIds) await media.deleteRoom(id);
   if (ids.length) {
     await db.delete(rooms).where(inArray(rooms.ownerUserId, ids));

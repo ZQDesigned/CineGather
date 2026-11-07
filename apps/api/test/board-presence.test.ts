@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { allowBoardPresence } from "../src/board-presence";
+import { allowBoardPresence } from "../src/modules/activities/board-presence";
 import type {
   ActivitySnapshot,
   BoardPresenceInput,

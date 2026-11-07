@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { parsePartyImport } from "../src/party-bank-import";
+import { parsePartyImport } from "../src/modules/party/party-bank-import";
 const item = {
   answer: "雨伞",
   category: "用品",

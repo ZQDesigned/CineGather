@@ -16,7 +16,7 @@ import type {
 import { defaultSettings } from "../shared/settings";
 import type { ChatSnapshot } from "@cinegather/client-core";
 import type { ChatMessage } from "@cinegather/contracts";
-import type { Friend } from "./friends";
+import type { Friend } from "./features/friends/friends";
 export type Modal =
   | "announcements"
   | "esports-invite"
@@ -40,7 +40,7 @@ export const defaults = defaultSettings;
 interface State {
   game: import("@cinegather/client-core").GameLinkState;
   esports?: import("@cinegather/client-core").EsportsClientState;
-  announcements: import("./announcements").AnnouncementSnapshot;
+  announcements: import("./features/announcements/announcements").AnnouncementSnapshot;
   pendingAnnouncementIds: string[];
   announcementToastIds: string[];
   selectedAnnouncementId?: string;

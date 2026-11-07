@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
   reconcileAudioDevices,
   audioDeviceOptions,
-} from "../src/renderer/audio-devices";
+} from "../src/renderer/features/audio/audio-devices";
 const d = (kind: MediaDeviceKind, deviceId: string, label = "") =>
   ({ kind, deviceId, label }) as MediaDeviceInfo;
 test("missing saved devices fall back independently without changing valid devices", () => {

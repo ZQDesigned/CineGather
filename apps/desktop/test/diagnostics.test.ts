@@ -9,7 +9,7 @@ import {
   summarizeDiagnostics,
   nativePipeline,
 } from "../src/shared/diagnostics";
-import { DiagnosticHistory } from "../src/main/diagnostic-history";
+import { DiagnosticHistory } from "../src/main/diagnostics/diagnostic-history";
 import { mkdtemp, rm, appendFile } from "node:fs/promises";
 import { join } from "node:path";
 import { tmpdir } from "node:os";
@@ -525,7 +525,7 @@ test("esports diagnostic context retains scoped revisions and strips credentials
 });
 test("immediate native events survive history reopen and export failure, cleanup, rebuild and recovery separately", async () => {
   const { NativeCaptureEvents, decodeNativeNetwork } = await import(
-    "../src/main/native-capture-events"
+    "../src/main/capture/native-capture-events"
   );
   const dir = await mkdtemp(join(tmpdir(), "cg-native-journal-"));
   const at = Date.now();

@@ -7,9 +7,9 @@ import {
   audioTarget,
   supportsProcessAudio,
   WindowsAudio,
-} from "../src/main/windows-audio";
+} from "../src/main/audio/windows-audio";
 import type { ProcessAudioPacket } from "@cinegather/contracts";
-import { PcmQueue } from "../src/renderer/process-audio-buffer";
+import { PcmQueue } from "../src/renderer/features/audio/process-audio-buffer";
 
 function packet(frames = 480, timestamp = 1230000n) {
   const data = Buffer.alloc(16 + frames * 4);

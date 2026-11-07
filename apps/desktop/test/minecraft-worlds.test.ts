@@ -6,7 +6,7 @@ import {
   probeMinecraftWorld,
   encodeGameVarInt,
   discoverMinecraftWorlds,
-} from "../src/main/minecraft-worlds";
+} from "../src/main/games/minecraft-worlds";
 
 test("LAN discovery accepts only bounded announcements originating on this computer", () => {
   const bytes = Buffer.from("[MOTD]自己的世界[/MOTD][AD]25565[/AD]");

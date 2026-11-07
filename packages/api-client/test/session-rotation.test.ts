@@ -1,5 +1,5 @@
 import { expect, test } from "bun:test";
-import { createApi, unwrap, ApiError } from "../src";
+import { createApi, unwrap, ApiError } from "../src/index";
 test("a late unauthorized response from an old token cannot revoke a newly logged-in session", async () => {
   let release!: () => void;
   let seen!: () => void;

@@ -2,7 +2,7 @@ import { expect, test } from "bun:test";
 import {
   uncoveredRectangles,
   WindowVisibilityMonitor,
-} from "../src/main/watch-visibility";
+} from "../src/main/windows/watch-visibility";
 const rect = (left: number, top: number, right: number, bottom: number) => ({
   left,
   top,

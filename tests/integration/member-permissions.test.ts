@@ -8,7 +8,7 @@ import {
   auditLogs,
 } from "@cinegather/database";
 import { inArray } from "drizzle-orm";
-import { media } from "../../apps/api/src/media";
+import { media } from "../../apps/api/src/modules/media/media";
 let app: Awaited<ReturnType<typeof createApp>>, base: string;
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 const people: { id: string; token: string }[] = [],
@@ -246,7 +246,7 @@ test("restrictions serialize with lease acquisition, reconciliation cannot resto
     expect(
       (await req(`/rooms/${roomId}/share-lease`, b.token, {})).body.code,
     ).toBe("ROOM_SHARE_FORBIDDEN");
-    const { reconcileRoom } = await import("../../apps/api/src/rooms");
+    const { reconcileRoom } = await import("../../apps/api/src/modules/rooms/rooms");
     await reconcileRoom(roomId);
     expect(applied.at(-1)).toEqual([roomId, b.id, false, false]);
     const transfer = await req(

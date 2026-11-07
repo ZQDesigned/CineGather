@@ -6,7 +6,7 @@ import {
   friendGameLabel,
   hasIncomingRequests,
   type Friend,
-} from "../src/renderer/friends";
+} from "../src/renderer/features/friends/friends";
 
 const request: Friend = {
   userId: "friend",

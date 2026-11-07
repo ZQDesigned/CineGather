@@ -52,7 +52,7 @@ for (const corrupted of [false, true])
           process.execPath,
           "--preload",
           join(dir, "mock-fetch.ts"),
-          resolve("tools/released-native-runtime.ts"),
+          resolve("tools/publishing/released-native-runtime.ts"),
           "--cached",
         ],
         { cwd: dir, stdout: "pipe", stderr: "pipe" },

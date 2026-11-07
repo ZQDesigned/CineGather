@@ -4,7 +4,7 @@ import {
   featureCompatibilityFailure,
   currentFeatureProtocols,
   parseFeatureProtocols,
-} from "../src";
+} from "../src/index";
 const policy = featurePolicySchema.parse({
   format: 1,
   revision: 1,

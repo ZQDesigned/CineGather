@@ -14,7 +14,7 @@ import {
 } from "@cinegather/database";
 import { eq, inArray } from "drizzle-orm";
 import { defaultEsportsConfiguration } from "@cinegather/contracts";
-import { admitMediaToken } from "../../apps/api/src/esports-admission";
+import { admitMediaToken } from "../../apps/api/src/modules/esports/esports-admission";
 const { db, pool } = createDatabase(process.env.DATABASE_URL!);
 const ids: string[] = [];
 let app: Awaited<ReturnType<typeof createApp>>, base: string;
@@ -71,7 +71,7 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app?.close();
-  const { closeEsports } = await import("../../apps/api/src/esports");
+  const { closeEsports } = await import("../../apps/api/src/modules/esports/esports");
   for (const r of await db
     .select()
     .from(rooms)

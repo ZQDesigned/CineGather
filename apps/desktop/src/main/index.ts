@@ -1,5 +1,5 @@
 import { projectGameDiagnostic } from "../shared/game-diagnostics";
-import { GameLocal } from "./game-local";
+import { GameLocal } from "./games/game-local";
 import {
   gameTunnelConfigSchema,
   gamePortSchema,
@@ -8,7 +8,7 @@ import {
 import {
   allowedViewingWindow,
   setViewingWindowPinned,
-} from "./viewing-window-policy";
+} from "./windows/viewing-window-policy";
 import {
   app,
   BrowserWindow,
@@ -30,33 +30,33 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { release } from "node:os";
 import { z } from "zod";
-import { allowedExternal, trustedURL, permissionAllowed } from "./security";
-import { defaultSettings, settingsSchema, restoreSettings } from "./settings";
+import { allowedExternal, trustedURL, permissionAllowed } from "./infrastructure/security";
+import { defaultSettings, settingsSchema, restoreSettings } from "./infrastructure/settings";
 import { defaultNotificationPreferences } from "@cinegather/contracts";
-import { MemberOverlay } from "./member-overlay";
-import { ProductionDiagnostics } from "./diagnostics";
+import { MemberOverlay } from "./windows/member-overlay";
+import { ProductionDiagnostics } from "./diagnostics/diagnostics";
 import { overlaySnapshotSchema } from "../shared/member-overlay";
-import { NativeCapture } from "./native-capture";
+import { NativeCapture } from "./capture/native-capture";
 import { leaseSchema } from "@cinegather/contracts";
-import { configureDisplayCapture } from "./capture";
-import { HoldToTalk, shortcutKeys } from "./push-to-talk";
-import { nativeKeyState } from "./key-state";
+import { configureDisplayCapture } from "./capture/capture";
+import { HoldToTalk, shortcutKeys } from "./input/push-to-talk";
+import { nativeKeyState } from "./input/key-state";
 import { recordedShortcut } from "../shared/shortcuts";
-import { createUpdates } from "./updates";
-import { supportsProcessAudio, WindowsAudio } from "./windows-audio";
-import { createAccompaniment } from "./accompaniment-native";
-import { configureHardwareEncoding } from "./encoding-policy";
+import { createUpdates } from "./updates/updates";
+import { supportsProcessAudio, WindowsAudio } from "./audio/windows-audio";
+import { createAccompaniment } from "./audio/accompaniment-native";
+import { configureHardwareEncoding } from "./capture/encoding-policy";
 import {
   mainWindowChrome,
   configureMainWindowMenu,
   mainWindowState,
   controlMainWindow,
   configureWindowsAppIdentity,
-} from "./window-chrome";
+} from "./windows/window-chrome";
 import type { CaptureSelection, DesktopSettings } from "@cinegather/contracts";
-import { WindowVisibilityMonitor } from "./watch-visibility";
-import { nativeWindowVisibility } from "./native-window-visibility";
-import { DesktopNotifications } from "./notifications";
+import { WindowVisibilityMonitor } from "./windows/watch-visibility";
+import { nativeWindowVisibility } from "./windows/native-window-visibility";
+import { DesktopNotifications } from "./windows/notifications";
 import { desktopNotificationSchema } from "@cinegather/contracts";
 configureWindowsAppIdentity(process.platform, app);
 configureHardwareEncoding(process.platform, app.commandLine);

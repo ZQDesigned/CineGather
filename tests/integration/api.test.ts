@@ -571,7 +571,7 @@ describe("real PostgreSQL and LiveKit API boundaries", () => {
 });
 
 test("media token issuance failures are observable without counting rejected invitations", async () => {
-  const { media } = await import("../../apps/api/src/media");
+  const { media } = await import("../../apps/api/src/modules/media/media");
   const owner = await account();
   const outsider = await account();
   const target = await room(owner.token);
@@ -609,8 +609,8 @@ test("media token issuance failures are observable without counting rejected inv
 });
 
 test("nickname synchronization failure does not block expired sharing permission revocation", async () => {
-  const { media } = await import("../../apps/api/src/media");
-  const { reconcileRoom } = await import("../../apps/api/src/rooms");
+  const { media } = await import("../../apps/api/src/modules/media/media");
+  const { reconcileRoom } = await import("../../apps/api/src/modules/rooms/rooms");
   const { leases } = await import("@cinegather/database");
   const user = await account("昵称失败权限回收"),
     created = await room(user.token);
@@ -657,8 +657,8 @@ test("nickname synchronization failure does not block expired sharing permission
 });
 
 test("an unavailable ingress registry cannot prevent expired browser permission revocation", async () => {
-  const { media } = await import("../../apps/api/src/media");
-  const { reconcileRoom } = await import("../../apps/api/src/rooms");
+  const { media } = await import("../../apps/api/src/modules/media/media");
+  const { reconcileRoom } = await import("../../apps/api/src/modules/rooms/rooms");
   const { leases } = await import("@cinegather/database");
   const user = await account("过期授权隔离");
   const created = await room(user.token);
@@ -699,9 +699,9 @@ test("an unavailable ingress registry cannot prevent expired browser permission 
 });
 
 test("logout waits for in-flight native issuance and revokes the key committed by that request", async () => {
-  const { media } = await import("../../apps/api/src/media");
-  const r = await import("../../apps/api/src/rooms");
-  const { revokeSession } = await import("../../apps/api/src/auth");
+  const { media } = await import("../../apps/api/src/modules/media/media");
+  const r = await import("../../apps/api/src/modules/rooms/rooms");
+  const { revokeSession } = await import("../../apps/api/src/modules/accounts/auth");
   const user = await account("原生撤销并发");
   const created = await room(user.token);
   const originalList = media.participants,
@@ -766,7 +766,7 @@ test("logout waits for in-flight native issuance and revokes the key committed b
 });
 
 test("separate ingress creation attempts within one lease cannot revoke each other's publisher identity", async () => {
-  const { media } = await import("../../apps/api/src/media");
+  const { media } = await import("../../apps/api/src/modules/media/media");
   const user = await account("推流重试隔离");
   const created = await room(user.token);
   const entries: { ingressId: string; participantIdentity: string }[] = [];
@@ -845,7 +845,7 @@ describe("owner room settings", () => {
         })
       ).status,
     ).toBe(201);
-    const { media } = await import("../../apps/api/src/media");
+    const { media } = await import("../../apps/api/src/modules/media/media");
     expect(
       (await media.client.listRooms([created.id]))[0]!.maxParticipants,
     ).toBe(126);
@@ -901,7 +901,7 @@ describe("owner room settings", () => {
   test("legacy media ceilings reject unsupported expansion while keeping rename available", async () => {
     const a = await account();
     const r = await room(a.token, 2);
-    const { media } = await import("../../apps/api/src/media");
+    const { media } = await import("../../apps/api/src/modules/media/media");
     await media.client.createRoom({ name: r.id, maxParticipants: 3 });
     const expanded = await req(`/rooms/${r.id}/settings`, a.token, {
       name: "不能保存",
@@ -927,7 +927,7 @@ test("room settings count each human once and exclude the native screen publishe
   const r = await room(a.token, 5);
   await req(`/rooms/${r.id}/join`, b.token, {});
   await req(`/rooms/${r.id}/join`, c.token, {});
-  const { media } = await import("../../apps/api/src/media");
+  const { media } = await import("../../apps/api/src/modules/media/media");
   const { nativeIdentity } = await import("@cinegather/contracts");
   const original = media.participants;
   try {
@@ -998,7 +998,7 @@ describe("room owner controls", () => {
       outsider = await account();
     const r = await room(a.token);
     await req(`/rooms/${r.id}/join`, b.token, {});
-    const { media } = await import("../../apps/api/src/media");
+    const { media } = await import("../../apps/api/src/modules/media/media");
     const original = media.participants;
     const url = `/rooms/${r.id}/members/${b.id}/owner`;
     try {
@@ -1107,7 +1107,7 @@ describe("room owner controls", () => {
       b = await account();
     const r = await room(a.token);
     await req(`/rooms/${r.id}/join`, b.token, {});
-    const { media } = await import("../../apps/api/src/media");
+    const { media } = await import("../../apps/api/src/modules/media/media");
     const original = media.participants,
       setShare = media.setShare;
     const permissions: [string, boolean][] = [];
@@ -1199,7 +1199,7 @@ describe("room owner controls", () => {
       b = await account();
     const r = await room(a.token);
     await req(`/rooms/${r.id}/join`, b.token, {});
-    const { media } = await import("../../apps/api/src/media");
+    const { media } = await import("../../apps/api/src/modules/media/media");
     const participants = media.participants,
       setShare = media.setShare,
       send = media.client.sendData;
@@ -1255,7 +1255,7 @@ describe("room owner controls", () => {
       b = await account();
     const r = await room(a.token);
     await req(`/rooms/${r.id}/join`, b.token, {});
-    const { media } = await import("../../apps/api/src/media");
+    const { media } = await import("../../apps/api/src/modules/media/media");
     const { TrackSource } = await import("livekit-server-sdk");
     const participants = media.participants,
       mute = media.client.mutePublishedTrack,

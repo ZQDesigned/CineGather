@@ -1,5 +1,5 @@
 import { test, expect } from "bun:test";
-import { createApi } from "../src";
+import { createApi } from "../src/index";
 test("an unresponsive API is aborted at the configured deadline rather than leaving the client waiting", async () => {
   const server = Bun.serve({
     hostname: "127.0.0.1",

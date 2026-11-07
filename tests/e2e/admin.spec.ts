@@ -46,7 +46,7 @@ test("admin can search users, confirm account actions, close rooms and inspect a
   };
   const administrator = await create("owner"),
     member = await create("member");
-  execFileSync("bun", ["tools/superadmin.ts", "grant", administrator.user.id], {
+  execFileSync("bun", ["tools/operations/superadmin.ts", "grant", administrator.user.id], {
     stdio: "pipe",
   });
   const headers = { Authorization: `Bearer ${member.sessionToken}` };
@@ -207,7 +207,7 @@ test("disabling an account removes its live media and explains why it must log i
       },
     })
   ).json();
-  execFileSync("bun", ["tools/superadmin.ts", "grant", administrator.user.id], {
+  execFileSync("bun", ["tools/operations/superadmin.ts", "grant", administrator.user.id], {
     stdio: "pipe",
   });
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();

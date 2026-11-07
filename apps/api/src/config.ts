@@ -1,6 +1,6 @@
-import { readCdnCidrs } from "./client-ip";
-import { registrationDefault } from "./registration-config";
-import { readClientPolicy } from "./client-policy";
+import { readCdnCidrs } from "./core/client-ip";
+import { registrationDefault } from "./modules/accounts/registration-config";
+import { readClientPolicy } from "./modules/updates/client-policy";
 import { existsSync } from "node:fs";
 import { loadEnvFile } from "node:process";
 import { fileURLToPath } from "node:url";

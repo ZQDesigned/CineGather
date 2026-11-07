@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import type { RoomInvitation } from "@cinegather/contracts";
-import { ApprovedRoomEntry } from "../src/renderer/approved-room-entry";
+import { ApprovedRoomEntry } from "../src/renderer/features/rooms/approved-room-entry";
 
 const requestId = "00000000-0000-4000-8000-000000000001";
 const approval: RoomInvitation = {

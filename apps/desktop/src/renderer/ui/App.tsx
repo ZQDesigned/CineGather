@@ -1,12 +1,12 @@
-import { WhiteboardHistory } from "./RoomActivities";
-import { GameLink, GameLinkNotifications } from "./GameLink";
-import { GameLinkStatus } from "./GameLinkStatus";
-import { GameLinkPromo } from "./GameLinkPromo";
-import { FeatureUpdatePrompt } from "./FeatureUpdate";
-import { EsportsRoom } from "./EsportsRoom";
-import { AnnouncementLayer } from "./Announcements";
-import { NotificationCenter } from "./NotificationCenter";
-import { DoNotDisturb } from "./DoNotDisturb";
+import { WhiteboardHistory } from "../features/activities/ui/RoomActivities";
+import { GameLink, GameLinkNotifications } from "../features/games/ui/GameLink";
+import { GameLinkStatus } from "../features/games/ui/GameLinkStatus";
+import { GameLinkPromo } from "../features/games/ui/GameLinkPromo";
+import { FeatureUpdatePrompt } from "../features/updates/ui/FeatureUpdate";
+import { EsportsRoom } from "../features/esports/ui/EsportsRoom";
+import { AnnouncementLayer } from "../features/announcements/ui/Announcements";
+import { NotificationCenter } from "../features/notifications/ui/NotificationCenter";
+import { DoNotDisturb } from "../features/notifications/ui/DoNotDisturb";
 
 import { version } from "../../../package.json";
 import { Button, Menu, Avatar, Badge, Breadcrumb, Tooltip, Space } from "antd";
@@ -26,30 +26,30 @@ import {
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
-import { Admin } from "./Admin";
-import { Friends } from "./Friends";
+import { Admin } from "../features/admin/ui/Admin";
+import { Friends } from "../features/friends/ui/Friends";
 import { Dialogs } from "./Dialogs";
-import { Welcome } from "./Welcome";
-import { Home } from "./Home";
-import { Room } from "./Room";
+import { Welcome } from "../features/home/ui/Welcome";
+import { Home } from "../features/home/ui/Home";
+import { Room } from "../features/rooms/ui/Room";
 import { Feedback } from "./Feedback";
 import { WindowControls } from "./WindowControls";
-import { UpdateCenter } from "./Updates";
+import { UpdateCenter } from "../features/updates/ui/Updates";
 import { AppSurface } from "./styles";
 import { hasAdminAccess } from "@cinegather/contracts";
 import { capabilities } from "../platform";
 import { matchesShortcut } from "../../shared/shortcuts";
 import { buildMemberOverlay } from "../../shared/member-overlay";
-import { hasIncomingRequests } from "../friends";
+import { hasIncomingRequests } from "../features/friends/friends";
 import { PresenceAvatar } from "./Presence";
 import {
   RoomInvitationInboxButton,
   RoomInvitationNotifications,
-} from "./RoomInvitations";
+} from "../features/rooms/ui/RoomInvitations";
 import {
   RoomRequestInboxButton,
   RoomRequestNotifications,
-} from "./RoomJoinRequests";
+} from "../features/rooms/ui/RoomJoinRequests";
 const roomStates: Record<string, string> = {
   idle: "未连接房间",
   authenticating: "正在验证身份",

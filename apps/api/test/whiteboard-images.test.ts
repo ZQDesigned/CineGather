@@ -1,6 +1,6 @@
 import { expect, test } from "bun:test";
 import { Resvg } from "@resvg/resvg-js";
-import { validateBoardPng } from "../src/whiteboard-images";
+import { validateBoardPng } from "../src/modules/activities/whiteboard-images";
 const png = () =>
   Buffer.from(
     new Resvg(
