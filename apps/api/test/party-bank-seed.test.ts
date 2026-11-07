@@ -7,10 +7,10 @@ import {
   partyView,
   tickPartyGame,
 } from "../src/party-game";
-test("400 unique usable seed questions with three distinct progressive clues", () => {
-  expect(partyWordSeed).toHaveLength(400);
+test("1500 unique usable seed questions with three distinct progressive clues", () => {
+  expect(partyWordSeed).toHaveLength(1500);
   expect(new Set(partyWordSeed.map((w) => partyAnswerKey(w.answer))).size).toBe(
-    400,
+    1500,
   );
   for (const word of partyWordSeed) {
     expect(partyWordInput.safeParse({ ...word, enabled: true }).success).toBe(
@@ -50,4 +50,26 @@ test("authored clues add information beyond the category instead of a generic ty
       ).not.toBe(word.category);
     }
   }
+});
+
+test("expanded bank spans many themes, targets compatible games, and never spells out the answer in new clues", async () => {
+  const { partyWordExpansion } = await import("../src/party-word-expansion");
+  expect(partyWordExpansion).toHaveLength(1100);
+  expect(
+    new Set(partyWordSeed.map((w) => w.category)).size,
+  ).toBeGreaterThanOrEqual(40);
+  expect(
+    partyWordExpansion.filter((w) => w.category.startsWith("游戏")).length,
+  ).toBeGreaterThanOrEqual(150);
+  expect(
+    partyWordSeed.filter((w) => !w.modes || w.modes.includes("draw")).length,
+  ).toBeGreaterThanOrEqual(1000);
+  expect(
+    partyWordSeed.filter(
+      (w) => w.modes?.length === 1 && w.modes.includes("quiz"),
+    ).length,
+  ).toBeGreaterThan(100);
+  for (const w of partyWordExpansion)
+    for (const clue of w.clues)
+      expect(clue.includes(w.answer), w.answer).toBe(false);
 });

@@ -556,6 +556,11 @@ export * from "./game-link";
 export * from "./room-activities";
 
 export const partyWordBank = pgTable("party_word_bank", {
+  modes: text("modes")
+    .array()
+    .$type<("draw" | "quiz")[]>()
+    .notNull()
+    .default(["draw", "quiz"]),
   id: uuid("id").primaryKey(),
   answer: text("answer").notNull(),
   answerKey: text("answer_key").notNull().unique(),

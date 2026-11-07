@@ -6,6 +6,12 @@ export const partyWordInput = z.strictObject({
   category: z.string().trim().min(1).max(24),
   clues: z.array(z.string().trim().min(1).max(160)).length(3),
   enabled: z.boolean(),
+  modes: z
+    .array(z.enum(["draw", "quiz"]))
+    .min(1)
+    .max(2)
+    .refine((values) => new Set(values).size === values.length)
+    .optional(),
 });
 export const partyWordSchema = partyWordInput.extend({
   id: z.uuid(),
@@ -20,6 +26,7 @@ export const partyWordVersion = z.strictObject({
 });
 export const partyBankQuery = z.object({
   q: z.string().trim().max(100).default(""),
+  mode: z.enum(["all", "draw", "quiz"]).default("all"),
   status: z.enum(["all", "enabled", "disabled"]).default("all"),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),

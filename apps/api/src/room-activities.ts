@@ -108,6 +108,13 @@ async function reconcile(
     }
     const before = state.game.round;
     state.game = tickPartyGame(state.game, now);
+    state.partyRecentAnswers = {
+      ...state.partyRecentAnswers,
+      [state.game.kind]: state.game.recentAnswers ?? [
+        ...state.game.used,
+        ...(state.game.choiceHistory ?? []),
+      ],
+    };
     if (before !== state.game.round) state.board = emptyWhiteboard();
   }
   const [lease] = await tx
@@ -380,6 +387,7 @@ export async function activityCommand(
         const generation = state.generation + 1;
         state = {
           ...newActivity(room.name),
+          partyRecentAnswers: state.partyRecentAnswers,
           generation,
           kind: command.target === "board" ? "board" : "game",
           starterId: user.id,
@@ -391,7 +399,11 @@ export async function activityCommand(
                 ),
               }
             : {
-                game: newPartyGame(command.target, await activePartyWords(tx)),
+                game: newPartyGame(
+                  command.target,
+                  await activePartyWords(tx, command.target),
+                  state.partyRecentAnswers?.[command.target],
+                ),
               }),
         };
         await audit(tx, user.id, "room.activity_started", roomId, {
@@ -403,7 +415,11 @@ export async function activityCommand(
       requireControl();
       await saveBoard(tx, state, Object.keys(state.participants));
       if (state.kind === "screen") stopped = await stopScreen(tx, roomId);
-      state = { ...newActivity(room.name), generation: state.generation + 1 };
+      state = {
+        ...newActivity(room.name),
+        partyRecentAnswers: state.partyRecentAnswers,
+        generation: state.generation + 1,
+      };
       await audit(tx, user.id, "room.activity_ended", roomId);
     } else if (command.type === "board-editor") {
       if (state.kind !== "board" || state.starterId !== user.id)
@@ -462,7 +478,7 @@ export async function activityCommand(
       if (["start", "pause", "resume"].includes(command.action.type))
         requireControl();
       if (command.action.type === "start")
-        state.game.wordPool = await activePartyWords(tx);
+        state.game.wordPool = await activePartyWords(tx, state.game.kind);
       try {
         state.game = partyCommand(
           state.game,
@@ -475,6 +491,14 @@ export async function activityCommand(
       }
       if (command.action.type === "start") state.board = emptyWhiteboard();
     }
+    if (state.game)
+      state.partyRecentAnswers = {
+        ...state.partyRecentAnswers,
+        [state.game.kind]: state.game.recentAnswers ?? [
+          ...state.game.used,
+          ...(state.game.choiceHistory ?? []),
+        ],
+      };
     const revision = await writeActivity(tx, roomId, state);
     return view(
       room,

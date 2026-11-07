@@ -19,6 +19,7 @@ const shape = (r: typeof partyWordBank.$inferSelect) => ({
   answer: r.answer,
   category: r.category,
   clues: r.clues,
+  modes: r.modes,
   enabled: r.enabled,
   version: r.version,
   updatedAt: r.updatedAt.toISOString(),
@@ -26,6 +27,9 @@ const shape = (r: typeof partyWordBank.$inferSelect) => ({
 export async function listPartyWords(query: z.infer<typeof partyBankQuery>) {
   const pattern = `%${query.q.replace(/[\\%_]/g, "\\$&")}%`;
   const where = and(
+    query.mode === "all"
+      ? undefined
+      : sql`${partyWordBank.modes} @> ARRAY[${query.mode}]::text[]`,
     query.q
       ? or(
           ilike(partyWordBank.answer, pattern),
@@ -98,7 +102,13 @@ export async function savePartyWord(
       .where(eq(partyWordBank.answerKey, answerKey));
     if (duplicate && duplicate.id !== id)
       fail(409, "PARTY_WORD_DUPLICATE", "相同答案的题目已存在");
-    const values = { ...input, answerKey, updatedAt: new Date() };
+    const { modes, ...fields } = input;
+    const values = {
+      ...fields,
+      ...(modes ? { modes } : {}),
+      answerKey,
+      updatedAt: new Date(),
+    };
     const [row] = id
       ? await tx
           .update(partyWordBank)
@@ -114,7 +124,7 @@ export async function savePartyWord(
       actor.id,
       id ? "admin.party_word_updated" : "admin.party_word_created",
       row!.id,
-      { answer: input.answer, enabled: input.enabled },
+      { answer: input.answer, enabled: input.enabled, modes: row!.modes },
     );
     return shape(row!);
   });
@@ -176,15 +186,13 @@ export async function importPartyWords(actor: User, input: PartyImportInput) {
     if (r.errors.length)
       fail(400, "PARTY_IMPORT_INVALID", r.errors.slice(0, 3).join("；"));
     if (r.additions.length)
-      await tx
-        .insert(partyWordBank)
-        .values(
-          r.additions.map((word) => ({
-            ...word,
-            id: randomUUID(),
-            answerKey: partyAnswerKey(word.answer),
-          })),
-        );
+      await tx.insert(partyWordBank).values(
+        r.additions.map((word) => ({
+          ...word,
+          id: randomUUID(),
+          answerKey: partyAnswerKey(word.answer),
+        })),
+      );
     await audit(tx, actor.id, "admin.party_words_imported", undefined, {
       created: r.additions.length,
       skipped: r.skipCount,
@@ -192,7 +200,10 @@ export async function importPartyWords(actor: User, input: PartyImportInput) {
     return { created: r.additions.length, skipped: r.skipCount };
   });
 }
-export async function activePartyWords(tx: Pick<Transaction, "select">) {
+export async function activePartyWords(
+  tx: Pick<Transaction, "select">,
+  kind: "draw" | "quiz",
+) {
   const rows = await tx
     .select({
       answer: partyWordBank.answer,
@@ -200,12 +211,17 @@ export async function activePartyWords(tx: Pick<Transaction, "select">) {
       clues: partyWordBank.clues,
     })
     .from(partyWordBank)
-    .where(eq(partyWordBank.enabled, true));
+    .where(
+      and(
+        eq(partyWordBank.enabled, true),
+        sql`${partyWordBank.modes} @> ARRAY[${kind}]::text[]`,
+      ),
+    );
   if (rows.length < 3)
     fail(
       409,
       "PARTY_BANK_UNAVAILABLE",
-      "启用的题目不足 3 道，请联系管理员补充题库",
+      `${kind === "draw" ? "绘画" : "猜词"}启用题目不足 3 道，请联系管理员补充题库`,
     );
   return rows;
 }

@@ -1,4 +1,5 @@
 import { randomInt } from "node:crypto";
+import { partyAnswerKey } from "@cinegather/contracts";
 import type {
   PartyAction,
   PartyPlayer,
@@ -25,16 +26,20 @@ export interface PartyGame {
   rerollAvailableAt?: number;
   choiceHistory?: string[];
   used: string[];
+  recentAnswers?: string[];
   solvedIds: string[];
   lastGuesses: Record<string, number>;
 }
 export function newPartyGame(
   kind: "draw" | "quiz",
   wordPool: PartyWord[] = partyWords,
+  recentAnswers: string[] = [],
 ): PartyGame {
   return {
     kind,
-    wordPool: structuredClone(wordPool),
+    wordPool: structuredClone(
+      wordPool.filter((w) => !w.modes || w.modes.includes(kind)),
+    ),
     phase: "lobby",
     round: 0,
     totalRounds: 0,
@@ -42,34 +47,69 @@ export function newPartyGame(
     order: [],
     choices: [],
     used: [],
+    recentAnswers: [...recentAnswers],
     solvedIds: [],
     lastGuesses: {},
   };
 }
 function replacementPool(game: PartyGame) {
-  const pool = game.wordPool ?? partyWords;
-  const unseen = pool.filter(
-    (w) =>
-      !game.used.includes(w.answer) &&
-      !(game.choiceHistory ?? game.choices.map((c) => c.answer)).includes(
-        w.answer,
-      ),
+  const rejected = new Set(game.choices.map((w) => partyAnswerKey(w.answer)));
+  return (game.wordPool ?? partyWords).filter(
+    (w) => !rejected.has(partyAnswerKey(w.answer)),
   );
-  if (unseen.length >= 3) return unseen;
-  // Small custom banks may reuse earlier sets, but never offer the same set
-  // that the drawer has just rejected or consume a use without replacements.
-  return pool.filter((w) => !game.choices.some((c) => c.answer === w.answer));
 }
 function candidates(game: PartyGame, replacements?: PartyWord[]) {
   const pool = game.wordPool ?? partyWords;
-  let available = replacements
-    ? [...replacements]
-    : pool.filter((w) => !game.used.includes(w.answer));
-  if (!replacements && available.length < 3) available = [...pool];
-  if (available.length < 3) throw Error("暂无更多题目可更换");
+  const active = new Set(pool.map((w) => partyAnswerKey(w.answer)));
+  const history = [
+    ...new Set(
+      (
+        game.recentAnswers ?? [
+          ...game.used,
+          ...(game.choiceHistory ?? game.choices.map((w) => w.answer)),
+        ]
+      ).map(partyAnswerKey),
+    ),
+  ].filter((key) => active.has(key));
+  const recency = new Map(history.map((key, index) => [key, index]));
+  let available = [
+    ...new Map(
+      (replacements ?? pool).map((w) => [partyAnswerKey(w.answer), w]),
+    ).values(),
+  ];
+  const count = game.kind === "draw" ? 3 : 1;
+  if (available.length < count) throw Error("暂无更多题目可更换");
   const selected: PartyWord[] = [];
-  while (selected.length < 3)
-    selected.push(available.splice(randomInt(available.length), 1)[0]!);
+  while (selected.length < count) {
+    const unseen = available.filter(
+      (w) => !recency.has(partyAnswerKey(w.answer)),
+    );
+    // Consume unseen words first, then recycle the oldest available word.
+    let eligible = unseen;
+    if (!eligible.length) {
+      const oldest = Math.min(
+        ...available.map((w) => recency.get(partyAnswerKey(w.answer))!),
+      );
+      eligible = available.filter(
+        (w) => recency.get(partyAnswerKey(w.answer)) === oldest,
+      );
+    }
+    const categories = new Set(selected.map((w) => w.category));
+    const varied = eligible.filter((w) => !categories.has(w.category));
+    if (varied.length) eligible = varied;
+    // Pick category first, so larger categories do not drown out smaller ones.
+    const groups = [...new Set(eligible.map((w) => w.category))];
+    const category = groups[randomInt(groups.length)];
+    const group = eligible.filter((w) => w.category === category);
+    const word = group[randomInt(group.length)]!;
+    selected.push(word);
+    const key = partyAnswerKey(word.answer);
+    available = available.filter((w) => partyAnswerKey(w.answer) !== key);
+    const previous = history.indexOf(key);
+    if (previous >= 0) history.splice(previous, 1);
+    history.push(key);
+  }
+  game.recentAnswers = history.slice(-5000);
   return selected;
 }
 function nextRound(game: PartyGame, now: number) {

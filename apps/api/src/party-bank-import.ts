@@ -60,11 +60,19 @@ export function parsePartyImport(input: PartyImportInput) {
     } else {
       const rows = csv(content),
         header = rows.shift();
-      if (header?.join(",") !== "answer,category,clue1,clue2,clue3,enabled")
+      const hasModes =
+        header?.join(",") === "answer,category,clue1,clue2,clue3,enabled,modes";
+      if (
+        !hasModes &&
+        header?.join(",") !== "answer,category,clue1,clue2,clue3,enabled"
+      )
         throw Error("CSV 表头应为 answer,category,clue1,clue2,clue3,enabled");
       raw = rows.map((r) =>
-        r.length === 6
+        r.length === (hasModes ? 7 : 6)
           ? {
+              ...(hasModes
+                ? { modes: r[6]?.split("|").map((v) => v.trim()) }
+                : {}),
               answer: r[0],
               category: r[1],
               clues: r.slice(2, 5),

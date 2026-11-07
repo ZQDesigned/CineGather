@@ -31,6 +31,7 @@ export interface ActivityData {
   title: string;
   board: WhiteboardDocument;
   game?: PartyGame;
+  partyRecentAnswers?: Partial<Record<"draw" | "quiz", string[]>>;
   participants: Record<string, string>;
   editors?: Record<string, string>;
   requests: (ActivityRequest & { credentialId: string })[];

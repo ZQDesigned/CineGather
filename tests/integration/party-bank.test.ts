@@ -184,17 +184,19 @@ test("preview and atomic import skip existing words without overriding edits", a
   ).toBe(false);
 });
 test("enabled pool excludes stopped/deleted questions and rejects insufficient bank", async () => {
-  const pool = await activePartyWords(db);
+  const pool = await activePartyWords(db, "draw");
   expect(pool.length).toBeGreaterThanOrEqual(400);
   expect(pool.some((w) => w.answer === prefix + "已有")).toBe(false);
   expect(pool.some((w) => w.answer === prefix + "甲")).toBe(false);
   await expect(
     db.transaction(async (tx) => {
       await tx.update(partyWordBank).set({ enabled: false });
-      await activePartyWords(tx);
+      await activePartyWords(tx, "draw");
     }),
-  ).rejects.toThrow("启用的题目不足");
-  expect((await activePartyWords(db)).length).toBeGreaterThanOrEqual(400);
+  ).rejects.toThrow("启用题目不足");
+  expect((await activePartyWords(db, "draw")).length).toBeGreaterThanOrEqual(
+    400,
+  );
 });
 
 test("bulk preview accepts a valid 400-question payload above the normal API body limit", async () => {
@@ -212,4 +214,122 @@ test("bulk preview accepts a valid 400-question payload above the normal API bod
     skipCount: 0,
     errors: [],
   });
+});
+
+test("mode-filtered administration and draw/quiz pools honor targeting and older edits retain it", async () => {
+  const q = word("仅猜词");
+  const created = await call(root, "", { ...q, modes: ["quiz"] });
+  expect(created.status).toBe(201);
+  expect(created.data.modes).toEqual(["quiz"]);
+  expect(
+    (await call(reader, "?q=" + encodeURIComponent(q.answer) + "&mode=draw"))
+      .data.total,
+  ).toBe(0);
+  expect(
+    (await call(reader, "?q=" + encodeURIComponent(q.answer) + "&mode=quiz"))
+      .data.total,
+  ).toBe(1);
+  expect(
+    (await activePartyWords(db, "draw")).some((w) => w.answer === q.answer),
+  ).toBe(false);
+  expect(
+    (await activePartyWords(db, "quiz")).some((w) => w.answer === q.answer),
+  ).toBe(true);
+  const edited = await call(
+    root,
+    "/" + created.data.id,
+    { ...q, category: "新分类", version: 1 },
+    "PATCH",
+  );
+  expect(edited.status).toBe(200);
+  expect(edited.data.modes).toEqual(["quiz"]);
+  expect((await call(root, "", { ...word("空玩法"), modes: [] })).status).toBe(
+    400,
+  );
+});
+
+test("expansion migration can be replayed without replacing administrator content, modes or disabled status", async () => {
+  const { sql } = await import("drizzle-orm");
+  const migration = await Bun.file(
+    new URL(
+      "../../packages/database/migrations/0032_party_word_expansion.sql",
+      import.meta.url,
+    ),
+  ).text();
+  await expect(
+    db.transaction(async (tx) => {
+      const [row] = await tx
+        .select()
+        .from(partyWordBank)
+        .where(eq(partyWordBank.answer, "史蒂夫"));
+      expect(row).toBeDefined();
+      await tx
+        .update(partyWordBank)
+        .set({
+          enabled: false,
+          modes: ["quiz"],
+          category: "管理员自定义",
+          version: 99,
+        })
+        .where(eq(partyWordBank.id, row!.id));
+      await tx.execute(sql.raw(migration));
+      const [kept] = await tx
+        .select()
+        .from(partyWordBank)
+        .where(eq(partyWordBank.id, row!.id));
+      expect(kept).toMatchObject({
+        enabled: false,
+        modes: ["quiz"],
+        category: "管理员自定义",
+        version: 99,
+      });
+      throw Error("rollback migration replay test");
+    }),
+  ).rejects.toThrow("rollback migration replay test");
+});
+
+test("visual-mode refinement updates only unchanged authored rows and is idempotent", async () => {
+  const { sql } = await import("drizzle-orm");
+  const migration = await Bun.file(
+    new URL(
+      "../../packages/database/migrations/0033_party_word_visual_modes.sql",
+      import.meta.url,
+    ),
+  ).text();
+  await expect(
+    db.transaction(async (tx) => {
+      const [target] = await tx
+        .select()
+        .from(partyWordBank)
+        .where(eq(partyWordBank.answer, "水星"));
+      const [edited] = await tx
+        .select()
+        .from(partyWordBank)
+        .where(eq(partyWordBank.answer, "冥王星"));
+      await tx
+        .update(partyWordBank)
+        .set({ version: 1, modes: ["draw", "quiz"] })
+        .where(eq(partyWordBank.id, target!.id));
+      await tx
+        .update(partyWordBank)
+        .set({ version: 7, modes: ["draw"], enabled: false })
+        .where(eq(partyWordBank.id, edited!.id));
+      for (let i = 0; i < 2; i++) await tx.execute(sql.raw(migration));
+      const [changed] = await tx
+        .select()
+        .from(partyWordBank)
+        .where(eq(partyWordBank.id, target!.id));
+      const [kept] = await tx
+        .select()
+        .from(partyWordBank)
+        .where(eq(partyWordBank.id, edited!.id));
+      expect(changed).toMatchObject({ version: 2, modes: ["quiz"] });
+      expect(kept).toMatchObject({
+        version: 7,
+        modes: ["draw"],
+        enabled: false,
+      });
+      throw Error("rollback visual refinement test");
+    }),
+  ).rejects.toThrow("rollback visual refinement test");
 });

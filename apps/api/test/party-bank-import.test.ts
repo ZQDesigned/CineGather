@@ -47,3 +47,23 @@ test("CSV accepts BOM quoted commas/newlines and validates booleans", () => {
       .length,
   ).toBe(1);
 });
+test("question modes accept drawing, guessing or both, and preserve legacy imports", () => {
+  const parse = (modes: unknown) =>
+    parsePartyImport({
+      format: "json",
+      content: JSON.stringify([{ ...item, modes }]),
+    });
+  expect(parse(["draw"]).items[0]?.modes).toEqual(["draw"]);
+  expect(parse(["quiz"]).errors).toEqual([]);
+  expect(parse(["draw", "quiz"]).errors).toEqual([]);
+  expect(parse([]).errors).toHaveLength(1);
+  expect(parse(["draw", "draw"]).errors).toHaveLength(1);
+  expect(parse(["unknown"]).errors).toHaveLength(1);
+  expect(
+    parsePartyImport({
+      format: "csv",
+      content:
+        "answer,category,clue1,clue2,clue3,enabled,modes\n雨伞,用品,能收拢,用于雨天,撑开遮雨,true,draw|quiz",
+    }).items[0]?.modes,
+  ).toEqual(["draw", "quiz"]);
+});

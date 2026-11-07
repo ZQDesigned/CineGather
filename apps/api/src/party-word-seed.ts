@@ -1,3 +1,4 @@
+import { partyWordExpansion } from "./party-word-expansion";
 import { partyWords, type PartyWord } from "./party-words";
 // Authored seed content. Applied once by migration, never reinserted at server startup.
 const groups: Record<string, string> = {
@@ -404,6 +405,7 @@ const groups: Record<string, string> = {
 };
 export const partyWordSeed: PartyWord[] = [
   ...partyWords,
+  ...partyWordExpansion,
   ...Object.entries(groups).flatMap(([category, text]) =>
     text
       .trim()

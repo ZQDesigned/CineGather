@@ -178,3 +178,79 @@ test("reroll is unavailable after selection, during pause, to quiz players, or w
   expect(auto.deadline).toBe(original.deadline! + 90000);
   expect(partyView(auto, "a", 16000).rerollsRemaining).toBeUndefined();
 });
+
+test("all offered choices remain unseen across rounds and a new game until the bank is exhausted", () => {
+  const pool = Array.from({ length: 60 }, (_, i) => ({
+    answer: `word${i}`,
+    category: `category${i % 6}`,
+    clues: ["one", "two", "three"],
+  }));
+  let history: string[] = [];
+  const seen = new Set<string>();
+  for (let cycle = 0; cycle < 5; cycle++) {
+    let game = newPartyGame("draw", pool, history);
+    for (const p of names.slice(0, 2))
+      game = partyCommand(game, p, { type: "ready", ready: true }, 1000);
+    game = partyCommand(game, names[0]!, { type: "start" }, 1000);
+    for (let round = 0; round < 2; round++) {
+      for (const w of game.choices) {
+        expect(seen.has(w.answer)).toBe(false);
+        seen.add(w.answer);
+      }
+      expect(new Set(game.choices.map((w) => w.category)).size).toBe(3);
+      game = tickPartyGame(game, game.deadline!);
+      game = tickPartyGame(game, game.deadline!);
+      game = tickPartyGame(game, game.deadline!);
+    }
+    history = game.recentAnswers!;
+  }
+  expect(seen.size).toBe(30);
+});
+test("small banks exhaust unseen questions before recycling and never reroll the rejected set", () => {
+  const pool = Array.from({ length: 6 }, (_, i) => ({
+    answer: `small${i}`,
+    category: "one",
+    clues: ["a", "b", "c"],
+  }));
+  let game = newPartyGame("draw", pool);
+  for (const p of names.slice(0, 2))
+    game = partyCommand(game, p, { type: "ready", ready: true }, 1000);
+  game = partyCommand(game, names[0]!, { type: "start" }, 1000);
+  const first = game.choices.map((w) => w.answer);
+  game = partyCommand(game, names[0]!, { type: "reroll" }, 1000);
+  expect(game.choices.some((w) => first.includes(w.answer))).toBe(false);
+  const second = game.choices.map((w) => w.answer);
+  game = partyCommand(game, names[0]!, { type: "reroll" }, 3000);
+  expect(game.choices.some((w) => second.includes(w.answer))).toBe(false);
+});
+
+test("each game only uses compatible questions and keeps its pool private", () => {
+  const words = [
+    {
+      answer: "draw only",
+      category: "one",
+      clues: ["a", "b", "c"],
+      modes: ["draw"] as ("draw" | "quiz")[],
+    },
+    {
+      answer: "quiz only",
+      category: "two",
+      clues: ["a", "b", "c"],
+      modes: ["quiz"] as ("draw" | "quiz")[],
+    },
+    { answer: "legacy both", category: "three", clues: ["a", "b", "c"] },
+  ];
+  expect(newPartyGame("draw", words).wordPool!.map((w) => w.answer)).toEqual([
+    "draw only",
+    "legacy both",
+  ]);
+  expect(newPartyGame("quiz", words).wordPool!.map((w) => w.answer)).toEqual([
+    "quiz only",
+    "legacy both",
+  ]);
+});
+
+test("guessing records only the one visible question, not hidden drawing alternatives", () => {
+  const game = ready("quiz");
+  expect(game.recentAnswers).toEqual([game.word!.answer]);
+});

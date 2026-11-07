@@ -27,17 +27,27 @@ import {
   useRetainedDialog,
   type RetainedDialogProps,
 } from "./useRetainedDialog";
+const modeOptions = [
+  { value: "draw", label: "你画我猜" },
+  { value: "quiz", label: "猜词抢答" },
+];
+const modeLabel = (modes?: string[]) =>
+  (modes ?? ["draw", "quiz"])
+    .map((mode) => (mode === "draw" ? "你画我猜" : "猜词抢答"))
+    .join("、");
 const empty: PartyWordInput = {
   answer: "",
   category: "",
   clues: ["", "", ""],
   enabled: true,
+  modes: ["draw", "quiz"],
 };
 const input = (word: PartyWordInput): PartyWordInput => ({
   answer: word.answer,
   category: word.category,
   clues: word.clues,
   enabled: word.enabled,
+  modes: word.modes ?? ["draw", "quiz"],
 });
 export function AdminPartyWords({
   revision,
@@ -57,6 +67,7 @@ export function AdminPartyWords({
     [enabled, setEnabled] = useState(0);
   const [page, setPage] = useState(1),
     [q, setQ] = useState(""),
+    [mode, setMode] = useState<"all" | "draw" | "quiz">("all"),
     [status, setStatus] = useState<"all" | "enabled" | "disabled">("all"),
     [refresh, setRefresh] = useState(0),
     [loading, setLoading] = useState(false),
@@ -73,7 +84,7 @@ export function AdminPartyWords({
     setLoading(true);
     void api
       .GET("/api/v1/admin/party-words", {
-        params: { query: { q, status, page, pageSize: 20 } },
+        params: { query: { q, status, mode, page, pageSize: 20 } },
       })
       .then(unwrap)
       .then((r) => {
@@ -93,7 +104,7 @@ export function AdminPartyWords({
     return () => {
       active = false;
     };
-  }, [q, status, page, refresh, revision]);
+  }, [q, status, mode, page, refresh, revision]);
   async function toggle(word: ManagedPartyWord) {
     setPending(word.id);
     try {
@@ -117,6 +128,7 @@ export function AdminPartyWords({
   const columns: TableColumnsType<ManagedPartyWord> = [
     { title: "答案", dataIndex: "answer", width: 140 },
     { title: "分类", dataIndex: "category", width: 100 },
+    { title: "适用玩法", width: 140, render: (_, r) => modeLabel(r.modes) },
     {
       title: "递进提示",
       render: (_, r) => (
@@ -199,6 +211,16 @@ export function AdminPartyWords({
             setPage(1);
           }}
           style={{ width: 120 }}
+        />
+        <Select
+          aria-label="筛选适用玩法"
+          value={mode}
+          options={[{ value: "all", label: "全部玩法" }, ...modeOptions]}
+          onChange={(v) => {
+            setMode(v);
+            setPage(1);
+          }}
+          style={{ width: 140 }}
         />
         <Typography.Text type="secondary">
           共 {all} 道，已启用 {enabled} 道
@@ -375,6 +397,20 @@ function WordEditor({
             <Input.TextArea rows={2} maxLength={160} />
           </Form.Item>
         ))}
+        <Form.Item
+          label="适用玩法"
+          name="modes"
+          rules={[
+            {
+              required: true,
+              type: "array",
+              min: 1,
+              message: "请选择至少一种玩法",
+            },
+          ]}
+        >
+          <Select mode="multiple" options={modeOptions} aria-label="适用玩法" />
+        </Form.Item>
         <Form.Item label="启用题目" name="enabled" valuePropName="checked">
           <Switch />
         </Form.Item>
@@ -383,7 +419,7 @@ function WordEditor({
   );
 }
 const csvTemplate =
-  "answer,category,clue1,clue2,clue3,enabled\n热气球,交通,它能带人离开地面,风会影响它前进方向,加热空气让它上升,true\n";
+  "answer,category,clue1,clue2,clue3,enabled,modes\n热气球,交通,它能带人离开地面,风会影响它前进方向,加热空气让它上升,true,draw|quiz\n";
 function template() {
   const url = URL.createObjectURL(
     new Blob(["\uFEFF" + csvTemplate], { type: "text/csv;charset=utf-8" }),
@@ -526,6 +562,7 @@ function WordImporter({
               category: "交通",
               clues: ["提示一", "提示二", "提示三"],
               enabled: true,
+              modes: ["draw", "quiz"],
             },
           ])}
         </Typography.Paragraph>
@@ -567,6 +604,7 @@ function WordImporter({
               columns={[
                 { title: "预览答案（最多 10 道）", dataIndex: "answer" },
                 { title: "分类", dataIndex: "category" },
+                { title: "适用玩法", render: (_, r) => modeLabel(r.modes) },
                 {
                   title: "状态",
                   render: (_, r) => (r.enabled ? "启用" : "停用"),

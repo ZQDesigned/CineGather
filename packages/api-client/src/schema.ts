@@ -15108,6 +15108,7 @@ export interface operations {
                             category: string;
                             clues: string[];
                             enabled: boolean;
+                            modes?: ("draw" | "quiz")[];
                             /** Format: uuid */
                             id: string;
                             version: number;
@@ -15239,6 +15240,7 @@ export interface operations {
                     category: string;
                     clues: string[];
                     enabled: boolean;
+                    modes?: ("draw" | "quiz")[];
                 };
             };
         };
@@ -15253,6 +15255,7 @@ export interface operations {
                         category: string;
                         clues: string[];
                         enabled: boolean;
+                        modes?: ("draw" | "quiz")[];
                         /** Format: uuid */
                         id: string;
                         version: number;
@@ -15382,6 +15385,7 @@ export interface operations {
                     category: string;
                     clues: string[];
                     enabled: boolean;
+                    modes?: ("draw" | "quiz")[];
                     version: number;
                 };
             };
@@ -15397,6 +15401,7 @@ export interface operations {
                         category: string;
                         clues: string[];
                         enabled: boolean;
+                        modes?: ("draw" | "quiz")[];
                         /** Format: uuid */
                         id: string;
                         version: number;
@@ -15675,6 +15680,7 @@ export interface operations {
                             category: string;
                             clues: string[];
                             enabled: boolean;
+                            modes?: ("draw" | "quiz")[];
                         }[];
                     };
                 };
