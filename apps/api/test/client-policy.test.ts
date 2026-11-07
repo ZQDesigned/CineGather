@@ -1,5 +1,8 @@
 import { test, expect } from "bun:test";
-import { readClientPolicy, compatibilityFailure } from "../src/modules/updates/client-policy";
+import {
+  readClientPolicy,
+  compatibilityFailure,
+} from "../src/modules/updates/client-policy";
 const policy = () =>
   readClientPolicy({
     CLIENT_MIN_VERSION_WINDOWS: "0.1.3",
@@ -113,7 +116,9 @@ test("an unconfigured mobile cutoff stays disabled without disabling desktop pol
 });
 
 test("game cleanup remains available across global and mobile compatibility floors", async () => {
-  const { mobileUpdateExempt } = await import("../src/modules/updates/mobile-updates");
+  const { mobileUpdateExempt } = await import(
+    "../src/modules/updates/mobile-updates"
+  );
   for (const [method, path] of [
     ["POST", "/api/v1/games/id/leave"],
     ["POST", "/api/v1/games/id/end"],

@@ -91,7 +91,9 @@ afterAll(async () => {
         .from(rooms)
         .where(inArray(rooms.ownerUserId, created))
     : [];
-  const { closeEsports } = await import("../../apps/api/src/modules/esports/esports");
+  const { closeEsports } = await import(
+    "../../apps/api/src/modules/esports/esports"
+  );
   for (const room of matches) {
     await db.transaction((tx) => closeEsports(tx, room.id));
     for (const child of await media.client.listRooms())
@@ -766,7 +768,9 @@ test("abnormal player disconnect reserves the seat for two minutes, while explic
     kind: "player",
     team: "b",
   });
-  const { reconcileRoom } = await import("../../apps/api/src/modules/rooms/rooms");
+  const { reconcileRoom } = await import(
+    "../../apps/api/src/modules/rooms/rooms"
+  );
   await reconcileRoom(room.id, owner.id);
   const [seat] = await db
     .select()

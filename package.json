@@ -45,7 +45,7 @@
     "api:generate": "bun apps/api/src/export-openapi.ts && openapi-typescript docs/api/openapi.json -o packages/api-client/src/schema.ts",
     "dist:win": "bun run --filter @cinegather/desktop dist:win",
     "dist:mac": "bun run --filter @cinegather/desktop dist:mac",
-    "check": "bun run typecheck && bun run lint && bun run test",
+    "check": "bun run source:check && bun run typecheck && bun run lint && bun run test",
     "electron:install": "node node_modules/electron/install.js",
     "db:backup": "bun tools/database/backup.ts",
     "db:restore": "bun tools/database/restore.ts",
@@ -65,7 +65,13 @@
     "superadmin:revoke": "bun tools/operations/superadmin.ts revoke",
     "dev:mobile": "bun run --filter @cinegather/mobile start",
     "game:build": "bun tools/build/game-link.ts",
-    "test:game": "bun tools/validation/game-link-smoke.ts"
+    "test:game": "bun tools/validation/game-link-smoke.ts",
+    "source:check": "bun tools/checks/source-layout.ts",
+    "format:scripts": "pwsh -NoLogo -NoProfile -File tools/maintenance/format-scripts.ps1",
+    "format:scripts:check": "pwsh -NoLogo -NoProfile -File tools/maintenance/format-scripts.ps1 -Check",
+    "format:python": "ruff format tools/mobile/ios.py tools/native-maintenance.py",
+    "format:python:check": "ruff format --check tools/mobile/ios.py tools/native-maintenance.py",
+    "format:go": "gofmt -w tools/validation/pion-whip-smoke/main.go"
   },
   "devDependencies": {
     "@eslint/js": "9.39.1",

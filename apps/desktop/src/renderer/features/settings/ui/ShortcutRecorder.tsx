@@ -1,7 +1,10 @@
 import { Button, App } from "antd";
 import { Keyboard } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
-import { displayShortcut, recordedShortcut } from "../../../../shared/shortcuts";
+import {
+  displayShortcut,
+  recordedShortcut,
+} from "../../../../shared/shortcuts";
 import { capabilities } from "../../../platform";
 
 function browserRecording(signal: AbortSignal): Promise<string | undefined> {

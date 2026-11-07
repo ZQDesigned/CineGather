@@ -58,7 +58,9 @@ test("publishing a feature policy is atomic and leaves signed global release met
   const { join } = await import("node:path");
   const { tmpdir } = await import("node:os");
   const { generateKeyPairSync } = await import("node:crypto");
-  const { signRelease } = await import("../../../tools/publishing/update-release");
+  const { signRelease } = await import(
+    "../../../tools/publishing/update-release"
+  );
   const { publishFeaturePolicy } = await import(
     "../../../tools/publishing/feature-policy-publish"
   );

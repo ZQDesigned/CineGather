@@ -21,7 +21,10 @@ import { RoomSettings } from "../features/rooms/ui/RoomSettings";
 import { Diagnostics } from "../features/diagnostics/ui/Diagnostics";
 import { FriendSearch } from "../features/friends/ui/FriendSearch";
 import { FriendRemark } from "../features/friends/ui/FriendRemark";
-import { FriendRoomPicker, RoomInvitationInbox } from "../features/rooms/ui/RoomInvitations";
+import {
+  FriendRoomPicker,
+  RoomInvitationInbox,
+} from "../features/rooms/ui/RoomInvitations";
 import { RoomRequestInbox } from "../features/rooms/ui/RoomJoinRequests";
 import { useEffect, useRef, useState } from "react";
 import { Copy, Monitor, AppWindow, RefreshCw, Shield } from "lucide-react";

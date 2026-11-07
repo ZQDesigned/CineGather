@@ -1,4 +1,7 @@
-import { audioDeviceOptions, reconcileAudioDevices } from "../../audio/audio-devices";
+import {
+  audioDeviceOptions,
+  reconcileAudioDevices,
+} from "../../audio/audio-devices";
 import { automaticEncoderLabel } from "../../sharing/encoder-label";
 import {
   App,

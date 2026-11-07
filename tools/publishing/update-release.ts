@@ -65,7 +65,10 @@ if (import.meta.main) {
   const bytes = await readFile(values.file);
   const key = await readFile(values.key, "utf8");
   const packagedKey = await readFile(
-    resolve(import.meta.dir, "../../apps/desktop/resources/update-public-key.pem"),
+    resolve(
+      import.meta.dir,
+      "../../apps/desktop/resources/update-public-key.pem",
+    ),
     "utf8",
   );
   const release: Release = {

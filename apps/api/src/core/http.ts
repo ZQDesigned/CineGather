@@ -23,7 +23,10 @@ import {
   type User,
   type AdminPermission,
 } from "@cinegather/contracts";
-import { bindFeatureClient, type FeaturePolicyStore } from "../modules/updates/feature-policy";
+import {
+  bindFeatureClient,
+  type FeaturePolicyStore,
+} from "../modules/updates/feature-policy";
 import {
   clientPlatformSchema,
   clientVersionSchema,

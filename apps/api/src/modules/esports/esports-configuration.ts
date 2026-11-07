@@ -20,7 +20,10 @@ import {
 import type { z } from "zod";
 import { db, audit } from "../../core/context";
 import { esportsActor, snapshot, sweepEsports } from "./esports";
-import { supportsDynamicEsports, sessionCredential } from "../accounts/session-context";
+import {
+  supportsDynamicEsports,
+  sessionCredential,
+} from "../accounts/session-context";
 import { fail } from "../../core/errors";
 import { media } from "../media/media";
 export const readEsportsConfiguration = (room: typeof rooms.$inferSelect) =>

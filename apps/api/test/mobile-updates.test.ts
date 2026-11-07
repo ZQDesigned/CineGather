@@ -104,7 +104,9 @@ test("release validation rejects unsafe URLs, impossible floors and duplicate ru
 });
 
 test("self-hosted Expo server selects exact runtime and refuses traversal or missing signatures", async () => {
-  const { MobileUpdateStore } = await import("../src/modules/updates/mobile-update-store");
+  const { MobileUpdateStore } = await import(
+    "../src/modules/updates/mobile-update-store"
+  );
   const { mkdtemp, mkdir, writeFile, rm } = await import("node:fs/promises");
   const { join } = await import("node:path");
   const root = await mkdtemp("/tmp/cg-mobile-updates-");

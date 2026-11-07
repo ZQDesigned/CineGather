@@ -147,13 +147,11 @@ test("game hosting is capability-gated, guest approval is not, and game admissio
 test("Stardew supports its own lifecycle and incompatible clients discover no unsupported game state", async () => {
   const host = await person(true),
     guest = await person();
-  await db
-    .insert(friendships)
-    .values({
-      requesterId: host.id,
-      recipientId: guest.id,
-      status: "accepted",
-    });
+  await db.insert(friendships).values({
+    requesterId: host.id,
+    recipientId: guest.id,
+    status: "accepted",
+  });
   const made = await call("/games", host, {
     game: "stardew-valley",
     name: "兼容模组农场",

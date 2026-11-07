@@ -14,7 +14,11 @@ import {
   type AdminQuery,
   type User,
 } from "@cinegather/contracts";
-import { requireManagement, readAccess, rolesForUsers } from "../accounts/access";
+import {
+  requireManagement,
+  readAccess,
+  rolesForUsers,
+} from "../accounts/access";
 import { db, audit } from "../../core/context";
 import { fail, uuid } from "../../core/errors";
 import { clearUserMedia } from "../accounts/auth";

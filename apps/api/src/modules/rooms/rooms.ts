@@ -1,5 +1,8 @@
 import { requireFeature, requireRoomFeature } from "../updates/feature-policy";
-import { esportsVisibility, supportsDynamicEsports } from "../accounts/session-context";
+import {
+  esportsVisibility,
+  supportsDynamicEsports,
+} from "../accounts/session-context";
 import {
   guardActivityShare,
   archiveDeparting,
@@ -12,7 +15,10 @@ import {
 import type { Quality } from "@cinegather/contracts";
 import * as esports from "../esports/esports";
 import { esportsReady } from "../esports/esports-media";
-import { sessionCredential, supportsEsports } from "../accounts/session-context";
+import {
+  sessionCredential,
+  supportsEsports,
+} from "../accounts/session-context";
 import { refreshSessionAdmission } from "../accounts/auth";
 import {
   memberIdentity,

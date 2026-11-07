@@ -610,7 +610,9 @@ test("media token issuance failures are observable without counting rejected inv
 
 test("nickname synchronization failure does not block expired sharing permission revocation", async () => {
   const { media } = await import("../../apps/api/src/modules/media/media");
-  const { reconcileRoom } = await import("../../apps/api/src/modules/rooms/rooms");
+  const { reconcileRoom } = await import(
+    "../../apps/api/src/modules/rooms/rooms"
+  );
   const { leases } = await import("@cinegather/database");
   const user = await account("昵称失败权限回收"),
     created = await room(user.token);
@@ -658,7 +660,9 @@ test("nickname synchronization failure does not block expired sharing permission
 
 test("an unavailable ingress registry cannot prevent expired browser permission revocation", async () => {
   const { media } = await import("../../apps/api/src/modules/media/media");
-  const { reconcileRoom } = await import("../../apps/api/src/modules/rooms/rooms");
+  const { reconcileRoom } = await import(
+    "../../apps/api/src/modules/rooms/rooms"
+  );
   const { leases } = await import("@cinegather/database");
   const user = await account("过期授权隔离");
   const created = await room(user.token);
@@ -701,7 +705,9 @@ test("an unavailable ingress registry cannot prevent expired browser permission 
 test("logout waits for in-flight native issuance and revokes the key committed by that request", async () => {
   const { media } = await import("../../apps/api/src/modules/media/media");
   const r = await import("../../apps/api/src/modules/rooms/rooms");
-  const { revokeSession } = await import("../../apps/api/src/modules/accounts/auth");
+  const { revokeSession } = await import(
+    "../../apps/api/src/modules/accounts/auth"
+  );
   const user = await account("原生撤销并发");
   const created = await room(user.token);
   const originalList = media.participants,

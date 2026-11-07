@@ -12,9 +12,13 @@ test("superadmin controls persistent registration while the public UI keeps exis
   });
   expect(r.ok()).toBe(true);
   const root = await r.json();
-  execFileSync("bun", ["tools/operations/superadmin.ts", "grant", root.user.id], {
-    stdio: "pipe",
-  });
+  execFileSync(
+    "bun",
+    ["tools/operations/superadmin.ts", "grant", root.user.id],
+    {
+      stdio: "pipe",
+    },
+  );
   const guest = await browser.newContext();
   const visitor = await guest.newPage();
   try {

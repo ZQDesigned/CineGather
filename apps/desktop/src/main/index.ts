@@ -30,8 +30,16 @@ import { readFile, writeFile, mkdir } from "node:fs/promises";
 import { pathToFileURL } from "node:url";
 import { release } from "node:os";
 import { z } from "zod";
-import { allowedExternal, trustedURL, permissionAllowed } from "./infrastructure/security";
-import { defaultSettings, settingsSchema, restoreSettings } from "./infrastructure/settings";
+import {
+  allowedExternal,
+  trustedURL,
+  permissionAllowed,
+} from "./infrastructure/security";
+import {
+  defaultSettings,
+  settingsSchema,
+  restoreSettings,
+} from "./infrastructure/settings";
 import { defaultNotificationPreferences } from "@cinegather/contracts";
 import { MemberOverlay } from "./windows/member-overlay";
 import { ProductionDiagnostics } from "./diagnostics/diagnostics";

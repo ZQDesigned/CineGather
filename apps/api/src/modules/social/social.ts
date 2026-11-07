@@ -1,4 +1,7 @@
-import { supportsDynamicEsports, supportsEsports } from "../accounts/session-context";
+import {
+  supportsDynamicEsports,
+  supportsEsports,
+} from "../accounts/session-context";
 import { friendships, users, credentials } from "@cinegather/database";
 import { and, eq, ne, isNull, isNotNull, or, sql } from "drizzle-orm";
 import { db, audit } from "../../core/context";

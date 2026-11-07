@@ -1,4 +1,8 @@
-import { openAnnouncements, readAllNotifications, report } from "../../../controller";
+import {
+  openAnnouncements,
+  readAllNotifications,
+  report,
+} from "../../../controller";
 import { useState } from "react";
 import { Badge, Button, Empty, Flex, Popover, Typography } from "antd";
 import { Bell } from "lucide-react";

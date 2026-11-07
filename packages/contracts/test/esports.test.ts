@@ -5,7 +5,11 @@ import {
   esportsMediaRights,
   esportsSeatLimit,
 } from "../src/esports";
-import { roomInput, MAX_ROOM_MEMBERS, DEFAULT_ROOM_MEMBER_LIMIT } from "../src/index";
+import {
+  roomInput,
+  MAX_ROOM_MEMBERS,
+  DEFAULT_ROOM_MEMBER_LIMIT,
+} from "../src/index";
 
 test("esports seats carry stable group ids and distinct director/audience seats", () => {
   expect(esportsSeatSchema.parse({ kind: "player", team: "a" })).toEqual({

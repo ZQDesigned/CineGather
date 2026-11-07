@@ -222,7 +222,9 @@ test("relay admission binds proxy names, role, peer secret, allowed visitor and 
   const { host, guest, sid } = await admitted();
   const owner = (await call(`/games/${sid}/transport`, host)).data,
     visitor = (await call(`/games/${sid}/transport`, guest)).data;
-  const { gameProxyName } = await import("../../apps/api/src/modules/games/game-tunnel-auth");
+  const { gameProxyName } = await import(
+    "../../apps/api/src/modules/games/game-tunnel-auth"
+  );
   const peer = owner.peers[0];
   const good = {
     user: { user: owner.memberId, metas: null },

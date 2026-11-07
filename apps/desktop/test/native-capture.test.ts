@@ -161,7 +161,9 @@ test("an invalid multi-response packet immediately rejects the pending operation
 });
 
 test("screen audio captures the system mix without an application while window audio retains fresh app identity", async () => {
-  const { selectNativeSource } = await import("../src/main/capture/native-selection");
+  const { selectNativeSource } = await import(
+    "../src/main/capture/native-selection"
+  );
   const windows = [
     {
       windowId: 12,
@@ -243,7 +245,9 @@ const fs=require('node:fs');require('node:readline').createInterface({input:proc
 });
 
 test("development capture excludes the Electron application hosting the room playback", async () => {
-  const { selectNativeSource } = await import("../src/main/capture/native-selection");
+  const { selectNativeSource } = await import(
+    "../src/main/capture/native-selection"
+  );
   const windows = [
     {
       windowId: 7,
@@ -520,7 +524,9 @@ console.error('raw vendor https://secret/?token=private');console.error('CG_HOST
 
 for (const roomMode of ["standard", "esports"] as const)
   test(`native ${roomMode} source switching renews the scoped lease and never recreates its WHIP publication`, async () => {
-    const { NativeCapture } = await import("../src/main/capture/native-capture");
+    const { NativeCapture } = await import(
+      "../src/main/capture/native-capture"
+    );
     const { mkdtemp, mkdir, writeFile, readFile, rm } = await import(
       "node:fs/promises"
     );

@@ -54,25 +54,43 @@ def ad_hoc_sign(target, entitlements=None):
 
 try:
     (lock / "pid").write_text(str(os.getpid()))
-    run([
-        "bunx", "expo", "prebuild", "--platform", "ios", "--no-clean", "--no-install"
-    ])
+    run(["bunx", "expo", "prebuild", "--platform", "ios", "--no-clean", "--no-install"])
     run(["pod", "install"], app / "ios")
     run(["bun", root / "tools/build/third-party.ts", "mobile"])
     archive = output / f"CineGather-{version}-ios.xcarchive"
     if archive.exists():
         shutil.rmtree(archive)
-    run([
-        "xcodebuild", "archive", "-workspace", "app.xcworkspace", "-scheme", "app",
-        "-configuration", "Release", "-destination", "generic/platform=iOS",
-        "-sdk", "iphoneos", "-jobs", "4",
-        "-derivedDataPath", root / ".local/mobile/ios-release-build",
-        "-archivePath", archive,
-        "CODE_SIGNING_ALLOWED=NO", "CODE_SIGNING_REQUIRED=NO",
-    ], app / "ios")
+    run(
+        [
+            "xcodebuild",
+            "archive",
+            "-workspace",
+            "app.xcworkspace",
+            "-scheme",
+            "app",
+            "-configuration",
+            "Release",
+            "-destination",
+            "generic/platform=iOS",
+            "-sdk",
+            "iphoneos",
+            "-jobs",
+            "4",
+            "-derivedDataPath",
+            root / ".local/mobile/ios-release-build",
+            "-archivePath",
+            archive,
+            "CODE_SIGNING_ALLOWED=NO",
+            "CODE_SIGNING_REQUIRED=NO",
+        ],
+        app / "ios",
+    )
     built_app = archive / "Products/Applications/app.app"
     info = plist(built_app / "Info.plist")
-    if info["CFBundleShortVersionString"] != version or info["CFBundleVersion"] != build:
+    if (
+        info["CFBundleShortVersionString"] != version
+        or info["CFBundleVersion"] != build
+    ):
         raise RuntimeError("The iOS archive has stale native version metadata")
     group = info["CGScreenShareGroup"]
     with tempfile.TemporaryDirectory(prefix="cinegather-ipa-") as directory:
@@ -93,10 +111,15 @@ try:
         if "Expo Dev Launcher" in target_info.get("NSLocalNetworkUsageDescription", ""):
             target_info.pop("NSLocalNetworkUsageDescription", None)
         (target / "Info.plist").write_bytes(plistlib.dumps(target_info))
-        shutil.copyfile(output / "MOBILE_THIRD_PARTY_NOTICES.txt", target / "THIRD_PARTY_NOTICES.txt")
+        shutil.copyfile(
+            output / "MOBILE_THIRD_PARTY_NOTICES.txt",
+            target / "THIRD_PARTY_NOTICES.txt",
+        )
         for profile in target.rglob("*.mobileprovision"):
             profile.unlink()
-        frameworks = sorted(target.rglob("*.framework"), key=lambda p: len(p.parts), reverse=True)
+        frameworks = sorted(
+            target.rglob("*.framework"), key=lambda p: len(p.parts), reverse=True
+        )
         for library in target.rglob("*.dylib"):
             ad_hoc_sign(library)
         for framework in frameworks:
@@ -104,18 +127,24 @@ try:
         # Ad-hoc signatures retain the capabilities for re-signing tools without
         # publishing the developer's provisioning profiles or device identifiers.
         entitlements = staging / "self-sign.entitlements"
-        entitlements.write_bytes(plistlib.dumps({
-            "com.apple.security.application-groups": [group],
-            "get-task-allow": False,
-        }))
+        entitlements.write_bytes(
+            plistlib.dumps(
+                {
+                    "com.apple.security.application-groups": [group],
+                    "get-task-allow": False,
+                }
+            )
+        )
         extensions = list((target / "PlugIns").glob("*.appex"))
         if len(extensions) != 1:
             raise RuntimeError("The screen broadcast extension is missing")
         for extension in extensions:
             extension_info = plist(extension / "Info.plist")
-            if (extension_info["CFBundleShortVersionString"] != version
+            if (
+                extension_info["CFBundleShortVersionString"] != version
                 or extension_info["CFBundleVersion"] != build
-                or extension_info["CGScreenShareGroup"] != group):
+                or extension_info["CGScreenShareGroup"] != group
+            ):
                 raise RuntimeError("Broadcast extension version or App Group mismatch")
             ad_hoc_sign(extension, entitlements)
         ad_hoc_sign(target, entitlements)
@@ -125,13 +154,23 @@ try:
         run(["/usr/bin/zip", "-q", "-r", "-y", destination, "Payload"], staging)
     digest = hashlib.file_digest(destination.open("rb"), "sha256").hexdigest()
     metadata = {
-        "version": version, "nativeBuild": int(build), "revision": release["revision"],
-        "minimumIOS": info["MinimumOSVersion"], "signing": "user-self-sign-required",
-        "broadcastExtension": True, "appGroup": group,
-        "sourceCommit": subprocess.check_output(["git", "rev-parse", "HEAD"], cwd=root, text=True).strip(),
-        "file": destination.name, "size": destination.stat().st_size, "sha256": digest,
+        "version": version,
+        "nativeBuild": int(build),
+        "revision": release["revision"],
+        "minimumIOS": info["MinimumOSVersion"],
+        "signing": "user-self-sign-required",
+        "broadcastExtension": True,
+        "appGroup": group,
+        "sourceCommit": subprocess.check_output(
+            ["git", "rev-parse", "HEAD"], cwd=root, text=True
+        ).strip(),
+        "file": destination.name,
+        "size": destination.stat().st_size,
+        "sha256": digest,
     }
-    destination.with_suffix(".build.json").write_text(json.dumps(metadata, indent=2) + "\n")
+    destination.with_suffix(".build.json").write_text(
+        json.dumps(metadata, indent=2) + "\n"
+    )
     print(json.dumps(metadata))
 finally:
     shutil.rmtree(lock)

@@ -96,7 +96,9 @@ test("authored clues add information beyond the category instead of a generic ty
 });
 
 test("expanded bank spans many themes, targets compatible games, and never spells out the answer in new clues", async () => {
-  const { partyWordExpansion } = await import("../src/modules/party/data/party-word-expansion");
+  const { partyWordExpansion } = await import(
+    "../src/modules/party/data/party-word-expansion"
+  );
   expect(partyWordExpansion).toHaveLength(1100);
   expect(
     new Set(partyWordSeed.map((w) => w.category)).size,

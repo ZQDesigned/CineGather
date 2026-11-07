@@ -1,4 +1,7 @@
-import { WatchProfileControl, WatchAdvice } from "../../sharing/ui/WatchProfile";
+import {
+  WatchProfileControl,
+  WatchAdvice,
+} from "../../sharing/ui/WatchProfile";
 import {
   useRoomActivityConnection,
   RoomActivityStage,
@@ -47,7 +50,10 @@ import { Chat } from "./Chat";
 import { Member } from "./Member";
 import { capabilities } from "../../../platform";
 import { useCapturePreview } from "../../sharing/ui/useCapturePreview";
-import { RoomActivityLayout, ActivityVolumePanel } from "../../activities/ui/RoomActivityLayout";
+import {
+  RoomActivityLayout,
+  ActivityVolumePanel,
+} from "../../activities/ui/RoomActivityLayout";
 import { activityMemberStatus } from "../../activities/room-activity-ui";
 import {
   deviceAudioTitle,

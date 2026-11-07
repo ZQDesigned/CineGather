@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 """Server-only maintenance switch. Use sudo; no database/API access required."""
+
 import argparse
 from datetime import datetime, timezone
 import json
@@ -34,7 +35,9 @@ def main():
         state.parent.mkdir(parents=True, exist_ok=True)
         temporary = None
         try:
-            with tempfile.NamedTemporaryFile(mode="w", dir=state.parent, delete=False) as f:
+            with tempfile.NamedTemporaryFile(
+                mode="w", dir=state.parent, delete=False
+            ) as f:
                 temporary = f.name
                 json.dump(notice, f, ensure_ascii=False)
                 f.write("\n")

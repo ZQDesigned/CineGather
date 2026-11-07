@@ -1,31 +1,54 @@
 ﻿param(
- [Parameter(Mandatory=$true)][string]$InstallDirectory,
- [Parameter(Mandatory=$true)][string]$ReportPath,
- [string]$AttemptId=''
+    [Parameter(Mandatory = $true)][string]$InstallDirectory,
+    [Parameter(Mandatory = $true)][string]$ReportPath,
+    [string]$AttemptId = ''
 )
 # Read-only probing. This helper must never stop, restart, or close any process.
-$ErrorActionPreference='Stop'
-$root=[IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
-if($AttemptId -notmatch '^(?:[a-fA-F0-9-]{36}|nsis-\d+-\d+)$'){$AttemptId=[guid]::NewGuid().ToString()}
-$report=@{v=1;at=[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds();phase='external-file-lock-check';attempt=$AttemptId;pid=$PID;path=$root;complete=$false;files=@();issues=@()}
-function SafePath([string]$Path){if($env:USERPROFILE){return $Path.Replace($env:USERPROFILE,'<USERPROFILE>')};return $Path}
-function Finish([int]$ResultCode,[string]$Message){
- try{
-  # One line without a BOM: NSIS reads it with FileReadUTF16LE, independent of
-  # console code pages. Keep well below even NSIS's 1024-character string limit.
-  [IO.File]::WriteAllText($ReportPath,$Message,(New-Object Text.UnicodeEncoding($false,$false)))
-  if($ResultCode -ne 0){
-   $report.path=SafePath $root;$report.code=$ResultCode;$report.complete=($report.complete -and $report.issues.Count -eq 0);$report.issues=@($report.issues | Select-Object -First 100)
-   $logs=Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs';New-Item -ItemType Directory -Force $logs | Out-Null
-   # Bounded per-attempt evidence, without growing a file on every Retry click.
-   $file=Join-Path $logs ('snapshot-'+$AttemptId+'-file-locks.json')
-   $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath ($file+'.tmp') -Encoding UTF8
-   Move-Item -LiteralPath ($file+'.tmp') -Destination $file -Force
-  }
- }catch{exit 20}
- exit $ResultCode
+$ErrorActionPreference = 'Stop'
+$root = [IO.Path]::GetFullPath($InstallDirectory).TrimEnd('\')
+if ($AttemptId -notmatch '^(?:[a-fA-F0-9-]{36}|nsis-\d+-\d+)$') {
+    $AttemptId = [guid]::NewGuid().ToString()
 }
-$native=@'
+$report = @{v =1
+    at        =[DateTimeOffset]::UtcNow.ToUnixTimeMilliseconds()
+    phase     ='external-file-lock-check'
+    attempt   =$AttemptId
+    pid       =$PID
+    path      =$root
+    complete  =$false
+    files     =@()
+    issues    =@()
+}
+function SafePath([string]$Path) {
+    if ($env:USERPROFILE) {
+        return $Path.Replace($env:USERPROFILE, '<USERPROFILE>')
+    }
+    return $Path
+}
+function Finish([int]$ResultCode, [string]$Message) {
+    try {
+        # One line without a BOM: NSIS reads it with FileReadUTF16LE, independent of
+        # console code pages. Keep well below even NSIS's 1024-character string limit.
+        [IO.File]::WriteAllText($ReportPath, $Message, (New-Object Text.UnicodeEncoding($false, $false)))
+        if ($ResultCode -ne 0) {
+            $report.path = SafePath $root
+            $report.code = $ResultCode
+            $report.complete = ($report.complete -and $report.issues.Count -eq 0)
+            $report.issues = @($report.issues | Select-Object -First 100)
+            $logs = Join-Path $env:LOCALAPPDATA 'CGInstallDiagnostics\installer-logs'
+            New-Item -ItemType Directory -Force $logs | Out-Null
+            # Bounded per-attempt evidence, without growing a file on every Retry click.
+            $file = Join-Path $logs ('snapshot-' + $AttemptId + '-file-locks.json')
+            $report | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath ($file + '.tmp') -Encoding UTF8
+            Move-Item -LiteralPath ($file + '.tmp') -Destination $file -Force
+        }
+    }
+    catch {
+        exit 20
+    }
+    exit $ResultCode
+}
+$native = @'
 using System;
 using System.Text;
 using System.Collections.Generic;
@@ -70,60 +93,142 @@ public static class CGInstallLockProbe {
  }
 }
 '@
-try{
- Add-Type -TypeDefinition $native -Language CSharp
- if(!(Test-Path -LiteralPath $root -PathType Container)){Finish 0 ''}
- if($root.Length -lt 4 -or ((Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint)){throw 'invalid-installation-root'}
- $pending=New-Object 'System.Collections.Generic.Queue[string]';$pending.Enqueue($root)
- $blocked=New-Object 'System.Collections.Generic.List[string]';$visited=0;$files=0
- # Probe priority files first, then the rest of the installation. Never follow
- # junctions, recurse outside the installation, or scan arbitrary user folders.
- $seen=@{};$errorsByPath=@{}
- foreach($name in @('CineGather.exe','resources\app.asar')){
-  $path=Join-Path $root $name
-  if(Test-Path -LiteralPath $path -PathType Leaf){
-   $item=Get-Item -LiteralPath $path
-   if(!($item.Attributes -band [IO.FileAttributes]::ReparsePoint)){$seen[$path]=$true;$files++;$probeError=[CGInstallLockProbe]::CheckDeleteAccess($path).Error;if($probeError -in @(32,33)){$blocked.Add($path);$errorsByPath[$path]=$probeError}}
-  }
- }
- while($pending.Count -gt 0 -and $visited -lt 512 -and $files -lt 6000 -and $blocked.Count -lt 64){
-  $directory=$pending.Dequeue();$visited++
-  try{$entries=@(Get-ChildItem -LiteralPath $directory -Force -ErrorAction Stop)}catch{$report.issues+=@{stage='directory-read';code=$_.Exception.HResult};continue}
-  foreach($item in $entries){
-   if($item.Attributes -band [IO.FileAttributes]::ReparsePoint){continue}
-   if($item.PSIsContainer){if($pending.Count -lt 512){$pending.Enqueue($item.FullName)};continue}
-   if($files -ge 6000 -or $blocked.Count -ge 64){break}
-   if($seen.ContainsKey($item.FullName)){continue};$seen[$item.FullName]=$true;$files++
-   $probeError=[CGInstallLockProbe]::CheckDeleteAccess($item.FullName).Error;if($probeError -in @(32,33)){$blocked.Add($item.FullName);$errorsByPath[$item.FullName]=$probeError}
-  }
- }
- if($pending.Count -gt 0 -or $files -ge 6000 -or $blocked.Count -ge 64){$report.issues+=@{stage='file-inventory';code='count-limit'}}
- $report.complete=($report.issues.Count -eq 0)
- if(!$blocked.Count){Finish 0 ''}
- # Register related resources together, rather than starting a registry-backed
- # Restart Manager session per file. No shutdown/restart APIs are imported.
- $users=[CGInstallLockProbe]::Query([string[]]$blocked.ToArray())
- $owners=@();$labels=@()
- if($users.Error -eq 0){
-  foreach($owner in @($users.Processes | Select-Object -First 32)){
-   $targetPid=[int]$owner.Process.ProcessId;$name=[string]$owner.AppName
-   try{
-    $process=Get-Process -Id $targetPid -ErrorAction Stop
-    $started=([int64]$owner.Process.Started.dwHighDateTime -shl 32) -bor ($owner.Process.Started.dwLowDateTime -band 4294967295L)
-    if($process.StartTime.ToUniversalTime().ToFileTimeUtc() -eq $started){$name=$process.ProcessName+'.exe'}
-   }catch{}
-   $name=($name -replace '[\p{Cc}\p{Cf}]',' ').Trim();if(!$name){$name='未能识别名称的程序'}
-   if($name.Length -gt 90){$name=$name.Substring(0,90)+'…'}
-   $owners+=@{pid=$targetPid;name=$name};if($labels.Count -lt 6){$labels+=($name+'（进程 '+$targetPid+'）')}
-  }
- }else{$report.issues+=@{stage='resource-users';code=$users.Error}}
- $report.phase='external-file-lock-detected'
- $report.processes=$owners
- $report.files=@($blocked | Select-Object -First 32 | ForEach-Object {@{path=(SafePath $_);code=$errorsByPath[$_];queryCode=$users.Error}})
- $detail=if($labels.Count){$labels -join '；'}else{'其他程序（暂时无法获取程序名称）'}
- if($owners.Count -gt 6){$detail+='；以及其他程序'}
- Finish 10 ('以下程序正在占用映聚文件：'+$detail+'。请自行关闭这些程序，然后点击“重试”继续安装；也可以点击“取消”稍后更新。安装器不会关闭其他程序。')
-}catch{
- $report.issues+=@{stage='lock-query';code=$_.Exception.HResult}
- Finish 20 '暂时无法查询占用程序。请关闭可能正在使用映聚文件的程序后重试；若仍失败，请联系开发者并提供安装诊断日志。'
+try {
+    Add-Type -TypeDefinition $native -Language CSharp
+    if (!(Test-Path -LiteralPath $root -PathType Container)) {
+        Finish 0 ''
+    }
+    if ($root.Length -lt 4 -or ((Get-Item -LiteralPath $root).Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+        throw 'invalid-installation-root'
+    }
+    $pending = New-Object 'System.Collections.Generic.Queue[string]'
+    $pending.Enqueue($root)
+    $blocked = New-Object 'System.Collections.Generic.List[string]'
+    $visited = 0
+    $files = 0
+    # Probe priority files first, then the rest of the installation. Never follow
+    # junctions, recurse outside the installation, or scan arbitrary user folders.
+    $seen = @{}
+    $errorsByPath = @{}
+    foreach ($name in @('CineGather.exe', 'resources\app.asar')) {
+        $path = Join-Path $root $name
+        if (Test-Path -LiteralPath $path -PathType Leaf) {
+            $item = Get-Item -LiteralPath $path
+            if (!($item.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+                $seen[$path] = $true
+                $files++
+                $probeError = [CGInstallLockProbe]::CheckDeleteAccess($path).Error
+                if ($probeError -in @(32, 33)) {
+                    $blocked.Add($path)
+                    $errorsByPath[$path] = $probeError
+                }
+            }
+        }
+    }
+    while ($pending.Count -gt 0 -and $visited -lt 512 -and $files -lt 6000 -and $blocked.Count -lt 64) {
+        $directory = $pending.Dequeue()
+        $visited++
+        try {
+            $entries = @(Get-ChildItem -LiteralPath $directory -Force -ErrorAction Stop)
+        }
+        catch {
+            $report.issues += @{stage ='directory-read'
+                code                  =$_.Exception.HResult
+            }
+            continue
+        }
+        foreach ($item in $entries) {
+            if ($item.Attributes -band [IO.FileAttributes]::ReparsePoint) {
+                continue
+            }
+            if ($item.PSIsContainer) {
+                if ($pending.Count -lt 512) {
+                    $pending.Enqueue($item.FullName)
+                }
+                continue
+            }
+            if ($files -ge 6000 -or $blocked.Count -ge 64) {
+                break
+            }
+            if ($seen.ContainsKey($item.FullName)) {
+                continue
+            }
+            $seen[$item.FullName] = $true
+            $files++
+            $probeError = [CGInstallLockProbe]::CheckDeleteAccess($item.FullName).Error
+            if ($probeError -in @(32, 33)) {
+                $blocked.Add($item.FullName)
+                $errorsByPath[$item.FullName] = $probeError
+            }
+        }
+    }
+    if ($pending.Count -gt 0 -or $files -ge 6000 -or $blocked.Count -ge 64) {
+        $report.issues += @{stage ='file-inventory'
+            code                  ='count-limit'
+        }
+    }
+    $report.complete = ($report.issues.Count -eq 0)
+    if (!$blocked.Count) {
+        Finish 0 ''
+    }
+    # Register related resources together, rather than starting a registry-backed
+    # Restart Manager session per file. No shutdown/restart APIs are imported.
+    $users = [CGInstallLockProbe]::Query([string[]]$blocked.ToArray())
+    $owners = @()
+    $labels = @()
+    if ($users.Error -eq 0) {
+        foreach ($owner in @($users.Processes | Select-Object -First 32)) {
+            $targetPid = [int]$owner.Process.ProcessId
+            $name = [string]$owner.AppName
+            try {
+                $process = Get-Process -Id $targetPid -ErrorAction Stop
+                $started = ([int64]$owner.Process.Started.dwHighDateTime -shl 32) -bor ($owner.Process.Started.dwLowDateTime -band 4294967295L)
+                if ($process.StartTime.ToUniversalTime().ToFileTimeUtc() -eq $started) {
+                    $name = $process.ProcessName + '.exe'
+                }
+            }
+            catch {
+            }
+            $name = ($name -replace '[\p{Cc}\p{Cf}]', ' ').Trim()
+            if (!$name) {
+                $name = '未能识别名称的程序'
+            }
+            if ($name.Length -gt 90) {
+                $name = $name.Substring(0, 90) + '…'
+            }
+            $owners += @{pid =$targetPid
+                name         =$name
+            }
+            if ($labels.Count -lt 6) {
+                $labels += ($name + '（进程 ' + $targetPid + '）')
+            }
+        }
+    }
+    else {
+        $report.issues += @{stage ='resource-users'
+            code                  =$users.Error
+        }
+    }
+    $report.phase = 'external-file-lock-detected'
+    $report.processes = $owners
+    $report.files = @($blocked | Select-Object -First 32 | ForEach-Object { @{path =(SafePath $_)
+                code                                                               =$errorsByPath[$_]
+                queryCode                                                          =$users.Error
+            } })
+    $detail = if ($labels.Count) {
+        $labels -join '；'
+    }
+    else {
+        '其他程序（暂时无法获取程序名称）'
+    }
+    if ($owners.Count -gt 6) {
+        $detail += '；以及其他程序'
+    }
+    Finish 10 ('以下程序正在占用映聚文件：' + $detail + '。请自行关闭这些程序，然后点击“重试”继续安装；也可以点击“取消”稍后更新。安装器不会关闭其他程序。')
+}
+catch {
+    $report.issues += @{stage ='lock-query'
+        code                  =$_.Exception.HResult
+    }
+    Finish 20 '暂时无法查询占用程序。请关闭可能正在使用映聚文件的程序后重试；若仍失败，请联系开发者并提供安装诊断日志。'
 }

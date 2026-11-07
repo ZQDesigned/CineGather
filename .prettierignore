@@ -11,9 +11,12 @@ docs
 LICENSE
 bun.lock
 packages/api-client/src/schema.ts
-packages/database/migrations/meta
+packages/database/migrations
 apps/mobile/android/
 apps/mobile/ios/
 apps/mobile/.expo/
 apps/mobile/expo-env.d.ts
 apps/mobile/modules/**/build/
+
+# This file is a native runtime fingerprint input; keep it byte-stable.
+tools/windows-audio-build.ts

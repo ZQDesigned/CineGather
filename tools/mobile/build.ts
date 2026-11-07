@@ -129,7 +129,10 @@ try {
     ],
     env,
   );
-  await command(["bun", resolve(root, "tools/build/third-party.ts"), "mobile"], env);
+  await command(
+    ["bun", resolve(root, "tools/build/third-party.ts"), "mobile"],
+    env,
+  );
   const assets = resolve(app, "android/app/src/main/assets");
   mkdirSync(assets, { recursive: true });
   copyFileSync(

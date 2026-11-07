@@ -71,7 +71,9 @@ beforeAll(async () => {
 });
 afterAll(async () => {
   await app?.close();
-  const { closeEsports } = await import("../../apps/api/src/modules/esports/esports");
+  const { closeEsports } = await import(
+    "../../apps/api/src/modules/esports/esports"
+  );
   for (const r of await db
     .select()
     .from(rooms)

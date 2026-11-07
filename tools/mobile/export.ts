@@ -7,10 +7,7 @@ import {
   clientVersionSchema,
 } from "@cinegather/contracts";
 import { mobileExportSchema } from "./publish";
-import {
-  readNativeBaseline,
-  withNativeBaseline,
-} from "./native-baseline";
+import { readNativeBaseline, withNativeBaseline } from "./native-baseline";
 if (import.meta.main) {
   const { values } = parseArgs({
     options: {

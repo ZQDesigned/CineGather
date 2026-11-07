@@ -246,7 +246,9 @@ test("restrictions serialize with lease acquisition, reconciliation cannot resto
     expect(
       (await req(`/rooms/${roomId}/share-lease`, b.token, {})).body.code,
     ).toBe("ROOM_SHARE_FORBIDDEN");
-    const { reconcileRoom } = await import("../../apps/api/src/modules/rooms/rooms");
+    const { reconcileRoom } = await import(
+      "../../apps/api/src/modules/rooms/rooms"
+    );
     await reconcileRoom(roomId);
     expect(applied.at(-1)).toEqual([roomId, b.id, false, false]);
     const transfer = await req(
