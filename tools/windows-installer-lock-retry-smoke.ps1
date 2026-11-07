@@ -62,7 +62,7 @@ foreach($mode in @('currentuser','allusers')){
    if(!$d.Retry -or $d.Text -notmatch 'CineGatherLockFixture'){throw ('External owner and Retry/Cancel not shown: '+$d.Text)}
    $reportPath=Join-Path $env:LOCALAPPDATA ('CGInstallDiagnostics\installer-logs\snapshot-'+$attempt+'-file-locks.json')
    $report=Get-Content -LiteralPath $reportPath -Raw | ConvertFrom-Json
-   if($report.processes.pid -notcontains $held.Id -or $report.files.code -notcontains 32){throw 'lock-diagnostic-owner-or-error-missing'}
+   if($report.processes.pid -notcontains $held.Id -or $report.processes.name -notcontains 'CineGatherLockFixture.exe' -or $report.files.code -notcontains 32){throw 'lock-diagnostic-owner-or-error-missing'}
    Copy-Item $reportPath (Join-Path $evidence ($mode+'-'+$cancel+'-snapshot.json'))
    if($held.HasExited){throw 'foreign-process-killed'}
    if($cancel){

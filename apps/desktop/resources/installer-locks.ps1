@@ -109,7 +109,7 @@ try{
    $targetPid=[int]$owner.Process.ProcessId;$name=[string]$owner.AppName
    try{
     $process=Get-Process -Id $targetPid -ErrorAction Stop
-    $started=([int64]$owner.Process.Started.dwHighDateTime -shl 32) -bor ($owner.Process.Started.dwLowDateTime -band [int64]0xffffffff)
+    $started=([int64]$owner.Process.Started.dwHighDateTime -shl 32) -bor ($owner.Process.Started.dwLowDateTime -band 4294967295L)
     if($process.StartTime.ToUniversalTime().ToFileTimeUtc() -eq $started){$name=$process.ProcessName+'.exe'}
    }catch{}
    $name=($name -replace '[\p{Cc}\p{Cf}]',' ').Trim();if(!$name){$name='未能识别名称的程序'}
