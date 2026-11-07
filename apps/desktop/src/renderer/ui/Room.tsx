@@ -10,9 +10,9 @@ import { PictureInPicture2 } from "lucide-react";
 import { useViewingWindow } from "./ViewingWindow";
 import { ShareQueue } from "./ShareQueue";
 import { ShareDebugOverlay } from "./ShareDebugOverlay";
-import { App, Slider, Alert, Tabs, Tooltip, Tag, Badge } from "antd";
+import { App, Slider, Alert, Tabs, Tooltip, Tag, Badge, Popover } from "antd";
 import { Button } from "./Controls";
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import {
   Shield,
   LockKeyhole,
@@ -34,6 +34,8 @@ import {
   Eye,
   LogOut,
   MessageCircle,
+  PanelRightClose,
+  PanelRightOpen,
 } from "lucide-react";
 import { qualityLabel } from "@cinegather/contracts";
 import { useApp, update } from "../store";
@@ -45,6 +47,8 @@ import { Chat } from "./Chat";
 import { Member } from "./Member";
 import { capabilities } from "../platform";
 import { useCapturePreview } from "./useCapturePreview";
+import { RoomActivityLayout, ActivityVolumePanel } from "./RoomActivityLayout";
+import { activityMemberStatus } from "../room-activity-ui";
 import {
   deviceAudioTitle,
   deviceAudioDescription,
@@ -54,6 +58,56 @@ export function Room({ visible = true }: { visible?: boolean }) {
   const activity = useRoomActivityConnection();
   const activityVisible =
     activity.snapshot?.kind === "board" || activity.snapshot?.kind === "game";
+  const [activityToolbar, setActivityToolbar] = useState<HTMLDivElement | null>(
+    null,
+  );
+  const [activityFocus, setActivityFocus] = useState(false);
+  const [activityPanel, setActivityPanel] = useState<boolean>();
+  const [narrowActivity, setNarrowActivity] = useState(
+    () => matchMedia("(max-width: 1050px)").matches,
+  );
+  const [volumeOpen, setVolumeOpen] = useState(false);
+  const volumeTrigger = useRef<HTMLButtonElement>(null);
+  useEffect(() => {
+    const query = matchMedia("(max-width: 1050px)");
+    const changed = () => setNarrowActivity(query.matches);
+    query.addEventListener("change", changed);
+    return () => query.removeEventListener("change", changed);
+  }, []);
+  useEffect(() => {
+    setActivityFocus(false);
+    setActivityPanel(undefined);
+    setVolumeOpen(false);
+  }, [app.room?.id, activityVisible]);
+  useEffect(() => {
+    if (!visible) setVolumeOpen(false);
+  }, [visible]);
+  useEffect(() => {
+    if (!activityVisible || !activityFocus || !visible) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape" || event.defaultPrevented) return;
+      // Dialogs and popovers get first use of Esc.
+      if (
+        document.querySelector(
+          '.ant-modal-wrap:not([style*="display: none"]), .ant-popover:not(.ant-popover-hidden), .ant-dropdown:not(.ant-dropdown-hidden)',
+        )
+      )
+        return;
+      setActivityFocus(false);
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [activityVisible, activityFocus, visible]);
+  useEffect(() => {
+    if (!activityVisible || !volumeOpen || !visible) return;
+    const escape = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setVolumeOpen(false);
+      volumeTrigger.current?.focus();
+    };
+    window.addEventListener("keydown", escape);
+    return () => window.removeEventListener("keydown", escape);
+  }, [activityVisible, volumeOpen, visible]);
   const { modal } = App.useApp();
   const stage = useRef<HTMLDivElement>(null);
   const local = app.media.participants.find((p) => p.local);
@@ -101,8 +155,37 @@ export function Room({ visible = true }: { visible?: boolean }) {
       void document.exitFullscreen().catch(actions.report);
     else void stage.current?.requestFullscreen().catch(actions.report);
   };
+  const volumes = (
+    <>
+      <Volume
+        label="他人语音"
+        icon={<Headphones size={17} />}
+        value={app.voiceVolume}
+        onChange={(value) => {
+          update({ voiceVolume: value });
+          actions.media.voiceVolume(value);
+        }}
+      />
+      {!activityVisible && <div className="mixer-divider" />}
+      <Volume
+        label="共享声音"
+        icon={<Film size={17} />}
+        value={app.screenVolume}
+        onChange={(value) => {
+          update({ screenVolume: value });
+          actions.media.screenVolume(value);
+        }}
+      />
+    </>
+  );
+  const panelCollapsed =
+    activityFocus ||
+    activityPanel === false ||
+    (activityPanel === undefined && narrowActivity);
   return (
-    <div className="room-page">
+    <RoomActivityLayout
+      className={`room-page ${activityVisible ? "activity-workspace" : ""} ${activityVisible && activityFocus ? "activity-focus" : ""} ${activityVisible && panelCollapsed ? "activity-panel-collapsed" : ""} ${activityVisible && activityPanel === true && !activityFocus ? "activity-panel-expanded" : ""}`}
+    >
       <ActivityNotifications />
       <div className="room-heading">
         <div className="room-title-row">
@@ -137,6 +220,11 @@ export function Room({ visible = true }: { visible?: boolean }) {
           </Tag>
         </div>
         <div className="heading-actions">
+          <div
+            className="activity-heading-toolbar"
+            ref={setActivityToolbar}
+            style={activityVisible ? undefined : { display: "none" }}
+          />
           {app.room!.role === "owner" && (
             <Button onClick={() => update({ modal: "room-settings" })}>
               <Settings size={16} />
@@ -147,17 +235,51 @@ export function Room({ visible = true }: { visible?: boolean }) {
             <UserPlus size={16} />
             邀请朋友
           </Button>
-          <Tooltip title="影院模式">
-            <Button
-              type="text"
-              aria-pressed={app.cinema}
-              title="影院模式"
-              aria-label="影院模式"
-              onClick={() => update({ cinema: !app.cinema })}
-            >
-              {app.cinema ? <Minimize size={20} /> : <Maximize size={20} />}
-            </Button>
-          </Tooltip>
+          {activityVisible ? (
+            <>
+              <Button
+                aria-label={activityFocus ? "退出专注" : "专注画板"}
+                aria-pressed={activityFocus}
+                onClick={() => setActivityFocus(!activityFocus)}
+              >
+                {activityFocus ? (
+                  <Minimize size={18} />
+                ) : (
+                  <Maximize size={18} />
+                )}
+                {activityFocus ? "退出专注" : "专注画板"}
+              </Button>
+              <Button
+                aria-label={panelCollapsed ? "展开成员栏" : "收起成员栏"}
+                aria-expanded={!panelCollapsed}
+                aria-controls="room-members-panel"
+                onClick={() => {
+                  if (activityFocus) {
+                    setActivityFocus(false);
+                    setActivityPanel(true);
+                  } else setActivityPanel(panelCollapsed);
+                }}
+              >
+                {panelCollapsed ? (
+                  <PanelRightOpen size={18} />
+                ) : (
+                  <PanelRightClose size={18} />
+                )}
+              </Button>
+            </>
+          ) : (
+            <Tooltip title="影院模式">
+              <Button
+                type="text"
+                aria-pressed={app.cinema}
+                title="影院模式"
+                aria-label="影院模式"
+                onClick={() => update({ cinema: !app.cinema })}
+              >
+                {app.cinema ? <Minimize size={20} /> : <Maximize size={20} />}
+              </Button>
+            </Tooltip>
+          )}
         </div>
       </div>
       {app.audioCompatibility && sharing && (
@@ -171,7 +293,11 @@ export function Room({ visible = true }: { visible?: boolean }) {
       )}
       <div className="room-layout">
         <div className="view-column">
-          <RoomActivityControls />
+          <RoomActivityControls
+            compact={activityVisible}
+            visible={visible}
+            toolbarTarget={activityVisible ? activityToolbar : null}
+          />
           <RoomActivityStage />
           <div
             style={activityVisible ? { display: "none" } : undefined}
@@ -377,27 +503,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
             </span>
           </div>
           <WatchAdvice />
-          <div className="mixer-card">
-            <Volume
-              label="他人语音"
-              icon={<Headphones size={17} />}
-              value={app.voiceVolume}
-              onChange={(value) => {
-                update({ voiceVolume: value });
-                actions.media.voiceVolume(value);
-              }}
-            />
-            <div className="mixer-divider" />
-            <Volume
-              label="共享声音"
-              icon={<Film size={17} />}
-              value={app.screenVolume}
-              onChange={(value) => {
-                update({ screenVolume: value });
-                actions.media.screenVolume(value);
-              }}
-            />
-          </div>
+          {!activityVisible && <div className="mixer-card">{volumes}</div>}
           <div className="controls">
             <div className="control-group">
               <Button
@@ -479,6 +585,35 @@ export function Room({ visible = true }: { visible?: boolean }) {
               </Button>
             )}
             <AccompanimentControl disabled={!connected || micBlocked} />
+            <Popover
+              trigger="click"
+              placement="top"
+              open={visible && activityVisible && volumeOpen}
+              onOpenChange={setVolumeOpen}
+              content={
+                <ActivityVolumePanel role="region" aria-label="房间播放音量">
+                  {volumes}
+                </ActivityVolumePanel>
+              }
+            >
+              <Button
+                ref={volumeTrigger}
+                type="text"
+                className="activity-volume-trigger"
+                aria-label="播放音量"
+                style={activityVisible ? undefined : { display: "none" }}
+                onKeyDown={(event) => {
+                  if (event.key === "Escape") {
+                    setVolumeOpen(false);
+                    event.currentTarget.focus();
+                    event.stopPropagation();
+                  }
+                }}
+              >
+                <Volume2 size={17} />
+                音量
+              </Button>
+            </Popover>
             <span className="control-spacer" />
             <Button
               danger
@@ -503,7 +638,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
             </Button>
           )}
         </div>
-        <aside className="room-panel">
+        <aside className="room-panel" id="room-members-panel">
           <Tabs
             className="room-tabs"
             classNames={{ body: "room-tab-body", content: "room-tab-content" }}
@@ -528,20 +663,38 @@ export function Room({ visible = true }: { visible?: boolean }) {
                   <>
                     <div className="members-list">
                       {app.media.participants.map((p) => (
-                        <Member
+                        <div
                           key={p.id}
-                          participant={p}
-                          room={app.room!}
-                          volume={app.memberVolumes[p.id] ?? 100}
-                          onVolumeChange={(value) =>
-                            actions.setMemberVolume(p.id, value)
+                          className="activity-member-entry"
+                          style={
+                            activityVisible
+                              ? undefined
+                              : { display: "contents" }
                           }
-                          onVolumeCommit={(value) =>
-                            void actions
-                              .commitMemberVolume(p.id, value)
-                              .catch(actions.report)
-                          }
-                        />
+                        >
+                          <Member
+                            key={p.id}
+                            participant={p}
+                            room={app.room!}
+                            volume={app.memberVolumes[p.id] ?? 100}
+                            onVolumeChange={(value) =>
+                              actions.setMemberVolume(p.id, value)
+                            }
+                            onVolumeCommit={(value) =>
+                              void actions
+                                .commitMemberVolume(p.id, value)
+                                .catch(actions.report)
+                            }
+                          />
+                          {activityVisible && activity.snapshot?.game && (
+                            <div className="activity-member-status">
+                              {activityMemberStatus(
+                                activity.snapshot.game,
+                                p.id,
+                              )}
+                            </div>
+                          )}
+                        </div>
                       ))}
                     </div>
 
@@ -567,13 +720,21 @@ export function Room({ visible = true }: { visible?: boolean }) {
                   </span>
                 ),
                 icon: <MessageCircle size={16} />,
-                children: <Chat active={visible && app.chatTab === "chat"} />,
+                children: (
+                  <Chat
+                    active={
+                      visible &&
+                      app.chatTab === "chat" &&
+                      (!activityVisible || !panelCollapsed)
+                    }
+                  />
+                ),
               },
             ]}
           />
         </aside>
       </div>
-    </div>
+    </RoomActivityLayout>
   );
 }
 function Video() {

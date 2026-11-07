@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
-import { App, Input, Modal, Switch, Tag } from "antd";
+import { createPortal } from "react-dom";
+import { App, Dropdown, Input, Modal, Switch, Tag, type MenuProps } from "antd";
 import {
   PencilRuler,
   Gamepad2,
@@ -7,6 +8,7 @@ import {
   History,
   Square,
   X,
+  Ellipsis,
 } from "lucide-react";
 import type {
   ActivityTarget,
@@ -156,7 +158,15 @@ export function ActivityNotifications() {
   }, [snapshot, userId, notification]);
   return null;
 }
-export function RoomActivityControls() {
+export function RoomActivityControls({
+  compact = false,
+  visible = true,
+  toolbarTarget,
+}: {
+  compact?: boolean;
+  visible?: boolean;
+  toolbarTarget?: HTMLElement | null;
+}) {
   const { snapshot, status, error } = useRoomActivity(),
     userId = useApp((s) => s.user?.id),
     [busy, setBusy] = useState(false);
@@ -167,6 +177,10 @@ export function RoomActivityControls() {
     }>(),
     retained = useRetainedDialog(dialog);
   const [history, setHistory] = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  useEffect(() => {
+    if (!compact || !visible) setMenuOpen(false);
+  }, [compact, visible]);
   const pendingScreen = useRef<
     Pick<ActivitySnapshot, "roomId" | "generation"> | undefined
   >(undefined);
@@ -208,65 +222,130 @@ export function RoomActivityControls() {
       setDialog({ kind: "switch", target, context: snapshot });
     else void start(target);
   }
+  const items: MenuProps["items"] = [
+    {
+      key: "board",
+      label: "白板",
+      icon: <PencilRuler size={16} />,
+      disabled: disabled || (!owner && policy?.board === false),
+    },
+    {
+      key: "game",
+      label: "聚会游戏",
+      icon: <Gamepad2 size={16} />,
+      disabled: disabled || (!owner && policy?.game === false),
+    },
+    {
+      key: "screen",
+      label: controlled ? "切换到共享" : "申请共享",
+      icon: <MonitorUp size={16} />,
+      disabled,
+    },
+    { type: "divider" },
+    { key: "history", label: "白板记录", icon: <History size={16} /> },
+    ...(controlled
+      ? [
+          { type: "divider" as const },
+          {
+            key: "end",
+            label: "结束活动",
+            icon: <Square size={15} />,
+            danger: true,
+            disabled,
+          },
+        ]
+      : []),
+  ];
+  const controls = (
+    <div className="room-activity-controls">
+      {compact ? (
+        <Dropdown
+          open={visible && menuOpen}
+          onOpenChange={setMenuOpen}
+          trigger={["click"]}
+          placement="bottomRight"
+          menu={{
+            items,
+            onClick: ({ key }) => {
+              setMenuOpen(false);
+              if (key === "history") setHistory(true);
+              else if (key === "game" && snapshot)
+                setDialog({ kind: "game", context: snapshot });
+              else if (key === "end" && snapshot)
+                setDialog({ kind: "end", context: snapshot });
+              else if (key === "board" || key === "screen") select(key);
+            },
+          }}
+        >
+          <Button aria-label="活动菜单">
+            <Ellipsis size={17} />
+            活动
+          </Button>
+        </Dropdown>
+      ) : (
+        <>
+          <Button
+            disabled={disabled || (!owner && policy?.board === false)}
+            onClick={() => select("board")}
+          >
+            <PencilRuler size={17} />
+            白板
+          </Button>
+          <Button
+            disabled={disabled || (!owner && policy?.game === false)}
+            onClick={() =>
+              snapshot && setDialog({ kind: "game", context: snapshot })
+            }
+          >
+            <Gamepad2 size={17} />
+            聚会游戏
+          </Button>
+          {(snapshot?.kind === "board" || snapshot?.kind === "game") && (
+            <Button disabled={disabled} onClick={() => select("screen")}>
+              <MonitorUp size={17} />
+              {controlled ? "切换到共享" : "申请共享"}
+            </Button>
+          )}
+          {snapshot &&
+            ["board", "game"].includes(snapshot.kind) &&
+            controlled && (
+              <Button
+                disabled={disabled}
+                onClick={() => setDialog({ kind: "end", context: snapshot })}
+              >
+                <Square size={15} />
+                结束活动
+              </Button>
+            )}
+          <span className="activity-spacer" />
+          <Button onClick={() => setHistory(true)}>
+            <History size={16} />
+            白板记录
+          </Button>
+        </>
+      )}
+      {status === "reconnecting" &&
+        (snapshot?.kind === "board" || snapshot?.kind === "game") && (
+          <small>正在恢复活动连接…</small>
+        )}
+      {status === "failed" && (
+        <>
+          <small>{error ?? "活动暂不可用"}</small>
+          <Button
+            onClick={() => {
+              const id = useApp.getState().room?.id;
+              if (id) roomActivities.connect(id);
+            }}
+          >
+            重新连接活动
+          </Button>
+        </>
+      )}
+    </div>
+  );
   return (
     <>
-      <div className="room-activity-controls">
-        <Button
-          disabled={disabled || (!owner && policy?.board === false)}
-          onClick={() => select("board")}
-        >
-          <PencilRuler size={17} />
-          白板
-        </Button>
-        <Button
-          disabled={disabled || (!owner && policy?.game === false)}
-          onClick={() =>
-            snapshot && setDialog({ kind: "game", context: snapshot })
-          }
-        >
-          <Gamepad2 size={17} />
-          聚会游戏
-        </Button>
-        {(snapshot?.kind === "board" || snapshot?.kind === "game") && (
-          <Button disabled={disabled} onClick={() => select("screen")}>
-            <MonitorUp size={17} />
-            {controlled ? "切换到共享" : "申请共享"}
-          </Button>
-        )}
-        {snapshot &&
-          ["board", "game"].includes(snapshot.kind) &&
-          controlled && (
-            <Button
-              disabled={disabled}
-              onClick={() => setDialog({ kind: "end", context: snapshot })}
-            >
-              <Square size={15} />
-              结束活动
-            </Button>
-          )}
-        <span className="activity-spacer" />
-        <Button onClick={() => setHistory(true)}>
-          <History size={16} />
-          白板记录
-        </Button>
-        {status === "reconnecting" &&
-          (snapshot?.kind === "board" || snapshot?.kind === "game") && (
-            <small>正在恢复活动连接…</small>
-          )}
-        {status === "failed" && (
-          <>
-            <small>{error ?? "活动暂不可用"}</small>
-            <Button
-              onClick={() => {
-                const id = useApp.getState().room?.id;
-                if (id) roomActivities.connect(id);
-              }}
-            >
-              重新连接活动
-            </Button>
-          </>
-        )}
-      </div>
+      {toolbarTarget ? createPortal(controls, toolbarTarget) : controls}
       <Modal
         open={retained.open}
         afterClose={() => {
@@ -437,116 +516,119 @@ export function RoomActivityStage() {
             </Tag>
           </>
         )}
-      </header>
-      {game && (
-        <div className="party-status">
-          {game.phase === "lobby" || game.phase === "finished" ? (
-            <>
-              <Button
-                disabled={busy}
-                onClick={() => void party({ type: "ready", ready: !me?.ready })}
-              >
-                {me?.ready ? "取消准备" : "参加游戏"}
-              </Button>
-              {controlled && (
+        {game && (
+          <div className="party-status">
+            {game.phase === "lobby" || game.phase === "finished" ? (
+              <>
                 <Button
-                  type="primary"
-                  disabled={
-                    busy || game.players.filter((p) => p.ready).length < 2
-                  }
-                  onClick={() => void party({ type: "start" })}
-                >
-                  开始游戏
-                </Button>
-              )}
-            </>
-          ) : (
-            <>
-              {controlled && (
-                <Button
-                  disabled={busy || game.phase === "results"}
-                  onClick={() =>
-                    void party({
-                      type: game.phase === "paused" ? "resume" : "pause",
-                    })
-                  }
-                >
-                  {game.phase === "paused" ? "继续" : "暂停"}
-                </Button>
-              )}
-              {!me?.ready && (
-                <Button
-                  onClick={() => void party({ type: "ready", ready: true })}
-                >
-                  参加下一轮
-                </Button>
-              )}
-            </>
-          )}
-          {game.choices ? (
-            <div className="party-choices">
-              {game.choices.map((word, index) => (
-                <Button
-                  key={word}
                   disabled={busy}
                   onClick={() =>
-                    void party({
-                      type: "choose",
-                      index,
-                      choicesRevision: game.choicesRevision,
-                    })
+                    void party({ type: "ready", ready: !me?.ready })
                   }
                 >
-                  {word}
+                  {me?.ready ? "取消准备" : "参加游戏"}
                 </Button>
-              ))}
-              {game.rerollsRemaining !== undefined && (
-                <Button
-                  disabled={
-                    busy ||
-                    game.rerollsRemaining <= 0 ||
-                    !game.canReroll ||
-                    rerollSeconds > 0 ||
-                    seconds <= 0
-                  }
-                  onClick={() =>
-                    void party({
-                      type: "reroll",
-                      choicesRevision: game.choicesRevision,
-                    })
-                  }
-                >
-                  {game.rerollsRemaining <= 0
-                    ? "换词次数已用完"
-                    : !game.canReroll
-                      ? "暂无更多题目"
-                      : rerollSeconds > 0
-                        ? `换一组（${rerollSeconds}秒）`
-                        : `换一组（剩余 ${game.rerollsRemaining} 次）`}
-                </Button>
-              )}
-            </div>
-          ) : game.answer ? (
-            <strong>
-              {game.drawerId === userId && game.phase === "playing"
-                ? "你的题目："
-                : "答案："}
-              {game.answer}
-            </strong>
-          ) : game.phase === "choosing" ? (
-            <span>等待画手选择题目</span>
-          ) : game.phase === "playing" ? (
-            <span>
-              {game.category} {game.wordLength} 个字
-            </span>
-          ) : null}
-        </div>
-      )}
+                {controlled && (
+                  <Button
+                    type="primary"
+                    disabled={
+                      busy || game.players.filter((p) => p.ready).length < 2
+                    }
+                    onClick={() => void party({ type: "start" })}
+                  >
+                    开始游戏
+                  </Button>
+                )}
+              </>
+            ) : (
+              <>
+                {controlled && (
+                  <Button
+                    disabled={busy || game.phase === "results"}
+                    onClick={() =>
+                      void party({
+                        type: game.phase === "paused" ? "resume" : "pause",
+                      })
+                    }
+                  >
+                    {game.phase === "paused" ? "继续" : "暂停"}
+                  </Button>
+                )}
+                {!me?.ready && (
+                  <Button
+                    onClick={() => void party({ type: "ready", ready: true })}
+                  >
+                    参加下一轮
+                  </Button>
+                )}
+              </>
+            )}
+            {game.choices ? (
+              <div className="party-choices">
+                {game.choices.map((word, index) => (
+                  <Button
+                    key={word}
+                    disabled={busy}
+                    onClick={() =>
+                      void party({
+                        type: "choose",
+                        index,
+                        choicesRevision: game.choicesRevision,
+                      })
+                    }
+                  >
+                    {word}
+                  </Button>
+                ))}
+                {game.rerollsRemaining !== undefined && (
+                  <Button
+                    disabled={
+                      busy ||
+                      game.rerollsRemaining <= 0 ||
+                      !game.canReroll ||
+                      rerollSeconds > 0 ||
+                      seconds <= 0
+                    }
+                    onClick={() =>
+                      void party({
+                        type: "reroll",
+                        choicesRevision: game.choicesRevision,
+                      })
+                    }
+                  >
+                    {game.rerollsRemaining <= 0
+                      ? "换词次数已用完"
+                      : !game.canReroll
+                        ? "暂无更多题目"
+                        : rerollSeconds > 0
+                          ? `换一组（${rerollSeconds}秒）`
+                          : `换一组（剩余 ${game.rerollsRemaining} 次）`}
+                  </Button>
+                )}
+              </div>
+            ) : game.answer ? (
+              <strong>
+                {game.drawerId === userId && game.phase === "playing"
+                  ? "你的题目："
+                  : "答案："}
+                {game.answer}
+              </strong>
+            ) : game.phase === "choosing" ? (
+              <span>等待画手选择题目</span>
+            ) : game.phase === "playing" ? (
+              <span>
+                {game.category} {game.wordLength} 个字
+              </span>
+            ) : null}
+          </div>
+        )}
+      </header>
       <div
         className="activity-board-content"
         style={!game || game.kind === "draw" ? undefined : { display: "none" }}
       >
         <Whiteboard
+          workspace
           contextKey={`${current?.roomId}:${current?.generation}:${Boolean(active)}:${game?.phase ?? "board"}`}
           elements={board.elements}
           presence={presence}
@@ -613,25 +695,6 @@ export function RoomActivityStage() {
       )}
       {game && (
         <>
-          {game.players.length > 0 && (
-            <div className="party-players">
-              {game.players.map((p) => (
-                <div key={p.id}>
-                  <span>
-                    {p.name}
-                    {p.id === game.drawerId ? "（画手）" : ""}
-                  </span>
-                  {game.solvedIds.includes(p.id) ? (
-                    <Tag color="green">已答对</Tag>
-                  ) : p.ready ? (
-                    <small>已准备</small>
-                  ) : (
-                    <small>旁观</small>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
           {game.phase === "playing" &&
             game.drawerId !== userId &&
             me?.ready &&
