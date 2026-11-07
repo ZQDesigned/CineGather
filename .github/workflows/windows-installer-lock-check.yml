@@ -1,5 +1,12 @@
 name: windows-installer-lock-check
 on:
+  push:
+    branches: [feat/windows-installer-diagnostic-roots]
+    paths:
+      - .github/workflows/windows-installer-lock-check.yml
+      - tools/windows-installer-lock-retry-smoke.ps1
+      - apps/desktop/resources/installer*.nsh
+      - apps/desktop/resources/installer*.ps1
   workflow_dispatch:
     inputs:
       baseline-only:
