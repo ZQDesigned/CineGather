@@ -62,12 +62,13 @@ test("idle protocol pings keep a legacy client alive without application message
 });
 test("missing pong terminates a half-open connection and removes heartbeat listeners", async () => {
   // Fault injection: the native WebSocket client used by Bun always auto-pongs.
-  const peer = Object.assign(new EventEmitter(), {
+  const events = new EventEmitter();
+  const peer = Object.assign(events, {
     readyState: 1,
     ping() {},
     terminate() {
       this.readyState = 3;
-      this.emit("close");
+      events.emit("close");
     },
   });
   const closed = once(peer, "close");
