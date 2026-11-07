@@ -1,0 +1,56 @@
+name: windows-installer-lock-check
+on:
+  workflow_dispatch:
+    inputs:
+      baseline-only:
+        type: boolean
+        default: false
+permissions:
+  contents: read
+jobs:
+  verify:
+    runs-on: windows-latest
+    timeout-minutes: 18
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - run: bun install --frozen-lockfile
+      - run: bun run setup
+      - name: Download immutable released baseline
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force .local/installer-lock-build | Out-Null
+          curl.exe --fail --retry 3 -L 'https://cgplat.zqdesigned.city/downloads/CineGather-0.1.40-win-x64-setup.exe' -o .local/installer-lock-build/baseline.exe
+          if ($LASTEXITCODE -ne 0) { throw 'Baseline download failed' }
+          if ((Get-FileHash .local/installer-lock-build/baseline.exe -Algorithm SHA256).Hash.ToLowerInvariant() -ne 'c222d8fb2b0705d791dd2ecf268004fac4170075758c2f8c3e37b3107b6b9d7a') { throw 'Baseline hash mismatch' }
+      - name: Build new installer around the verified unchanged payload
+        if: ${{ !inputs.baseline-only }}
+        shell: pwsh
+        run: |
+          7z x .local/installer-lock-build/baseline.exe '-o.local/installer-lock-build/extract' '$PLUGINSDIR/app-64.7z' -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Installer extraction failed' }
+          7z x '.local/installer-lock-build/extract/$PLUGINSDIR/app-64.7z' '-o.local/installer-lock-build/payload' -y | Out-Null
+          if ($LASTEXITCODE -ne 0) { throw 'Payload extraction failed' }
+          $payload=(Resolve-Path .local/installer-lock-build/payload).Path
+          Set-Location apps/desktop
+          bunx electron-builder --win nsis --x64 --prepackaged $payload --publish never
+          if ($LASTEXITCODE -ne 0) { throw 'NSIS build failed' }
+      - name: Verify actual external lock dialog and manual retry
+        shell: pwsh
+        run: |
+          $candidate=if ('${{ inputs.baseline-only }}' -eq 'true') { '.local/installer-lock-build/baseline.exe' } else { 'apps/desktop/release/CineGather-0.1.40-win-x64-setup.exe' }
+          ./tools/windows-installer-lock-retry-smoke.ps1 -Baseline .local/installer-lock-build/baseline.exe -Installer $candidate
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: installer-lock-retry-evidence
+          include-hidden-files: true
+          path: |
+            .local/installer-lock-retry-windows/**
+            apps/desktop/release/*setup.exe
+            apps/desktop/release/*setup.exe.blockmap
