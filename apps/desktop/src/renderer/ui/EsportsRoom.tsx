@@ -791,7 +791,7 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
               <Volume2 size={14} />
               语音
               <Slider
-                aria-label="赛事房语音音量"
+                aria-label="赛事房他人语音"
                 min={0}
                 max={100}
                 value={Math.round(app.voiceVolume * 100)}
@@ -807,7 +807,7 @@ export function EsportsRoom({ visible = true }: { visible?: boolean }) {
                 <Volume2 size={14} />
                 共享
                 <Slider
-                  aria-label="赛事房共享音量"
+                  aria-label="赛事房共享声音"
                   min={0}
                   max={100}
                   value={Math.round(app.screenVolume * 100)}

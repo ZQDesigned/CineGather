@@ -4,6 +4,7 @@ import {
   type NoiseReduction,
 } from "@cinegather/contracts";
 import { createMicrophoneDenoiser, type MicrophoneNoiseStatus } from "./noise";
+import { MicrophoneInput } from "./microphone-input";
 import { KtvReverb } from "./ktv-reverb";
 export type MicrophoneEffectStatus = {
   requested: MicrophoneEffect;
@@ -17,10 +18,13 @@ export async function createMicrophoneProcessor(
   status: (s: MicrophoneNoiseStatus) => void = () => {},
   isMuted = () => false,
   strength = defaultMicrophoneReverbStrength,
+  volume = 100,
 ) {
   const denoiser =
     mode === "enhanced" ? await createMicrophoneDenoiser(status) : undefined;
-  return effect === "ktv"
-    ? new KtvReverb(denoiser, isMuted, strength)
-    : denoiser;
+  return new MicrophoneInput(
+    effect === "ktv" ? new KtvReverb(denoiser, isMuted, strength) : denoiser,
+    isMuted,
+    volume,
+  );
 }

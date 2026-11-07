@@ -39,6 +39,7 @@ export const settingsSchema = z.strictObject({
     })
     .default(defaultOverlayPreferences),
   microphoneEffect: z.enum(["none", "ktv"]).default("none"),
+  microphoneInputVolume: z.number().int().min(0).max(200).default(100),
   microphoneMonitorVolume: z.number().int().min(0).max(100).default(30),
   microphoneReverbStrength: z
     .number()
@@ -65,6 +66,7 @@ export const defaultSettings = {
   noiseReduction: "enhanced",
   microphoneEffect: "none",
   microphoneMonitorVolume: 30,
+  microphoneInputVolume: 100,
   microphoneReverbStrength: defaultMicrophoneReverbStrength,
   memberOverlay: defaultOverlayPreferences,
   minimizeToTray: true,

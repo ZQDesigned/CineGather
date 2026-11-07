@@ -740,7 +740,7 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
     await expect(
       page.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeVisible();
-    await page.getByRole("slider", { name: "语音音量", exact: true }).focus();
+    await page.getByRole("slider", { name: "他人语音", exact: true }).focus();
     await page.keyboard.down("Space");
     const sliderStayedMuted = await page.evaluate(
       () =>

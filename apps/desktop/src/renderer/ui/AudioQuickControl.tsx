@@ -54,6 +54,13 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
   const canOpen = !disabled || monitor.state !== "off";
   const platform = capabilities();
   const [open, setOpen] = useState(false);
+  const [inputVolume, setInputVolume] = useState(
+    settings.microphoneInputVolume ?? 100,
+  );
+  useEffect(
+    () => setInputVolume(settings.microphoneInputVolume ?? 100),
+    [settings.microphoneInputVolume],
+  );
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const working = useRef(false);
@@ -125,6 +132,30 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
                 devices,
                 settings.inputDevice,
               )}
+            />
+          </div>
+          <div className="audio-quick-field">
+            <div className="audio-monitor-heading">
+              <span className="audio-quick-label">麦克风输入音量</span>
+              <output>{inputVolume}%</output>
+            </div>
+            <Slider
+              ariaLabelForHandle="麦克风输入音量"
+              min={0}
+              max={200}
+              step={1}
+              value={inputVolume}
+              disabled={disabled || !platform.microphone}
+              tooltip={{ open: false }}
+              onChange={(value) => {
+                setInputVolume(value);
+                actions.previewMicrophoneInputVolume(value);
+              }}
+              onChangeComplete={(value) =>
+                void actions
+                  .setMicrophoneInputVolume(value)
+                  .catch(actions.report)
+              }
             />
           </div>
           <div className="audio-quick-field">

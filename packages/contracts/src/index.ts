@@ -399,6 +399,7 @@ export interface DesktopSettings {
   microphoneEffect?: MicrophoneEffect;
   microphoneReverbStrength?: number;
   microphoneMonitorVolume?: number;
+  microphoneInputVolume?: number;
   memberOverlay?: MemberOverlayPreferences;
   minimizeToTray: boolean;
   pushToTalk: boolean;

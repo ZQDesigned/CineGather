@@ -28,9 +28,9 @@ export default function AudioOptions() {
   if (!room) return <UnavailableSheet />;
   return (
     <Sheet title="音频">
-      <Label>语音音量 {Math.round(voice * 100)}%</Label>
+      <Label>他人语音 {Math.round(voice * 100)}%</Label>
       <Slider
-        accessibilityLabel="语音音量"
+        accessibilityLabel="他人语音"
         minimumValue={0}
         maximumValue={2}
         value={voice}
@@ -39,9 +39,9 @@ export default function AudioOptions() {
           runtime.media.setGain("voice", v);
         }}
       />
-      <Label>共享音量 {Math.round(shared * 100)}%</Label>
+      <Label>共享声音 {Math.round(shared * 100)}%</Label>
       <Slider
-        accessibilityLabel="共享音量"
+        accessibilityLabel="共享声音"
         minimumValue={0}
         maximumValue={2}
         value={shared}

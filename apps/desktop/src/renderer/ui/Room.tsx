@@ -379,7 +379,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
           <WatchAdvice />
           <div className="mixer-card">
             <Volume
-              label="语音音量"
+              label="他人语音"
               icon={<Headphones size={17} />}
               value={app.voiceVolume}
               onChange={(value) => {
@@ -389,7 +389,7 @@ export function Room({ visible = true }: { visible?: boolean }) {
             />
             <div className="mixer-divider" />
             <Volume
-              label="共享音量"
+              label="共享声音"
               icon={<Film size={17} />}
               value={app.screenVolume}
               onChange={(value) => {

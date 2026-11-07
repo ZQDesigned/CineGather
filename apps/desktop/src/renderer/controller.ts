@@ -1242,6 +1242,7 @@ export const roomSession = new RoomCoordinator({
         state().settings.noiseReduction,
         state().settings.microphoneEffect ?? "none",
         state().settings.microphoneReverbStrength,
+        state().settings.microphoneInputVolume,
       );
       await voiceMedia().microphone(
         !(capabilities().pushToTalk && state().settings.pushToTalk),
@@ -1994,6 +1995,7 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
     settings.noiseReduction,
     settings.microphoneEffect ?? "none",
     settings.microphoneReverbStrength,
+    settings.microphoneInputVolume,
   );
   await microphoneMonitor.configure(settings).catch(report);
   update({
@@ -2022,6 +2024,7 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
               settings.noiseReduction,
               state().settings.microphoneEffect ?? "none",
               state().settings.microphoneReverbStrength,
+              state().settings.microphoneInputVolume,
             )
           : applyAudioDevices(
               key === "inputDevice" ? settings.inputDevice : undefined,
@@ -2054,6 +2057,21 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
   roomAudioWork = work;
   return work;
 }
+export function previewMicrophoneInputVolume(value: number) {
+  if (esports.roomId) esports.browser.setMicrophoneInputVolume(value);
+  else media.setMicrophoneInputVolume(value);
+  microphoneMonitor.inputVolume(value);
+}
+export async function setMicrophoneInputVolume(value: number) {
+  value = Number.isFinite(value)
+    ? Math.round(Math.max(0, Math.min(200, value)))
+    : 100;
+  previewMicrophoneInputVolume(value);
+  await persistSettings((current) => ({
+    ...current,
+    microphoneInputVolume: value,
+  }));
+}
 export async function setMicrophoneReverbStrength(value: number) {
   previewMicrophoneReverbStrength(value);
   await persistSettings((current) => ({
@@ -2074,6 +2092,7 @@ export async function setMicrophoneEffect(effect: MicrophoneEffect) {
     next.noiseReduction,
     effect,
     next.microphoneReverbStrength,
+    next.microphoneInputVolume,
   );
   await microphoneMonitor.configure(next).catch(report);
 }

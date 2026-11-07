@@ -8,6 +8,7 @@ import { createMicrophoneProcessor } from "./microphone-processor";
 import { microphoneConstraints } from "./noise";
 type Processor = TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> & {
   setStrength?(value: number): void;
+  setInputVolume?(value: number): void;
 };
 export type MonitorSettings = Pick<
   DesktopSettings,
@@ -17,6 +18,7 @@ export type MonitorSettings = Pick<
   | "microphoneEffect"
   | "microphoneReverbStrength"
   | "microphoneMonitorVolume"
+  | "microphoneInputVolume"
 >;
 export interface MicrophoneMonitorStatus {
   state: "off" | "starting" | "active";
@@ -48,6 +50,7 @@ const environment: MonitorEnvironment = {
       undefined,
       undefined,
       s.microphoneReverbStrength,
+      s.microphoneInputVolume,
     ),
   inventory: () => navigator.mediaDevices.enumerateDevices(),
   events: () => navigator.mediaDevices,
@@ -116,6 +119,11 @@ export class MicrophoneMonitor {
       );
     this.emit();
   }
+  inputVolume(value: number) {
+    if (this.settings)
+      this.settings = { ...this.settings, microphoneInputVolume: value };
+    this.resource?.processor?.setInputVolume?.(value);
+  }
   strength(value: number) {
     if (this.settings)
       this.settings = { ...this.settings, microphoneReverbStrength: value };
@@ -133,6 +141,7 @@ export class MicrophoneMonitor {
     this.settings = { ...settings };
     this.volume(settings.microphoneMonitorVolume ?? 30);
     this.strength(settings.microphoneReverbStrength ?? 40);
+    this.inputVolume(settings.microphoneInputVolume ?? 100);
     if (!before || signature(before) !== signature(settings))
       return this.start(settings);
     if (this.state === "starting") return this.work;
@@ -210,6 +219,9 @@ export class MicrophoneMonitor {
         }
         r.processor?.setStrength?.(
           this.settings!.microphoneReverbStrength ?? 40,
+        );
+        r.processor?.setInputVolume?.(
+          this.settings!.microphoneInputVolume ?? 100,
         );
         r.source = r.context.createMediaStreamSource(
           r.processor?.processedTrack

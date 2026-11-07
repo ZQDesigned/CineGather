@@ -183,16 +183,16 @@ test("200% member volume doubles received voice samples, isolates other speakers
       page.getByRole("slider", { name: "小声成员的音量", exact: true }),
     ).toHaveAttribute("aria-valuenow", "200");
     await page.keyboard.press("Escape");
-    await page.getByRole("slider", { name: "语音音量", exact: true }).focus();
+    await page.getByRole("slider", { name: "他人语音", exact: true }).focus();
     await page.keyboard.press("Home");
     for (let n = 0; n < 10; n++) await page.keyboard.press("ArrowRight");
     await expect(
-      page.getByRole("slider", { name: "语音音量", exact: true }),
+      page.getByRole("slider", { name: "他人语音", exact: true }),
     ).toHaveAttribute("aria-valuenow", "10");
     // Master attenuation still applies after per-user amplification.
     expect((await rms(page, 0)) / baseline).toBeLessThan(0.25);
     await page
-      .getByRole("slider", { name: "语音音量", exact: true })
+      .getByRole("slider", { name: "他人语音", exact: true })
       .press("End");
     await volume(page, "小声成员", 0);
     await page.keyboard.press("Escape");

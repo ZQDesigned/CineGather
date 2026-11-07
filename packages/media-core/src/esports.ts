@@ -7,7 +7,10 @@ import { MediaSession, type MediaSummary } from "./session";
 import { waitForEsportsFrame } from "./esports-frame";
 type VoiceSettings = Pick<
   DesktopSettings,
-  "noiseReduction" | "microphoneEffect" | "microphoneReverbStrength"
+  | "noiseReduction"
+  | "microphoneEffect"
+  | "microphoneReverbStrength"
+  | "microphoneInputVolume"
 >;
 type Kind = "voice" | "video" | "monitor";
 interface Connection {
@@ -148,6 +151,7 @@ export class EsportsBrowserMedia {
           settings.noiseReduction,
           settings.microphoneEffect ?? "none",
           settings.microphoneReverbStrength,
+          settings.microphoneInputVolume,
         );
       }
       return handle;
@@ -203,6 +207,7 @@ export class EsportsBrowserMedia {
       settings.noiseReduction,
       settings.microphoneEffect ?? "none",
       settings.microphoneReverbStrength,
+      settings.microphoneInputVolume,
     );
   }
   async setDevices(input?: string, output?: string) {
@@ -212,6 +217,14 @@ export class EsportsBrowserMedia {
         h.session.devices(h.kind === "voice" ? input : undefined, output),
       ),
     );
+  }
+  setMicrophoneInputVolume(value: number) {
+    if (this.voiceSettings)
+      this.voiceSettings = {
+        ...this.voiceSettings,
+        microphoneInputVolume: value,
+      };
+    this.voice?.setMicrophoneInputVolume(value);
   }
   voiceVolume(value: number) {
     this.levels.voice = value;

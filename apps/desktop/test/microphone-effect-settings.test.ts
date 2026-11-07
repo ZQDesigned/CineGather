@@ -68,3 +68,23 @@ test("ear monitor only persists its bounded volume, never an enabled capture sta
     }).success,
   ).toBe(false);
 });
+
+test("microphone input volume defaults to unity and preserves 0–200 independently from monitoring", () => {
+  const legacy = { ...defaultSettings } as Record<string, unknown>;
+  delete legacy.microphoneInputVolume;
+  expect(settingsSchema.parse(legacy)).toHaveProperty(
+    "microphoneInputVolume",
+    100,
+  );
+  for (const value of [0, 50, 100, 200])
+    expect(
+      settingsSchema.parse({
+        ...defaultSettings,
+        microphoneInputVolume: value,
+      }),
+    ).toHaveProperty("microphoneInputVolume", value);
+  expect(
+    settingsSchema.safeParse({ ...defaultSettings, microphoneInputVolume: 201 })
+      .success,
+  ).toBe(false);
+});

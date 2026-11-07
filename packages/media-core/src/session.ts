@@ -1,4 +1,4 @@
-import { KtvReverb } from "./ktv-reverb";
+import { MicrophoneInput, microphoneInputVolume } from "./microphone-input";
 import { VideoHealth, type VideoHealthStatus } from "./video-health";
 import {
   createMicrophoneProcessor,
@@ -575,7 +575,7 @@ export class MediaSession {
         voicePublication(room.localParticipant.trackPublications)?.track;
       if (p instanceof LocalAudioTrack) {
         const processor = p.getProcessor();
-        if (processor instanceof KtvReverb) processor.setMuted(true);
+        if (processor instanceof MicrophoneInput) processor.setMuted(true);
       }
     }
     ++this.microphoneRevision;
@@ -624,6 +624,9 @@ export class MediaSession {
             this.inputLost?.();
         });
         try {
+          // Never publish an unprocessed burst before saved input gain/mute
+          // has been installed (in particular when input volume is zero).
+          await track.mute();
           publication = await room.localParticipant.publishTrack(track, {
             name: "cinegather-microphone",
             source: Track.Source.Microphone,
@@ -639,22 +642,30 @@ export class MediaSession {
         }
       }
       if (publication?.track instanceof LocalAudioTrack) {
+        if (this.microphoneWanted && !publication.track.getProcessor())
+          await this.noiseReduction(this.noiseMode);
         if (this.microphoneWanted) await publication.track.unmute();
         else await publication.track.mute();
         const currentProcessor = publication.track.getProcessor();
-        if (currentProcessor instanceof KtvReverb)
+        if (currentProcessor instanceof MicrophoneInput)
           currentProcessor.setMuted(!this.microphoneWanted);
-        if (
-          this.microphoneWanted &&
-          (this.noiseMode !== "enhanced" || !publication.track.getProcessor())
-        )
-          await this.noiseReduction(this.noiseMode);
       }
       if (revision === this.microphoneRevision) {
         this.emit();
         return;
       }
     }
+  }
+  private inputVolume = 100;
+  setMicrophoneInputVolume(value: number) {
+    this.inputVolume = microphoneInputVolume(value);
+    const track =
+      this.room &&
+      voicePublication(this.room.localParticipant.trackPublications)?.track;
+    const processor =
+      track instanceof LocalAudioTrack ? track.getProcessor() : undefined;
+    if (processor instanceof MicrophoneInput)
+      processor.setInputVolume(this.inputVolume);
   }
   setMicrophoneReverbStrength(value: number) {
     this.effectStrength = Number.isFinite(value)
@@ -665,7 +676,7 @@ export class MediaSession {
       voicePublication(this.room.localParticipant.trackPublications)?.track;
     const processor =
       track instanceof LocalAudioTrack ? track.getProcessor() : undefined;
-    if (processor instanceof KtvReverb)
+    if (processor instanceof MicrophoneInput)
       processor.setStrength(this.effectStrength);
     if (this.effectStatus)
       this.effectStatus = {
@@ -681,7 +692,9 @@ export class MediaSession {
     mode: NoiseReduction,
     effect: MicrophoneEffect = "none",
     strength = this.effectStrength,
+    volume = this.inputVolume,
   ) {
+    this.setMicrophoneInputVolume(volume);
     this.setMicrophoneReverbStrength(strength);
     this.noiseMode = mode;
     this.effectMode = effect;
@@ -708,71 +721,81 @@ export class MediaSession {
             this.emit();
           }
         };
+        // Keep outgoing audio muted while an SDK processor is replaced. Its
+        // temporary raw-track fallback must not bypass a saved input volume.
+        await track.mute();
         await track.applyConstraints(microphoneConstraints(mode));
         if (!current()) return;
-        let processor = await createMicrophoneProcessor(
-          mode,
-          effect,
-          status,
-          () => !this.microphoneWanted,
-          this.effectStrength,
-        );
-        if (!current()) {
-          await processor?.destroy();
-          return;
-        }
+        const attach = async (
+          noise: NoiseReduction,
+          requested: MicrophoneEffect,
+        ) => {
+          const processor = await createMicrophoneProcessor(
+            noise,
+            requested,
+            status,
+            () => !this.microphoneWanted,
+            this.effectStrength,
+            this.inputVolume,
+          );
+          if (!current()) {
+            await processor.destroy();
+            return false;
+          }
+          try {
+            await track.setProcessor(processor);
+          } catch (error) {
+            await processor.destroy().catch(() => {});
+            throw error;
+          }
+          return true;
+        };
         let active: MicrophoneEffect = "none";
         try {
-          if (processor) {
-            await track.setProcessor(processor);
-            active = effect;
-          } else {
-            await track.stopProcessor();
-            if (mode === "enhanced") {
-              await track.applyConstraints(microphoneConstraints("basic"));
-              status({
-                requested: mode,
-                active: "basic",
-                reason: "enhancement-unavailable",
-                engine: "platform",
-              });
-            }
-          }
+          if (!(await attach(mode, effect))) return;
+          active = effect;
         } catch {
-          await processor?.destroy().catch(() => {});
           if (!current()) return;
           await track.stopProcessor();
-          if (mode === "enhanced") {
-            processor = await createMicrophoneProcessor(mode, "none", status);
-            if (!current()) {
-              await processor?.destroy();
-              return;
-            }
+          let recovered = false;
+          if (mode === "enhanced" && effect !== "none") {
             try {
-              if (processor) await track.setProcessor(processor);
-              else throw new Error("Enhancement unavailable");
+              recovered = await attach(mode, "none");
             } catch {
-              await processor?.destroy().catch(() => {});
-              if (!current()) return;
-              await track.stopProcessor();
-              await track.applyConstraints(microphoneConstraints("basic"));
+              /* Try platform filtering with input gain below. */
+            }
+          }
+          if (!current()) return;
+          if (!recovered) {
+            const fallback = mode === "off" ? "off" : "basic";
+            await track.applyConstraints(microphoneConstraints(fallback));
+            try {
+              if (!(await attach(fallback, "none"))) return;
+            } catch {
+              await track.mute();
+              throw new Error(
+                "麦克风音量处理暂不可用，麦克风已保持关闭，请重试",
+              );
+            }
+            if (mode === "enhanced")
               status({
                 requested: mode,
                 active: "basic",
                 reason: "processor-unavailable",
                 engine: "platform",
               });
-            }
           }
         }
         if (!current()) return;
         if (mode !== "enhanced")
           this.noiseStatus = { requested: mode, active: mode };
         const attached = track.getProcessor();
-        if (attached instanceof KtvReverb) {
+        if (attached instanceof MicrophoneInput) {
           attached.setMuted(!this.microphoneWanted);
           attached.setStrength(this.effectStrength);
+          attached.setInputVolume(this.inputVolume);
         }
+        if (this.microphoneWanted) await track.unmute();
         this.effectStatus = {
           requested: effect,
           active,

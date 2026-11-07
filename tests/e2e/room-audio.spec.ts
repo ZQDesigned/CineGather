@@ -53,6 +53,25 @@ test("room audio arrow applies devices and noise immediately without unmuting or
       exact: true,
     });
     await expect(panel).toBeVisible();
+    const inputVolume = panel.getByRole("slider", {
+      name: "麦克风输入音量",
+      exact: true,
+    });
+    await inputVolume.focus();
+    await page.keyboard.press("End");
+    await expect(inputVolume).toHaveAttribute("aria-valuenow", "200");
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            JSON.parse(localStorage.getItem("cinegather.settings")!)
+              .microphoneInputVolume,
+        ),
+      )
+      .toBe(200);
+    await expect(
+      page.getByRole("button", { name: "开启麦克风", exact: true }),
+    ).toBeEnabled();
     await expect(
       panel.getByRole("button", { name: "保存设置", exact: true }),
     ).toHaveCount(0);
