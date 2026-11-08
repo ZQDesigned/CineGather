@@ -386,13 +386,11 @@ test("real room guesses count first tries in the activity transaction, not guess
 
 test("submission approval revalidates disabled categories and intervening official duplicates without overwriting the queue", async () => {
   const category = crypto.randomUUID();
-  await db
-    .insert(partyCategories)
-    .values({
-      id: category,
-      name: "投稿验证" + category.slice(0, 8),
-      nameKey: "投稿验证" + category,
-    });
+  await db.insert(partyCategories).values({
+    id: category,
+    name: "投稿验证" + category.slice(0, 8),
+    nameKey: "投稿验证" + category,
+  });
   const input = { ...draft(), categoryId: category },
     s = (await call(author, "/party-submissions", input)).data;
   await db
@@ -416,18 +414,16 @@ test("submission approval revalidates disabled categories and intervening offici
     .where(eq(partyCategories.id, category));
   const wordId = crypto.randomUUID();
   published.push(wordId);
-  await db
-    .insert(partyWordBank)
-    .values({
-      id: wordId,
-      answer: input.answer,
-      answerKey: input.answer.toLowerCase(),
-      clues: input.clues,
-      category: "用品",
-      categoryId,
-      modes: ["draw"],
-      enabled: false,
-    });
+  await db.insert(partyWordBank).values({
+    id: wordId,
+    answer: input.answer,
+    answerKey: input.answer.toLowerCase(),
+    clues: input.clues,
+    category: "用品",
+    categoryId,
+    modes: ["draw"],
+    enabled: false,
+  });
   expect(
     (
       await call(reviewer, `/admin/party-submissions/${s.id}/review`, {
