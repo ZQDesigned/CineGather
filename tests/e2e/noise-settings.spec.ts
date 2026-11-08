@@ -1,7 +1,7 @@
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
 import { unzipSync, strFromU8 } from "fflate";
-test("microphone noise reduction is configurable in shared audio settings and persists after reload", async ({
+test("microphone noise reduction defaults to basic and an explicit enhanced choice persists after reload", async ({
   page,
 }) => {
   await page.goto("/");
@@ -11,8 +11,11 @@ test("microphone noise reduction is configurable in shared audio settings and pe
     exact: true,
   });
   await expect(select).toBeVisible();
+  await expect(
+    page.locator(".ant-select").filter({ has: select }),
+  ).toContainText("基础降噪");
   await select.click();
-  await page.getByRole("option", { name: "基础降噪", exact: true }).click();
+  await page.getByRole("option", { name: "增强降噪", exact: true }).click();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await page.reload();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
@@ -20,13 +23,13 @@ test("microphone noise reduction is configurable in shared audio settings and pe
     page.locator(".ant-select").filter({
       has: page.getByRole("combobox", { name: "麦克风降噪", exact: true }),
     }),
-  ).toContainText("基础降噪");
+  ).toContainText("增强降噪");
   expect(
     await page.evaluate(
       () =>
         JSON.parse(localStorage.getItem("cinegather.settings")!).noiseReduction,
     ),
-  ).toBe("basic");
+  ).toBe("enhanced");
 });
 
 test("closing the microphone test during model loading stops the raw capture immediately", async ({
@@ -62,6 +65,10 @@ test("closing the microphone test during model loading stops the raw capture imm
     await page
       .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
+    await page
+      .getByRole("combobox", { name: "麦克风降噪", exact: true })
+      .click();
+    await page.getByRole("option", { name: "增强降噪", exact: true }).click();
     await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
     await loading;
     await page.getByRole("button", { name: "关闭对话框", exact: true }).click();

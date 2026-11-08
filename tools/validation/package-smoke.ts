@@ -215,8 +215,11 @@ try {
   ).toBe(true);
   expect(
     (await page.evaluate(() => window.desktop!.loadSettings())).noiseReduction,
-  ).toBe("enhanced");
+  ).toBe("basic");
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  // The default is basic; explicitly exercise the shipped enhancement model.
+  await page.getByRole("combobox", { name: "麦克风降噪", exact: true }).click();
+  await page.getByRole("option", { name: "增强降噪", exact: true }).click();
   await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "停止测试", exact: true }),

@@ -5,6 +5,7 @@ export default defineConfig({
   testMatch: [
     "browser-web.spec.ts",
     "noise-settings.spec.ts",
+    "noise-migration.spec.ts",
     "required-update.spec.ts",
     "registration.spec.ts",
     "admin.spec.ts",

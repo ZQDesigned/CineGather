@@ -8,6 +8,7 @@ import { useApp } from "../../../store";
 import { audioDeviceOptions } from "../audio-devices";
 import { capabilities } from "../../../platform";
 import * as actions from "../../../controller";
+import { NoiseReductionNotice } from "./NoiseReductionNotice";
 
 const Panel = styled.div`
   width: 280px;
@@ -107,140 +108,147 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
   };
   const busy = disabled || loading || saving;
   return (
-    <Popover
-      trigger="click"
-      placement="topLeft"
-      open={open && canOpen}
-      onOpenChange={(value) => {
-        if (canOpen) setOpen(value);
-      }}
-      content={
-        <Panel
-          role="region"
-          aria-label="音频快捷设置"
-          aria-busy={loading || saving}
-        >
-          <div className="audio-quick-field">
-            <span className="audio-quick-label">麦克风</span>
-            <Select
-              aria-label="麦克风"
-              value={settings.inputDevice}
-              disabled={busy || !platform.microphone}
-              onChange={(value) => void change("inputDevice", value)}
-              options={audioDeviceOptions(
-                "audioinput",
-                devices,
-                settings.inputDevice,
-              )}
-            />
-          </div>
-          <div className="audio-quick-field">
-            <div className="audio-monitor-heading">
-              <span className="audio-quick-label">麦克风输入音量</span>
-              <output>{inputVolume}%</output>
+    <NoiseReductionNotice disabled={disabled || open} triggerRef={trigger}>
+      <Popover
+        trigger="click"
+        placement="topLeft"
+        open={open && canOpen}
+        onOpenChange={(value) => {
+          if (canOpen) setOpen(value);
+        }}
+        content={
+          <Panel
+            role="region"
+            aria-label="音频快捷设置"
+            aria-busy={loading || saving}
+          >
+            <div className="audio-quick-field">
+              <span className="audio-quick-label">麦克风</span>
+              <Select
+                aria-label="麦克风"
+                value={settings.inputDevice}
+                disabled={busy || !platform.microphone}
+                onChange={(value) => void change("inputDevice", value)}
+                options={audioDeviceOptions(
+                  "audioinput",
+                  devices,
+                  settings.inputDevice,
+                )}
+              />
             </div>
-            <Slider
-              ariaLabelForHandle="麦克风输入音量"
-              min={0}
-              max={200}
-              step={1}
-              value={inputVolume}
-              disabled={disabled || !platform.microphone}
-              tooltip={{ open: false }}
-              onChange={(value) => {
-                setInputVolume(value);
-                actions.previewMicrophoneInputVolume(value);
-              }}
-              onChangeComplete={(value) =>
-                void actions
-                  .setMicrophoneInputVolume(value)
-                  .catch(actions.report)
-              }
-            />
-          </div>
-          <div className="audio-quick-field">
-            <span className="audio-quick-label">麦克风降噪</span>
-            <Select
-              aria-label="麦克风降噪"
-              value={settings.noiseReduction}
-              disabled={busy || !platform.microphone}
-              onChange={(value) => void change("noiseReduction", value)}
-              options={[
-                { value: "enhanced", label: "增强降噪" },
-                { value: "basic", label: "基础降噪" },
-                { value: "off", label: "关闭降噪" },
-              ]}
-            />
-          </div>
-          <div className="audio-quick-field">
-            <span className="audio-quick-label">扬声器 / 耳机</span>
-            <Select
-              aria-label="扬声器 / 耳机"
-              value={settings.outputDevice}
-              disabled={busy || !platform.outputSelection}
-              onChange={(value) => void change("outputDevice", value)}
-              options={audioDeviceOptions(
-                "audiooutput",
-                devices,
-                settings.outputDevice,
-              )}
-            />
-          </div>
-          <div className="audio-monitor">
-            <div className="audio-monitor-heading">
-              <span>耳返</span>
-              <Switch
-                aria-label="耳返"
-                checked={monitor.state !== "off"}
-                disabled={
-                  (disabled || !platform.microphone) && monitor.state === "off"
-                }
-                onChange={(value) =>
+            <div className="audio-quick-field">
+              <div className="audio-monitor-heading">
+                <span className="audio-quick-label">麦克风输入音量</span>
+                <output>{inputVolume}%</output>
+              </div>
+              <Slider
+                ariaLabelForHandle="麦克风输入音量"
+                min={0}
+                max={200}
+                step={1}
+                value={inputVolume}
+                disabled={disabled || !platform.microphone}
+                tooltip={{ open: false }}
+                onChange={(value) => {
+                  setInputVolume(value);
+                  actions.previewMicrophoneInputVolume(value);
+                }}
+                onChangeComplete={(value) =>
                   void actions
-                    .toggleMicrophoneMonitor(value)
+                    .setMicrophoneInputVolume(value)
                     .catch(actions.report)
                 }
               />
             </div>
-            <div className="audio-monitor-note">请佩戴耳机使用，避免回声</div>
-            {monitor.state !== "off" && (
-              <>
-                <div className="audio-monitor-heading audio-monitor-note">
-                  <span>
-                    {monitor.state === "starting" ? "正在开启耳返" : "耳返音量"}
-                  </span>
-                  <output>{monitor.volume}%</output>
-                </div>
-                <Slider
-                  ariaLabelForHandle="耳返音量"
-                  min={0}
-                  max={100}
-                  step={1}
-                  value={monitor.volume}
-                  tooltip={{ open: false }}
-                  onChange={(value) => actions.microphoneMonitor.volume(value)}
-                  onChangeComplete={(value) =>
+            <div className="audio-quick-field">
+              <span className="audio-quick-label">麦克风降噪</span>
+              <Select
+                aria-label="麦克风降噪"
+                value={settings.noiseReduction}
+                disabled={busy || !platform.microphone}
+                onChange={(value) => void change("noiseReduction", value)}
+                options={[
+                  { value: "enhanced", label: "增强降噪" },
+                  { value: "basic", label: "基础降噪" },
+                  { value: "off", label: "关闭降噪" },
+                ]}
+              />
+            </div>
+            <div className="audio-quick-field">
+              <span className="audio-quick-label">扬声器 / 耳机</span>
+              <Select
+                aria-label="扬声器 / 耳机"
+                value={settings.outputDevice}
+                disabled={busy || !platform.outputSelection}
+                onChange={(value) => void change("outputDevice", value)}
+                options={audioDeviceOptions(
+                  "audiooutput",
+                  devices,
+                  settings.outputDevice,
+                )}
+              />
+            </div>
+            <div className="audio-monitor">
+              <div className="audio-monitor-heading">
+                <span>耳返</span>
+                <Switch
+                  aria-label="耳返"
+                  checked={monitor.state !== "off"}
+                  disabled={
+                    (disabled || !platform.microphone) &&
+                    monitor.state === "off"
+                  }
+                  onChange={(value) =>
                     void actions
-                      .setMicrophoneMonitorVolume(value)
+                      .toggleMicrophoneMonitor(value)
                       .catch(actions.report)
                   }
                 />
-              </>
-            )}
-          </div>
-        </Panel>
-      }
-    >
-      <Button
-        ref={trigger}
-        type="text"
-        className="audio-quick-trigger"
-        aria-label="音频快捷设置"
-        aria-expanded={open && canOpen}
-        disabled={!canOpen}
+              </div>
+              <div className="audio-monitor-note">请佩戴耳机使用，避免回声</div>
+              {monitor.state !== "off" && (
+                <>
+                  <div className="audio-monitor-heading audio-monitor-note">
+                    <span>
+                      {monitor.state === "starting"
+                        ? "正在开启耳返"
+                        : "耳返音量"}
+                    </span>
+                    <output>{monitor.volume}%</output>
+                  </div>
+                  <Slider
+                    ariaLabelForHandle="耳返音量"
+                    min={0}
+                    max={100}
+                    step={1}
+                    value={monitor.volume}
+                    tooltip={{ open: false }}
+                    onChange={(value) =>
+                      actions.microphoneMonitor.volume(value)
+                    }
+                    onChangeComplete={(value) =>
+                      void actions
+                        .setMicrophoneMonitorVolume(value)
+                        .catch(actions.report)
+                    }
+                  />
+                </>
+              )}
+            </div>
+          </Panel>
+        }
       >
-        <ChevronUp size={15} />
-      </Button>
-    </Popover>
+        <Button
+          ref={trigger}
+          type="text"
+          className="audio-quick-trigger"
+          aria-label="音频快捷设置"
+          aria-expanded={open && canOpen}
+          disabled={!canOpen}
+        >
+          <ChevronUp size={15} />
+        </Button>
+      </Popover>
+    </NoiseReductionNotice>
   );
 }

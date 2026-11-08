@@ -390,6 +390,8 @@ export interface MemberOverlayBridge {
 }
 export interface DesktopSettings {
   notificationVolumeRevision?: number;
+  noiseReductionRevision?: number;
+  noiseReductionNoticePending?: boolean;
   watchProfile?: import("./watch-profile").WatchProfile;
   notifications?: import("./notifications").NotificationPreferences;
   roomSounds?: boolean;

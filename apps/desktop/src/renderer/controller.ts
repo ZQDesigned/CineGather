@@ -1995,6 +1995,10 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
   }
   settings = await persistSettings((current) => ({
     ...settings,
+    noiseReductionNoticePending:
+      settings.noiseReduction === current.noiseReduction
+        ? current.noiseReductionNoticePending
+        : false,
     notifications: {
       ...defaultNotificationPreferences,
       ...settings.notifications,
@@ -2021,6 +2025,12 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
   });
 }
 type RoomAudioKey = "inputDevice" | "outputDevice" | "noiseReduction";
+export function acknowledgeNoiseReductionNotice() {
+  return persistSettings((current) => ({
+    ...current,
+    noiseReductionNoticePending: false,
+  }));
+}
 let roomAudioWork = Promise.resolve();
 export function setRoomAudioSetting<K extends RoomAudioKey>(
   key: K,
@@ -2047,6 +2057,9 @@ export function setRoomAudioSetting<K extends RoomAudioKey>(
       const next = await persistSettings((current) => ({
         ...current,
         [key]: value,
+        ...(key === "noiseReduction"
+          ? { noiseReductionNoticePending: false }
+          : {}),
       }));
       try {
         await apply(next);

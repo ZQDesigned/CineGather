@@ -15,6 +15,8 @@ export const defaultOverlayPreferences: MemberOverlayPreferences = {
 };
 export const settingsSchema = z.strictObject({
   notificationVolumeRevision: z.number().int().min(0).default(0),
+  noiseReductionRevision: z.number().int().min(0).default(0),
+  noiseReductionNoticePending: z.boolean().default(false),
   watchProfile: watchProfileSchema.default("balanced"),
   notifications: notificationPreferencesSchema.default(
     defaultNotificationPreferences,
@@ -47,7 +49,7 @@ export const settingsSchema = z.strictObject({
     .min(0)
     .max(100)
     .default(defaultMicrophoneReverbStrength),
-  noiseReduction: z.enum(["enhanced", "basic", "off"]).default("enhanced"),
+  noiseReduction: z.enum(["enhanced", "basic", "off"]).default("basic"),
   minimizeToTray: z.boolean(),
   pushToTalk: z.boolean(),
   pttShortcut: z.string().min(1).max(64),
@@ -58,12 +60,14 @@ export const settingsSchema = z.strictObject({
 });
 export const defaultSettings = {
   notificationVolumeRevision: 1,
+  noiseReductionRevision: 1,
+  noiseReductionNoticePending: false,
   watchProfile: "balanced" as const,
   notifications: defaultNotificationPreferences,
   roomSounds: true,
   windowsEncoder: "auto",
   autoDownloadUpdates: true,
-  noiseReduction: "enhanced",
+  noiseReduction: "basic",
   microphoneEffect: "none",
   microphoneMonitorVolume: 30,
   microphoneInputVolume: 100,
@@ -79,15 +83,25 @@ export const defaultSettings = {
 } satisfies DesktopSettings;
 
 export function restoreSettings(input: unknown) {
-  const settings = settingsSchema.parse(input);
-  if (settings.notificationVolumeRevision >= 1)
-    return { settings, migrated: false };
-  return {
-    settings: {
+  let settings = settingsSchema.parse(input);
+  let migrated = false;
+  if (settings.notificationVolumeRevision < 1) {
+    settings = {
       ...settings,
       notificationVolumeRevision: 1,
       notifications: { ...settings.notifications, volume: 100 },
-    },
-    migrated: true,
-  };
+    };
+    migrated = true;
+  }
+  if (settings.noiseReductionRevision < 1) {
+    const adjusted = settings.noiseReduction === "enhanced";
+    settings = {
+      ...settings,
+      noiseReductionRevision: 1,
+      noiseReduction: adjusted ? "basic" : settings.noiseReduction,
+      noiseReductionNoticePending: adjusted,
+    };
+    migrated = true;
+  }
+  return { settings, migrated };
 }
