@@ -26,3 +26,15 @@ export function allowBoardPresence(
   if (element.imageId && element.imageId !== existing?.imageId) return false;
   return true;
 }
+
+// Clearing already-seen transient state carries no drawing content. Deliver it
+// during permission refresh too; fresh cursors/drafts still need current access.
+export function allowBoardPresenceDelivery(
+  authorizedGeneration: number | undefined,
+  knownGeneration: number | undefined,
+  frame: { generation: number; left?: true },
+) {
+  return (
+    (frame.left ? knownGeneration : authorizedGeneration) === frame.generation
+  );
+}

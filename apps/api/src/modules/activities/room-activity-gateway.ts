@@ -1,5 +1,8 @@
 import { startActivityHeartbeat } from "./activity-heartbeat";
-import { allowBoardPresence } from "./board-presence";
+import {
+  allowBoardPresence,
+  allowBoardPresenceDelivery,
+} from "./board-presence";
 import { randomBytes } from "node:crypto";
 import { HttpException } from "@nestjs/common";
 import { WebSocketServer, WebSocket } from "ws";
@@ -51,6 +54,7 @@ export function attachActivityGateway(
     {
       roomId: string;
       valid(): ActivitySnapshot | undefined;
+      knownGeneration(): number | undefined;
       send(value: unknown): void;
     }
   >();
@@ -65,7 +69,11 @@ export function attachActivityGateway(
       if (
         socket !== sender &&
         peer.roomId === value.roomId &&
-        snapshot?.generation === value.generation &&
+        allowBoardPresenceDelivery(
+          snapshot?.generation,
+          peer.knownGeneration(),
+          value,
+        ) &&
         socket.bufferedAmount < 128_000
       )
         peer.send({ type: "presence", presence: value });
@@ -244,6 +252,7 @@ export function attachActivityGateway(
             authorized && Date.now() - authorizedAt < 3000
               ? previous
               : undefined,
+          knownGeneration: () => previous?.generation,
           send,
         });
         activityEvents.on(entry.roomId, changed);

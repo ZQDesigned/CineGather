@@ -885,6 +885,10 @@ test("live board previews stream at 20 Hz without writes, enforce permissions an
     });
     await guest.receive((m) => m.type === "patch" && !m.board.canEdit);
     await host.receive((m) => m.type === "presence" && !!m.presence.left);
+    // Live cursor delivery requires the receiver to finish reauthorizing too.
+    await host.receive(
+      (m) => m.type === "patch" && !m.board.editorIds.includes(f.guest.id),
+    );
     guest.socket.send(frame({ element }));
     guest.socket.send(frame(null));
     expect(

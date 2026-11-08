@@ -89,3 +89,17 @@ test("previews cannot introduce foreign image references or overwrite a later co
     ),
   ).toBe(true);
 });
+
+test("removing an old preview survives receiver reauthorization without permitting new content", async () => {
+  const { allowBoardPresenceDelivery } = await import(
+    "../src/modules/activities/board-presence"
+  );
+  const clear = { generation: 3, left: true as const };
+  expect(allowBoardPresenceDelivery(undefined, 3, clear)).toBe(true);
+  expect(allowBoardPresenceDelivery(undefined, 3, { generation: 3 })).toBe(
+    false,
+  );
+  expect(allowBoardPresenceDelivery(3, 3, { generation: 3 })).toBe(true);
+  expect(allowBoardPresenceDelivery(undefined, 4, clear)).toBe(false);
+  expect(allowBoardPresenceDelivery(undefined, undefined, clear)).toBe(false);
+});
