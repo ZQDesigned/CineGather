@@ -38,7 +38,7 @@
     "typecheck": "tsc --noEmit && bun run --filter @cinegather/mobile typecheck",
     "lint": "eslint .",
     "test": "bun test packages apps/api/test apps/desktop/test",
-    "test:integration": "bun test tests/integration",
+    "test:integration": "bun tools/validation/integration.ts",
     "test:e2e": "playwright test",
     "test:web": "bun run build:web && playwright test --config playwright.web.config.ts",
     "build": "bun run --filter @cinegather/api build && bun run --filter @cinegather/desktop build",

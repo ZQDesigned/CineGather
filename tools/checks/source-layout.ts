@@ -87,6 +87,18 @@ export function inspectSourceLayout(
           message: "Place business implementation inside its domain directory",
         });
     }
+    if (file.endsWith(".ps1")) {
+      const helpers = source.matchAll(
+        /\bJoin-Path\s+\$PSScriptRoot\s+(['"])([^'"$\r\n]+)\1/g,
+      );
+      for (const match of helpers) {
+        const relative = match[2]!;
+        if (!/\.(?:ts|ps1|psd1|py|cpp|nsh)$/.test(relative)) continue;
+        const target = posix.normalize(posix.join(dirname(file), relative));
+        if (!files.has(target))
+          issues.push({ file, message: "Missing script helper: " + relative });
+      }
+    }
     if (!/\.[cm]?[jt]sx?$/.test(file)) continue;
     for (const reference of moduleReferences(file, source)) {
       if (!reference.startsWith(".")) continue;
@@ -152,10 +164,12 @@ if (import.meta.main) {
   const files = new Map<string, string>();
   for (const file of new Set(names)) {
     try {
-      if (!/\.[cm]?[jt]sx?$/.test(file)) await stat(file);
+      if (!/(?:\.[cm]?[jt]sx?|\.ps1)$/.test(file)) await stat(file);
       files.set(
         file,
-        /\.[cm]?[jt]sx?$/.test(file) ? await readFile(file, "utf8") : "",
+        /(?:\.[cm]?[jt]sx?|\.ps1)$/.test(file)
+          ? await readFile(file, "utf8")
+          : "",
       );
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT") throw error;

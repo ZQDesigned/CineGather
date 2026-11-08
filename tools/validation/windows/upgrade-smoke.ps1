@@ -4,7 +4,7 @@ $ProgressPreference = 'SilentlyContinue'
 $evidence = Join-Path $PSScriptRoot '../../../.local/windows-upgrade'
 New-Item -ItemType Directory -Force $evidence | Out-Null
 $evidence = (Resolve-Path $evidence).Path
-& bun (Join-Path $PSScriptRoot 'released-native-runtime.ts') --cached
+& bun (Join-Path $PSScriptRoot '../../publishing/released-native-runtime.ts') --cached
 if ($LASTEXITCODE -ne 0) {
     throw 'Cannot verify the released baseline installer'
 }

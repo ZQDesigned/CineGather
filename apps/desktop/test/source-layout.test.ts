@@ -69,3 +69,22 @@ test("dynamic, type and re-export references resolve without rejecting package i
     ),
   ).toEqual([]);
 });
+
+test("PowerShell validation helpers resolve after tooling moves", () => {
+  const file = "tools/validation/windows/upgrade-smoke.ps1";
+  const files = new Map([
+    [
+      file,
+      "& bun (Join-Path $PSScriptRoot 'released-native-runtime.ts') --cached",
+    ],
+    ["tools/publishing/released-native-runtime.ts", ""],
+  ]);
+  expect(inspectSourceLayout(files)[0]?.message).toContain(
+    "Missing script helper",
+  );
+  files.set(
+    file,
+    "& bun (Join-Path $PSScriptRoot '../../publishing/released-native-runtime.ts') --cached",
+  );
+  expect(inspectSourceLayout(files)).toEqual([]);
+});
