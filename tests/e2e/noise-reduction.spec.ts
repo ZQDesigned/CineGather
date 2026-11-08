@@ -207,10 +207,11 @@ test("mixed quiet speech and keyboard-like transients improve within the worklet
   const bytes = [
     ...(await readFile(resolve("tests/fixtures/microphone-voice.wav"))),
   ];
+  const recordingModule = `/@fs${resolve("tests/fixtures/audio-recording-worklet.js")}`;
   await page.goto("/");
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   const result = await page.evaluate(
-    async ({ module, bytes }) => {
+    async ({ module, bytes, recordingModule }) => {
       const { MicrophoneDenoiser } = await import(module);
       const context = new AudioContext({ sampleRate: 48000 });
       await context.resume();
@@ -247,8 +248,9 @@ test("mixed quiet speech and keyboard-like transients improve within the worklet
       const chunks: Float32Array[][] = [[], [], []];
       let rawSource: AudioBufferSourceNode | undefined,
         referenceSource: AudioBufferSourceNode | undefined,
-        recorder: ScriptProcessorNode | undefined,
+        recorder: AudioWorkletNode | undefined,
         merger: ChannelMergerNode | undefined;
+      let started = false;
       try {
         // Measure the real enhancement worklet on one audio clock. Bridging
         // MediaStreams between independent contexts adds device/VM buffering
@@ -298,24 +300,41 @@ test("mixed quiet speech and keyboard-like transients improve within the worklet
         rawSource.buffer = noisy;
         referenceSource.buffer = reference;
         rawSource.connect(filter);
-        recorder = clock.createScriptProcessor(2048, 3, 1);
+        await clock.audioWorklet.addModule(recordingModule);
+        recorder = new AudioWorkletNode(clock, "test-audio-recording", {
+          numberOfInputs: 1,
+          numberOfOutputs: 1,
+          outputChannelCount: [1],
+          channelCount: 3,
+          channelCountMode: "explicit",
+          channelInterpretation: "discrete",
+          processorOptions: { frames: Math.round(48000 * 9.4) },
+        });
         merger = clock.createChannelMerger(3);
         referenceSource.connect(merger, 0, 0);
         rawSource.connect(merger, 0, 1);
         filter.connect(merger, 0, 2);
         merger.connect(recorder);
-        recorder.onaudioprocess = (event) => {
-          for (let i = 0; i < 3; i++)
-            chunks[i]!.push(
-              new Float32Array(event.inputBuffer.getChannelData(i)),
-            );
-          event.outputBuffer.getChannelData(0).fill(0);
-        };
+        // Capture on the audio thread too: main-thread ScriptProcessor callbacks
+        // can lose chunks under CI load and invalidate sample-aligned quality scores.
+        const recorded = new Promise<void>((resolve, reject) => {
+          recorder!.onprocessorerror = () =>
+            reject(Error("Audio recording failed"));
+          recorder!.port.onmessage = (
+            event: MessageEvent<{ type: string; channels?: Float32Array[] }>,
+          ) => {
+            if (event.data.type === "done") resolve();
+            else if (event.data.channels)
+              for (let i = 0; i < 3; i++)
+                chunks[i]!.push(event.data.channels[i]!);
+          };
+        });
         recorder.connect(clock.destination);
         const when = clock.currentTime + 0.1;
         rawSource.start(when);
         referenceSource.start(when);
-        await new Promise((r) => setTimeout(r, 9400));
+        started = true;
+        await recorded;
         const data = chunks.map((parts) => {
           const combined = new Float32Array(
             parts.reduce((n, p) => n + p.length, 0),
@@ -327,6 +346,8 @@ test("mixed quiet speech and keyboard-like transients improve within the worklet
           }
           return combined;
         });
+        if (data.some((channel) => channel.length !== Math.round(48000 * 9.4)))
+          throw Error("Incomplete audio-thread recording");
         function score(channel: number, lag: number) {
           let refPower = 0,
             signalPower = 0,
@@ -379,15 +400,18 @@ test("mixed quiet speech and keyboard-like transients improve within the worklet
         };
       } finally {
         recorder?.disconnect();
+        recorder?.port.close();
         merger?.disconnect();
-        rawSource?.stop();
-        referenceSource?.stop();
+        if (started) {
+          rawSource?.stop();
+          referenceSource?.stop();
+        }
         await processor.destroy();
         inputTrack.stop();
         await context.close();
       }
     },
-    { module: processorModule, bytes },
+    { module: processorModule, bytes, recordingModule },
   );
   const { writeFile, mkdir } = await import("node:fs/promises");
   await mkdir(".local/upgrade-presence-noise/audio", { recursive: true });

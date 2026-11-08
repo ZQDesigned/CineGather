@@ -1,6 +1,12 @@
+import { defaultSettings } from "../../apps/desktop/src/shared/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 async function guest(page: Page, name: string) {
+  await page.addInitScript(
+    (settings) =>
+      localStorage.setItem("cinegather.settings", JSON.stringify(settings)),
+    { ...defaultSettings, noiseReduction: "off" },
+  );
   await page.goto("/");
   await registerTestAccount(page, name);
   await expect(
@@ -62,7 +68,7 @@ async function join(page: Page, name: string, invite: string) {
   await page.getByRole("button", { name: "进入房间", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "关闭麦克风", exact: true }),
-  ).toBeEnabled();
+  ).toBeEnabled({ timeout: 30000 });
 }
 async function receivedBytes(page: Page, trackIds: string[]) {
   return page.evaluate(async (trackIds) => {

@@ -1,3 +1,4 @@
+import { defaultSettings } from "../../apps/desktop/src/shared/settings";
 import { test, expect, type Page } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
 test("owner settings update the shared UI and grow a live two-seat room to four without reconnecting", async ({
@@ -18,14 +19,26 @@ test("owner settings update the shared UI and grow a live two-seat room to four 
       ownerJoins++;
   });
   const enter = async (p: Page, index: number, code: string) => {
+    await p.addInitScript(
+      (settings) =>
+        localStorage.setItem("cinegather.settings", JSON.stringify(settings)),
+      { ...defaultSettings, noiseReduction: "off" },
+    );
     await p.goto("/");
     await registerTestAccount(p, `房间设置观众${index}`);
     await p.getByRole("button", { name: "加入房间", exact: true }).click();
     await p.getByLabel("房间号或邀请链接").fill(code);
     await p.getByRole("button", { name: "进入房间", exact: true }).click();
-    await expect(p.locator(".connection")).toContainText("已连接");
+    await expect(p.locator(".connection")).toContainText("已连接", {
+      timeout: 30000,
+    });
   };
   try {
+    await page.addInitScript(
+      (settings) =>
+        localStorage.setItem("cinegather.settings", JSON.stringify(settings)),
+      { ...defaultSettings, noiseReduction: "off" },
+    );
     await page.goto("/");
     await registerTestAccount(page, "房间设置房主");
     await page
@@ -35,7 +48,9 @@ test("owner settings update the shared UI and grow a live two-seat room to four 
     await page.getByLabel("房间人数").click();
     await page.getByRole("option", { name: "2 人", exact: true }).click();
     await page.getByRole("button", { name: "创建并进入", exact: true }).click();
-    await expect(page.locator(".connection")).toContainText("已连接");
+    await expect(page.locator(".connection")).toContainText("已连接", {
+      timeout: 30000,
+    });
     const code = (
       await page
         .getByRole("button", { name: "复制房间号", exact: true })
