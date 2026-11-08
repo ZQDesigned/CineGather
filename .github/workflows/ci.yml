@@ -34,14 +34,58 @@ jobs:
       - run: docker build -t cinegather-api:0.1.0 -f apps/api/Dockerfile .
       - run: docker build -t cinegather-web:0.1.0 -f apps/web/Dockerfile .
       - run: bun run test:container
-      - run: bunx playwright install --with-deps chromium chrome
-      - run: bun run test:e2e
-      - run: bun run test:web
       - run: bun tools/check-git.ts
+  browser-checks:
+    needs: check
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: e2e-1
+            suite: e2e
+            shard: 1/4
+          - name: e2e-2
+            suite: e2e
+            shard: 2/4
+          - name: e2e-3
+            suite: e2e
+            shard: 3/4
+          - name: e2e-4
+            suite: e2e
+            shard: 4/4
+          - name: web
+            suite: web
+    # Each runner owns its database and media services. Keep one worker per
+    # runner because registration-policy and room tests share server state.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.4.3
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24.18.1
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: native/game-link/go.mod
+          cache-dependency-path: native/game-link/go.sum
+      - run: bun install --frozen-lockfile
+      - run: bun run setup
+      - run: bun run infra:up
+      - run: bun run db:migrate
+      - run: bun run build
+      - run: bun run build:web
+      - run: bunx playwright install --with-deps chromium chrome
+      - if: matrix.suite == 'e2e'
+        run: bun run test:e2e --shard=${{ matrix.shard }}
+      - if: matrix.suite == 'web'
+        run: bun run test:web
       - uses: actions/upload-artifact@v4
         if: failure()
         with:
-          name: test-diagnostics
+          name: test-diagnostics-${{ matrix.name }}
           include-hidden-files: true
           path: |
             test-results/
