@@ -124,11 +124,33 @@ test("party category administration supports optional second level and retained 
     .evaluateAll((buttons) => buttons.map((b) => b.getBoundingClientRect().y));
   expect(new Set(buttonBoxes.map((y) => Math.round(y))).size).toBe(1);
   await page.screenshot({ path: ".local/party-categories/toolbar.png" });
+  const categoryFilter = filters.getByRole("combobox", {
+    name: "题目分类",
+    exact: true,
+  });
+  await categoryFilter.click();
+  await categoryFilter.fill("游戏");
+  const filterTree = page.getByRole("tree").last();
+  await expect(filterTree.getByText("游戏", { exact: true })).toBeVisible();
+  await filterTree.getByText("游戏", { exact: true }).click();
+  await expect(filters).toContainText("游戏");
+  await filters.getByRole("button", { name: "Clear", exact: true }).click();
   await page.getByRole("button", { name: "分类管理", exact: true }).click();
   const panel = page.getByRole("dialog", { name: "题库分类", exact: true });
   await expect(panel).toBeVisible();
+  await expect(panel.getByRole("tree")).toBeVisible();
+  await expect(
+    panel
+      .getByRole("treeitem")
+      .filter({ has: page.getByText("游戏", { exact: true }) }),
+  ).toHaveAttribute("aria-expanded", "true");
+  await panel.evaluate(async (e) => {
+    await Promise.all(
+      e.getAnimations({ subtree: true }).map((a) => a.finished.catch(() => {})),
+    );
+  });
   await page.screenshot({
-    path: ".local/party-categories/admin-categories.png",
+    path: ".local/party-categories/tree-categories.png",
   });
   await panel.getByRole("button", { name: "新增分类" }).click();
   const edit = page.getByRole("dialog", { name: "新增分类", exact: true });
@@ -139,7 +161,7 @@ test("party category administration supports optional second level and retained 
     panel.getByText("一级直属" + suffix, { exact: true }),
   ).toBeVisible();
   await panel
-    .getByRole("row")
+    .getByRole("treeitem")
     .filter({ hasText: "一级直属" + suffix })
     .getByRole("button", { name: "编辑", exact: true })
     .click();
@@ -182,7 +204,10 @@ test("party category administration supports optional second level and retained 
     exact: true,
   });
   await moving.getByRole("combobox", { name: "题目分类" }).click();
-  await page.getByText("游戏 / 明日方舟", { exact: true }).last().click();
+  await moving.getByRole("combobox", { name: "题目分类" }).fill("明日方舟");
+  const categoryTree = page.getByRole("tree").last();
+  await expect(categoryTree).toBeVisible();
+  await categoryTree.getByText("明日方舟", { exact: true }).click();
   await closeWithMotion(page, moving, () =>
     moving.getByRole("button", { name: "保存", exact: true }).click(),
   );
@@ -197,7 +222,7 @@ test("party category administration supports optional second level and retained 
   await expect(wordRow).toHaveCount(0);
   await page.getByRole("button", { name: "分类管理", exact: true }).click();
   const categoryRow = panel
-    .getByRole("row")
+    .getByRole("treeitem")
     .filter({ hasText: "一级直属" + suffix });
   await categoryRow.getByRole("button", { name: "删除", exact: true }).click();
   const deleting = page.getByRole("dialog", {

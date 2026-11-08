@@ -8,12 +8,14 @@ import {
   Select,
   Space,
   Switch,
-  Table,
+  Tree,
+  Tag,
   Typography,
 } from "antd";
 import { unwrap } from "@cinegather/api-client";
 import {
-  partyCategoryPath,
+  partyCategoryBranches,
+  partyCategoryStats,
   type ManagedPartyWord,
   type PartyCategory,
   type PartyCatalog,
@@ -25,6 +27,10 @@ import {
   useRetainedDialog,
   type RetainedDialogProps,
 } from "../../../ui/useRetainedDialog";
+import {
+  partyCategoryTree,
+  type PartyCategoryTreeNode,
+} from "./party-category-tree";
 import { PartyCategoryField } from "./PartyCategoryField";
 export function AdminPartyCategories({
   catalog,
@@ -76,59 +82,84 @@ export function AdminPartyCategories({
             新增分类
           </Button>
         )}
-        <Table
-          size="small"
-          rowKey="id"
-          pagination={false}
-          scroll={{ y: 360, x: 620 }}
-          dataSource={catalog.categories
-            .filter((c) => !c.parentId)
-            .flatMap((root) => [
-              root,
-              ...catalog.categories.filter((c) => c.parentId === root.id),
-            ])}
-          columns={[
-            {
-              title: "分类",
-              render: (_, c: PartyCategory) =>
-                partyCategoryPath(catalog.categories, c.id),
-            },
-            {
-              title: "状态",
-              render: (_, c: PartyCategory) =>
-                c.enabled ? "已启用" : "已停用",
-            },
-            {
-              title: "绘画 / 猜词",
-              render: (_, c: PartyCategory) =>
-                `${c.drawCount} / ${c.quizCount}`,
-            },
-            ...(manage
-              ? [
-                  {
-                    title: "操作",
-                    render: (_: unknown, c: PartyCategory) => (
-                      <Space>
-                        <Button
-                          size="small"
-                          onClick={() => setEditor({ category: c })}
-                        >
-                          编辑
-                        </Button>
-                        <Button
-                          size="small"
-                          danger
-                          onClick={() => setDeleting(c)}
-                        >
-                          删除
-                        </Button>
-                      </Space>
-                    ),
-                  },
-                ]
-              : []),
-          ]}
-        />
+        <div style={{ maxHeight: 360, overflowY: "auto", marginTop: 12 }}>
+          <Tree<PartyCategoryTreeNode>
+            aria-label="题库分类目录"
+            blockNode
+            showLine={{ showLeafIcon: false }}
+            selectable={false}
+            defaultExpandAll
+            virtual={false}
+            styles={{ itemTitle: { width: "100%", minWidth: 0 } }}
+            treeData={partyCategoryTree(catalog.categories)}
+            titleRender={(node) => {
+              const c = node.category,
+                ids = partyCategoryBranches(catalog.categories, c.id);
+              const draw = partyCategoryStats(
+                catalog.categories,
+                ids,
+                "draw",
+              ).questionCount;
+              const quiz = partyCategoryStats(
+                catalog.categories,
+                ids,
+                "quiz",
+              ).questionCount;
+              return (
+                <div
+                  style={{
+                    display: "flex",
+                    alignItems: "center",
+                    gap: 12,
+                    width: "100%",
+                    minWidth: 0,
+                    padding: "6px 0",
+                  }}
+                >
+                  <span
+                    style={{
+                      flex: 1,
+                      minWidth: 0,
+                      overflow: "hidden",
+                      textOverflow: "ellipsis",
+                      whiteSpace: "nowrap",
+                      fontWeight: c.parentId ? 400 : 600,
+                    }}
+                  >
+                    {c.name}
+                  </span>
+                  {!c.enabled && <Tag>已停用</Tag>}
+                  <Typography.Text
+                    type="secondary"
+                    style={{ whiteSpace: "nowrap", fontSize: 12 }}
+                  >
+                    绘画 {draw} / 猜词 {quiz}
+                  </Typography.Text>
+                  {manage && (
+                    <Space
+                      onClick={(e) => e.stopPropagation()}
+                      onDoubleClick={(e) => e.stopPropagation()}
+                    >
+                      <Button
+                        size="small"
+                        onClick={() => setEditor({ category: c })}
+                      >
+                        编辑
+                      </Button>
+                      <Button
+                        size="small"
+                        danger
+                        onClick={() => setDeleting(c)}
+                      >
+                        删除
+                      </Button>
+                    </Space>
+                  )}
+                </div>
+              );
+            }}
+          />
+        </div>
       </Modal>
       {edit.value && (
         <CategoryEditor
