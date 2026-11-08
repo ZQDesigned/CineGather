@@ -74,13 +74,15 @@ class LocalPreview {
           {
             std::unique_lock<std::mutex> lock(mutex);
             ready.wait(lock, [&] { return stopped || (packet = queue.pop()).has_value(); });
-            if (stopped) break;
+            if (stopped)
+              break;
           }
-          if (!signals->open) continue;
+          if (!signals->open)
+            continue;
           try {
             track->sendFrame(reinterpret_cast<const rtc::byte *>(packet->bytes.data()),
-                             packet->bytes.size(), rtc::FrameInfo(
-                                 rtpTimestamp(0, packet->timestamp, 90000)));
+                             packet->bytes.size(),
+                             rtc::FrameInfo(rtpTimestamp(0, packet->timestamp, 90000)));
             ++sent;
             bytes += packet->bytes.size();
           } catch (...) {
@@ -91,11 +93,14 @@ class LocalPreview {
         }
       });
     }
-    ~Session() { stop(); }
+    ~Session() {
+      stop();
+    }
     void stop() {
       {
         std::lock_guard<std::mutex> lock(mutex);
-        if (stopped.exchange(true)) return;
+        if (stopped.exchange(true))
+          return;
       }
       signals->open = false;
       {
@@ -104,7 +109,8 @@ class LocalPreview {
         signals->ready.notify_all();
       }
       ready.notify_all();
-      if (sender.joinable()) sender.join();
+      if (sender.joinable())
+        sender.join();
       track->close();
       peer->close();
       std::lock_guard<std::mutex> lock(mutex);
@@ -113,15 +119,16 @@ class LocalPreview {
     std::string offer() {
       peer->setLocalDescription(rtc::Description::Type::Offer);
       std::unique_lock<std::mutex> lock(signals->mutex);
-      if (!signals->ready.wait_for(lock, std::chrono::seconds(3), [&] {
-            return signals->gathered || signals->stopped;
-          }) || signals->stopped)
+      if (!signals->ready.wait_for(lock, std::chrono::seconds(3),
+                                   [&] { return signals->gathered || signals->stopped; }) ||
+          signals->stopped)
         throw std::runtime_error("preview-negotiation-timeout");
       auto description = peer->localDescription();
       if (!description || description->candidates().empty())
         throw std::runtime_error("preview-loopback-unavailable");
       for (const auto &candidate : description->candidates())
-        if (!loopbackCandidate(candidate)) throw std::runtime_error("preview-loopback-required");
+        if (!loopbackCandidate(candidate))
+          throw std::runtime_error("preview-loopback-required");
       return std::string(*description);
     }
     void answer(const std::string &sdp) {
@@ -130,13 +137,16 @@ class LocalPreview {
       // STUN and TURN candidates instead of resolving or dialing them.
       const auto candidates = description.extractCandidates();
       for (const auto &candidate : candidates)
-        if (loopbackCandidate(candidate)) description.addCandidate(candidate);
+        if (loopbackCandidate(candidate))
+          description.addCandidate(candidate);
       peer->setRemoteDescription(description);
     }
     void push(const uint8_t *data, size_t size, int64_t timestamp, bool keyframe) {
-      if (stopped || !signals->open) return;
+      if (stopped || !signals->open)
+        return;
       std::lock_guard<std::mutex> lock(mutex);
-      if (stopped) return;
+      if (stopped)
+        return;
       queue.push(data, size, timestamp, keyframe);
       ready.notify_one();
     }
@@ -148,15 +158,19 @@ class LocalPreview {
     std::lock_guard<std::mutex> lock(mutex);
     return session;
   }
+
 public:
-  ~LocalPreview() { stop(); }
+  ~LocalPreview() {
+    stop();
+  }
   void stop() {
     std::shared_ptr<Session> old;
     {
       std::lock_guard<std::mutex> lock(mutex);
       old = std::move(session);
     }
-    if (!old) return;
+    if (!old)
+      return;
     old->stop();
     std::lock_guard<std::mutex> lock(mutex);
     stoppedFrames += old->sent;
@@ -165,8 +179,10 @@ public:
   }
   void push(const uint8_t *data, size_t size, int64_t timestamp, bool keyframe) noexcept {
     try {
-      if (auto active = current()) active->push(data, size, timestamp, keyframe);
-    } catch (...) {} // A preview failure must not fail the WHIP publication.
+      if (auto active = current())
+        active->push(data, size, timestamp, keyframe);
+    } catch (...) {
+    } // A preview failure must not fail the WHIP publication.
   }
   void command(calldata_t *call) noexcept {
     try {
@@ -183,9 +199,11 @@ public:
         calldata_set_string(call, "offer", offer.c_str());
       } else if (type == "answer") {
         auto active = current();
-        if (!active) throw std::runtime_error("preview-inactive");
+        if (!active)
+          throw std::runtime_error("preview-inactive");
         active->answer(calldata_string(call, "sdp"));
-      } else if (type == "stop") stop();
+      } else if (type == "stop")
+        stop();
       else if (type == "stats") {
         std::lock_guard<std::mutex> lock(mutex);
         calldata_set_bool(call, "active", session && session->signals->open);
@@ -198,7 +216,8 @@ public:
           drops += session->dropped + session->queue.dropped;
         }
         calldata_set_int(call, "dropped", drops);
-      } else throw std::runtime_error("preview-command");
+      } else
+        throw std::runtime_error("preview-command");
     } catch (...) {
       stop();
       calldata_set_string(call, "error", "preview-unavailable");

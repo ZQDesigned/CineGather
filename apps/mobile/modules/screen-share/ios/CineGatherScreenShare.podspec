@@ -13,6 +13,12 @@ Pod::Spec.new do |s|
   s.source_files = '*.{swift,h,m,mm}', 'Shared/*.{h,m,mm}'
   s.public_header_files = 'Shared/CGScreenPublisher.h'
   s.frameworks = 'ReplayKit', 'AVFoundation', 'CoreMedia'
-  s.user_target_xcconfig = { 'OTHER_LDFLAGS[sdk=iphoneos*]' => '$(inherited) -weak_framework ScreenCaptureKit' }
-  s.pod_target_xcconfig = { 'DEFINES_MODULE' => 'YES', 'CLANG_CXX_LANGUAGE_STANDARD' => 'c++20', 'OTHER_LDFLAGS[sdk=iphoneos*]' => '$(inherited) -weak_framework ScreenCaptureKit' }
+  s.user_target_xcconfig = {
+    'OTHER_LDFLAGS[sdk=iphoneos*]' => '$(inherited) -weak_framework ScreenCaptureKit'
+  }
+  s.pod_target_xcconfig = {
+    'DEFINES_MODULE' => 'YES',
+    'CLANG_CXX_LANGUAGE_STANDARD' => 'c++20',
+    'OTHER_LDFLAGS[sdk=iphoneos*]' => '$(inherited) -weak_framework ScreenCaptureKit'
+  }
 end

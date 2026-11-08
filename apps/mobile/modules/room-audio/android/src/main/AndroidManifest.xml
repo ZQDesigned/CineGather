@@ -4,6 +4,10 @@
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
   <uses-permission android:name="android.permission.WAKE_LOCK" />
   <application>
-    <service android:name=".RoomAudioService" android:exported="false" android:foregroundServiceType="microphone|mediaPlayback" android:stopWithTask="true" />
+    <service
+      android:name=".RoomAudioService"
+      android:exported="false"
+      android:foregroundServiceType="microphone|mediaPlayback"
+      android:stopWithTask="true" />
   </application>
 </manifest>

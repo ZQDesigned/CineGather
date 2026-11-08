@@ -12,16 +12,15 @@ class CaptureTimeReporter : public rtc::MediaHandler {
 public:
   const std::shared_ptr<rtc::RtpPacketizationConfig> rtpConfig;
   inline static cinegather::MediaClock clock{
-      int64_t(os_gettime_ns() / 1000),
-      std::chrono::duration_cast<std::chrono::microseconds>(
-          std::chrono::system_clock::now().time_since_epoch())
-          .count()};
-  explicit CaptureTimeReporter(
-      std::shared_ptr<rtc::RtpPacketizationConfig> config)
+      int64_t(os_gettime_ns() / 1000), std::chrono::duration_cast<std::chrono::microseconds>(
+                                           std::chrono::system_clock::now().time_since_epoch())
+                                           .count()};
+  explicit CaptureTimeReporter(std::shared_ptr<rtc::RtpPacketizationConfig> config)
       : reporter(config), rtpConfig(config) {}
-  void captureTime(int64_t us) { captureNtp = clock.ntp(us); }
-  void outgoing(rtc::message_vector &messages,
-                const rtc::message_callback &send) override {
+  void captureTime(int64_t us) {
+    captureNtp = clock.ntp(us);
+  }
+  void outgoing(rtc::message_vector &messages, const rtc::message_callback &send) override {
     reporter.outgoing(messages, [&](rtc::message_ptr message) {
       if (message->size() >= rtc::RtcpSr::Size(0)) {
         auto sr = reinterpret_cast<rtc::RtcpSr *>(message->data());

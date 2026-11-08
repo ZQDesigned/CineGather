@@ -5,13 +5,16 @@ import sys
 
 p = Path(sys.argv[1]) / "winrt-capture.cpp"
 s = p.read_text()
-s = """#include <atomic>
+s = (
+    """#include <atomic>
 #include <cstdint>
 static std::atomic<uint64_t> cg_arrived{0},cg_copied{0},cg_capture_ns{0};
 extern "C" __declspec(dllexport) void cg_capture_stats(uint64_t* arrived,uint64_t* copied,uint64_t* timestamp){
  *arrived=cg_arrived.load();*copied=cg_copied.load();*timestamp=cg_capture_ns.load();
 }
-""" + s
+"""
+    + s
+)
 marker = "const winrt::Windows::Graphics::SizeInt32 frame_content_size = frame.ContentSize();"
 assert s.count(marker) == 1
 s = s.replace(

@@ -7,7 +7,8 @@
 namespace cinegather {
 inline std::string previewControl(obs_output_t *output, const char *command,
                                   const std::string &sdp = {}) {
-  if (!output) throw std::runtime_error("preview-inactive");
+  if (!output)
+    throw std::runtime_error("preview-inactive");
   calldata_t call;
   calldata_init(&call);
   calldata_set_string(&call, "command", command);
@@ -18,11 +19,13 @@ inline std::string previewControl(obs_output_t *output, const char *command,
   const std::string error = rawError ? rawError : "";
   const std::string offer = rawOffer ? rawOffer : "";
   calldata_free(&call);
-  if (!found || !error.empty()) throw std::runtime_error("preview-unavailable");
+  if (!found || !error.empty())
+    throw std::runtime_error("preview-unavailable");
   return offer;
 }
 inline void previewStats(obs_output_t *output, obs_data_t *status) {
-  if (!output) return;
+  if (!output)
+    return;
   calldata_t call;
   calldata_init(&call);
   calldata_set_string(&call, "command", "stats");

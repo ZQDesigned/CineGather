@@ -175,10 +175,9 @@ public:
     return "unknown";
   }
   static Command command(const std::string &raw) {
-    for (auto c : {Command::Status, Command::Permission, Command::Windows,
-                   Command::Encoders, Command::Thumbnails, Command::Probe,
-                   Command::Start, Command::Switch, Command::Stop,
-                   Command::Renew, Command::Shutdown, Command::PreviewStart,
+    for (auto c : {Command::Status, Command::Permission, Command::Windows, Command::Encoders,
+                   Command::Thumbnails, Command::Probe, Command::Start, Command::Switch,
+                   Command::Stop, Command::Renew, Command::Shutdown, Command::PreviewStart,
                    Command::PreviewAnswer, Command::PreviewStop})
       if (raw == name(c))
         return c;
@@ -205,8 +204,7 @@ private:
   std::map<uint64_t, Pending> pending;
   uint64_t next = 0, commandSequence = 0, eventSequence = 0;
   Context context;
-  std::string event(uint64_t span, const Pending &p, const char *state,
-                    double now) {
+  std::string event(uint64_t span, const Pending &p, const char *state, double now) {
     const char *source = p.context.source == Source::Window      ? "window"
                          : p.context.source == Source::Screen    ? "screen"
                          : p.context.source == Source::Synthetic ? "synthetic"
@@ -214,8 +212,8 @@ private:
     std::ostringstream out;
     out << "{\"sequence\":" << ++eventSequence << ",\"span\":" << span
         << ",\"commandSequence\":" << p.context.sequence << ",\"command\":\""
-        << name(p.context.command) << "\",\"sourceKind\":\"" << source
-        << "\",\"stage\":\"" << name(p.stage) << "\",\"state\":\"" << state
+        << name(p.context.command) << "\",\"sourceKind\":\"" << source << "\",\"stage\":\""
+        << name(p.stage) << "\",\"state\":\"" << state
         << "\",\"elapsedMs\":" << std::max(0.0, now - p.start);
     if (p.acquired)
       out << ",\"waitMs\":" << p.wait;
@@ -230,8 +228,7 @@ private:
       }
     }
   }
-  uint64_t begin(Stage stage, bool trace, bool newCommand, Command command,
-                 Source source) {
+  uint64_t begin(Stage stage, bool trace, bool newCommand, Command command, Source source) {
     std::string value;
     uint64_t id;
     {
@@ -288,13 +285,12 @@ private:
 
 public:
   explicit CaptureProgress(
-      Sink sink,
-      Clock clock =
-          [] {
-            return std::chrono::duration<double, std::milli>(
-                       std::chrono::steady_clock::now().time_since_epoch())
-                .count();
-          })
+      Sink sink, Clock clock =
+                     [] {
+                       return std::chrono::duration<double, std::milli>(
+                                  std::chrono::steady_clock::now().time_since_epoch())
+                           .count();
+                     })
       : sink(std::move(sink)), clock(std::move(clock)) {}
   class Span {
     CaptureProgress &owner;
@@ -306,15 +302,19 @@ public:
          Command c = Command::None, Source source = Source::None)
         : owner(o), id(o.begin(s, trace, newCommand, c, source)) {}
     Span(const Span &) = delete;
-    ~Span() { owner.finish(id, std::uncaught_exceptions() > exceptions); }
-    void acquired() { owner.acquired(id); }
+    ~Span() {
+      owner.finish(id, std::uncaught_exceptions() > exceptions);
+    }
+    void acquired() {
+      owner.acquired(id);
+    }
   };
   Span span(Stage stage, bool trace = true) {
     return Span(*this, stage, trace);
   }
   Span beginCommand(Command c, Source source) {
-    return Span(*this, Stage::Command,
-                c != Command::Status && c != Command::Renew, true, c, source);
+    return Span(*this, Stage::Command, c != Command::Status && c != Command::Renew, true, c,
+                source);
   }
   // Called by the independent watchdog. It does not touch OBS or graphics.
   void poll() {
@@ -339,13 +339,15 @@ class CaptureGraphicsLock {
   void (*leave)();
 
 public:
-  CaptureGraphicsLock(CaptureProgress &p, CaptureProgress::Stage s,
-                      void (*enter)(), void (*leave)())
+  CaptureGraphicsLock(CaptureProgress &p, CaptureProgress::Stage s, void (*enter)(),
+                      void (*leave)())
       : trace(p, s, false), leave(leave) {
     enter();
     trace.acquired();
   }
-  ~CaptureGraphicsLock() { leave(); }
+  ~CaptureGraphicsLock() {
+    leave();
+  }
   CaptureGraphicsLock(const CaptureGraphicsLock &) = delete;
 };
 // The command thread reads only this atomic snapshot, never the WinRT pointer

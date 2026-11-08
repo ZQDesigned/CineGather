@@ -11,11 +11,10 @@ int main() {
   assert(!cinegather::retryEncoderFailure("audio-initialization"));
   assert(!cinegather::retryEncoderFailure("window-unavailable"));
 
-  const std::vector<Choice> choices = {
-      {"amf:4098:1:1:0", "amf", 0, true, "integrated"},
-      {"nvenc:4318:2:2:1", "nvenc", 1, true, "discrete"},
-      {"qsv:32902:3:3:2", "qsv", 2, true, "discrete"},
-      {"x264", "x264", 0, true}};
+  const std::vector<Choice> choices = {{"amf:4098:1:1:0", "amf", 0, true, "integrated"},
+                                       {"nvenc:4318:2:2:1", "nvenc", 1, true, "discrete"},
+                                       {"qsv:32902:3:3:2", "qsv", 2, true, "discrete"},
+                                       {"x264", "x264", 0, true}};
 
   // A screen attached to a discrete GPU must not prefer an integrated GPU.
   const auto discrete = cinegather::encoderCandidates(choices, "auto", 1);
@@ -43,19 +42,27 @@ int main() {
   assert(manual.size() == 1 && manual[0].adapter == 0);
   for (const std::string missing : {choices[1].id, std::string("not-valid")}) {
     bool failed = false;
-    try { cinegather::encoderCandidates(unavailable, missing, 0); }
-    catch (...) { failed = true; }
+    try {
+      cinegather::encoderCandidates(unavailable, missing, 0);
+    } catch (...) {
+      failed = true;
+    }
     assert(failed);
   }
   assert(cinegather::encoderCandidates(choices, "x264", 2).size() == 1);
-  for (auto &c : unavailable) c.available = c.backend == "x264";
+  for (auto &c : unavailable)
+    c.available = c.backend == "x264";
   const auto software = cinegather::encoderCandidates(unavailable, "auto", 2);
   assert(software.size() == 1 && software[0].backend == "x264");
   assert(software[0].adapter == 2); // CPU encoding still captures on the source GPU.
-  for (auto &c : unavailable) c.available = false;
+  for (auto &c : unavailable)
+    c.available = false;
   bool failed = false;
-  try { cinegather::encoderCandidates(unavailable, "auto", 2); }
-  catch (...) { failed = true; }
+  try {
+    cinegather::encoderCandidates(unavailable, "auto", 2);
+  } catch (...) {
+    failed = true;
+  }
   assert(failed);
 
   auto equal = choices;

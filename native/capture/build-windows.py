@@ -132,7 +132,14 @@ shutil.copytree(original / "data/libobs", runtime / "data/libobs", dirs_exist_ok
 shutil.copy2(
     work / "CGProcessAudioHost.exe", runtime / "bin/64bit/CGProcessAudioHost.exe"
 )
-plugins = ["win-capture", "obs-nvenc", "obs-ffmpeg", "obs-qsv11", "obs-x264", "obs-webrtc"]
+plugins = [
+    "win-capture",
+    "obs-nvenc",
+    "obs-ffmpeg",
+    "obs-qsv11",
+    "obs-x264",
+    "obs-webrtc",
+]
 queue = []
 copied = {}
 hashes = {}
@@ -244,7 +251,9 @@ flags = [
 vpl = vendor / "libvpl-2.15.0"
 vpl_archive = vendor / "libvpl-2.15.0.tar.gz"
 if not vpl_archive.exists():
-    urllib.request.urlretrieve("https://codeload.github.com/intel/libvpl/tar.gz/refs/tags/v2.15.0", vpl_archive)
+    urllib.request.urlretrieve(
+        "https://codeload.github.com/intel/libvpl/tar.gz/refs/tags/v2.15.0", vpl_archive
+    )
 vpl_digest = "7218c3b8206b123204c3827ce0cf7c008d5c693c1f58ab461958d05fe6f847b3"
 if hashlib.sha256(vpl_archive.read_bytes()).hexdigest() != vpl_digest:
     raise RuntimeError("Pinned Intel VPL source hash mismatch")
@@ -252,7 +261,22 @@ if not vpl.exists():
     with tarfile.open(vpl_archive) as archive:
         archive.extractall(vendor, filter="data")
 vpl_build = build / "vpl"
-run(["cmake", "-S", vpl, "-B", vpl_build, "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release", "-DBUILD_SHARED_LIBS=OFF", "-DBUILD_TESTS=OFF", "-DBUILD_EXAMPLES=OFF", "-DINSTALL_EXAMPLES=OFF"])
+run(
+    [
+        "cmake",
+        "-S",
+        vpl,
+        "-B",
+        vpl_build,
+        "-G",
+        "Ninja",
+        "-DCMAKE_BUILD_TYPE=Release",
+        "-DBUILD_SHARED_LIBS=OFF",
+        "-DBUILD_TESTS=OFF",
+        "-DBUILD_EXAMPLES=OFF",
+        "-DINSTALL_EXAMPLES=OFF",
+    ]
+)
 run(["cmake", "--build", vpl_build, "--parallel", "4"])
 vpl_libraries = list(vpl_build.rglob("vpl.lib"))
 assert len(vpl_libraries) == 1, "Expected one static Intel VPL dispatcher"
@@ -263,18 +287,90 @@ if qsv.exists():
 shutil.copytree(obs / "plugins/obs-qsv11", qsv)
 run([sys.executable, root / "native/capture/patch-qsv-adapter.py", qsv])
 qsv_objects = []
-for name in ["common_directx11.cpp", "common_utils_windows.cpp", "common_utils.cpp", "QSV_Encoder.cpp", "QSV_Encoder_Internal.cpp", "obs-qsv11-plugin-main.c", "obs-qsv11.c"]:
+for name in [
+    "common_directx11.cpp",
+    "common_utils_windows.cpp",
+    "common_utils.cpp",
+    "QSV_Encoder.cpp",
+    "QSV_Encoder_Internal.cpp",
+    "obs-qsv11-plugin-main.c",
+    "obs-qsv11.c",
+]:
     obj = qsv / (name + ".obj")
     qsv_objects.append(obj)
-    lang_flags = flags if name.endswith(".cpp") else [f for f in flags if not f.startswith("/std:") and f != "/EHsc"] + ["/std:c17"]
-    run(["cl", *lang_flags, "/I" + str(vpl / "api"), "/I" + str(obs / "deps/w32-pthreads"), "/c", qsv / name, "/Fo:" + str(obj)])
-run(["link", "/nologo", "/DLL", "/OUT:" + str(runtime / "obs-plugins/64bit/obs-qsv11.dll"), *qsv_objects, obs_lib, pthread_lib, vpl_libraries[0], "d3d11.lib", "dxgi.lib", "dxguid.lib", "advapi32.lib", "cfgmgr32.lib", "ole32.lib"])
+    lang_flags = (
+        flags
+        if name.endswith(".cpp")
+        else [f for f in flags if not f.startswith("/std:") and f != "/EHsc"]
+        + ["/std:c17"]
+    )
+    run(
+        [
+            "cl",
+            *lang_flags,
+            "/I" + str(vpl / "api"),
+            "/I" + str(obs / "deps/w32-pthreads"),
+            "/c",
+            qsv / name,
+            "/Fo:" + str(obj),
+        ]
+    )
+run(
+    [
+        "link",
+        "/nologo",
+        "/DLL",
+        "/OUT:" + str(runtime / "obs-plugins/64bit/obs-qsv11.dll"),
+        *qsv_objects,
+        obs_lib,
+        pthread_lib,
+        vpl_libraries[0],
+        "d3d11.lib",
+        "dxgi.lib",
+        "dxguid.lib",
+        "advapi32.lib",
+        "cfgmgr32.lib",
+        "ole32.lib",
+    ]
+)
 
 if os.environ.get("CG_PROTOCOL_TEST") == "1":
-    run(["cl", *flags, root / "native/capture/test/encoder-selection.cpp", "/Fe:" + str(build / "CGEncoderSelectionSmoke.exe"), "/Fo:" + str(build / "encoder-selection-smoke.obj")])
+    run(
+        [
+            "cl",
+            *flags,
+            root / "native/capture/test/encoder-selection.cpp",
+            "/Fe:" + str(build / "CGEncoderSelectionSmoke.exe"),
+            "/Fo:" + str(build / "encoder-selection-smoke.obj"),
+        ]
+    )
     run([build / "CGEncoderSelectionSmoke.exe"])
-    run(["cl", *flags, root / "native/capture/test/stream-preview.cpp", "/Fe:" + str(build / "CGStreamPreviewSmoke.exe"), "/Fo:" + str(build / "stream-preview-smoke.obj"), "/link", obs_lib])
-    run(["cl", *flags, "/DRTC_ENABLE_MEDIA=1", "/I" + str(vendor / "libdatachannel-0.24.2/include"), "/I" + str(curl / "include"), root / "tools/windows-rtc-probe.cpp", "/Fe:" + str(build / "CGProtocolProbe.exe"), "/Fo:" + str(build / "protocol-probe.obj"), "/link", rtc_lib, curl_lib])
+    run(
+        [
+            "cl",
+            *flags,
+            root / "native/capture/test/stream-preview.cpp",
+            "/Fe:" + str(build / "CGStreamPreviewSmoke.exe"),
+            "/Fo:" + str(build / "stream-preview-smoke.obj"),
+            "/link",
+            obs_lib,
+        ]
+    )
+    run(
+        [
+            "cl",
+            *flags,
+            "/DRTC_ENABLE_MEDIA=1",
+            "/I" + str(vendor / "libdatachannel-0.24.2/include"),
+            "/I" + str(curl / "include"),
+            root / "tools/windows-rtc-probe.cpp",
+            "/Fe:" + str(build / "CGProtocolProbe.exe"),
+            "/Fo:" + str(build / "protocol-probe.obj"),
+            "/link",
+            rtc_lib,
+            curl_lib,
+        ]
+    )
 # Preserve the pinned OBS WGC implementation; add only numeric frame counters.
 winrt = build / "winrt"
 winrt.mkdir(exist_ok=True)
@@ -425,24 +521,38 @@ for name, _, _ in pins:
         shutil.copy2(vendor / name, source_dir / name)
 shutil.copy2(vendor / "curl-8.16.0.tar.gz", source_dir / "curl-8.16.0.tar.gz")
 shutil.copy2(vpl_archive, source_dir / vpl_archive.name)
-shutil.copytree(qsv, source_dir / "obs-qsv-modified", ignore=shutil.ignore_patterns("*.obj"))
+shutil.copytree(
+    qsv, source_dir / "obs-qsv-modified", ignore=shutil.ignore_patterns("*.obj")
+)
 shutil.copy2(vpl / "LICENSE", runtime / "COPYING-Intel-VPL.txt")
-shutil.copy2(root / "tools/windows-audio-build.ts", source_dir / "windows-audio-build.ts")
+shutil.copy2(
+    root / "tools/windows-audio-build.ts", source_dir / "windows-audio-build.ts"
+)
 shutil.copy2(obs / "COPYING", runtime / "COPYING-OBS.txt")
 (runtime / "THIRD_PARTY_NOTICES.txt").write_text(
     "CGScreenCaptureHost links OBS Studio GPL-2.0-or-later. Frontend source remains MIT.\nModified host/plugin sources and pinned corresponding-source archives are available separately; see SOURCE_CODE.txt.\nlibdatachannel: MPL-2.0; curl: curl license; SIMDe: MIT; x264: GPL-2.0-or-later; FFmpeg: see OBS distribution source notices.\nApp-local Microsoft VC runtime is redistributed under the Visual Studio runtime license.\n"
 )
 import importlib.util
-spec = importlib.util.spec_from_file_location("source_package", root / "native/capture/source-package.py")
+
+spec = importlib.util.spec_from_file_location(
+    "source_package", root / "native/capture/source-package.py"
+)
 source_package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(source_package)
-version = json.loads((root / "apps/desktop/package.json").read_text(encoding="utf-8"))["version"]
-fingerprint_spec = importlib.util.spec_from_file_location("runtime_fingerprint", root / "native/capture/runtime-fingerprint.py")
+version = json.loads((root / "apps/desktop/package.json").read_text(encoding="utf-8"))[
+    "version"
+]
+fingerprint_spec = importlib.util.spec_from_file_location(
+    "runtime_fingerprint", root / "native/capture/runtime-fingerprint.py"
+)
 fingerprint_module = importlib.util.module_from_spec(fingerprint_spec)
 fingerprint_spec.loader.exec_module(fingerprint_module)
 source_artifact = source_package.package_sources(
-    source_dir, runtime,
-    root / "apps/desktop/release" / ("CineGather-" + version + "-win-x64-native-source.zip"),
+    source_dir,
+    runtime,
+    root
+    / "apps/desktop/release"
+    / ("CineGather-" + version + "-win-x64-native-source.zip"),
 )
 (runtime / "manifest.json").write_text(
     json.dumps(
@@ -463,7 +573,9 @@ source_artifact = source_package.package_sources(
             "plugins": plugins,
             "buildFingerprint": fingerprint_module.fingerprint(root),
             "intelVplSourceSha256": vpl_digest,
-            "encoderSelectionSourceSha256": hashlib.sha256((root / "native/capture/encoder-selection.hpp").read_bytes()).hexdigest(),
+            "encoderSelectionSourceSha256": hashlib.sha256(
+                (root / "native/capture/encoder-selection.hpp").read_bytes()
+            ).hexdigest(),
             "hostSourceSha256": hashlib.sha256(
                 (root / "native/capture/windows-host.cpp").read_bytes()
             ).hexdigest(),

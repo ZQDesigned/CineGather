@@ -14,8 +14,11 @@ public final class CineGatherRoomAudioModule: Module {
         self.criticalTimers.removeValue(forKey: id)?.cancel()
         let timer = DispatchSource.makeTimerSource(queue: .main)
         let interval = max(1, delay) / 1000
-        if repeating { timer.schedule(deadline: .now() + interval, repeating: interval) }
-        else { timer.schedule(deadline: .now() + interval) }
+        if repeating {
+          timer.schedule(deadline: .now() + interval, repeating: interval)
+        } else {
+          timer.schedule(deadline: .now() + interval)
+        }
         timer.setEventHandler { [weak self] in
           guard let self, self.criticalTimers[id] != nil else { return }
           if !repeating { self.criticalTimers.removeValue(forKey: id)?.cancel() }
@@ -25,20 +28,31 @@ public final class CineGatherRoomAudioModule: Module {
         timer.resume()
       }
     }
-    Function("cancelTimer") { (id: Int) in DispatchQueue.main.async { self.criticalTimers.removeValue(forKey: id)?.cancel() } }
+    Function("cancelTimer") { (id: Int) in
+      DispatchQueue.main.async { self.criticalTimers.removeValue(forKey: id)?.cancel() }
+    }
     AsyncFunction("requestMicrophonePermission") { () async -> Bool in
       await withCheckedContinuation { continuation in
-        AVAudioSession.sharedInstance().requestRecordPermission { granted in continuation.resume(returning: granted) }
+        AVAudioSession.sharedInstance().requestRecordPermission { granted in
+          continuation.resume(returning: granted)
+        }
       }
     }
     AsyncFunction("start") { (name: String, microphone: Bool) in
       self.observe()
     }.runOnQueue(.main)
     AsyncFunction("stop") { self.clear() }.runOnQueue(.main)
-    OnDestroy { DispatchQueue.main.async { self.clear(); self.criticalTimers.values.forEach { $0.cancel() }; self.criticalTimers.removeAll() } }
+    OnDestroy {
+      DispatchQueue.main.async {
+        self.clear()
+        self.criticalTimers.values.forEach { $0.cancel() }
+        self.criticalTimers.removeAll()
+      }
+    }
   }
   private func clear() {
-    timer?.cancel(); timer = nil
+    timer?.cancel()
+    timer = nil
     observers.forEach { NotificationCenter.default.removeObserver($0) }
     observers.removeAll()
   }
@@ -49,17 +63,27 @@ public final class CineGatherRoomAudioModule: Module {
     timer.setEventHandler { [weak self] in self?.sendEvent("tick", [:]) }
     self.timer = timer
     timer.resume()
-    observers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.interruptionNotification, object: nil, queue: .main) { [weak self] notification in
-      guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
-            let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
-      let options = AVAudioSession.InterruptionOptions(rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
-      self?.sendEvent("interruption", ["interrupted": type == .began || !options.contains(.shouldResume)])
-    })
-    observers.append(NotificationCenter.default.addObserver(forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main) { [weak self] notification in
-      if let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
-         AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable {
-        self?.sendEvent("routeLost", [:])
-      }
-    })
+    observers.append(
+      NotificationCenter.default.addObserver(
+        forName: AVAudioSession.interruptionNotification, object: nil, queue: .main
+      ) { [weak self] notification in
+        guard let raw = notification.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+          let type = AVAudioSession.InterruptionType(rawValue: raw)
+        else { return }
+        let options = AVAudioSession.InterruptionOptions(
+          rawValue: notification.userInfo?[AVAudioSessionInterruptionOptionKey] as? UInt ?? 0)
+        self?.sendEvent(
+          "interruption", ["interrupted": type == .began || !options.contains(.shouldResume)])
+      })
+    observers.append(
+      NotificationCenter.default.addObserver(
+        forName: AVAudioSession.routeChangeNotification, object: nil, queue: .main
+      ) { [weak self] notification in
+        if let raw = notification.userInfo?[AVAudioSessionRouteChangeReasonKey] as? UInt,
+          AVAudioSession.RouteChangeReason(rawValue: raw) == .oldDeviceUnavailable
+        {
+          self?.sendEvent("routeLost", [:])
+        }
+      })
   }
 }

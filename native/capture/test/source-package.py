@@ -8,7 +8,9 @@ import zipfile
 class SourceDistributionTest(unittest.TestCase):
     def test_source_is_downloadable_separately_and_absent_from_runtime(self):
         script = pathlib.Path(__file__).resolve().parents[1] / "source-package.py"
-        self.assertTrue(script.is_file(), "Source distribution needs an independent packager")
+        self.assertTrue(
+            script.is_file(), "Source distribution needs an independent packager"
+        )
         spec = importlib.util.spec_from_file_location("source_package", script)
         module = importlib.util.module_from_spec(spec)
         spec.loader.exec_module(module)
@@ -30,7 +32,9 @@ class SourceDistributionTest(unittest.TestCase):
                 self.assertEqual(z.read("host.cpp"), b"// corresponding source")
                 self.assertIn("vendor.tar.gz", z.namelist())
             notice = (runtime / "SOURCE_CODE.txt").read_text()
-            self.assertIn("https://cgplat.zqdesigned.city/downloads/" + archive.name, notice)
+            self.assertIn(
+                "https://cgplat.zqdesigned.city/downloads/" + archive.name, notice
+            )
 
 
 if __name__ == "__main__":

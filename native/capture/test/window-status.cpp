@@ -16,24 +16,48 @@ static std::recursive_mutex graphics;
 static winrt_capture capture;
 static uint32_t frameWidth = 1920, frameHeight = 1080;
 static bool iconic = false;
-void obs_enter_graphics() { graphics.lock(); }
-void obs_leave_graphics() { graphics.unlock(); }
-bool IsWindow(HWND h) { return h == 12; }
-DWORD windowPid(HWND) { return 34; }
-bool ownProcess(DWORD) { return false; }
-bool IsIconic(HWND) { return iconic; }
-bool obs_source_showing(obs_source_t *) { return true; }
-bool obs_source_enabled(obs_source_t *) { return true; }
-uint64_t obs_data_get_int(void *, const char *) { return 0; }
+void obs_enter_graphics() {
+  graphics.lock();
+}
+void obs_leave_graphics() {
+  graphics.unlock();
+}
+bool IsWindow(HWND h) {
+  return h == 12;
+}
+DWORD windowPid(HWND) {
+  return 34;
+}
+bool ownProcess(DWORD) {
+  return false;
+}
+bool IsIconic(HWND) {
+  return iconic;
+}
+bool obs_source_showing(obs_source_t *) {
+  return true;
+}
+bool obs_source_enabled(obs_source_t *) {
+  return true;
+}
+uint64_t obs_data_get_int(void *, const char *) {
+  return 0;
+}
 using obs_data_t = void;
 void winrt_capture_free(winrt_capture *) {}
 winrt_capture *winrt_capture_init_window(int, HWND, int, int) {
   return &capture;
 }
-bool winrt_capture_active(winrt_capture *) { return true; }
+bool winrt_capture_active(winrt_capture *) {
+  return true;
+}
 void winrt_capture_render(winrt_capture *) {}
-uint32_t winrt_capture_width(winrt_capture *c) { return c ? frameWidth : 0; }
-uint32_t winrt_capture_height(winrt_capture *c) { return c ? frameHeight : 0; }
+uint32_t winrt_capture_width(winrt_capture *c) {
+  return c ? frameWidth : 0;
+}
+uint32_t winrt_capture_height(winrt_capture *c) {
+  return c ? frameHeight : 0;
+}
 // Production progress declarations and exact window callbacks inserted here.
 PRODUCTION_CALLBACKS
 int main() {

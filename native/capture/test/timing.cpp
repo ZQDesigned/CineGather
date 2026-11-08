@@ -7,8 +7,7 @@ int main() {
   for (int64_t frame = 0; frame <= 108000; ++frame) {
     int64_t us = frame * 1000000 / 30;
     auto actual = cinegather::rtpTimestamp(start, us, 90000);
-    auto expected =
-        uint32_t(uint64_t(start) + frame * 3000 - (frame % 3 ? 1 : 0));
+    auto expected = uint32_t(uint64_t(start) + frame * 3000 - (frame % 3 ? 1 : 0));
     assert(actual == expected);
   }
   assert(cinegather::rtpTimestamp(0, 180000000, 48000) == 8640000);

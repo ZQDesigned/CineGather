@@ -15,6 +15,7 @@ class PreviewQueue {
   std::deque<PreviewPacket> packets;
   size_t bytes = 0;
   bool waitingForKeyframe = true;
+
 public:
   uint64_t dropped = 0;
   void clear() {
@@ -23,8 +24,8 @@ public:
     waitingForKeyframe = true;
   }
   bool push(const uint8_t *data, size_t size, int64_t timestamp, bool keyframe) {
-    if (!data || !size || size > 2 * 1024 * 1024 ||
-        packets.size() >= 8 || bytes + size > 4 * 1024 * 1024) {
+    if (!data || !size || size > 2 * 1024 * 1024 || packets.size() >= 8 ||
+        bytes + size > 4 * 1024 * 1024) {
       dropped += packets.size() + 1;
       clear();
       return false;
@@ -39,7 +40,8 @@ public:
     return true;
   }
   std::optional<PreviewPacket> pop() {
-    if (packets.empty()) return std::nullopt;
+    if (packets.empty())
+      return std::nullopt;
     auto packet = std::move(packets.front());
     packets.pop_front();
     bytes -= packet.bytes.size();

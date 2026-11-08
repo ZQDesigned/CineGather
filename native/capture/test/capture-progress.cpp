@@ -12,7 +12,9 @@ static void enter() {
   entered = true;
   graphics.lock();
 }
-static void leave() { graphics.unlock(); }
+static void leave() {
+  graphics.unlock();
+}
 int main() {
   std::vector<std::string> events;
   std::mutex eventsMutex;
@@ -24,13 +26,12 @@ int main() {
       },
       [&] { return now.load(); });
   {
-    auto command = progress.beginCommand(Progress::Command::Start,
-                                         Progress::Source::Window);
+    auto command = progress.beginCommand(Progress::Command::Start, Progress::Source::Window);
     graphics.lock();
     std::thread rendering([&] {
       auto init = progress.span(Progress::Stage::WindowInit);
-      cinegather::CaptureGraphicsLock lock(
-          progress, Progress::Stage::WindowInitGraphics, enter, leave);
+      cinegather::CaptureGraphicsLock lock(progress, Progress::Stage::WindowInitGraphics, enter,
+                                           leave);
       now = 1900;
       progress.poll();
     });
@@ -43,8 +44,7 @@ int main() {
       std::lock_guard<std::mutex> l(eventsMutex);
       bool waiting = false;
       for (const auto &e : events)
-        if (e.find("window-init-graphics") != e.npos &&
-            e.find("waiting") != e.npos)
+        if (e.find("window-init-graphics") != e.npos && e.find("waiting") != e.npos)
           waiting = true;
       assert(waiting);
     }
@@ -59,14 +59,12 @@ int main() {
   graphics.unlock();
   auto before = events.size();
   {
-    auto command = progress.beginCommand(Progress::Command::Status,
-                                         Progress::Source::Window);
+    auto command = progress.beginCommand(Progress::Command::Status, Progress::Source::Window);
     auto query = progress.span(Progress::Stage::StatusSize, false);
   }
   assert(events.size() == before); // normal periodic diagnostics do not spam
   try {
-    auto command = progress.beginCommand(Progress::Command::Start,
-                                         Progress::Source::Screen);
+    auto command = progress.beginCommand(Progress::Command::Start, Progress::Source::Screen);
     auto stage = progress.span(Progress::Stage::Scene);
     throw 1;
   } catch (...) {
