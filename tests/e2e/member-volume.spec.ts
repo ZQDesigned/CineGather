@@ -25,11 +25,21 @@ async function speaker(
         oscillator = context.createOscillator(),
         gain = context.createGain(),
         destination = context.createMediaStreamDestination();
+      destination.channelCount = 1;
       gain.gain.value = 0.025;
       oscillator.frequency.value = frequency;
       oscillator.connect(gain).connect(destination);
       oscillator.start();
       await context.resume();
+      // Web Audio output is not a capture device: Chromium rejects device
+      // constraints such as echoCancellation on this synthetic microphone.
+      const track = destination.stream.getAudioTracks()[0]!;
+      track.applyConstraints = async () => {};
+      const stop = track.stop.bind(track);
+      track.stop = () => {
+        stop();
+        void context.close().catch(() => {});
+      };
       return destination.stream;
     };
   }, frequency);

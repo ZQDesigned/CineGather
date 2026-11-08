@@ -94,20 +94,16 @@ test("admin can search users, confirm account actions, close rooms and inspect a
   await expect(row).toBeVisible();
   await assertCopy();
   for (const enabled of [true, false]) {
-    await row
-      .getByRole("button", { name: enabled ? "未开通" : "已允许", exact: true })
-      .click();
-    await page
-      .getByLabel("操作原因", { exact: true })
+    await row.getByRole("button", { name: "能力配置", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "账号能力配置" });
+    await dialog
+      .getByRole("switch", { name: "屏幕共享", exact: true })
+      .setChecked(enabled);
+    await dialog
+      .getByLabel("修改原因", { exact: true })
       .fill("界面共享能力授权验证");
-    await page.getByRole("button", { name: "确认操作", exact: true }).click();
-    await expect(page.getByRole("dialog")).toHaveCount(0);
-    await expect(
-      row.getByRole("button", {
-        name: enabled ? "已允许" : "未开通",
-        exact: true,
-      }),
-    ).toBeVisible();
+    await dialog.getByRole("button", { name: "保存配置", exact: true }).click();
+    await expect(dialog).toHaveCount(0);
     expect(
       (await (await page.request.get(`${api}/me`, { headers })).json())
         .screenShareEnabled,
