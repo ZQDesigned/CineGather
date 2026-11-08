@@ -32,6 +32,7 @@ import type {
 import { unwrap } from "@cinegather/api-client";
 import { api, report } from "../../../controller";
 import { Button } from "../../rooms/ui/Controls";
+import { BoardColorPicker } from "./BoardColorPicker";
 import { useWhiteboardEraser } from "./useWhiteboardEraser";
 import { useRetainedDialog } from "../../../ui/useRetainedDialog";
 import { normalizeBoardImage, screenshotBoardImage } from "../whiteboard-image";
@@ -649,11 +650,10 @@ export function Whiteboard({
             ))}
           {editable && (
             <>
-              <input
-                aria-label="画笔颜色"
-                type="color"
+              <BoardColorPicker
                 value={color}
-                onChange={(e) => setColor(e.target.value)}
+                onChange={setColor}
+                workspace={workspace}
               />
               <Button
                 disabled={!canUndo}

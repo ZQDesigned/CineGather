@@ -186,11 +186,6 @@ export const RoomActivityLayout = styled.div`
       flex-shrink: 0;
       border-radius: 7px;
     }
-    .workspace-board .collab-tools input[type="color"] {
-      width: 28px;
-      height: 28px;
-      flex-shrink: 0;
-    }
     .workspace-board .collab-import {
       display: contents;
     }

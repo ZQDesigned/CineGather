@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Alert,
   App,
@@ -11,8 +11,10 @@ import {
   Table,
   Tag,
   Typography,
+  Upload,
 } from "antd";
-import type { TableColumnsType } from "antd";
+import { UploadOutlined } from "@ant-design/icons";
+import type { TableColumnsType, UploadFile } from "antd";
 import {
   hasAdminPermission,
   type ManagedPartyWord,
@@ -540,8 +542,16 @@ function WordImporter({
   const [format, setFormat] = useState<"csv" | "json">("csv"),
     [content, setContent] = useState(""),
     [preview, setPreview] = useState<PartyImportPreview>(),
+    [files, setFiles] = useState<UploadFile[]>([]),
     [busy, setBusy] = useState(false),
     { message } = App.useApp();
+  const reading = useRef(0);
+  useEffect(
+    () => () => {
+      reading.current++;
+    },
+    [],
+  );
   async function check() {
     setBusy(true);
     try {
@@ -607,7 +617,7 @@ function WordImporter({
         </Space>
       }
     >
-      <Space wrap style={{ marginBottom: 12 }}>
+      <Space wrap align="start" style={{ marginBottom: 12 }}>
         <Select
           aria-label="导入格式"
           value={format}
@@ -622,33 +632,61 @@ function WordImporter({
           }}
         />
         <Button onClick={template}>下载 CSV 模板</Button>
-        <input
-          aria-label="选择题库文件"
-          type="file"
+        <Upload
           accept=".csv,.json"
+          maxCount={1}
           disabled={busy}
-          onChange={async (e) => {
-            const f = e.target.files?.[0];
-            e.target.value = "";
-            if (!f) return;
-            if (f.size > 200000) {
-              void message.error("文件不能超过 200 KB");
-              return;
+          fileList={files}
+          showUploadList={{ showPreviewIcon: false, showDownloadIcon: false }}
+          style={{ maxWidth: 280 }}
+          beforeUpload={(file) => {
+            if (!/\.(csv|json)$/i.test(file.name)) {
+              void message.error("请选择 CSV 或 JSON 文件");
+              return Upload.LIST_IGNORE;
             }
+            if (file.size > 200000) {
+              void message.error("文件不能超过 200 KB");
+              return Upload.LIST_IGNORE;
+            }
+            const revision = ++reading.current;
             setBusy(true);
             setPreview(undefined);
-            try {
-              setContent(await f.text());
-              setFormat(
-                f.name.toLowerCase().endsWith(".json") ? "json" : "csv",
-              );
-            } catch (err) {
-              report(err);
-            } finally {
-              setBusy(false);
-            }
+            void file
+              .text()
+              .then((text) => {
+                if (reading.current !== revision) return;
+                setContent(text);
+                setFormat(
+                  file.name.toLowerCase().endsWith(".json") ? "json" : "csv",
+                );
+                setFiles([{ uid: file.uid, name: file.name, status: "done" }]);
+              })
+              .catch((error) => {
+                if (reading.current === revision) report(error);
+              })
+              .finally(() => {
+                if (reading.current === revision) setBusy(false);
+              });
+            return Upload.LIST_IGNORE;
           }}
-        />
+          onRemove={(file) => {
+            if (busy || !files.some((f) => f.uid === file.uid)) return false;
+            reading.current++;
+            setFiles([]);
+            setContent("");
+            setPreview(undefined);
+            return true;
+          }}
+        >
+          <Button
+            aria-label="选择题库文件"
+            icon={<UploadOutlined />}
+            disabled={busy}
+            loading={busy}
+          >
+            选择文件
+          </Button>
+        </Upload>
       </Space>
       <Typography.Paragraph type="secondary">
         每批最多 500
