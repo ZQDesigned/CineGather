@@ -11,6 +11,7 @@ import {
   Mic,
   Monitor,
   History,
+  FilePenLine,
 } from "lucide-react-native";
 import { runtime } from "../../runtime";
 import {
@@ -114,6 +115,11 @@ export default function Settings() {
           />
         </View>
       </View>
+      <MenuRow
+        icon={FilePenLine}
+        title="题目投稿"
+        onPress={() => router.push("/party-submissions")}
+      />
       <MenuRow
         icon={History}
         title="白板记录"

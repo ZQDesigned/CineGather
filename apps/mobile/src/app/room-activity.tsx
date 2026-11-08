@@ -340,19 +340,25 @@ export default function RoomActivity() {
           {game.choices ? (
             <View style={[styles.row, { flexWrap: "wrap" }]}>
               {game.choices.map((word, index) => (
-                <Button
-                  key={word}
-                  disabled={!enabled || partyBusy}
-                  onPress={() =>
-                    party({
-                      type: "choose",
-                      index,
-                      choicesRevision: game.choicesRevision,
-                    })
-                  }
-                >
-                  {word}
-                </Button>
+                <View key={word} style={{ maxWidth: "100%", gap: 4 }}>
+                  <Button
+                    disabled={!enabled || partyBusy}
+                    onPress={() =>
+                      party({
+                        type: "choose",
+                        index,
+                        choicesRevision: game.choicesRevision,
+                      })
+                    }
+                  >
+                    {word}
+                  </Button>
+                  {game.choiceAuthors?.[index] && (
+                    <Text numberOfLines={1} style={styles.muted}>
+                      {game.choiceAuthors[index]?.displayName} 投稿
+                    </Text>
+                  )}
+                </View>
               ))}
               {game.rerollsRemaining !== undefined && (
                 <Button
@@ -383,7 +389,12 @@ export default function RoomActivity() {
               )}
             </View>
           ) : game.answer ? (
-            <Label>题目：{game.answer}</Label>
+            <View style={{ gap: 4 }}>
+              <Label>题目：{game.answer}</Label>
+              {game.answerAuthor && (
+                <Label muted>{game.answerAuthor.displayName} 投稿</Label>
+              )}
+            </View>
           ) : (
             <Label>
               {game.clue ??

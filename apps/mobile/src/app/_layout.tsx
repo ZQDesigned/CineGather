@@ -49,6 +49,18 @@ export default function Layout() {
                   name="party-categories"
                   options={nativeSheetOptions}
                 />
+                <Stack.Screen
+                  name="submit-question"
+                  options={nativeSheetOptions}
+                />
+                <Stack.Screen
+                  name="party-submissions"
+                  options={{ title: "题目投稿" }}
+                />
+                <Stack.Screen
+                  name="party-submission"
+                  options={{ title: "投稿详情" }}
+                />
                 <Stack.Screen name="create-room" options={nativeSheetOptions} />
                 <Stack.Screen name="join-room" options={nativeSheetOptions} />
                 <Stack.Screen name="add-friend" options={nativeSheetOptions} />
