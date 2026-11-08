@@ -1,3 +1,4 @@
+import { QuestionSubmissions } from "../features/party-submissions/ui/QuestionSubmissions";
 import { WhiteboardHistory } from "../features/activities/ui/RoomActivities";
 import { GameLink, GameLinkNotifications } from "../features/games/ui/GameLink";
 import { GameLinkStatus } from "../features/games/ui/GameLinkStatus";
@@ -23,6 +24,7 @@ import {
   Download,
   Gamepad2,
   History,
+  FilePenLine,
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -59,7 +61,7 @@ const roomStates: Record<string, string> = {
   leaving: "正在离开",
   failed: "连接已断开",
 };
-function readSection(): "main" | "admin" | "friends" | "games" {
+function readSection(): "main" | "admin" | "friends" | "games" | "submissions" {
   const route = location.hash
     ? location.hash.slice(1)
     : location.pathname.replace(/\/$/, "");
@@ -69,10 +71,12 @@ function readSection(): "main" | "admin" | "friends" | "games" {
       ? "friends"
       : route === "/games"
         ? "games"
-        : "main";
+        : route === "/submissions"
+          ? "submissions"
+          : "main";
 }
 const mainPath = () =>
-  /^\/(admin|friends|games)\/?$/.test(location.pathname)
+  /^\/(admin|friends|games|submissions)\/?$/.test(location.pathname)
     ? "/"
     : location.pathname;
 export function App() {
@@ -313,6 +317,17 @@ export function App() {
                 update({ modal: null });
               },
             },
+            {
+              key: "submissions",
+              icon: <FilePenLine size={18} />,
+              label: "题目投稿",
+              disabled: !app.user,
+              onClick: () => {
+                setSection("submissions");
+                location.hash = "/submissions";
+                update({ modal: null });
+              },
+            },
           ]}
         />
         <span className="nav-label room-label">最近加入</span>
@@ -422,11 +437,13 @@ export function App() {
                   ? "管理后台"
                   : section === "games"
                     ? "游戏联机"
-                    : section === "friends"
-                      ? "好友"
-                      : app.room && !home
-                        ? app.room.name
-                        : "放映厅",
+                    : section === "submissions"
+                      ? "题目投稿"
+                      : section === "friends"
+                        ? "好友"
+                        : app.room && !home
+                          ? app.room.name
+                          : "放映厅",
               },
             ]}
           />
@@ -527,6 +544,8 @@ export function App() {
               <Admin onHome={showHome} />
             ) : section === "games" && window.desktop?.gameLink ? (
               <GameLink />
+            ) : section === "submissions" ? (
+              <QuestionSubmissions />
             ) : section === "friends" ? (
               <Friends />
             ) : (

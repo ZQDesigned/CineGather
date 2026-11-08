@@ -169,6 +169,15 @@ export function AdminPartyWords({
   const columns: TableColumnsType<ManagedPartyWord> = [
     { title: "答案", dataIndex: "answer", width: 140 },
     { title: "分类", dataIndex: "category", width: 180 },
+    {
+      title: "投稿人",
+      key: "submitter",
+      width: 220,
+      render: (_, r) =>
+        r.submitter
+          ? `${r.submitter.displayName}（${r.submitter.username}）`
+          : "—",
+    },
     { title: "适用玩法", width: 140, render: (_, r) => modeLabel(r.modes) },
     {
       title: "递进提示",

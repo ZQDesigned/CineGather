@@ -45,6 +45,7 @@ function includeRead(values: AdminPermission[]) {
   if (set.has("users.manage")) set.add("users.read");
   if (set.has("rooms.manage")) set.add("rooms.read");
   if (set.has("announcements.manage")) set.add("announcements.read");
+  if (set.has("party-submissions.review")) set.add("party-submissions.read");
   return adminPermissionKeys.filter((p) => set.has(p));
 }
 function PermissionPicker({

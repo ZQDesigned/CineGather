@@ -589,6 +589,13 @@ export function RoomActivityStage() {
                     }
                   >
                     {word}
+                    {game.choiceAuthors?.[index] && (
+                      <small
+                        style={{ marginLeft: 8, opacity: 0.7, fontWeight: 400 }}
+                      >
+                        {game.choiceAuthors[index]?.displayName} 投稿
+                      </small>
+                    )}
                   </Button>
                 ))}
                 {game.rerollsRemaining !== undefined && (
@@ -623,6 +630,13 @@ export function RoomActivityStage() {
                   ? "你的题目："
                   : "答案："}
                 {game.answer}
+                {game.answerAuthor && (
+                  <small
+                    style={{ marginLeft: 10, opacity: 0.7, fontWeight: 400 }}
+                  >
+                    {game.answerAuthor.displayName} 投稿
+                  </small>
+                )}
               </strong>
             ) : game.phase === "choosing" ? (
               <span>等待画手选择题目</span>

@@ -9,6 +9,7 @@ export default ts.config(
       "**/release/**",
       "packages/api-client/src/schema.ts",
       ".local/**",
+      ".superpowers/**",
       "docs/**",
       "apps/mobile/android/**",
       "apps/mobile/ios/**",
