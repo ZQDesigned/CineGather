@@ -200,7 +200,7 @@ test("enhancement preserves speech energy rather than passing the noise test by 
   expect(result.gain).toBeLessThan(2);
 });
 
-test("mixed quiet speech and keyboard-like transients improve without excessive voice delay", async ({
+test("mixed quiet speech and keyboard-like transients improve within the worklet voice-delay budget", async ({
   page,
 }) => {
   const { readFile } = await import("node:fs/promises");
@@ -237,39 +237,82 @@ test("mixed quiet speech and keyboard-like transients improve without excessive 
         mixed[i] = clean[i]! + fan * 0.16 + key;
       }
       const input = context.createMediaStreamDestination();
-      const rawSource = context.createBufferSource(),
-        referenceSource = context.createBufferSource();
-      rawSource.buffer = noisy;
-      referenceSource.buffer = reference;
-      rawSource.connect(input);
       const inputTrack = input.stream.getAudioTracks()[0]!;
-      const processor = new MicrophoneDenoiser();
+      let engine: string | undefined;
+      const processor = new MicrophoneDenoiser(
+        (status: { engine?: string }) => {
+          if (status.engine) engine = status.engine;
+        },
+      );
       const chunks: Float32Array[][] = [[], [], []];
-      const recorder = context.createScriptProcessor(2048, 3, 1);
-      const merger = context.createChannelMerger(3);
+      let rawSource: AudioBufferSourceNode | undefined,
+        referenceSource: AudioBufferSourceNode | undefined,
+        recorder: ScriptProcessorNode | undefined,
+        merger: ChannelMergerNode | undefined;
       try {
-        await processor.init({
-          kind: "audio",
-          track: inputTrack,
-          audioContext: context,
-        });
-        if (!processor.processedTrack) throw Error("No enhancement output");
+        // Measure the real enhancement worklet on one audio clock. Bridging
+        // MediaStreams between independent contexts adds device/VM buffering
+        // and drifting offsets, which are not the algorithm's latency.
+        const connections: {
+          input: MediaStreamAudioSourceNode;
+          filter: AudioWorkletNode;
+        }[] = [];
+        const connect = AudioNode.prototype.connect;
+        AudioNode.prototype.connect = function (
+          this: AudioNode,
+          ...args: Parameters<typeof connect>
+        ) {
+          const destination = args[0];
+          if (
+            this instanceof MediaStreamAudioSourceNode &&
+            this.mediaStream
+              .getAudioTracks()
+              .some((t) => t.id === inputTrack.id) &&
+            destination instanceof AudioWorkletNode
+          ) {
+            connections.push({ input: this, filter: destination });
+          }
+          return Reflect.apply(connect, this, args);
+        } as typeof connect;
+        try {
+          await processor.init({
+            kind: "audio",
+            track: inputTrack,
+            audioContext: context,
+          });
+        } finally {
+          AudioNode.prototype.connect = connect;
+        }
+        const connection = connections.at(-1);
+        if (
+          engine !== "deepfilternet3" ||
+          !processor.processedTrack ||
+          !connection
+        )
+          throw Error("No enhancement worklet output");
+        const { input: incoming, filter } = connection;
+        const clock = filter.context as AudioContext;
+        incoming.disconnect();
+        rawSource = clock.createBufferSource();
+        referenceSource = clock.createBufferSource();
+        rawSource.buffer = noisy;
+        referenceSource.buffer = reference;
+        rawSource.connect(filter);
+        recorder = clock.createScriptProcessor(2048, 3, 1);
+        merger = clock.createChannelMerger(3);
         referenceSource.connect(merger, 0, 0);
         rawSource.connect(merger, 0, 1);
-        const filtered = context.createMediaStreamSource(
-          new MediaStream([processor.processedTrack]),
-        );
-        filtered.connect(merger, 0, 2);
+        filter.connect(merger, 0, 2);
         merger.connect(recorder);
         recorder.onaudioprocess = (event) => {
           for (let i = 0; i < 3; i++)
             chunks[i]!.push(
               new Float32Array(event.inputBuffer.getChannelData(i)),
             );
-          event.outputBuffer.getChannelData(0).fill(0); // Measure without speaker output.
+          event.outputBuffer.getChannelData(0).fill(0);
         };
-        recorder.connect(context.destination);
-        const when = context.currentTime + 0.1;
+        recorder.connect(clock.destination);
+        const when = clock.currentTime + 0.1;
         rawSource.start(when);
         referenceSource.start(when);
         await new Promise((r) => setTimeout(r, 9400));
@@ -335,10 +378,10 @@ test("mixed quiet speech and keyboard-like transients improve without excessive 
           }),
         };
       } finally {
-        recorder.disconnect();
-        merger.disconnect();
-        rawSource.stop();
-        referenceSource.stop();
+        recorder?.disconnect();
+        merger?.disconnect();
+        rawSource?.stop();
+        referenceSource?.stop();
         await processor.destroy();
         inputTrack.stop();
         await context.close();

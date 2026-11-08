@@ -499,6 +499,14 @@ test("friend volume is restored in real voice playback across clients, rooms, re
     await expect(
       page.getByRole("button", { name: "退出登录", exact: true }),
     ).toBeVisible();
+    // Login restores the pending room code after asynchronous account sync.
+    // Wait for that prompt before dismissing it, rather than pressing Esc early.
+    const restoredJoin = page.getByRole("dialog", { name: "加入朋友的房间" });
+    await expect(restoredJoin).toBeVisible();
+    await restoredJoin
+      .getByRole("button", { name: "取消", exact: true })
+      .click();
+    await expect(restoredJoin).toHaveCount(0);
     await joinCode(page, code2);
     await expect(
       page.locator('audio[data-cinegather-audio="microphone"]'),
