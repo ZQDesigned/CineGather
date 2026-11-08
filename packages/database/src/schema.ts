@@ -573,6 +573,11 @@ export const partyBankPolicy = pgTable("party_bank_policy", {
   quizMinCategories: integer("quiz_min_categories").notNull().default(0),
 });
 export const partyWordBank = pgTable("party_word_bank", {
+  authorUserId: uuid("author_user_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  authorDisplayNameSnapshot: text("author_display_name_snapshot"),
+  authorUsernameSnapshot: text("author_username_snapshot"),
   modes: text("modes")
     .array()
     .$type<("draw" | "quiz")[]>()
@@ -587,4 +592,39 @@ export const partyWordBank = pgTable("party_word_bank", {
   enabled: boolean("enabled").notNull().default(true),
   version: integer("version").notNull().default(1),
   updatedAt: time("updated_at").notNull().defaultNow(),
+});
+export const partyFirstCorrect = pgTable(
+  "party_first_correct",
+  {
+    userId: uuid("user_id")
+      .notNull()
+      .references(() => users.id, { onDelete: "cascade" }),
+    answerKey: text("answer_key").notNull(),
+    firstCorrectAt: time("first_correct_at").notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.answerKey] })],
+);
+export const partySubmissions = pgTable("party_submissions", {
+  id: uuid("id").primaryKey(),
+  userId: uuid("user_id").references(() => users.id, { onDelete: "set null" }),
+  displayNameSnapshot: text("display_name_snapshot").notNull(),
+  usernameSnapshot: text("username_snapshot").notNull(),
+  draft: jsonb("draft").notNull(),
+  reviewedDraft: jsonb("reviewed_draft"),
+  answerKey: text("answer_key").notNull(),
+  status: text("status")
+    .$type<"pending" | "approved" | "rejected" | "withdrawn">()
+    .notNull()
+    .default("pending"),
+  version: integer("version").notNull().default(1),
+  wordId: uuid("word_id").references(() => partyWordBank.id, {
+    onDelete: "set null",
+  }),
+  reviewerId: uuid("reviewer_id").references(() => users.id, {
+    onDelete: "set null",
+  }),
+  reason: text("reason"),
+  createdAt: time("created_at").notNull().defaultNow(),
+  updatedAt: time("updated_at").notNull().defaultNow(),
+  reviewedAt: time("reviewed_at"),
 });

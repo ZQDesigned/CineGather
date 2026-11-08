@@ -1,6 +1,8 @@
+import type { PartyWordAuthor } from "@cinegather/contracts";
 // Original, local word set. Never include this module in a renderer bundle.
 export interface PartyWord {
   answer: string;
+  author?: PartyWordAuthor;
   modes?: ("draw" | "quiz")[];
   category: string;
   clues: string[];

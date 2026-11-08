@@ -1,3 +1,4 @@
+import { partySubmitterSchema } from "./party-submissions";
 import { z } from "zod";
 export const partyAnswerKey = (answer: string) =>
   answer.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
@@ -19,6 +20,7 @@ export const partyWordSchema = partyWordInput.extend({
   id: z.uuid(),
   version: z.number().int(),
   updatedAt: z.string(),
+  submitter: partySubmitterSchema.optional(),
 });
 export const partyWordUpdate = partyWordInput.extend({
   version: z.number().int().min(1),

@@ -1,3 +1,5 @@
+import { firstCorrectAnswer } from "../party/party-learning-model";
+import { recordFirstCorrect } from "../party/party-learning";
 import { listPartyCatalog, lockPartyBank } from "../party/party-categories";
 import { activePartyWords } from "../party/party-bank";
 import { sessionCredential } from "../accounts/session-context";
@@ -517,13 +519,21 @@ export async function activityCommand(
         );
       }
       try {
-        if (command.action.type !== "categories")
+        if (command.action.type !== "categories") {
+          const now = Date.now();
+          const before = tickPartyGame(state.game, now);
           state.game = partyCommand(
-            state.game,
+            before,
             { id: user.id, name: user.displayName },
             command.action,
-            Date.now(),
+            now,
           );
+          if (command.action.type === "guess") {
+            const answer = firstCorrectAnswer(before, state.game, user.id);
+            if (answer !== undefined)
+              await recordFirstCorrect(tx, user.id, answer);
+          }
+        }
       } catch (e) {
         fail(409, "PARTY_ACTION_UNAVAILABLE", (e as Error).message);
       }

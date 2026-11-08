@@ -326,13 +326,21 @@ export function partyView(
     ...(game.phase === "choosing" && game.drawerId === userId
       ? {
           choices: game.choices.map((w) => w.answer),
+          ...(game.choices.some((w) => w.author)
+            ? { choiceAuthors: game.choices.map((w) => w.author ?? null) }
+            : {}),
           choicesRevision: game.choicesRevision ?? 0,
           rerollsRemaining: Math.max(0, 3 - (game.rerollsUsed ?? 0)),
           rerollAvailableAt: game.rerollAvailableAt,
           canReroll: replacementPool(game).length >= 3,
         }
       : {}),
-    ...(reveal && game.word ? { answer: game.word.answer } : {}),
+    ...(reveal && game.word
+      ? {
+          answer: game.word.answer,
+          ...(game.word.author ? { answerAuthor: game.word.author } : {}),
+        }
+      : {}),
     ...(game.word
       ? {
           category: game.word.category,

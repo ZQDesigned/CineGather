@@ -1,3 +1,4 @@
+import { wordAuthors } from "./party-authors";
 import { randomUUID } from "node:crypto";
 import { and, eq, ilike, or, sql, asc, inArray } from "drizzle-orm";
 import { partyWordBank, type Transaction } from "@cinegather/database";
@@ -25,7 +26,9 @@ import {
 const shape = (
   r: typeof partyWordBank.$inferSelect,
   categories: PartyCategory[],
+  submitter?: { displayName: string; username: string },
 ) => ({
+  ...(submitter ? { submitter } : {}),
   id: r.id,
   answer: r.answer,
   category: r.categoryId
@@ -105,8 +108,9 @@ export async function listPartyWords(query: z.infer<typeof partyBankQuery>) {
       })
       .from(partyWordBank),
   ]);
+  const authors = await wordAuthors(db, items);
   return {
-    items: items.map((r) => shape(r, catalog.categories)),
+    items: items.map((r) => shape(r, catalog.categories, authors.get(r.id))),
     total: total!.value,
     allCount: counts!.all,
     enabledCount: counts!.enabled,
@@ -178,7 +182,11 @@ export async function savePartyWord(
         categoryId: category.id,
       },
     );
-    return shape(row!, (await listPartyCatalog(tx)).categories);
+    return shape(
+      row!,
+      (await listPartyCatalog(tx)).categories,
+      (await wordAuthors(tx, [row!])).get(row!.id),
+    );
   });
 }
 export async function deletePartyWord(
@@ -305,6 +313,7 @@ export async function activePartyWords(
         sql`${partyWordBank.modes} @> ARRAY[${kind}]::text[]`,
       ),
     );
+  const authors = await wordAuthors(tx, rows);
   const filtered = rows
     .filter((r) =>
       ids.has(
@@ -319,6 +328,9 @@ export async function activePartyWords(
         ? partyCategoryPath(catalog.categories, r.categoryId)
         : r.category,
       clues: r.clues,
+      ...(authors.has(r.id)
+        ? { author: { displayName: authors.get(r.id)!.displayName } }
+        : {}),
     }));
   if (!allowEmpty && filtered.length < 3)
     fail(

@@ -1,5 +1,7 @@
 import { z } from "zod";
 export const adminPermissionKeys = [
+  "party-submissions.read",
+  "party-submissions.review",
   "party-words.read",
   "party-words.manage",
   "overview.read",
@@ -21,6 +23,8 @@ export const adminPermissionKeys = [
 export const adminPermissionSchema = z.enum(adminPermissionKeys);
 export type AdminPermission = z.infer<typeof adminPermissionSchema>;
 export const adminPermissionLabels: Record<AdminPermission, string> = {
+  "party-submissions.read": "查看题目投稿",
+  "party-submissions.review": "审核题目投稿",
   "party-words.read": "查看聚会题库",
   "party-words.manage": "管理聚会题库",
   "overview.read": "查看概览",

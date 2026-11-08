@@ -1,3 +1,4 @@
+import type { PartyWordAuthor } from "./party-submissions";
 import { z } from "zod";
 import { partyCategoryIds } from "./party-categories";
 
@@ -118,11 +119,13 @@ export interface PartyView {
   players: PartyPlayer[];
   solvedIds: string[];
   choices?: string[];
+  choiceAuthors?: (PartyWordAuthor | null)[];
   choicesRevision?: number;
   rerollsRemaining?: number;
   rerollAvailableAt?: number;
   canReroll?: boolean;
   answer?: string;
+  answerAuthor?: PartyWordAuthor;
   category?: string;
   wordLength?: number;
   clue?: string;

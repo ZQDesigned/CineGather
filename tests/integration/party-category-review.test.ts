@@ -60,7 +60,21 @@ test("game category review moves exact legacy buckets, preserves question edits,
     const before = (
       await pool.query("SELECT * FROM party_word_bank ORDER BY id")
     ).rows;
-    await migrate(drizzle(pool), { migrationsFolder: source });
+    const reviewJournal = JSON.parse(
+      await readFile(join(source, "meta/_journal.json"), "utf8"),
+    );
+    reviewJournal.entries = reviewJournal.entries.filter(
+      (e: { idx: number }) => e.idx <= 36,
+    );
+    await copyFile(
+      join(source, "0036_party_game_category_review.sql"),
+      join(temporary, "0036_party_game_category_review.sql"),
+    );
+    await writeFile(
+      join(temporary, "meta/_journal.json"),
+      JSON.stringify(reviewJournal),
+    );
+    await migrate(drizzle(pool), { migrationsFolder: temporary });
     const after = (
       await pool.query("SELECT * FROM party_word_bank ORDER BY id")
     ).rows;
@@ -106,7 +120,7 @@ test("game category review moves exact legacy buckets, preserves question edits,
           !categories.find((p) => p.id === c.parent_id)?.parent_id,
       ),
     ).toBe(true);
-    await migrate(drizzle(pool), { migrationsFolder: source });
+    await migrate(drizzle(pool), { migrationsFolder: temporary });
     expect(
       (await pool.query("SELECT * FROM party_word_bank ORDER BY id")).rows,
     ).toEqual(after);

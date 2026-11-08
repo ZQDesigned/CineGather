@@ -4,6 +4,134 @@
  */
 
 export interface paths {
+    "/api/v1/party-submissions/eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["partySubmissionEligibility"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/party-submissions/catalog": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["partySubmissionCatalog"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/party-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["partySubmissions"];
+        put?: never;
+        post: operations["submitPartyQuestion"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/party-submissions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["partySubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch: operations["editPartySubmission"];
+        trace?: never;
+    };
+    "/api/v1/party-submissions/{id}/withdraw": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["withdrawPartySubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/party-submissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminPartySubmissions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/party-submissions/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminPartySubmission"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/party-submissions/{id}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["reviewPartySubmission"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/rooms/{roomId}/activity/categories": {
         parameters: {
             query?: never;
@@ -2096,6 +2224,1609 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    partySubmissionEligibility: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        registeredAt: string;
+                        serverTime: number;
+                        /** @enum {number} */
+                        registrationRequiredDays: 7;
+                        /** @enum {number} */
+                        requiredCorrect: 50;
+                        firstTryCorrect: number;
+                        ageEligible: boolean;
+                        eligible: boolean;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    partySubmissionCatalog: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        categories: {
+                            name: string;
+                            /** Format: uuid */
+                            parentId: string | null;
+                            enabled: boolean;
+                            sortOrder: number;
+                            /** Format: uuid */
+                            id: string;
+                            version: number;
+                            drawCount: number;
+                            quizCount: number;
+                        }[];
+                        policy: {
+                            version: number;
+                            draw: {
+                                minQuestions: number;
+                                minCategories: number;
+                            };
+                            quiz: {
+                                minQuestions: number;
+                                minCategories: number;
+                            };
+                        };
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    partySubmissions: {
+        parameters: {
+            query?: {
+                pageSize?: number;
+                page?: number;
+                q?: string;
+                status?: "all" | "pending" | "approved" | "rejected" | "withdrawn";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            version: number;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected" | "withdrawn";
+                            draft: {
+                                answer: string;
+                                /** Format: uuid */
+                                categoryId: string;
+                                clues: string[];
+                                modes: ("draw" | "quiz")[];
+                            };
+                            reviewedDraft: {
+                                answer: string;
+                                /** Format: uuid */
+                                categoryId: string;
+                                clues: string[];
+                                modes: ("draw" | "quiz")[];
+                            } | null;
+                            author: {
+                                displayName: string;
+                                username: string;
+                            };
+                            categoryPath: string;
+                            reviewedCategoryPath: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                            reviewedAt: string | null;
+                            reason: string | null;
+                            /** Format: uuid */
+                            wordId: string | null;
+                            reviewerName: string | null;
+                        }[];
+                        total: number;
+                        pendingCount: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    submitPartyQuestion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    answer: string;
+                    /** Format: uuid */
+                    categoryId: string;
+                    clues: string[];
+                    modes: ("draw" | "quiz")[];
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "rejected" | "withdrawn";
+                        draft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        };
+                        reviewedDraft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        } | null;
+                        author: {
+                            displayName: string;
+                            username: string;
+                        };
+                        categoryPath: string;
+                        reviewedCategoryPath: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        reviewedAt: string | null;
+                        reason: string | null;
+                        /** Format: uuid */
+                        wordId: string | null;
+                        reviewerName: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    partySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "rejected" | "withdrawn";
+                        draft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        };
+                        reviewedDraft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        } | null;
+                        author: {
+                            displayName: string;
+                            username: string;
+                        };
+                        categoryPath: string;
+                        reviewedCategoryPath: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        reviewedAt: string | null;
+                        reason: string | null;
+                        /** Format: uuid */
+                        wordId: string | null;
+                        reviewerName: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    editPartySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    answer: string;
+                    /** Format: uuid */
+                    categoryId: string;
+                    clues: string[];
+                    modes: ("draw" | "quiz")[];
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "rejected" | "withdrawn";
+                        draft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        };
+                        reviewedDraft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        } | null;
+                        author: {
+                            displayName: string;
+                            username: string;
+                        };
+                        categoryPath: string;
+                        reviewedCategoryPath: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        reviewedAt: string | null;
+                        reason: string | null;
+                        /** Format: uuid */
+                        wordId: string | null;
+                        reviewerName: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    withdrawPartySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "rejected" | "withdrawn";
+                        draft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        };
+                        reviewedDraft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        } | null;
+                        author: {
+                            displayName: string;
+                            username: string;
+                        };
+                        categoryPath: string;
+                        reviewedCategoryPath: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        reviewedAt: string | null;
+                        reason: string | null;
+                        /** Format: uuid */
+                        wordId: string | null;
+                        reviewerName: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminPartySubmissions: {
+        parameters: {
+            query?: {
+                pageSize?: number;
+                page?: number;
+                q?: string;
+                status?: "all" | "pending" | "approved" | "rejected" | "withdrawn";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            version: number;
+                            /** @enum {string} */
+                            status: "pending" | "approved" | "rejected" | "withdrawn";
+                            draft: {
+                                answer: string;
+                                /** Format: uuid */
+                                categoryId: string;
+                                clues: string[];
+                                modes: ("draw" | "quiz")[];
+                            };
+                            reviewedDraft: {
+                                answer: string;
+                                /** Format: uuid */
+                                categoryId: string;
+                                clues: string[];
+                                modes: ("draw" | "quiz")[];
+                            } | null;
+                            author: {
+                                displayName: string;
+                                username: string;
+                            };
+                            categoryPath: string;
+                            reviewedCategoryPath: string | null;
+                            createdAt: string;
+                            updatedAt: string;
+                            reviewedAt: string | null;
+                            reason: string | null;
+                            /** Format: uuid */
+                            wordId: string | null;
+                            reviewerName: string | null;
+                        }[];
+                        total: number;
+                        pendingCount: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminPartySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "rejected" | "withdrawn";
+                        draft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        };
+                        reviewedDraft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        } | null;
+                        author: {
+                            displayName: string;
+                            username: string;
+                        };
+                        categoryPath: string;
+                        reviewedCategoryPath: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        reviewedAt: string | null;
+                        reason: string | null;
+                        /** Format: uuid */
+                        wordId: string | null;
+                        reviewerName: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    reviewPartySubmission: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    version: number;
+                    /** @enum {string} */
+                    decision: "approve";
+                    draft?: {
+                        answer: string;
+                        /** Format: uuid */
+                        categoryId: string;
+                        clues: string[];
+                        modes: ("draw" | "quiz")[];
+                    };
+                } | {
+                    version: number;
+                    /** @enum {string} */
+                    decision: "reject";
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        version: number;
+                        /** @enum {string} */
+                        status: "pending" | "approved" | "rejected" | "withdrawn";
+                        draft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        };
+                        reviewedDraft: {
+                            answer: string;
+                            /** Format: uuid */
+                            categoryId: string;
+                            clues: string[];
+                            modes: ("draw" | "quiz")[];
+                        } | null;
+                        author: {
+                            displayName: string;
+                            username: string;
+                        };
+                        categoryPath: string;
+                        reviewedCategoryPath: string | null;
+                        createdAt: string;
+                        updatedAt: string;
+                        reviewedAt: string | null;
+                        reason: string | null;
+                        /** Format: uuid */
+                        wordId: string | null;
+                        reviewerName: string | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
     roomPartyCatalog: {
         parameters: {
             query?: never;
@@ -3997,7 +5728,7 @@ export interface operations {
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -4271,7 +6002,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -4422,7 +6153,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -4573,7 +6304,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -4722,7 +6453,7 @@ export interface operations {
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -15366,6 +17097,10 @@ export interface operations {
                             id: string;
                             version: number;
                             updatedAt: string;
+                            submitter?: {
+                                displayName: string;
+                                username: string;
+                            };
                         }[];
                         total: number;
                         enabledCount: number;
@@ -15519,6 +17254,10 @@ export interface operations {
                         id: string;
                         version: number;
                         updatedAt: string;
+                        submitter?: {
+                            displayName: string;
+                            username: string;
+                        };
                     };
                 };
             };
@@ -15671,6 +17410,10 @@ export interface operations {
                         id: string;
                         version: number;
                         updatedAt: string;
+                        submitter?: {
+                            displayName: string;
+                            username: string;
+                        };
                     };
                 };
             };
@@ -19613,7 +21356,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             name: string;
-                            permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                             builtIn: boolean;
                             memberCount: number;
                             createdAt: string;
@@ -19738,7 +21481,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -19753,7 +21496,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
@@ -19879,7 +21622,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -19894,7 +21637,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
