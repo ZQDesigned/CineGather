@@ -37,6 +37,7 @@ import {
   EsportsAdmissionController,
 } from "./modules/esports/esports-controller";
 import { admissionSecretValid } from "./modules/esports/esports-admission";
+import { PartyCategoryController } from "./modules/admin/party-category-controller";
 import { AdminController } from "./modules/admin/admin-controller";
 import { SystemController } from "./core/system-controller";
 import { AccountsController } from "./modules/accounts/accounts-controller";
@@ -143,6 +144,7 @@ class TacticalPauses implements OnModuleInit, OnModuleDestroy {
     GameLinkController,
     GameTunnelController,
     AdminController,
+    PartyCategoryController,
     EsportsController,
     EsportsAdmissionController,
   ],

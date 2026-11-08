@@ -1,3 +1,4 @@
+import { listPartyCatalog, lockPartyBank } from "../party/party-categories";
 import { activePartyWords } from "../party/party-bank";
 import { sessionCredential } from "../accounts/session-context";
 import { randomUUID } from "node:crypto";
@@ -401,7 +402,7 @@ export async function activityCommand(
             : {
                 game: newPartyGame(
                   command.target,
-                  await activePartyWords(tx, command.target),
+                  await activePartyWords(tx, command.target, null, false, true),
                   state.partyRecentAnswers?.[command.target],
                 ),
               }),
@@ -475,17 +476,54 @@ export async function activityCommand(
     } else if (command.type === "party") {
       if (state.kind !== "game" || !state.game)
         fail(409, "PARTY_NOT_ACTIVE", "当前没有聚会游戏");
-      if (["start", "pause", "resume"].includes(command.action.type))
+      if (
+        ["start", "pause", "resume", "categories"].includes(command.action.type)
+      )
         requireControl();
-      if (command.action.type === "start")
-        state.game.wordPool = await activePartyWords(tx, state.game.kind);
-      try {
-        state.game = partyCommand(
-          state.game,
-          { id: user.id, name: user.displayName },
-          command.action,
-          Date.now(),
+      if (command.action.type === "categories") {
+        if (!["lobby", "finished"].includes(state.game.phase))
+          fail(
+            409,
+            "PARTY_ALREADY_STARTED",
+            "本场已开始，请在下一场开始前选择分类",
+          );
+        const selection = state.game.categorySelection ?? {
+          categoryIds: null,
+          version: 0,
+        };
+        if (selection.version !== command.action.selectionVersion)
+          fail(409, "PARTY_SELECTION_CHANGED", "分类选择已更新，请刷新后重试");
+        const catalog = await listPartyCatalog(tx);
+        if (
+          command.action.categoryIds.some(
+            (id) => !catalog.categories.some((c) => c.id === id),
+          )
+        )
+          fail(409, "PARTY_CATEGORIES_CHANGED", "分类已移除，请重新选择");
+        state.game.categorySelection = {
+          categoryIds: command.action.categoryIds,
+          version: selection.version + 1,
+        };
+      }
+      if (command.action.type === "start") {
+        if (!["lobby", "finished"].includes(state.game.phase))
+          fail(409, "PARTY_ALREADY_STARTED", "本场已开始");
+        await lockPartyBank(tx);
+        state.game.wordPool = await activePartyWords(
+          tx,
+          state.game.kind,
+          state.game.categorySelection?.categoryIds ?? null,
+          true,
         );
+      }
+      try {
+        if (command.action.type !== "categories")
+          state.game = partyCommand(
+            state.game,
+            { id: user.id, name: user.displayName },
+            command.action,
+            Date.now(),
+          );
       } catch (e) {
         fail(409, "PARTY_ACTION_UNAVAILABLE", (e as Error).message);
       }
@@ -665,4 +703,13 @@ export async function cleanupWhiteboardArchives(now = Date.now()) {
       and not exists(select 1 from room_activities a where (a.state->>'kind' <> 'idle' and a.state->>'id'=i.activity_id::text) or a.state::text like '%' || i.id::text || '%')`);
   });
   lastArchiveCleanup = now;
+}
+
+export async function activityPartyCatalog(user: User, roomId: string) {
+  requireFeature(user, "room.activities");
+  roomId = uuid(roomId);
+  return db.transaction(async (tx) => {
+    await roomActivityAccess(tx, user, roomId);
+    return listPartyCatalog(tx);
+  });
 }

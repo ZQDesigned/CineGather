@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { partyCategoryIds } from "./party-categories";
 
 const coordinate = z.number().finite().min(-5000).max(5000);
 export const boardElementInput = z
@@ -79,6 +80,11 @@ export const partyActionSchema = z.discriminatedUnion("type", [
   z.strictObject({ type: z.literal("ready"), ready: z.boolean() }),
   z.strictObject({ type: z.literal("start") }),
   z.strictObject({
+    type: z.literal("categories"),
+    categoryIds: partyCategoryIds,
+    selectionVersion: z.number().int().nonnegative(),
+  }),
+  z.strictObject({
     type: z.literal("choose"),
     index: z.number().int().min(0).max(2),
     choicesRevision: z.number().int().nonnegative().optional(),
@@ -120,6 +126,7 @@ export interface PartyView {
   category?: string;
   wordLength?: number;
   clue?: string;
+  categorySelection?: { categoryIds: string[] | null; version: number };
 }
 export const activityTargetSchema = z.enum(["board", "draw", "quiz", "screen"]);
 export type ActivityTarget = z.infer<typeof activityTargetSchema>;

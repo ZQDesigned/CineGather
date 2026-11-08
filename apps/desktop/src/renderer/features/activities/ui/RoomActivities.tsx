@@ -27,6 +27,7 @@ import {
   resolveClientNotification,
 } from "../../notifications/client-notifications";
 import { Button } from "../../rooms/ui/Controls";
+import { PartyCategoryPicker } from "./PartyCategoryPicker";
 import { Whiteboard } from "./Whiteboard";
 import { useRetainedDialog } from "../../../ui/useRetainedDialog";
 const names: Record<ActivityTarget, string> = {
@@ -431,6 +432,7 @@ export function RoomActivityStage() {
     userId = useApp((s) => s.user?.id),
     [answer, setAnswer] = useState(""),
     [busy, setBusy] = useState(false),
+    [categoryReady, setCategoryReady] = useState(false),
     [now, setNow] = useState(Date.now());
   const clock = useRef({ server: Date.now(), local: Date.now() });
   const retained = useRef<ActivitySnapshot | undefined>(undefined);
@@ -517,6 +519,13 @@ export function RoomActivityStage() {
           </>
         )}
         {game && (
+          <PartyCategoryPicker
+            snapshot={snapshot}
+            controlled={controlled}
+            onAvailability={setCategoryReady}
+          />
+        )}
+        {game && (
           <div className="party-status">
             {game.phase === "lobby" || game.phase === "finished" ? (
               <>
@@ -532,7 +541,9 @@ export function RoomActivityStage() {
                   <Button
                     type="primary"
                     disabled={
-                      busy || game.players.filter((p) => p.ready).length < 2
+                      busy ||
+                      !categoryReady ||
+                      game.players.filter((p) => p.ready).length < 2
                     }
                     onClick={() => void party({ type: "start" })}
                   >

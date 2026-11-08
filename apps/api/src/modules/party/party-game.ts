@@ -10,6 +10,7 @@ import { partyWords, type PartyWord } from "./party-words";
 export interface PartyGame {
   kind: "draw" | "quiz";
   wordPool?: PartyWord[];
+  categorySelection?: { categoryIds: string[] | null; version: number };
   phase: PartyView["phase"];
   round: number;
   totalRounds: number;
@@ -169,6 +170,7 @@ export function partyCommand(
   action: PartyAction,
   now: number,
 ): PartyGame {
+  if (action.type === "categories") throw Error("分类选择需由房间校验");
   const game = tickPartyGame(input, now);
   let player = game.players.find((p) => p.id === actor.id);
   if (action.type === "ready") {
@@ -304,6 +306,10 @@ export function partyView(
     Math.max(0, (game.deadline ?? now + (game.remaining ?? 45_000)) - now);
   return {
     kind: game.kind,
+    categorySelection: game.categorySelection ?? {
+      categoryIds: null,
+      version: 0,
+    },
     phase: game.phase,
     round: Math.min(game.round, game.totalRounds),
     totalRounds: game.totalRounds,

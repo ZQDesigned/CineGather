@@ -4,6 +4,7 @@ export default defineConfig({
   ...base,
   testMatch: [
     "browser-web.spec.ts",
+    "party-categories.spec.ts",
     "noise-settings.spec.ts",
     "noise-migration.spec.ts",
     "required-update.spec.ts",
@@ -24,6 +25,15 @@ export default defineConfig({
   webServer: [
     {
       command: "bun run dev:api",
+      env: {
+        CORS_ORIGINS: [
+          ...new Set([
+            ...(process.env.CORS_ORIGINS ?? "").split(",").filter(Boolean),
+            "http://127.0.0.1:5180",
+            "http://localhost:5180",
+          ]),
+        ].join(","),
+      },
       url: "http://127.0.0.1:14310/api/v1/health",
       reuseExistingServer: true,
       timeout: 30000,

@@ -18,6 +18,8 @@ import {
   type ManagedPartyWord,
   type PartyWordInput,
   type PartyImportPreview,
+  type PartyCatalog,
+  type PartyCategory,
 } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import { api, report } from "../../../controller";
@@ -27,6 +29,8 @@ import {
   useRetainedDialog,
   type RetainedDialogProps,
 } from "../../../ui/useRetainedDialog";
+import { AdminPartyCategories } from "./AdminPartyCategories";
+import { PartyCategoryField } from "./PartyCategoryField";
 const modeOptions = [
   { value: "draw", label: "你画我猜" },
   { value: "quiz", label: "猜词抢答" },
@@ -45,6 +49,7 @@ const empty: PartyWordInput = {
 const input = (word: PartyWordInput): PartyWordInput => ({
   answer: word.answer,
   category: word.category,
+  categoryId: word.categoryId,
   clues: word.clues,
   enabled: word.enabled,
   modes: word.modes ?? ["draw", "quiz"],
@@ -61,6 +66,10 @@ export function AdminPartyWords({
       "party-words.manage",
     ),
     { message } = App.useApp();
+  const [catalog, setCatalog] = useState<PartyCatalog>(),
+    [categoryId, setCategoryId] = useState<string>(),
+    [directOnly, setDirectOnly] = useState(false),
+    [selected, setSelected] = useState<ManagedPartyWord[]>([]);
   const [items, setItems] = useState<ManagedPartyWord[]>([]),
     [total, setTotal] = useState(0),
     [all, setAll] = useState(0),
@@ -78,13 +87,43 @@ export function AdminPartyWords({
   const editDialog = useRetainedDialog(editor),
     importDialog = useRetainedDialog(importing),
     deleteDialog = useRetainedDialog(deleting);
-  const changed = () => setRefresh((r) => r + 1);
+  const changed = () => {
+    setRefresh((r) => r + 1);
+    setSelected([]);
+  };
+  useEffect(() => {
+    let active = true;
+    void api
+      .GET("/api/v1/admin/party-categories")
+      .then(unwrap)
+      .then((c) => {
+        if (active) setCatalog(c);
+      })
+      .catch(report);
+    return () => {
+      active = false;
+    };
+  }, [refresh, revision]);
+  useEffect(
+    () => setSelected([]),
+    [q, status, mode, page, categoryId, directOnly],
+  );
   useEffect(() => {
     let active = true;
     setLoading(true);
     void api
       .GET("/api/v1/admin/party-words", {
-        params: { query: { q, status, mode, page, pageSize: 20 } },
+        params: {
+          query: {
+            q,
+            status,
+            mode,
+            page,
+            pageSize: 20,
+            categoryId,
+            directOnly: directOnly ? "true" : "false",
+          },
+        },
       })
       .then(unwrap)
       .then((r) => {
@@ -104,7 +143,7 @@ export function AdminPartyWords({
     return () => {
       active = false;
     };
-  }, [q, status, mode, page, refresh, revision]);
+  }, [q, status, mode, page, refresh, revision, categoryId, directOnly]);
   async function toggle(word: ManagedPartyWord) {
     setPending(word.id);
     try {
@@ -127,7 +166,7 @@ export function AdminPartyWords({
   }
   const columns: TableColumnsType<ManagedPartyWord> = [
     { title: "答案", dataIndex: "answer", width: 140 },
-    { title: "分类", dataIndex: "category", width: 100 },
+    { title: "分类", dataIndex: "category", width: 180 },
     { title: "适用玩法", width: 140, render: (_, r) => modeLabel(r.modes) },
     {
       title: "递进提示",
@@ -187,7 +226,47 @@ export function AdminPartyWords({
         minHeight: 0,
       }}
     >
-      <Space wrap>
+      <div
+        role="group"
+        aria-label="题库操作"
+        style={{ display: "flex", alignItems: "center", gap: 8, flexShrink: 0 }}
+      >
+        {manage && (
+          <>
+            <Button type="primary" onClick={() => setEditor({})}>
+              新增题目
+            </Button>
+            <Button onClick={() => setImporting({ kind: "import" })}>
+              批量导入
+            </Button>
+          </>
+        )}
+        {catalog && (
+          <AdminPartyCategories
+            catalog={catalog}
+            changed={changed}
+            selected={selected}
+            manage={manage}
+          />
+        )}
+        <Typography.Text
+          type="secondary"
+          style={{ marginLeft: "auto", whiteSpace: "nowrap" }}
+        >
+          共 {all} 道，已启用 {enabled} 道
+        </Typography.Text>
+      </div>
+      <div
+        role="group"
+        aria-label="题库筛选"
+        style={{
+          display: "flex",
+          alignItems: "center",
+          gap: 8,
+          flexShrink: 0,
+          minWidth: 0,
+        }}
+      >
         <Input.Search
           aria-label="搜索题库"
           placeholder="搜索答案或分类"
@@ -196,7 +275,7 @@ export function AdminPartyWords({
             setQ(v.trim());
             setPage(1);
           }}
-          style={{ width: 240 }}
+          style={{ flex: "1 1 190px", minWidth: 140, maxWidth: 240 }}
         />
         <Select
           aria-label="筛选题目状态"
@@ -210,7 +289,7 @@ export function AdminPartyWords({
             setStatus(v);
             setPage(1);
           }}
-          style={{ width: 120 }}
+          style={{ width: 110, flexShrink: 0 }}
         />
         <Select
           aria-label="筛选适用玩法"
@@ -220,22 +299,30 @@ export function AdminPartyWords({
             setMode(v);
             setPage(1);
           }}
-          style={{ width: 140 }}
+          style={{ width: 130, flexShrink: 0 }}
         />
-        <Typography.Text type="secondary">
-          共 {all} 道，已启用 {enabled} 道
-        </Typography.Text>
-        {manage && (
-          <>
-            <Button type="primary" onClick={() => setEditor({})}>
-              新增题目
-            </Button>
-            <Button onClick={() => setImporting({ kind: "import" })}>
-              批量导入
-            </Button>
-          </>
+        {catalog && (
+          <PartyCategoryField
+            categories={catalog.categories}
+            value={categoryId}
+            allowClear
+            style={{ flex: "1 1 190px", minWidth: 160, maxWidth: 280 }}
+            onChange={(v) => {
+              setCategoryId(v);
+              setPage(1);
+            }}
+          />
         )}
-      </Space>
+        {categoryId && (
+          <Switch
+            checkedChildren="仅直属"
+            unCheckedChildren="含子分类"
+            checked={directOnly}
+            onChange={setDirectOnly}
+            style={{ flexShrink: 0 }}
+          />
+        )}
+      </div>
       {enabled < 3 && (
         <Alert
           type="warning"
@@ -244,11 +331,19 @@ export function AdminPartyWords({
       )}
       <Table
         rowKey="id"
+        rowSelection={
+          manage
+            ? {
+                selectedRowKeys: selected.map((w) => w.id),
+                onChange: (_keys, rows) => setSelected(rows),
+              }
+            : undefined
+        }
         size="small"
         columns={columns}
         dataSource={items}
         loading={loading}
-        scroll={{ x: 760, y: Math.max(100, height - 70) }}
+        scroll={{ x: 760, y: Math.max(100, height - 112) }}
         pagination={{
           current: page,
           pageSize: 20,
@@ -261,6 +356,7 @@ export function AdminPartyWords({
         <WordEditor
           {...editDialog}
           target={editDialog.value}
+          categories={catalog?.categories ?? []}
           close={() => setEditor(undefined)}
           changed={changed}
         />
@@ -315,12 +411,14 @@ export function AdminPartyWords({
 }
 function WordEditor({
   target,
+  categories,
   open,
   afterClose,
   close,
   changed,
 }: RetainedDialogProps & {
   target: { word?: ManagedPartyWord };
+  categories: PartyCategory[];
   close(): void;
   changed(): void;
 }) {
@@ -334,6 +432,9 @@ function WordEditor({
     } catch {
       return;
     }
+    const category = categories.find((c) => c.id === values.categoryId);
+    if (!category) return;
+    values.category = category.name;
     setSaving(true);
     try {
       unwrap(
@@ -382,10 +483,10 @@ function WordEditor({
         </Form.Item>
         <Form.Item
           label="分类"
-          name="category"
-          rules={[{ required: true, whitespace: true, max: 24 }]}
+          name="categoryId"
+          rules={[{ required: true, message: "请选择题目分类" }]}
         >
-          <Input maxLength={24} />
+          <PartyCategoryField categories={categories} />
         </Form.Item>
         {[0, 1, 2].map((i) => (
           <Form.Item
@@ -419,7 +520,7 @@ function WordEditor({
   );
 }
 const csvTemplate =
-  "answer,category,clue1,clue2,clue3,enabled,modes\n热气球,交通,它能带人离开地面,风会影响它前进方向,加热空气让它上升,true,draw|quiz\n";
+  "answer,parentCategory,category,clue1,clue2,clue3,enabled,modes\n热气球,,交通,它能带人离开地面,风会影响它前进方向,加热空气让它上升,true,draw|quiz\n";
 function template() {
   const url = URL.createObjectURL(
     new Blob(["\uFEFF" + csvTemplate], { type: "text/csv;charset=utf-8" }),

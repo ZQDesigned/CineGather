@@ -555,6 +555,23 @@ export const announcementReceipts = pgTable(
 export * from "./game-link";
 export * from "./room-activities";
 
+export const partyCategories = pgTable("party_categories", {
+  id: uuid("id").primaryKey(),
+  name: text("name").notNull(),
+  nameKey: text("name_key").notNull(),
+  parentId: uuid("parent_id"),
+  enabled: boolean("enabled").notNull().default(true),
+  sortOrder: integer("sort_order").notNull().default(0),
+  version: integer("version").notNull().default(1),
+});
+export const partyBankPolicy = pgTable("party_bank_policy", {
+  id: integer("id").primaryKey(),
+  version: integer("version").notNull().default(1),
+  drawMinQuestions: integer("draw_min_questions").notNull().default(20),
+  drawMinCategories: integer("draw_min_categories").notNull().default(0),
+  quizMinQuestions: integer("quiz_min_questions").notNull().default(20),
+  quizMinCategories: integer("quiz_min_categories").notNull().default(0),
+});
 export const partyWordBank = pgTable("party_word_bank", {
   modes: text("modes")
     .array()
@@ -565,6 +582,7 @@ export const partyWordBank = pgTable("party_word_bank", {
   answer: text("answer").notNull(),
   answerKey: text("answer_key").notNull().unique(),
   category: text("category").notNull(),
+  categoryId: uuid("category_id").references(() => partyCategories.id),
   clues: jsonb("clues").$type<string[]>().notNull(),
   enabled: boolean("enabled").notNull().default(true),
   version: integer("version").notNull().default(1),

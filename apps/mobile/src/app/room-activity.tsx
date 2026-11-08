@@ -14,6 +14,7 @@ import {
   MobileWhiteboard,
   MobileWhiteboardEditors,
 } from "../components/Activities";
+import { PartyCategorySummary } from "../components/PartyCategories";
 import { Screen } from "../components/Screen";
 import { Button, Label, Field, Dialog, styles } from "../components/ui";
 const names: Record<ActivityTarget, string> = {
@@ -26,6 +27,7 @@ export default function RoomActivity() {
   const { snapshot, status, error, presence } = useActivities(),
     userId = useSession().user?.id;
   const [partyBusy, setPartyBusy] = useState(false);
+  const [categoryReady, setCategoryReady] = useState(false);
   const [answer, setAnswer] = useState(""),
     [now, setNow] = useState(Date.now()),
     [image, setImage] = useState<string>(),
@@ -286,6 +288,13 @@ export default function RoomActivity() {
                   ? "本场结束"
                   : "等待准备"}
           </Label>
+          {["lobby", "finished"].includes(game.phase) && (
+            <PartyCategorySummary
+              snapshot={snapshot}
+              controlled={controlled}
+              onAvailability={setCategoryReady}
+            />
+          )}
           {game.phase === "lobby" || game.phase === "finished" ? (
             <View style={styles.row}>
               <Button
@@ -298,7 +307,9 @@ export default function RoomActivity() {
                 <Button
                   primary
                   disabled={
-                    !enabled || game.players.filter((p) => p.ready).length < 2
+                    !enabled ||
+                    !categoryReady ||
+                    game.players.filter((p) => p.ready).length < 2
                   }
                   onPress={() => party({ type: "start" })}
                 >

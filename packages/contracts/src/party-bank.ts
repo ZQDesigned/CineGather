@@ -3,7 +3,9 @@ export const partyAnswerKey = (answer: string) =>
   answer.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
 export const partyWordInput = z.strictObject({
   answer: z.string().trim().min(1).max(40),
-  category: z.string().trim().min(1).max(24),
+  category: z.string().trim().min(1).max(100),
+  categoryId: z.uuid().optional(),
+  parentCategory: z.string().trim().min(1).max(40).optional(),
   clues: z.array(z.string().trim().min(1).max(160)).length(3),
   enabled: z.boolean(),
   modes: z
@@ -28,6 +30,8 @@ export const partyBankQuery = z.object({
   q: z.string().trim().max(100).default(""),
   mode: z.enum(["all", "draw", "quiz"]).default("all"),
   status: z.enum(["all", "enabled", "disabled"]).default("all"),
+  categoryId: z.uuid().optional(),
+  directOnly: z.enum(["true", "false"]).optional(),
   page: z.coerce.number().int().min(1).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(20),
 });

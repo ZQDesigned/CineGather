@@ -1154,3 +1154,85 @@ test("idle activity gateway emits protocol keepalives without edits or new appli
     socket.terminate();
   }
 }, 30000);
+test("party category selection is synchronized, authoritative at start, and frozen during a game", async () => {
+  const { partyCategories } = await import("@cinegather/database");
+  const f = await fixture(),
+    path = `/rooms/${f.id}/activity`,
+    cid = crypto.randomUUID(),
+    prefix = "选类" + cid.slice(0, 6);
+  await db
+    .insert(partyCategories)
+    .values({ id: cid, name: prefix, nameKey: prefix });
+  const words = Array.from({ length: 20 }, (_, i) => ({
+    id: crypto.randomUUID(),
+    answer: prefix + i,
+    answerKey: prefix + i,
+    category: prefix,
+    categoryId: cid,
+    clues: ["一", "二", "三"],
+    enabled: true,
+  }));
+  await db.insert(partyWordBank).values(words);
+  try {
+    expect((await call(f.outsider, path + "/categories")).status).toBe(403);
+    const cat = await call(f.host, path + "/categories");
+    expect(cat.status).toBe(200);
+    expect(JSON.stringify(cat.data)).not.toContain("clues");
+    const begun = await call(f.host, path, {
+      type: "start",
+      target: "draw",
+      generation: 0,
+    });
+    const generation = begun.data.generation;
+    const action = {
+      type: "party",
+      generation,
+      action: { type: "categories", categoryIds: [cid], selectionVersion: 0 },
+    };
+    expect((await call(f.guest, path, action)).status).toBe(403);
+    expect((await call(f.host, path, action)).status).toBe(201);
+    expect((await call(f.host, path, action)).status).toBe(409);
+    expect((await call(f.guest, path)).data.game.categorySelection).toEqual({
+      categoryIds: [cid],
+      version: 1,
+    });
+    for (const who of [f.host, f.guest])
+      await call(who, path, {
+        type: "party",
+        generation,
+        action: { type: "ready", ready: true },
+      });
+    await db
+      .update(partyWordBank)
+      .set({ enabled: false })
+      .where(eq(partyWordBank.id, words[0]!.id));
+    const start = { type: "party", generation, action: { type: "start" } };
+    expect((await call(f.host, path, start)).data.code).toBe(
+      "PARTY_SELECTION_INSUFFICIENT",
+    );
+    expect((await call(f.guest, path)).data.game.phase).toBe("lobby");
+    await db
+      .update(partyWordBank)
+      .set({ enabled: true })
+      .where(eq(partyWordBank.id, words[0]!.id));
+    const started = await call(f.host, path, start);
+    expect(started.status).toBe(201);
+    const [saved] = await db
+      .select()
+      .from(roomActivities)
+      .where(eq(roomActivities.roomId, f.id));
+    const game = (saved!.state as { game: { wordPool: { answer: string }[] } })
+      .game;
+    expect(game.wordPool.length).toBe(20);
+    expect(game.wordPool.every((w) => w.answer.startsWith(prefix))).toBe(true);
+    await db
+      .update(partyCategories)
+      .set({ enabled: false })
+      .where(eq(partyCategories.id, cid));
+    expect((await call(f.host, path, action)).status).toBe(409);
+    expect((await call(f.guest, path)).data.game.phase).toBe("choosing");
+  } finally {
+    await db.delete(partyWordBank).where(eq(partyWordBank.categoryId, cid));
+    await db.delete(partyCategories).where(eq(partyCategories.id, cid));
+  }
+});

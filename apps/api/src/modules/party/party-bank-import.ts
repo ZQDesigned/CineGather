@@ -60,26 +60,48 @@ export function parsePartyImport(input: PartyImportInput) {
     } else {
       const rows = csv(content),
         header = rows.shift();
-      const hasModes =
-        header?.join(",") === "answer,category,clue1,clue2,clue3,enabled,modes";
+      const hierarchical = header?.[1] === "parentCategory";
+      const expected = [
+        "answer",
+        ...(hierarchical ? ["parentCategory"] : []),
+        "category",
+        "clue1",
+        "clue2",
+        "clue3",
+        "enabled",
+      ];
+      const hasModes = header?.at(-1) === "modes";
       if (
-        !hasModes &&
-        header?.join(",") !== "answer,category,clue1,clue2,clue3,enabled"
+        header?.join(",") !==
+        [...expected, ...(hasModes ? ["modes"] : [])].join(",")
       )
-        throw Error("CSV 表头应为 answer,category,clue1,clue2,clue3,enabled");
-      raw = rows.map((r) =>
-        r.length === (hasModes ? 7 : 6)
-          ? {
-              ...(hasModes
-                ? { modes: r[6]?.split("|").map((v) => v.trim()) }
-                : {}),
-              answer: r[0],
-              category: r[1],
-              clues: r.slice(2, 5),
-              enabled: r[5] === "true" ? true : r[5] === "false" ? false : r[5],
-            }
-          : null,
-      );
+        throw Error(
+          "CSV 表头应为 answer,parentCategory,category,clue1,clue2,clue3,enabled,modes（parentCategory 和 modes 列可省略）",
+        );
+      raw = rows.map((r) => {
+        if (r.length !== expected.length + (hasModes ? 1 : 0)) return null;
+        const offset = hierarchical ? 1 : 0;
+        return {
+          answer: r[0],
+          ...(hierarchical && r[1]?.trim() ? { parentCategory: r[1] } : {}),
+          category: r[1 + offset],
+          clues: r.slice(2 + offset, 5 + offset),
+          enabled:
+            r[5 + offset] === "true"
+              ? true
+              : r[5 + offset] === "false"
+                ? false
+                : r[5 + offset],
+          ...(hasModes
+            ? {
+                modes: r
+                  .at(-1)
+                  ?.split("|")
+                  .map((v) => v.trim()),
+              }
+            : {}),
+        };
+      });
     }
     if (raw.length < 1 || raw.length > 500)
       throw Error("每次导入需包含 1–500 道题");

@@ -67,3 +67,16 @@ test("question modes accept drawing, guessing or both, and preserve legacy impor
     }).items[0]?.modes,
   ).toEqual(["draw", "quiz"]);
 });
+test("hierarchical CSV accepts parent categories and blank optional children", () => {
+  const result = parsePartyImport({
+    format: "csv",
+    content:
+      "answer,parentCategory,category,clue1,clue2,clue3,enabled,modes\n阿米娅,游戏,明日方舟,一,二,三,true,draw|quiz\n刻舟求剑,,成语典故,一,二,三,true,quiz",
+  });
+  expect(result.errors).toEqual([]);
+  expect(result.items[0]).toMatchObject({
+    parentCategory: "游戏",
+    category: "明日方舟",
+  });
+  expect(result.items[1]?.category).toBe("成语典故");
+});

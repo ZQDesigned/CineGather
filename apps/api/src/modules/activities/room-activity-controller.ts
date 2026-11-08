@@ -8,7 +8,11 @@ import {
   Body,
 } from "@nestjs/common";
 import { z } from "zod";
-import { activityCommandSchema, okSchema } from "@cinegather/contracts";
+import {
+  activityCommandSchema,
+  okSchema,
+  partyCatalogSchema,
+} from "@cinegather/contracts";
 import { Endpoint, parse, type AuthRequest } from "../../core/http";
 import * as activity from "./room-activities";
 import { issueActivityTicket } from "./room-activity-gateway";
@@ -18,6 +22,12 @@ import {
 } from "./whiteboard-images";
 @Controller("api/v1")
 export class RoomActivityController {
+  @Get("rooms/:roomId/activity/categories")
+  @Endpoint("roomPartyCatalog", partyCatalogSchema, undefined, ["roomId"])
+  categories(@Req() req: AuthRequest, @Param("roomId") id: string) {
+    return activity.activityPartyCatalog(req.user, id);
+  }
+
   @Get("rooms/:roomId/activity")
   @Endpoint("roomActivity", z.any(), undefined, ["roomId"])
   snapshot(@Req() req: AuthRequest, @Param("roomId") id: string) {
