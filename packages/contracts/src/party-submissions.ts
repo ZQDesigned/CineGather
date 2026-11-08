@@ -1,4 +1,5 @@
 import { z } from "zod";
+export const PARTY_SUBMISSIONS_FEATURE = "party-submissions-v1";
 
 export const partyWordAuthorSchema = z.object({ displayName: z.string() });
 export type PartyWordAuthor = z.infer<typeof partyWordAuthorSchema>;

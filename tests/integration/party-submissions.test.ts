@@ -6,6 +6,7 @@ import {
   activePartyWords,
   savePartyWord,
 } from "../../apps/api/src/modules/party/party-bank";
+import { hashAccountPassword } from "../../apps/api/src/modules/accounts/account-passwords";
 import { recordFirstCorrect } from "../../apps/api/src/modules/party/party-learning";
 import {
   users,
@@ -492,4 +493,54 @@ test("attribution follows renames for new pools, survives edits and account dele
       ?.author,
   ).toEqual({ displayName: "投稿用户" });
   await db.delete(partySubmissions).where(eq(partySubmissions.id, s.id));
+});
+
+test("legacy privileged clients keep login, session restore, profile and password flows without unknown submission permission enums", async () => {
+  const p = await person(0, 0, true),
+    password = "Submission legacy 123!";
+  await db
+    .update(users)
+    .set({ passwordHash: await hashAccountPassword(password) })
+    .where(eq(users.id, p.id));
+  async function legacy(
+    path: string,
+    body?: unknown,
+    method = body ? "POST" : "GET",
+  ) {
+    const response = await fetch(origin + "/api/v1" + path, {
+      method,
+      headers: {
+        ...protocolHeaders,
+        "X-CineGather-Features": "esports-v1,esports-v2",
+        Authorization: "Bearer " + p.token,
+        "Content-Type": "application/json",
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    expect(response.status).toBeLessThan(300);
+    return response.json();
+  }
+  expect((await legacy("/me")).permissions).toEqual([]);
+  expect((await call(p, "/me")).data.permissions).toContain(
+    "party-submissions.review",
+  );
+  const username = "submission_" + p.id.slice(0, 8);
+  expect(
+    (await legacy("/accounts/login", { username, password })).user.permissions,
+  ).toEqual([]);
+  expect(
+    (await legacy("/accounts/profile", { displayName: "旧端改名" }, "PATCH"))
+      .permissions,
+  ).toEqual([]);
+  expect((await legacy("/admin/party-submissions")).items).toBeInstanceOf(
+    Array,
+  );
+  expect(
+    (
+      await legacy("/accounts/password", {
+        currentPassword: password,
+        password: password + "new",
+      })
+    ).user.permissions,
+  ).toEqual([]);
 });

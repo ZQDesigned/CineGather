@@ -1,3 +1,7 @@
+import {
+  presentAccountUser,
+  presentAccountSession,
+} from "./account-presentation";
 import { sessionDevice } from "./session-device";
 import * as c from "@cinegather/contracts";
 import {
@@ -29,7 +33,7 @@ export class AccountsController {
   @Get("me")
   @Endpoint("me", c.userSchema)
   me(@Req() req: AuthRequest) {
-    return req.user;
+    return presentAccountUser(req.user, req.get("X-CineGather-Features"));
   }
 
   @Get("registration")
@@ -41,7 +45,13 @@ export class AccountsController {
   @Post("accounts/register")
   @Endpoint("registerAccount", c.sessionSchema, c.registerInput, [], 201)
   register(@Req() req: AuthRequest, @Body() body: unknown) {
-    return registerAccount(parse(c.registerInput, body), req.user, device(req));
+    return registerAccount(
+      parse(c.registerInput, body),
+      req.user,
+      device(req),
+    ).then((session) =>
+      presentAccountSession(session, req.get("X-CineGather-Features")),
+    );
   }
 
   @Post("accounts/login")
@@ -51,6 +61,8 @@ export class AccountsController {
       parse(c.loginInput, body),
       req.ip ?? "unknown",
       device(req),
+    ).then((session) =>
+      presentAccountSession(session, req.get("X-CineGather-Features")),
     );
   }
 
@@ -61,13 +73,17 @@ export class AccountsController {
       req.user,
       parse(c.passwordInput, body),
       device(req),
+    ).then((session) =>
+      presentAccountSession(session, req.get("X-CineGather-Features")),
     );
   }
 
   @Patch("accounts/profile")
   @Endpoint("changeAccountProfile", c.userSchema, c.profileInput)
   profile(@Req() req: AuthRequest, @Body() body: unknown) {
-    return changeAccountProfile(req.user, parse(c.profileInput, body));
+    return changeAccountProfile(req.user, parse(c.profileInput, body)).then(
+      (user) => presentAccountUser(user, req.get("X-CineGather-Features")),
+    );
   }
 
   @Get("accounts/sessions")
