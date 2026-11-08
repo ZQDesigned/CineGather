@@ -323,15 +323,17 @@ test("friend volume is restored in real voice playback across clients, rooms, re
   });
   const otherContext = await browser.newContext();
   const source = await speakerContext.newPage();
-  const identity = async (p: Page) =>
-    p.evaluate(async () => {
-      const { state } = await import("/store.ts" as string);
-      return {
-        id: state().user.id as string,
-        username: state().user.username as string,
-        token: localStorage.getItem("cinegather.session")!,
-      };
+  const identity = async (p: Page) => {
+    const token = await p.evaluate(
+      () => localStorage.getItem("cinegather.session")!,
+    );
+    const response = await request.get(base + "/me", {
+      headers: { Authorization: "Bearer " + token },
     });
+    expect(response.status()).toBe(200);
+    const user = await response.json();
+    return { id: user.id as string, username: user.username as string, token };
+  };
   const saved = async (token: string, id: string) => {
     const response = await request.get(base + "/friends", {
       headers: { Authorization: "Bearer " + token },
@@ -358,25 +360,22 @@ test("friend volume is restored in real voice playback across clients, rooms, re
     await expect(
       page.getByRole("heading", { name, exact: true }),
     ).toBeVisible();
-    await expect
-      .poll(() =>
-        page.evaluate(async () => {
-          const { state } = await import("/store.ts" as string);
-          return state().room?.id;
-        }),
-      )
-      .toBeTruthy();
-    rooms.push(
-      await page.evaluate(async () => {
-        const { state } = await import("/store.ts" as string);
-        return state().room.id as string;
-      }),
-    );
-    return (
+    const code = (
       await page
         .getByRole("button", { name: "复制房间号", exact: true })
         .innerText()
     ).trim();
+    const owner = await identity(page);
+    const response = await request.get(base + "/rooms", {
+      headers: { Authorization: "Bearer " + owner.token },
+    });
+    expect(response.status()).toBe(200);
+    const room = (await response.json()).items.find(
+      (r: { code: string }) => r.code === code,
+    );
+    expect(room).toBeTruthy();
+    rooms.push(room.id);
+    return code;
   };
   try {
     await context.grantPermissions(["microphone"]);
@@ -395,10 +394,13 @@ test("friend volume is restored in real voice playback across clients, rooms, re
     await request.post(base + `/friends/${a.id}/accept`, {
       headers: { Authorization: "Bearer " + s.token },
     });
-    await page.evaluate(async () => {
-      const actions = await import("/controller.ts" as string);
-      await actions.refreshFriends();
-    });
+    await page.getByRole("menuitem", { name: "好友", exact: true }).click();
+    await expect(
+      page.getByRole("button", { name: "音量记忆好友的好友操作", exact: true }),
+    ).toBeVisible();
+    await page
+      .getByRole("button", { name: "返回当前房间", exact: true })
+      .click();
     await expect(
       page.locator('audio[data-cinegather-audio="microphone"]'),
     ).toHaveCount(1);
@@ -419,19 +421,24 @@ test("friend volume is restored in real voice playback across clients, rooms, re
       secondToken,
     );
     const other = await otherContext.newPage();
+    const loadedFriends = other.waitForResponse(
+      (response) =>
+        response.url().endsWith("/api/v1/friends") &&
+        response.request().method() === "GET",
+    );
     await other.goto("/");
-    await expect
-      .poll(() =>
-        other.evaluate(async (id) => {
-          const { state } = await import("/store.ts" as string);
-          return state().memberVolumes[id];
-        }, s.id),
-      )
-      .toBe(200);
-    await other.evaluate(async (id) => {
-      const actions = await import("/controller.ts" as string);
-      await actions.updateFriendPreferences(id, { volume: 75 });
-    }, s.id);
+    const restored = await (await loadedFriends).json();
+    expect(
+      restored.items.find((f: { userId: string }) => f.userId === s.id)?.volume,
+    ).toBe(200);
+    const changed = await other.request.patch(
+      base + `/friends/${s.id}/preferences`,
+      {
+        headers: { Authorization: "Bearer " + secondToken },
+        data: { volume: 75 },
+      },
+    );
+    expect(changed.ok()).toBe(true);
     await expect
       .poll(async () => (await rms(page, 0)) / baseline, { timeout: 15000 })
       .toBeLessThan(0.85);
@@ -486,14 +493,9 @@ test("friend volume is restored in real voice playback across clients, rooms, re
     await page.getByLabel("用户名", { exact: true }).fill(username);
     await page.getByLabel("密码", { exact: true }).fill(password);
     await page.getByRole("button", { name: "登录映聚", exact: true }).click();
-    await expect
-      .poll(() =>
-        page.evaluate(async () => {
-          const { state } = await import("/store.ts" as string);
-          return !state().busy && state().user?.displayName === "音量记忆乙";
-        }),
-      )
-      .toBe(true);
+    await expect(
+      page.getByRole("heading", { name: "晚上好，音量记忆乙", exact: false }),
+    ).toBeVisible();
     await expect(
       page.getByRole("button", { name: "退出登录", exact: true }),
     ).toBeVisible();

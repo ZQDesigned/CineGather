@@ -1,6 +1,7 @@
 import { defineConfig } from "@playwright/test";
 import base from "./playwright.config";
-export default defineConfig(base, {
+export default defineConfig({
+  ...base,
   testMatch: [
     "browser-web.spec.ts",
     "noise-settings.spec.ts",
@@ -18,7 +19,7 @@ export default defineConfig(base, {
   ],
   outputDir: ".local/chrome-support/web-results",
   testIgnore: [],
-  use: { channel: "chrome", baseURL: "http://127.0.0.1:5180" },
+  use: { ...base.use, channel: "chrome", baseURL: "http://127.0.0.1:5180" },
   webServer: [
     {
       command: "bun run dev:api",
