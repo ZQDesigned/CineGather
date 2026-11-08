@@ -1,4 +1,4 @@
-#include "../curl-network-diagnostics.hpp"
+#include "../include/curl-network-diagnostics.hpp"
 #include <cassert>
 #include <iostream>
 #include <string>

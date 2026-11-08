@@ -96,7 +96,7 @@ while i < len(binaries):
                 copy_runtime(name)
             else:
                 raise RuntimeError("Unresolved dependency: " + dep)
-expected = json.loads((root / "native/capture/runtime-lock.json").read_text())[
+expected = json.loads((root / "native/capture/config/runtime-lock.json").read_text())[
     "binaries"
 ]
 if runtime_hashes != expected:
@@ -132,16 +132,16 @@ common = [
     "-I" + str(vendor / "obs-studio-32.2.2/libobs"),
     "-I" + str(vendor / "simde-0.8.2"),
     "-I" + str(generated),
-    "-I" + str(root / "native/capture"),
+    "-I" + str(root / "native/capture/include"),
     "-F" + str(frameworks),
 ]
 subprocess.run(
     common
     + [
         "-fobjc-arc",
-        str(root / "native/capture/host.mm"),
-        str(root / "native/capture/accompaniment.mm"),
-        str(root / "native/capture/process-audio.mm"),
+        str(root / "native/capture/src/macos/host.mm"),
+        str(root / "native/capture/src/macos/accompaniment.mm"),
+        str(root / "native/capture/src/macos/process-audio.mm"),
         "-framework",
         "CoreAudio",
         "-framework",
@@ -170,7 +170,11 @@ if mac_capture.exists():
     shutil.rmtree(mac_capture)
 shutil.copytree(vendor / "obs-studio-32.2.2/plugins/mac-capture", mac_capture)
 subprocess.run(
-    ["python3", str(root / "native/capture/patch-mac-audio.py"), str(mac_capture)],
+    [
+        "python3",
+        str(root / "native/capture/patches/obs/patch-mac-audio.py"),
+        str(mac_capture),
+    ],
     check=True,
 )
 objects = []
@@ -199,7 +203,7 @@ for name in [
             "-I" + str(vendor / "obs-studio-32.2.2/libobs"),
             "-I" + str(vendor / "simde-0.8.2"),
             "-I" + str(generated),
-            "-I" + str(root / "native/capture"),
+            "-I" + str(root / "native/capture/include"),
             "-F" + str(frameworks),
             "-c",
             str(mac_capture / name),
@@ -223,9 +227,10 @@ subprocess.run(
         "-I" + str(vendor / "obs-studio-32.2.2/libobs"),
         "-I" + str(vendor / "simde-0.8.2"),
         "-I" + str(generated),
+        "-I" + str(root / "native/capture/include"),
         "-F" + str(frameworks),
         "-c",
-        str(root / "native/capture/process-audio.mm"),
+        str(root / "native/capture/src/macos/process-audio.mm"),
         "-o",
         str(obj),
     ],
@@ -275,7 +280,8 @@ for name in [
 ]:
     shutil.copy2(vendor / "obs-studio-32.2.2/plugins/obs-webrtc" / name, whip / name)
 subprocess.run(
-    ["python3", str(root / "native/capture/patch-whip.py"), str(whip)], check=True
+    ["python3", str(root / "native/capture/patches/obs/patch-whip.py"), str(whip)],
+    check=True,
 )
 subprocess.run(
     common
@@ -326,7 +332,7 @@ manifest = {
     "sources": [{"name": n, "url": u, "sha256": h} for n, u, h in pins],
     "runtimeInputSha256": runtime_hashes,
     "hostSourceSha256": hashlib.sha256(
-        (root / "native/capture/host.mm").read_bytes()
+        (root / "native/capture/src/macos/host.mm").read_bytes()
     ).hexdigest(),
     "plugins": plugin_names,
     "sync": "absolute-rtp-and-capture-ntp-v1",

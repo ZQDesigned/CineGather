@@ -1,4 +1,4 @@
-#include "../audio-exclusions.h"
+#include "../include/audio-exclusions.h"
 #include <cassert>
 int main() {
   assert(cg_audio_bundle_is_excluded("city.zqdesigned.cinegather", "city.zqdesigned.cinegather"));

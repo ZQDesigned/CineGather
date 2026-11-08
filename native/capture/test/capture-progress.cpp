@@ -1,4 +1,4 @@
-#include "../capture-progress.hpp"
+#include "../include/capture-progress.hpp"
 #include <cassert>
 #include <condition_variable>
 #include <iostream>

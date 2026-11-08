@@ -1,4 +1,4 @@
-#include "../preview-queue.hpp"
+#include "../include/preview-queue.hpp"
 #include <cassert>
 #include <vector>
 

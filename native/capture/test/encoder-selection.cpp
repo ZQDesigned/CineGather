@@ -1,4 +1,4 @@
-#include "../encoder-selection.hpp"
+#include "../include/encoder-selection.hpp"
 #include <cassert>
 struct Choice {
   std::string id, backend;

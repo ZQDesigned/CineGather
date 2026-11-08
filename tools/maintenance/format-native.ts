@@ -87,7 +87,11 @@ let inspected = 0,
 for (const file of files) {
   const kind = language(file);
   if (!kind || (requested && requested !== kind)) continue;
-  const before = await readFile(file);
+  const before = await readFile(file).catch((error: NodeJS.ErrnoException) => {
+    if (error.code === "ENOENT") return undefined;
+    throw error;
+  });
+  if (!before) continue;
   const cmd = command(kind, file);
   const result = Bun.spawnSync(cmd, {
     stdin: before,

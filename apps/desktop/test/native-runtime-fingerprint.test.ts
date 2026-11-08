@@ -10,10 +10,10 @@ test("native runtime reuse invalidates on encoder input changes but not desktop 
       encoding: "utf8",
     }).trim();
   try {
-    await mkdir(join(root, "native/capture"), { recursive: true });
+    await mkdir(join(root, "native/capture/include"), { recursive: true });
     await mkdir(join(root, "tools"));
     await writeFile(
-      join(root, "native/capture/encoder-selection.hpp"),
+      join(root, "native/capture/include/encoder-selection.hpp"),
       "integrated-first\n",
     );
     await writeFile(join(root, "tools/windows-audio-build.ts"), "audio\n");
@@ -21,12 +21,12 @@ test("native runtime reuse invalidates on encoder input changes but not desktop 
     await writeFile(join(root, "package.json"), '{"version":"0.1.28"}');
     expect(hash()).toBe(first);
     await writeFile(
-      join(root, "native/capture/encoder-selection.hpp"),
+      join(root, "native/capture/include/encoder-selection.hpp"),
       "integrated-first\r\n",
     );
     expect(hash()).toBe(first);
     await writeFile(
-      join(root, "native/capture/encoder-selection.hpp"),
+      join(root, "native/capture/include/encoder-selection.hpp"),
       "different-policy\n",
     );
     expect(hash()).not.toBe(first);

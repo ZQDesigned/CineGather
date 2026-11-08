@@ -1,6 +1,6 @@
 // Native integration fixture: one real OBS encoder/output, with both WHIP
 // publication and local preview consumers. No screen permission is required.
-#include "../preview-control.hpp"
+#include "../include/preview-control.hpp"
 #include <algorithm>
 #include <atomic>
 #include <chrono>

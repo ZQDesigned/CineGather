@@ -1,4 +1,4 @@
-#include "../timing.hpp"
+#include "../include/timing.hpp"
 #include <cassert>
 #include <cstdint>
 int main() {

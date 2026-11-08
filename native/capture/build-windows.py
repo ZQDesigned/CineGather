@@ -245,7 +245,7 @@ flags = [
     "/I" + str(obs / "libobs-winrt"),
     "/I" + str(vendor / "simde-0.8.2"),
     "/I" + str(build),
-    "/I" + str(root / "native/capture"),
+    "/I" + str(root / "native/capture/include"),
 ]
 # Build the pinned dispatcher and QSV module to preserve exact adapter identity.
 vpl = vendor / "libvpl-2.15.0"
@@ -285,7 +285,7 @@ qsv = build / "qsv"
 if qsv.exists():
     shutil.rmtree(qsv)
 shutil.copytree(obs / "plugins/obs-qsv11", qsv)
-run([sys.executable, root / "native/capture/patch-qsv-adapter.py", qsv])
+run([sys.executable, root / "native/capture/patches/obs/patch-qsv-adapter.py", qsv])
 qsv_objects = []
 for name in [
     "common_directx11.cpp",
@@ -363,7 +363,7 @@ if os.environ.get("CG_PROTOCOL_TEST") == "1":
             "/DRTC_ENABLE_MEDIA=1",
             "/I" + str(vendor / "libdatachannel-0.24.2/include"),
             "/I" + str(curl / "include"),
-            root / "tools/windows-rtc-probe.cpp",
+            root / "native/capture/test/protocol-probe.cpp",
             "/Fe:" + str(build / "CGProtocolProbe.exe"),
             "/Fo:" + str(build / "protocol-probe.obj"),
             "/link",
@@ -381,7 +381,9 @@ for name in [
     "winrt-dispatch.h",
 ]:
     shutil.copy2(obs / "libobs-winrt" / name, winrt / name)
-run([sys.executable, root / "native/capture/patch-winrt-counters.py", winrt])
+run(
+    [sys.executable, root / "native/capture/patches/obs/patch-winrt-counters.py", winrt]
+)
 headers = [
     "d3d11.h",
     "DispatcherQueue.h",
@@ -436,7 +438,7 @@ run(
     [
         "cl",
         *flags,
-        root / "native/capture/windows-host.cpp",
+        root / "native/capture/src/windows/host.cpp",
         "/Fe:" + str(runtime / "bin/64bit/CGScreenCaptureHost.exe"),
         "/Fo:" + str(build / "host.obj"),
         "/link",
@@ -464,7 +466,7 @@ for name in [
     "whip-utils.h",
 ]:
     shutil.copy2(obs / "plugins/obs-webrtc" / name, whip / name)
-run([sys.executable, root / "native/capture/patch-whip.py", whip])
+run([sys.executable, root / "native/capture/patches/obs/patch-whip.py", whip])
 objects = []
 for name in ["obs-webrtc", "whip-output", "whip-service"]:
     obj = whip / (name + ".obj")
@@ -535,7 +537,7 @@ shutil.copy2(obs / "COPYING", runtime / "COPYING-OBS.txt")
 import importlib.util
 
 spec = importlib.util.spec_from_file_location(
-    "source_package", root / "native/capture/source-package.py"
+    "source_package", root / "native/capture/build-support/source-package.py"
 )
 source_package = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(source_package)
@@ -574,10 +576,10 @@ source_artifact = source_package.package_sources(
             "buildFingerprint": fingerprint_module.fingerprint(root),
             "intelVplSourceSha256": vpl_digest,
             "encoderSelectionSourceSha256": hashlib.sha256(
-                (root / "native/capture/encoder-selection.hpp").read_bytes()
+                (root / "native/capture/include/encoder-selection.hpp").read_bytes()
             ).hexdigest(),
             "hostSourceSha256": hashlib.sha256(
-                (root / "native/capture/windows-host.cpp").read_bytes()
+                (root / "native/capture/src/windows/host.cpp").read_bytes()
             ).hexdigest(),
         },
         indent=2,

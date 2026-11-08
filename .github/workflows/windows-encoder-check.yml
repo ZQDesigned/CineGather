@@ -3,10 +3,12 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - native/capture/windows-host.cpp
+      - native/capture/src/windows/**
       - native/capture/build-windows.py
-      - native/capture/encoder-selection.hpp
-      - native/capture/patch-qsv-adapter.py
+      - native/capture/include/**
+      - native/capture/patches/obs/**
+      - native/capture/build-support/**
+      - native/capture/runtime-fingerprint.py
       - native/capture/test/encoder-selection.cpp
       - tools/validation/windows/native-smoke.ts
       - .github/workflows/windows-encoder-check.yml

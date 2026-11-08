@@ -8,7 +8,7 @@ import { join, resolve } from "node:path";
 test("production HWND size callbacks stay responsive while the video thread holds graphics, and track resizing/minimize", () => {
   const root = mkdtempSync(join(tmpdir(), "cg-window-status-"));
   try {
-    const host = readFileSync("native/capture/windows-host.cpp", "utf8");
+    const host = readFileSync("native/capture/src/windows/host.cpp", "utf8");
     const callbacks = host.slice(
       host.indexOf("struct ExactWindow {"),
       host.indexOf("static HMONITOR monitorHandle"),
@@ -26,7 +26,7 @@ test("production HWND size callbacks stay responsive while the video thread hold
       "-Werror=switch",
       "-pthread",
       "-I",
-      resolve("native/capture"),
+      resolve("native/capture/include"),
       join(root, "fixture.cpp"),
       "-o",
       join(root, "fixture"),
@@ -95,7 +95,7 @@ test("production start ACK does not execute the graphics-dependent status snapsh
   const root = mkdtempSync(join(tmpdir(), "cg-start-ack-"));
   try {
     const host = readFileSync(
-      process.env.CG_TEST_HOST_SOURCE ?? "native/capture/windows-host.cpp",
+      process.env.CG_TEST_HOST_SOURCE ?? "native/capture/src/windows/host.cpp",
       "utf8",
     );
     const handler = host.slice(host.indexOf("static Data handle("));
@@ -114,7 +114,7 @@ test("production start ACK does not execute the graphics-dependent status snapsh
       "-std=c++17",
       "-Werror=switch",
       "-I",
-      resolve("native/capture"),
+      resolve("native/capture/include"),
       join(root, "fixture.cpp"),
       "-o",
       join(root, "fixture"),

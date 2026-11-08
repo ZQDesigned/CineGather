@@ -13,6 +13,7 @@ test("business modules live in domains while application entry points stay stabl
       ["apps/desktop/src/main/new-service.ts", ""],
       ["apps/desktop/src/renderer/ui/RoomEditor.tsx", ""],
       ["tools/new-build.ts", ""],
+      ["native/capture/network-diagnostics.hpp", ""],
     ]),
   );
   expect(issues.map((issue) => issue.file)).toEqual([
@@ -20,6 +21,7 @@ test("business modules live in domains while application entry points stay stabl
     "apps/desktop/src/main/new-service.ts",
     "apps/desktop/src/renderer/ui/RoomEditor.tsx",
     "tools/new-build.ts",
+    "native/capture/network-diagnostics.hpp",
   ]);
 });
 

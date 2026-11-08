@@ -9,7 +9,7 @@ const output = join(
   ".local/native-runtime/windows/CGProcessAudioHost.exe",
 );
 mkdirSync(dirname(output), { recursive: true });
-const source = join(root, "native/capture/windows-process-audio.cpp");
+const source = join(root, "native/capture/src/windows/process-audio.cpp");
 if (process.platform === "win32") {
   const vswhere = join(
     process.env["ProgramFiles(x86)"] ?? "C:/Program Files (x86)",

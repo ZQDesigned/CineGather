@@ -7,7 +7,10 @@ import zipfile
 
 class SourceDistributionTest(unittest.TestCase):
     def test_source_is_downloadable_separately_and_absent_from_runtime(self):
-        script = pathlib.Path(__file__).resolve().parents[1] / "source-package.py"
+        script = (
+            pathlib.Path(__file__).resolve().parents[1]
+            / "build-support/source-package.py"
+        )
         self.assertTrue(
             script.is_file(), "Source distribution needs an independent packager"
         )

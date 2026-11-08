@@ -1,8 +1,13 @@
 import { dirname, posix } from "node:path";
-import { readFile } from "node:fs/promises";
+import { readFile, stat } from "node:fs/promises";
 import ts from "typescript";
 
 const entryPoints: Record<string, readonly string[]> = {
+  "native/capture/": [
+    "build-macos.py",
+    "build-windows.py",
+    "runtime-fingerprint.py",
+  ],
   "apps/api/src/": [
     "app.ts",
     "main.ts",
@@ -37,7 +42,6 @@ const entryPoints: Record<string, readonly string[]> = {
     "dev.ts",
     "check-git.ts",
     "windows-audio-build.ts",
-    "windows-rtc-probe.cpp",
     "native-maintenance.py",
     "native-backup.sh",
     "native-renew-certificate.sh",
@@ -133,6 +137,7 @@ if (import.meta.main) {
       "--others",
       "--exclude-standard",
       "-z",
+      "native",
       "apps",
       "packages",
       "tools",
@@ -147,6 +152,7 @@ if (import.meta.main) {
   const files = new Map<string, string>();
   for (const file of new Set(names)) {
     try {
+      if (!/\.[cm]?[jt]sx?$/.test(file)) await stat(file);
       files.set(
         file,
         /\.[cm]?[jt]sx?$/.test(file) ? await readFile(file, "utf8") : "",
