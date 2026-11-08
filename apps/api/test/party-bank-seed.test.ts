@@ -103,9 +103,31 @@ test("expanded bank spans many themes, targets compatible games, and never spell
   expect(
     new Set(partyWordSeed.map((w) => w.category)).size,
   ).toBeGreaterThanOrEqual(40);
+  const gameCategories = new Set([
+    "游戏角色",
+    "游戏道具",
+    "游戏玩法",
+    "我的世界",
+    "宝可梦",
+    "超级马力欧",
+    "植物大战僵尸",
+    "塞尔达传说",
+    "英雄联盟",
+    "守望先锋",
+    "原神",
+    "街头霸王",
+    "最终幻想",
+    "战神",
+    "古墓丽影",
+    "巫师",
+    "光环",
+    "星之卡比",
+    "索尼克",
+    "吃豆人",
+  ]);
   expect(
-    partyWordExpansion.filter((w) => w.category.startsWith("游戏")).length,
-  ).toBeGreaterThanOrEqual(150);
+    partyWordExpansion.filter((w) => gameCategories.has(w.category)).length,
+  ).toBe(144);
   expect(
     partyWordSeed.filter((w) => !w.modes || w.modes.includes("draw")).length,
   ).toBeGreaterThanOrEqual(1000);

@@ -51,7 +51,21 @@ test("category migration preserves edited legacy questions and optional root own
         "SELECT id,answer,answer_key,category,clues,enabled,modes,version,updated_at FROM party_word_bank ORDER BY id",
       )
     ).rows;
-    await migrate(drizzle(pool), { migrationsFolder: source });
+    const categoryJournal = JSON.parse(
+      await readFile(join(source, "meta/_journal.json"), "utf8"),
+    );
+    categoryJournal.entries = categoryJournal.entries.filter(
+      (e: { idx: number }) => e.idx <= 35,
+    );
+    await copyFile(
+      join(source, "0035_party_categories.sql"),
+      join(dir, "0035_party_categories.sql"),
+    );
+    await writeFile(
+      join(dir, "meta/_journal.json"),
+      JSON.stringify(categoryJournal),
+    );
+    await migrate(drizzle(pool), { migrationsFolder: dir });
     expect(
       (
         await pool.query(
@@ -77,7 +91,7 @@ test("category migration preserves edited legacy questions and optional root own
     expect(categories.find((c) => c.name === "明日方舟")?.parent_id).toBe(
       game.id,
     );
-    await migrate(drizzle(pool), { migrationsFolder: source });
+    await migrate(drizzle(pool), { migrationsFolder: dir });
     expect(
       (await pool.query("SELECT * FROM party_categories ORDER BY id")).rows,
     ).toEqual(categories);

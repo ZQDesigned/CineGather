@@ -253,6 +253,13 @@
       "when": 1794110000000,
       "tag": "0035_party_categories",
       "breakpoints": true
+    },
+    {
+      "idx": 36,
+      "version": "7",
+      "when": 1794156000000,
+      "tag": "0036_party_game_category_review",
+      "breakpoints": true
     }
   ]
 }
