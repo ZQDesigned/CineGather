@@ -45,51 +45,41 @@ async function fixture(count = 3) {
   }));
   for (const p of players) {
     people.push(p.id);
-    await db
-      .insert(users)
-      .values({
-        id: p.id,
-        username: "depart_" + p.id.slice(0, 8),
-        displayName: "退房验证",
-        passwordHash: "fixture",
-      });
-    await db
-      .insert(credentials)
-      .values({
-        id: p.credential,
-        userId: p.id,
-        kind: "account",
-        secretHash: hash(p.token),
-        expiresAt: new Date(Date.now() + 3600000),
-      });
-  }
-  await db
-    .insert(rooms)
-    .values({
-      id: roomId,
-      code: roomId.replaceAll("-", "").slice(0, 8).toUpperCase(),
-      name: "退房回合验证",
-      ownerUserId: players[0]!.id,
-      maxMembers: 5,
+    await db.insert(users).values({
+      id: p.id,
+      username: "depart_" + p.id.slice(0, 8),
+      displayName: "退房验证",
+      passwordHash: "fixture",
     });
+    await db.insert(credentials).values({
+      id: p.credential,
+      userId: p.id,
+      kind: "account",
+      secretHash: hash(p.token),
+      expiresAt: new Date(Date.now() + 3600000),
+    });
+  }
+  await db.insert(rooms).values({
+    id: roomId,
+    code: roomId.replaceAll("-", "").slice(0, 8).toUpperCase(),
+    name: "退房回合验证",
+    ownerUserId: players[0]!.id,
+    maxMembers: 5,
+  });
   await db.insert(leases).values({ roomId });
   for (const p of players) {
-    await db
-      .insert(members)
-      .values({
-        roomId,
-        userId: p.id,
-        role: p === players[0] ? "owner" : "member",
-        admittedUntil: new Date(Date.now() + 120000),
-      });
-    await db
-      .insert(roomSessions)
-      .values({
-        roomId,
-        userId: p.id,
-        credentialId: p.credential,
-        admittedUntil: new Date(Date.now() + 120000),
-      });
+    await db.insert(members).values({
+      roomId,
+      userId: p.id,
+      role: p === players[0] ? "owner" : "member",
+      admittedUntil: new Date(Date.now() + 120000),
+    });
+    await db.insert(roomSessions).values({
+      roomId,
+      userId: p.id,
+      credentialId: p.credential,
+      admittedUntil: new Date(Date.now() + 120000),
+    });
   }
   async function call(index: number, path: string, body?: unknown) {
     const r = await fetch(origin + "/api/v1" + path, {
