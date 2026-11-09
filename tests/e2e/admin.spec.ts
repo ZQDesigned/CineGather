@@ -88,6 +88,7 @@ test("admin can search users, confirm account actions, close rooms and inspect a
   await page.screenshot({ path: ".local/admin-account-only/admin-users.png" });
   await page.setViewportSize({ width: 980, height: 680 });
   const search = page.getByLabel("搜索管理数据", { exact: true });
+  await expect(search).toBeInViewport();
   await search.fill(member.user.username);
   await search.press("Enter");
   const row = page.getByRole("row").filter({ hasText: member.user.username });

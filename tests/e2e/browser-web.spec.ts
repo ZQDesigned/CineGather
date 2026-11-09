@@ -52,13 +52,15 @@ test("production Chrome uses same-origin API, shared room UI, browser invites, v
     .split("\n")
     .at(-1)!
     .replace(/^加入链接：/, "");
-  expect(invite).toMatch(/^http:\/\/127\.0\.0\.1:5180\/\?room=.*#invite=/);
+  expect(new URL(invite).origin).toBe(new URL(page.url()).origin);
+  expect(new URL(invite).searchParams.get("room")).toMatch(/^[A-F0-9]{8}$/);
+  expect(new URL(invite).hash).toMatch(/^#invite=/);
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   const other = await browser.newContext({ permissions: ["microphone"] });
   const viewer = await other.newPage();
   try {
     await viewer.goto(invite);
-    expect(viewer.url()).toBe("http://127.0.0.1:5180/");
+    expect(viewer.url()).toBe(new URL(invite).origin + "/");
     await registerTestAccount(viewer, "Chrome 观众");
     await expect(
       viewer.getByRole("dialog", { name: "加入朋友的房间" }),
@@ -151,7 +153,7 @@ test("production Chrome uses same-origin API, shared room UI, browser invites, v
       ),
     ).toBe(true);
     expect(requests.length).toBeGreaterThan(3);
-    expect(new Set(requests)).toEqual(new Set(["http://127.0.0.1:5180"]));
+    expect(new Set(requests)).toEqual(new Set([new URL(page.url()).origin]));
     await leave(viewer);
   } finally {
     await other.close();

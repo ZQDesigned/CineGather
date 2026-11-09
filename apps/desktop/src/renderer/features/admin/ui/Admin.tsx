@@ -70,12 +70,18 @@ const Surface = styled.section`
   }
   .admin-toolbar {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 16px;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+  .admin-toolbar > .ant-tabs {
+    width: 100%;
+    min-width: 0;
   }
   .admin-toolbar .ant-input-search {
-    max-width: 300px;
+    width: 300px;
+    max-width: 100%;
+    align-self: flex-end;
   }
   .ant-tabs-nav {
     margin: 0;
