@@ -7,6 +7,7 @@ export default defineConfig({
     "party-categories.spec.ts",
     "party-submissions.spec.ts",
     "noise-settings.spec.ts",
+    "settings-page.spec.ts",
     "noise-migration.spec.ts",
     "required-update.spec.ts",
     "registration.spec.ts",

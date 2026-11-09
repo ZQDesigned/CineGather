@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, _electron as electron } from "@playwright/test";
 import { resolve } from "node:path";
@@ -54,7 +55,7 @@ test("packaged shortcut recording suspends global actions, captures the native i
     });
     await expect(recorder).toContainText("⌘ + ⌥ + K");
     await expect.poll(registered).toBe(true);
-    // Cancelling does not replace the draft or close the settings modal.
+    // Cancelling does not replace the draft or leave the settings page.
     await recorder.click();
     await expect.poll(registered).toBe(false);
     await app.evaluate(({ BrowserWindow }) => {
@@ -65,7 +66,9 @@ test("packaged shortcut recording suspends global actions, captures the native i
       );
     });
     await expect(recorder).toContainText("⌘ + ⌥ + K");
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "设置与设备页面" }),
+    ).toBeVisible();
     await expect.poll(registered).toBe(true);
     await recorder.click();
     await expect.poll(registered).toBe(false);
@@ -80,6 +83,7 @@ test("packaged shortcut recording suspends global actions, captures the native i
     });
     await expect(recorder).toHaveAttribute("aria-pressed", "false");
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     expect(
       await page.evaluate(
         async () => (await window.desktop!.loadSettings()).muteShortcut,
@@ -144,7 +148,9 @@ test("packaged desktop starts with a sandboxed renderer and the minimal typed br
     await page
       .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "设置与设备页面" }),
+    ).toBeVisible();
     await page.screenshot({ path: ".local/desktop-settings.png" });
   } finally {
     await app.close();
@@ -372,6 +378,7 @@ test("packaged global hold uses the native state boundary, combines foreground h
       page.getByRole("button", { name: "全局按住说话", exact: true }),
     ).toContainText("⌃ + ⌥ + K");
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect(
       page.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeVisible();
@@ -545,7 +552,7 @@ test("a failed startup hotkey keeps saved push-to-talk enabled and joins muted",
     await expect(
       page.getByRole("checkbox", { name: "按键说话" }),
     ).toBeChecked();
-    await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+    await leaveSettings(page);
     await registerTestAccount(page, "快捷键失效保持静音");
     await page
       .getByRole("button", { name: "创建私人房间", exact: true })

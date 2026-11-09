@@ -1,3 +1,4 @@
+import { openSettings } from "../../settings/settings-navigation";
 import {
   Alert,
   Card,
@@ -228,7 +229,7 @@ export function Diagnostics() {
           {connection === "unavailable" && (
             <Button
               icon={<Settings size={16} />}
-              onClick={() => update({ modal: "settings" })}
+              onClick={() => openSettings("server")}
             >
               打开设置
             </Button>

@@ -1,3 +1,4 @@
+import { openSettings } from "../../settings/settings-navigation";
 import { Alert, Button, Tabs } from "antd";
 import {
   SlidersHorizontal,
@@ -117,7 +118,7 @@ export function Welcome() {
         <Button
           type="link"
           htmlType="button"
-          onClick={() => update({ modal: "settings" })}
+          onClick={() => openSettings("server")}
         >
           <SlidersHorizontal size={14} />
           连接自托管服务器

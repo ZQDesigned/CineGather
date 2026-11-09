@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
 import { unzipSync, strFromU8 } from "fflate";
@@ -17,6 +18,7 @@ test("microphone noise reduction defaults to basic and an explicit enhanced choi
   await select.click();
   await page.getByRole("option", { name: "增强降噪", exact: true }).click();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await leaveSettings(page);
   await page.reload();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await expect(
@@ -32,7 +34,7 @@ test("microphone noise reduction defaults to basic and an explicit enhanced choi
   ).toBe("enhanced");
 });
 
-test("closing the microphone test during model loading stops the raw capture immediately", async ({
+test("leaving settings during model loading stops the raw microphone capture immediately", async ({
   page,
 }) => {
   let loaded!: () => void;
@@ -71,7 +73,7 @@ test("closing the microphone test during model loading stops the raw capture imm
     await page.getByRole("option", { name: "增强降噪", exact: true }).click();
     await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
     await loading;
-    await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+    await leaveSettings(page);
     await expect
       .poll(() =>
         page.evaluate(
@@ -115,6 +117,7 @@ test("changing noise reduction hot-applies to the room without unmuting a muted 
         .click();
       await page.getByRole("option", { name: label, exact: true }).click();
       await page.getByRole("button", { name: "保存设置", exact: true }).click();
+      await leaveSettings(page);
       await expect(page.getByRole("dialog")).toHaveCount(0);
       await expect(
         page.getByRole("button", { name: "开启麦克风", exact: true }),
@@ -147,6 +150,7 @@ test("changing noise reduction hot-applies to the room without unmuting a muted 
       await page
         .getByRole("button", { name: "关闭对话框", exact: true })
         .click();
+    await leaveSettings(page);
     await page.getByRole("button", { name: "离开房间", exact: true }).click();
   }
 });

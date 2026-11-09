@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
 type DeviceWindow = Window & {
@@ -102,14 +103,14 @@ test("lost saved devices fall back persistently and never show opaque IDs; priva
       false,
     );
   });
-  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await leaveSettings(page);
   await page.getByRole("menuitem", { name: "设置与设备" }).click();
   await expect(
     page.getByRole("combobox", { name: "麦克风", exact: true }).locator(".."),
   ).toContainText("已保存的麦克风（等待设备授权）");
-  expect(await page.getByRole("dialog").innerText()).not.toContain(
-    "unknown-private-id",
-  );
+  expect(
+    await page.getByRole("region", { name: "设置与设备页面" }).innerText(),
+  ).not.toContain("unknown-private-id");
 });
 test("unplug recovery retains muted intent and the next unmute uses the default input", async ({
   page,

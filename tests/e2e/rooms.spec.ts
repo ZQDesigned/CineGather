@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { participantOwner } from "@cinegather/contracts";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
@@ -164,7 +165,7 @@ test("two independent clients join a real LiveKit room, synchronize microphone a
     await page.getByRole("button", { name: "离开房间" }).click();
   }
 });
-test("settings device tests release captured microphone when the dialog closes", async ({
+test("settings device tests release captured microphone when leaving the page", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -185,7 +186,7 @@ test("settings device tests release captured microphone when the dialog closes",
   await expect(
     page.getByRole("button", { name: "停止测试", exact: true }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await leaveSettings(page);
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(
     await page.evaluate(() => {
@@ -522,7 +523,7 @@ test("double-clicking the fullscreen control performs exactly one operation per 
   }
 });
 
-test("closing settings while microphone permission is pending releases the late capture", async ({
+test("leaving settings while microphone permission is pending releases the late capture", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -571,7 +572,7 @@ test("closing settings while microphone permission is pending releases the late 
       ),
     )
     .toBe(true);
-  await page.getByRole("button", { name: "关闭对话框" }).click();
+  await leaveSettings(page);
   await page.evaluate(() =>
     (
       window as unknown as { delayedDeviceProbe: { release: () => void } }
@@ -701,6 +702,7 @@ test("switching a selected microphone back to system default updates the active 
     const before = await calls();
     await page.getByRole("option").last().click();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect.poll(calls).toBeGreaterThan(before);
     const selectedCalls = await calls();
@@ -712,6 +714,7 @@ test("switching a selected microphone back to system default updates the active 
       .getByRole("option", { name: "系统默认麦克风", exact: true })
       .click();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect.poll(calls).toBeGreaterThan(selectedCalls);
   } finally {
@@ -737,6 +740,7 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await page.getByRole("checkbox", { name: /^按键说话/ }).check();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect(
       page.getByRole("button", { name: "开启麦克风", exact: true }),
     ).toBeVisible();
@@ -922,6 +926,7 @@ test("push-to-talk released during an SFU outage stays muted after reconnection"
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await page.getByRole("checkbox", { name: /^按键说话/ }).check();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await leaveSettings(page);
   await expect(
     page.getByRole("button", { name: "开启麦克风", exact: true }),
   ).toBeVisible();

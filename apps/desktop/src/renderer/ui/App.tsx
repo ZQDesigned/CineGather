@@ -1,4 +1,9 @@
 import { Points } from "../features/points/ui/Points";
+import { Settings as SettingsPage } from "../features/settings/ui/Settings";
+import {
+  isSettingsPage,
+  openSettings,
+} from "../features/settings/settings-navigation";
 import { QuestionSubmissions } from "../features/party-submissions/ui/QuestionSubmissions";
 import { WhiteboardHistory } from "../features/activities/ui/RoomActivities";
 import { GameLink, GameLinkNotifications } from "../features/games/ui/GameLink";
@@ -69,24 +74,29 @@ function readSection():
   | "friends"
   | "games"
   | "submissions"
+  | "settings"
   | "points" {
   const route = location.hash
     ? location.hash.slice(1)
     : location.pathname.replace(/\/$/, "");
-  return route === "/points"
-    ? "points"
-    : route === "/admin"
-      ? "admin"
-      : route === "/friends"
-        ? "friends"
-        : route === "/games"
-          ? "games"
-          : route === "/submissions"
-            ? "submissions"
-            : "main";
+  return route.split("?")[0] === "/settings"
+    ? "settings"
+    : route === "/points"
+      ? "points"
+      : route === "/admin"
+        ? "admin"
+        : route === "/friends"
+          ? "friends"
+          : route === "/games"
+            ? "games"
+            : route === "/submissions"
+              ? "submissions"
+              : "main";
 }
 const mainPath = () =>
-  /^\/(admin|friends|games|submissions|points)\/?$/.test(location.pathname)
+  /^\/(admin|friends|games|submissions|points|settings)\/?$/.test(
+    location.pathname,
+  )
     ? "/"
     : location.pathname;
 export function App() {
@@ -152,6 +162,7 @@ export function App() {
       if (
         !platform.globalShortcuts &&
         !current.modal &&
+        !isSettingsPage() &&
         current.roomState === "connected" &&
         !(
           event.target instanceof Element &&
@@ -193,7 +204,8 @@ export function App() {
             'input, textarea, select, button, [role="combobox"], [role="slider"], [role="tab"], [role="menuitem"], [role="radio"], a, [contenteditable="true"]',
           )
         ) &&
-        !current.modal
+        !current.modal &&
+        !isSettingsPage()
       ) {
         event.preventDefault();
         holdActive = true;
@@ -391,7 +403,7 @@ export function App() {
           <Menu
             className="sidebar-menu"
             mode="inline"
-            selectedKeys={[]}
+            selectedKeys={section === "settings" ? ["settings"] : []}
             items={[
               ...(!capabilities().desktop
                 ? [
@@ -414,7 +426,7 @@ export function App() {
                 key: "settings",
                 icon: <Settings size={18} />,
                 label: "设置与设备",
-                onClick: () => update({ modal: "settings" }),
+                onClick: () => openSettings(),
               },
               {
                 key: "diagnostics",
@@ -455,19 +467,21 @@ export function App() {
               { title: "我的空间" },
               {
                 title:
-                  section === "points"
-                    ? "我的积分"
-                    : admin
-                      ? "管理后台"
-                      : section === "games"
-                        ? "游戏联机"
-                        : section === "submissions"
-                          ? "题目投稿"
-                          : section === "friends"
-                            ? "好友"
-                            : app.room && !home
-                              ? app.room.name
-                              : "放映厅",
+                  section === "settings"
+                    ? "设置与设备"
+                    : section === "points"
+                      ? "我的积分"
+                      : admin
+                        ? "管理后台"
+                        : section === "games"
+                          ? "游戏联机"
+                          : section === "submissions"
+                            ? "题目投稿"
+                            : section === "friends"
+                              ? "好友"
+                              : app.room && !home
+                                ? app.room.name
+                                : "放映厅",
               },
             ]}
           />
@@ -552,7 +566,11 @@ export function App() {
         {section === "games" && !capabilities().desktop ? (
           <GameLinkPromo />
         ) : !app.user ? (
-          <Welcome />
+          section === "settings" ? (
+            <SettingsPage />
+          ) : (
+            <Welcome />
+          )
         ) : (
           <>
             {app.room && (
@@ -564,7 +582,9 @@ export function App() {
                 )}
               </div>
             )}
-            {admin ? (
+            {section === "settings" ? (
+              <SettingsPage />
+            ) : admin ? (
               <Admin onHome={showHome} />
             ) : section === "games" && window.desktop?.gameLink ? (
               <GameLink />

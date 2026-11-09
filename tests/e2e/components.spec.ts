@@ -112,7 +112,9 @@ test("settings tabs preserve draft fields and keep the matching submit action vi
     page.getByRole("button", { name: "页面内麦克风静音", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toBeVisible();
+  await expect(
+    page.getByRole("region", { name: "设置与设备页面" }),
+  ).toBeVisible();
   await expect(
     page.getByRole("button", { name: "页面内麦克风静音", exact: true }),
   ).toContainText(
@@ -120,7 +122,7 @@ test("settings tabs preserve draft fields and keep the matching submit action vi
   );
   expect(
     await page
-      .locator(".ant-modal-body")
+      .locator(".settings-tabs > .ant-tabs-body-holder")
       .evaluate((el) => el.scrollHeight <= el.clientHeight),
   ).toBe(true);
   await page.screenshot({ path: ".local/ui-compact/settings-sharing-min.png" });

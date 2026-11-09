@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 import { unzipSync, strFromU8 } from "fflate";
@@ -177,6 +178,7 @@ test("Chrome settings have page-only shortcuts, no tray controls, and mute works
       page.getByRole("button", { name: "页面内麦克风静音", exact: true }),
     ).toContainText("K");
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await page.locator(".stage").click();
     await page.keyboard.press("Control+Shift+K");
@@ -267,6 +269,7 @@ test("Chrome ignores saved push-to-talk and keeps free-mic or manual mute across
     ).toHaveCount(0);
     await expect(page.getByRole("button", { name: /按住说话/ })).toHaveCount(0);
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect(mic(true)).toBeEnabled();
     expect(
@@ -373,7 +376,7 @@ test("unsupported browser media APIs keep settings and basic chat usable", async
     await expect(
       page.getByRole("button", { name: "测试麦克风", exact: true }),
     ).toBeDisabled();
-    await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+    await leaveSettings(page);
     await page
       .getByRole("button", { name: "选择屏幕开始共享", exact: true })
       .click();

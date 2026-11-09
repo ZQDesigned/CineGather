@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import {
   test,
   expect,
@@ -434,7 +435,7 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     await expect(
       sender.getByRole("combobox", { name: "麦克风音效", exact: true }),
     ).toHaveCount(0);
-    await sender.keyboard.press("Escape");
+    await leaveSettings(sender);
     const control = sender.getByRole("button", {
       name: "麦克风音效",
       exact: true,

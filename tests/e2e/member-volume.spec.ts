@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { test, expect, type Page } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
 import { defaultSettings } from "../../apps/desktop/src/shared/settings";
@@ -263,6 +264,7 @@ test("200% member volume doubles received voice samples, isolates other speakers
       .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect(page.getByRole("dialog")).toHaveCount(0);
     expect((await rms(page, 0)) / baseline).toBeGreaterThan(1.8);
     await leave(quiet);

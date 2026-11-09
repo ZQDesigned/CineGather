@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { test, expect, _electron as electron } from "@playwright/test";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
@@ -49,7 +50,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     await expect(
       page.getByRole("switch", { name: "显示房间成员浮层", exact: true }),
     ).toBeChecked();
-    await page.getByRole("button", { name: "取消", exact: true }).click();
+    await leaveSettings(page);
     await page
       .getByRole("button", { name: "创建私人房间", exact: true })
       .click();
@@ -162,7 +163,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     await expect(
       friend.getByRole("tab", { name: "成员浮层", exact: true }),
     ).toHaveCount(0);
-    await friend.getByRole("button", { name: "取消", exact: true }).click();
+    await leaveSettings(friend);
     const code = (
       await page
         .getByRole("button", { name: "复制房间号", exact: true })
@@ -249,6 +250,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     });
     await enabled.click();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect
       .poll(() =>
         app.evaluate(({ BrowserWindow }) =>
@@ -268,6 +270,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
       .focus();
     await page.keyboard.press("Home");
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect
       .poll(() =>
         app.evaluate(({ BrowserWindow }) =>
@@ -312,6 +315,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     await page.getByRole("combobox", { name: "浮层位置", exact: true }).click();
     await page.getByRole("option", { name: "左侧居中", exact: true }).click();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
+    await leaveSettings(page);
     await expect
       .poll(() =>
         app.evaluate(({ BrowserWindow, screen }) => {

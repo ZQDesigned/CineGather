@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { registerTestAccount } from "./helpers/account";
@@ -151,14 +152,16 @@ test("room audio arrow applies devices and noise immediately without unmuting or
     await page
       .getByRole("menuitem", { name: "设置与设备", exact: true })
       .click();
-    await expect(page.getByRole("dialog")).toBeVisible();
+    await expect(
+      page.getByRole("region", { name: "设置与设备页面" }),
+    ).toBeVisible();
     await expect(
       page
-        .getByRole("dialog")
+        .getByRole("region", { name: "设置与设备页面" })
         .getByRole("combobox", { name: "麦克风降噪", exact: true })
         .locator(".."),
     ).toContainText("基础降噪");
-    await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+    await leaveSettings(page);
   } finally {
     await page
       .evaluate(async () => {

@@ -326,6 +326,12 @@ export function GlobalStyles() {
         .ant-message {
           top: 46px !important;
         }
+        .ant-message .ant-message-list-content {
+          pointer-events: none;
+        }
+        .ant-message .ant-message-notice {
+          pointer-events: auto;
+        }
         .ant-notification-notice-description {
           overflow-wrap: anywhere;
         }

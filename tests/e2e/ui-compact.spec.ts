@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect } from "@playwright/test";
 
@@ -179,7 +180,7 @@ test("failed API verification preserves identity until an explicit second confir
     await page.evaluate(() => localStorage.getItem("cinegather.session")),
   ).toBe(token);
   await page.getByRole("button", { name: "取消保存", exact: true }).click();
-  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await leaveSettings(page);
   await open();
   await Promise.all([
     page.waitForEvent("load"),
@@ -205,7 +206,7 @@ test("failed API verification preserves identity until an explicit second confir
   ).toHaveCount(0);
 });
 
-test("invalid health bodies and timeouts require confirmation, and closing settings cancels a pending address change", async ({
+test("invalid health bodies and timeouts require confirmation, and leaving settings cancels a pending address change", async ({
   page,
 }) => {
   await page.goto("/");
@@ -242,11 +243,11 @@ test("invalid health bodies and timeouts require confirmation, and closing setti
     page.getByRole("dialog", { name: "无法验证服务器" }),
   ).toContainText("有效的映聚健康状态");
   await page.getByRole("button", { name: "取消保存", exact: true }).click();
-  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await leaveSettings(page);
   mode = "pending";
   await open();
   await expect.poll(() => requests).toBe(2);
-  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await leaveSettings(page);
   complete?.();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   expect(

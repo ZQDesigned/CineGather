@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import {
   currentClientVersion,
   nextClientVersion,
@@ -172,6 +173,7 @@ test("Windows auto-download setting is on by default and can be saved off", asyn
   );
   await page.getByRole("tab", { name: "音频设备", exact: true }).click();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await leaveSettings(page);
   expect(await page.evaluate(() => window.updateTest!.calls)).not.toContain(
     "auto-download:true",
   );
@@ -186,7 +188,7 @@ test("portable has no update actions and browser has no desktop update tab", asy
   await expect(
     page.getByRole("button", { name: "检查更新", exact: true }),
   ).toHaveCount(0);
-  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await leaveSettings(page);
   // A fresh browser context has no preload bridge.
   const browser = await page.context().browser()!.newContext();
   try {
@@ -206,7 +208,7 @@ test("background notification opens the update panel and network errors can retr
   page,
 }) => {
   await fixture(page, "install");
-  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await leaveSettings(page);
   await page.evaluate(
     (latestVersion) =>
       window.updateTest!.emit({ status: "available", latestVersion }),
@@ -387,7 +389,7 @@ test("updating from a real room waits for server leave and keeps the installer s
   page.on("pageerror", (error) => errors.push(error.message));
   const { registerTestAccount } = await import("./helpers/account");
   await fixture(page, "install");
-  await page.getByRole("button", { name: "取消", exact: true }).click();
+  await leaveSettings(page);
   await registerTestAccount(page, "房内更新验证");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("更新清理顺序验证");

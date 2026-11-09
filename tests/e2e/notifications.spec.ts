@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
 
@@ -123,6 +124,7 @@ test("notification preferences, merged history, sharing privacy and account isol
     animations: "disabled",
   });
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await leaveSettings(page);
   await publish("quiet", "免打扰仍保留历史", "quiet-group");
   expect(
     await page.evaluate(
@@ -150,6 +152,7 @@ test("notification preferences, merged history, sharing privacy and account isol
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "通知", exact: true }).click();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await leaveSettings(page);
   await page.evaluate(async () => {
     const { update } = await import("/store.ts" as string);
     update({ shareState: "publishing" });
@@ -261,6 +264,7 @@ test("an upgrade resets notification volume once and later saved levels survive 
   await slider.press("ArrowLeft");
   await expect(slider).toHaveAttribute("aria-valuenow", "99");
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await leaveSettings(page);
   await expect.poll(async () => (await saved()).notifications.volume).toBe(99);
   await page.reload();
   await open();
@@ -296,6 +300,7 @@ test("do not disturb is a persistent topbar shortcut and an open settings draft 
     await setDoNotDisturb(true);
   });
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
+  await leaveSettings(page);
   await expect(
     page.getByRole("button", { name: "关闭免打扰", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");

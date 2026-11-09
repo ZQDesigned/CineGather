@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { defaultSettings } from "../../apps/desktop/src/shared/settings";
 import { execFileSync } from "node:child_process";
@@ -162,10 +163,10 @@ test("account capabilities use a single form and preserve cancellation and saved
         .filter({ hasText: "游戏" }),
     ).toContainText("需授权");
     await viewing
-      .getByRole("dialog", { name: "设置与设备" })
+      .getByRole("region", { name: "设置与设备页面" })
       .getByText("设置与设备", { exact: true })
       .click();
-    await viewing.getByRole("button", { name: "取消", exact: true }).click();
+    await leaveSettings(viewing);
     await viewing
       .getByRole("button", { name: "创建私人房间", exact: true })
       .click();

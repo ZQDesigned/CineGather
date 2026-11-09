@@ -23,7 +23,6 @@ export type Modal =
   | "room-settings"
   | "create"
   | "join"
-  | "settings"
   | "download"
   | "invite"
   | "add-friend"

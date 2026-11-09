@@ -13,10 +13,20 @@ import {
   Alert,
   Switch,
   Slider,
+  Space,
 } from "antd";
+import styled from "@emotion/styled";
 import { Button, Input } from "../../rooms/ui/Controls";
 import { useEffect, useRef, useState } from "react";
-import { Headphones, Mic, Volume2, Monitor, Check, Server } from "lucide-react";
+import {
+  Headphones,
+  Mic,
+  Volume2,
+  Monitor,
+  Check,
+  Server,
+  RotateCcw,
+} from "lucide-react";
 import { useApp, update } from "../../../store";
 import * as actions from "../../../controller";
 import {
@@ -27,7 +37,8 @@ import {
   type DesktopSettings,
   type NativeEncoderInventory,
 } from "@cinegather/contracts";
-import { ModalShell, useDialogOpen } from "../../../ui/Modal";
+import { PageHeading, PageSurface } from "../../../ui/layout/Page";
+import { readSettingsTab, type SettingsTab } from "../settings-navigation";
 import { ShortcutRecorder } from "./ShortcutRecorder";
 import { serverOrigin, verifyServer } from "../../../server-address";
 import { defaultOverlayPreferences } from "../../../../shared/settings";
@@ -40,14 +51,47 @@ import {
   createMicrophoneProcessor,
   microphoneConstraints,
 } from "@cinegather/media-core";
+const Surface = styled(PageSurface)`
+  overflow: hidden;
+  .settings-tabs {
+    flex: 1 1 auto;
+    min-height: 0;
+    min-width: 0;
+  }
+  .settings-tabs > .ant-tabs-nav {
+    flex-shrink: 0;
+    margin-bottom: 16px;
+  }
+  .settings-tabs > .ant-tabs-body-holder {
+    min-height: 0;
+    overflow: auto;
+    padding: 24px;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    background: #151820;
+  }
+  .settings-tabs .ant-form,
+  .account-overview,
+  .account-subpage {
+    max-width: 760px;
+  }
+  @media (max-width: 1100px) {
+    .settings-tabs > .ant-tabs-body-holder {
+      padding: 16px;
+    }
+    .shortcut-fields {
+      grid-template-columns: minmax(0, 1fr);
+    }
+  }
+`;
 export function Settings() {
   const platform = capabilities();
   const user = useApp((s) => s.user);
+  const busy = useApp((s) => s.busy);
   const pttLabel = "全局按住说话";
   const muteLabel = platform.globalShortcuts
     ? "全局麦克风静音"
     : "页面内麦克风静音";
-  const open = useDialogOpen();
   const [encoderInventory, setEncoderInventory] =
     useState<NativeEncoderInventory>();
   const [encoderError, setEncoderError] = useState(false);
@@ -57,7 +101,7 @@ export function Settings() {
   );
   useEffect(() => {
     let current = true;
-    if (open && window.desktop?.encoders) {
+    if (window.desktop?.encoders) {
       setEncoderError(false);
       void window.desktop
         .encoders()
@@ -71,7 +115,7 @@ export function Settings() {
     return () => {
       current = false;
     };
-  }, [open, shareState]);
+  }, [shareState]);
   const { modal } = App.useApp();
   const serverRequest = useRef<AbortController | undefined>(undefined);
   const confirmation = useRef<ReturnType<typeof modal.confirm> | undefined>(
@@ -79,12 +123,11 @@ export function Settings() {
   );
   const [verifying, setVerifying] = useState(false);
   useEffect(() => {
-    if (!open) setVerifying(false);
     return () => {
       serverRequest.current?.abort();
       confirmation.current?.destroy();
     };
-  }, [open]);
+  }, []);
   const saveServer = async () => {
     if (serverRequest.current) return;
     let origin: string;
@@ -128,7 +171,6 @@ export function Settings() {
       if (origin === serverOrigin(actions.baseUrl))
         update({
           notice: verified ? "服务器连接正常" : "服务器地址未变更",
-          modal: null,
         });
       else actions.configureServer(origin);
     } catch (error) {
@@ -154,7 +196,26 @@ export function Settings() {
     }));
   }, [current.autoDownloadUpdates, current.notifications?.doNotDisturb]);
   const devices = useApp((s) => s.audioDevices);
-  const [tab, setTab] = useState("audio");
+  const [tab, setTab] = useState<SettingsTab>(readSettingsTab);
+  useEffect(() => {
+    const sync = () => {
+      const requested = readSettingsTab();
+      setTab(
+        ((requested === "account" || requested === "devices") && !user) ||
+          (requested === "updates" && !window.desktop?.updates) ||
+          (requested === "overlay" && !window.desktop?.memberOverlay)
+          ? "audio"
+          : requested,
+      );
+    };
+    sync();
+    window.addEventListener("hashchange", sync);
+    return () => window.removeEventListener("hashchange", sync);
+  }, [user?.id]);
+  const changeTab = (value: string) => {
+    setTab(value as SettingsTab);
+    history.replaceState(null, "", `#/settings?tab=${value}`);
+  };
   const [server, setServer] = useState(actions.baseUrl);
   const [testing, setTesting] = useState(false);
   const [requesting, setRequesting] = useState(false);
@@ -192,35 +253,22 @@ export function Settings() {
         : previous;
     });
   }, [devices]);
-  const savedDevices = useRef({
-    input: current.inputDevice,
-    output: current.outputDevice,
-  });
+  const savedSettings = useRef(current);
   useEffect(() => {
-    const old = savedDevices.current;
-    setSettings((previous) => ({
-      ...previous,
-      inputDevice:
-        previous.inputDevice === old.input
-          ? current.inputDevice
-          : previous.inputDevice,
-      outputDevice:
-        previous.outputDevice === old.output
-          ? current.outputDevice
-          : previous.outputDevice,
-    }));
-    savedDevices.current = {
-      input: current.inputDevice,
-      output: current.outputDevice,
-    };
-  }, [current.inputDevice, current.outputDevice]);
+    const before = savedSettings.current;
+    savedSettings.current = current;
+    // Direct page loads can precede preference restoration. Sync untouched fields
+    // without replacing edits made while a device or native setting is loading.
+    setSettings((previous) => {
+      const merged = { ...previous };
+      for (const key of Object.keys(current) as (keyof DesktopSettings)[]) {
+        if (JSON.stringify(previous[key]) === JSON.stringify(before[key]))
+          Object.assign(merged, { [key]: current[key] });
+      }
+      return merged;
+    });
+  }, [current]);
   useEffect(() => {
-    if (!open) {
-      setTesting(false);
-      setRequesting(false);
-      setLevel(0);
-      return;
-    }
     setTesting(false);
     setRequesting(false);
     setLevel(0);
@@ -239,7 +287,7 @@ export function Settings() {
         if (active.context.state !== "closed") void active.context.close();
       }
     };
-  }, [open, tab]);
+  }, [tab]);
   const testMicrophone = async () => {
     if (capturePending.current) return;
     if (audioRef.current) {
@@ -401,47 +449,65 @@ export function Settings() {
       await context.close();
     }
   };
+  const save = () =>
+    actions.run(async () => {
+      await actions.saveSettings(settings, false);
+      setSettings(structuredClone(useApp.getState().settings));
+    });
   return (
-    <ModalShell
-      title="设置与设备"
-      wide
-      footer={
-        <>
-          <Button onClick={() => update({ modal: null })}>取消</Button>
-          {tab === "server" ? (
+    <Surface aria-label="设置与设备页面">
+      <PageHeading>
+        <h1>设置与设备</h1>
+        {(tab === "server" ||
+          !["account", "devices", "updates"].includes(tab)) && (
+          <Space>
             <Button
-              type="primary"
-              htmlType="submit"
-              form="server-settings"
-              loading={verifying}
+              icon={<RotateCcw size={16} />}
+              disabled={busy || verifying || testing || requesting}
+              onClick={() => {
+                setSettings(structuredClone(useApp.getState().settings));
+                setServer(actions.baseUrl);
+              }}
             >
-              {verifying ? "正在验证…" : "保存地址"}
+              还原更改
             </Button>
-          ) : tab !== "account" && tab !== "devices" && tab !== "updates" ? (
-            <Button
-              type="primary"
-              htmlType="submit"
-              form={
-                tab === "audio"
-                  ? "audio-settings"
-                  : tab === "notifications"
-                    ? "notification-settings"
-                    : tab === "overlay"
-                      ? "overlay-settings"
-                      : "sharing-settings"
-              }
-              icon={<Check size={17} />}
-            >
-              保存设置
-            </Button>
-          ) : null}
-        </>
-      }
-    >
+            {tab === "server" ? (
+              <Button
+                type="primary"
+                htmlType="submit"
+                form="server-settings"
+                loading={verifying}
+                disabled={busy}
+              >
+                {verifying ? "正在验证…" : "保存地址"}
+              </Button>
+            ) : tab !== "account" && tab !== "devices" && tab !== "updates" ? (
+              <Button
+                type="primary"
+                htmlType="submit"
+                form={
+                  tab === "audio"
+                    ? "audio-settings"
+                    : tab === "notifications"
+                      ? "notification-settings"
+                      : tab === "overlay"
+                        ? "overlay-settings"
+                        : "sharing-settings"
+                }
+                icon={<Check size={17} />}
+                loading={busy}
+                disabled={verifying || testing || requesting}
+              >
+                保存设置
+              </Button>
+            ) : null}
+          </Space>
+        )}
+      </PageHeading>
       <Tabs
         className="settings-tabs"
         activeKey={tab}
-        onChange={setTab}
+        onChange={changeTab}
         items={[
           {
             key: "notifications",
@@ -450,9 +516,7 @@ export function Settings() {
               <Form
                 id="notification-settings"
                 layout="vertical"
-                onFinish={() =>
-                  void actions.run(() => actions.saveSettings(settings))
-                }
+                onFinish={() => void save()}
               >
                 <NotificationSettings
                   value={settings.notifications}
@@ -486,9 +550,7 @@ export function Settings() {
               <Form
                 id="audio-settings"
                 layout="vertical"
-                onFinish={() =>
-                  void actions.run(() => actions.saveSettings(settings))
-                }
+                onFinish={() => void save()}
               >
                 {!platform.microphone && (
                   <Alert
@@ -581,9 +643,7 @@ export function Settings() {
               <Form
                 id="sharing-settings"
                 layout="vertical"
-                onFinish={() =>
-                  void actions.run(() => actions.saveSettings(settings))
-                }
+                onFinish={() => void save()}
               >
                 {window.desktop?.platform === "win32" &&
                   window.desktop.encoders && (
@@ -680,7 +740,7 @@ export function Settings() {
                       <ShortcutRecorder
                         label={pttLabel}
                         value={settings.pttShortcut}
-                        active={open && tab === "sharing"}
+                        active={tab === "sharing"}
                         onChange={(value) => change("pttShortcut", value)}
                       />
                     </Form.Item>
@@ -689,7 +749,7 @@ export function Settings() {
                     <ShortcutRecorder
                       label={muteLabel}
                       value={settings.muteShortcut}
-                      active={open && tab === "sharing"}
+                      active={tab === "sharing"}
                       onChange={(value) => change("muteShortcut", value)}
                     />
                   </Form.Item>
@@ -718,9 +778,7 @@ export function Settings() {
                     <Form
                       id="overlay-settings"
                       layout="vertical"
-                      onFinish={() =>
-                        void actions.run(() => actions.saveSettings(settings))
-                      }
+                      onFinish={() => void save()}
                     >
                       <Form.Item label="显示房间成员浮层">
                         <Switch
@@ -817,6 +875,6 @@ export function Settings() {
           },
         ]}
       />
-    </ModalShell>
+    </Surface>
   );
 }

@@ -167,7 +167,7 @@ test("account subpages save nicknames without disconnecting the room and update 
     ).toBeVisible();
     await expect(
       page.locator(".member-name").filter({ hasText: "改名之后" }),
-    ).toBeVisible();
+    ).toHaveText("改名之后");
     await page.screenshot({ path: ".local/account-profile/nickname-page.png" });
     await page
       .getByRole("button", { name: "返回账号与安全", exact: true })

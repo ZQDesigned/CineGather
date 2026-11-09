@@ -14,7 +14,6 @@ import {
   Spin,
 } from "antd";
 import { Button, TextArea, Input } from "../features/rooms/ui/Controls";
-import { Settings } from "../features/settings/ui/Settings";
 import { ClientDownload } from "../features/updates/ui/ClientDownload";
 import { UpdateDialog } from "../features/updates/ui/Updates";
 import { RoomSettings } from "../features/rooms/ui/RoomSettings";
@@ -88,7 +87,6 @@ function DialogContent({ modal }: { modal: Modal }) {
   if (modal === "room-settings") return <RoomSettings />;
   if (modal === "create") return <CreateRoom />;
   if (modal === "join") return <JoinRoom />;
-  if (modal === "settings") return <Settings />;
   if (modal === "download" && !capabilities().desktop)
     return <ClientDownload />;
   if (modal === "updates") return <UpdateDialog />;

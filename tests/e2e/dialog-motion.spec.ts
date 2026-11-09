@@ -1,3 +1,4 @@
+import { leaveSettings } from "./helpers/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 
@@ -41,13 +42,13 @@ async function finishClosing(page: Page) {
   await expect(page.locator(".ant-modal-mask")).toHaveCount(0);
 }
 
-test("settings keeps its panel and mask mounted until their exit animations complete", async ({
+test("diagnostics keeps its panel and mask mounted until their exit animations complete", async ({
   page,
 }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
   const trigger = page.getByRole("menuitem", {
-    name: "设置与设备",
+    name: "连接诊断",
     exact: true,
   });
   await trigger.click();
@@ -56,6 +57,28 @@ test("settings keeps its panel and mask mounted until their exit animations comp
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   await finishClosing(page);
   await expect(trigger).toBeFocused();
+});
+
+test("opening server settings retains diagnostics content through its exit animation", async ({
+  page,
+}) => {
+  await page.emulateMedia({ reducedMotion: "no-preference" });
+  await page.route("**/api/v1/health", (route) => route.abort());
+  await page.goto("/");
+  await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+  const link = page.getByRole("button", { name: "打开设置", exact: true });
+  await expect(link).toBeVisible();
+  await watchClosing(page);
+  await link.click();
+  await expect(
+    page.getByRole("region", { name: "设置与设备页面", exact: true }),
+  ).toBeAttached();
+  await expect(link).toBeAttached();
+  await expect(page.locator(".cinema-dialog")).toContainText("连接诊断");
+  await finishClosing(page);
+  await expect(
+    page.getByRole("tab", { name: "自托管服务器", exact: true }),
+  ).toHaveAttribute("aria-selected", "true");
 });
 
 test("create, join and diagnostics animate every supported close action", async ({
@@ -164,7 +187,7 @@ test("invites, bans and source selection animate closing without retaining the s
   }
 });
 
-test("microphone testing stops as closing begins while the exit animation is still paused", async ({
+test("microphone testing stops when leaving the settings page", async ({
   page,
 }) => {
   await page.addInitScript(() => {
@@ -185,8 +208,7 @@ test("microphone testing stops as closing begins while the exit animation is sti
   await expect(
     page.getByRole("button", { name: "停止测试", exact: true }),
   ).toBeVisible();
-  await watchClosing(page);
-  await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  await leaveSettings(page);
   await expect
     .poll(() =>
       page.evaluate(() => {
@@ -200,7 +222,6 @@ test("microphone testing stops as closing begins while the exit animation is sti
       }),
     )
     .toBe(true);
-  await finishClosing(page);
 });
 
 test("reduced motion still completes dialog cleanup and resets abandoned drafts", async ({
@@ -242,7 +263,7 @@ test("an incoming invitation waits for the previous dialog to finish closing bef
   );
   await page.goto("/");
   await registerTestAccount(page, "弹窗切换回归");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
   await watchClosing(page);
   const invitation = `cinegather://join?room=1234ABCD&invite=${"x".repeat(43)}`;
   await page.evaluate(
