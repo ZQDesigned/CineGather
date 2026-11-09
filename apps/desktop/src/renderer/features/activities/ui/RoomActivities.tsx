@@ -419,6 +419,17 @@ export function RoomActivityControls({
             >
               猜词抢答
             </Button>
+            {["斗地主", "围棋", "五子棋", "象棋"].map((name) => (
+              <Button
+                key={name}
+                className="party-upcoming"
+                disabled
+                aria-label={`${name}（装修中）`}
+              >
+                <span>{name}</span>
+                <Tag className="party-upcoming-badge">装修中</Tag>
+              </Button>
+            ))}
           </div>
         ) : (
           <p>当前白板会保存到参与成员的白板记录。</p>

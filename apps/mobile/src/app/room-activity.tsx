@@ -16,7 +16,7 @@ import {
 } from "../components/Activities";
 import { PartyCategorySummary } from "../components/PartyCategories";
 import { Screen } from "../components/Screen";
-import { Button, Label, Field, Dialog, styles } from "../components/ui";
+import { Button, Label, Field, Dialog, styles, colors } from "../components/ui";
 const names: Record<ActivityTarget, string> = {
   board: "协作白板",
   draw: "你画我猜",
@@ -225,6 +225,50 @@ export default function RoomActivity() {
           共享屏幕
         </Button>
       </View>
+      {snapshot.kind === "idle" && (
+        <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 12 }}>
+          {["斗地主", "围棋", "五子棋", "象棋"].map((name) => (
+            <View
+              key={name}
+              accessible
+              accessibilityRole="button"
+              accessibilityLabel={`${name}，装修中`}
+              accessibilityState={{ disabled: true }}
+              style={[
+                styles.card,
+                {
+                  flexBasis: "45%",
+                  flexGrow: 1,
+                  minHeight: 88,
+                  alignItems: "center",
+                  justifyContent: "center",
+                  borderStyle: "dashed",
+                },
+              ]}
+            >
+              <Text style={[styles.text, { color: colors.muted }]}>{name}</Text>
+              <Text
+                style={[
+                  styles.muted,
+                  {
+                    position: "absolute",
+                    top: 6,
+                    right: 8,
+                    color: colors.accent,
+                    fontSize: 10,
+                    lineHeight: 18,
+                    paddingHorizontal: 6,
+                    borderRadius: 6,
+                    backgroundColor: "#b4a0f414",
+                  },
+                ]}
+              >
+                装修中
+              </Text>
+            </View>
+          ))}
+        </View>
+      )}
       {snapshot.kind !== "idle" && controlled && (
         <Button
           danger

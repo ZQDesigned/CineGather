@@ -146,6 +146,26 @@ export function GlobalStyles() {
           height: 100px;
           font-size: 18px;
         }
+        .party-picker .party-upcoming {
+          position: relative;
+          border-style: dashed;
+        }
+        .party-picker .party-upcoming:disabled {
+          color: var(--muted);
+          background: #151820;
+        }
+        .party-picker .party-upcoming-badge {
+          position: absolute;
+          top: 8px;
+          right: 8px;
+          margin: 0;
+          font-size: 11px;
+          line-height: 20px;
+          color: var(--purple);
+          background: #b39bff12;
+          border-color: #b39bff30;
+          pointer-events: none;
+        }
         .quiz-clue {
           flex: 1 0 auto;
           min-height: 280px;
