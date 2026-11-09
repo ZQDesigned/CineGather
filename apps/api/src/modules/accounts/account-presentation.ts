@@ -1,15 +1,21 @@
-import { PARTY_SUBMISSIONS_FEATURE, type User } from "@cinegather/contracts";
+import {
+  PARTY_SUBMISSIONS_FEATURE,
+  POINTS_FEATURE,
+  type User,
+} from "@cinegather/contracts";
 /** Keep new permission enums out of old clients' strict account parsers.
  * This projects response data only; authorization always uses the full access state. */
 export function presentAccountUser(user: User, features?: string): User {
-  if (features?.split(",").some((f) => f.trim() === PARTY_SUBMISSIONS_FEATURE))
-    return user;
+  const supported = new Set(features?.split(",").map((f) => f.trim()) ?? []);
   return {
     ...user,
     ...(user.permissions
       ? {
           permissions: user.permissions.filter(
-            (p) => !p.startsWith("party-submissions."),
+            (p) =>
+              (!p.startsWith("party-submissions.") ||
+                supported.has(PARTY_SUBMISSIONS_FEATURE)) &&
+              (!p.startsWith("points.") || supported.has(POINTS_FEATURE)),
           ),
         }
       : {}),

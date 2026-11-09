@@ -97,6 +97,7 @@ export const partyActionSchema = z.discriminatedUnion("type", [
   z.strictObject({
     type: z.literal("guess"),
     answer: z.string().trim().min(1).max(80),
+    roundId: z.uuid().optional(),
   }),
   z.strictObject({ type: z.literal("pause") }),
   z.strictObject({ type: z.literal("resume") }),
@@ -109,6 +110,7 @@ export interface PartyPlayer {
   eligibleRound: number;
 }
 export interface PartyView {
+  roundId?: string;
   kind: "draw" | "quiz";
   phase: "lobby" | "choosing" | "playing" | "results" | "finished" | "paused";
   round: number;
@@ -148,6 +150,7 @@ export interface ActivityPermission {
   game: boolean;
 }
 export interface ActivitySnapshot {
+  points?: import("./points").PointsSummary;
   roomId: string;
   revision: number;
   generation: number;

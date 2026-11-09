@@ -12,6 +12,7 @@ import {
   Monitor,
   History,
   FilePenLine,
+  Coins,
 } from "lucide-react-native";
 import { runtime } from "../../runtime";
 import {
@@ -115,6 +116,11 @@ export default function Settings() {
           />
         </View>
       </View>
+      <MenuRow
+        icon={Coins}
+        title="我的积分"
+        onPress={() => router.push("/points")}
+      />
       <MenuRow
         icon={FilePenLine}
         title="题目投稿"

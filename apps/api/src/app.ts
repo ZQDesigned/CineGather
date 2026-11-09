@@ -1,3 +1,7 @@
+import {
+  PointsController,
+  AdminPointsController,
+} from "./modules/points/controller";
 import { PartySubmissionController } from "./modules/party/party-submission-controller";
 import { AdminPartySubmissionController } from "./modules/admin/party-submission-controller";
 import { gameTunnelHttp } from "./modules/games/game-tunnel-http";
@@ -136,6 +140,8 @@ class TacticalPauses implements OnModuleInit, OnModuleDestroy {
 }
 @Module({
   controllers: [
+    PointsController,
+    AdminPointsController,
     PartySubmissionController,
     AdminPartySubmissionController,
     RoomActivityController,

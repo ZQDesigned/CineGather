@@ -1,3 +1,4 @@
+import { POINTS_FEATURE } from "./points";
 import { z } from "zod";
 import { PARTY_SUBMISSIONS_FEATURE } from "./party-submissions";
 import {
@@ -52,7 +53,7 @@ export const currentFeatureProtocols: FeatureProtocols = {
   "game.stardew-valley": [1],
 };
 export const protocolHeaders = {
-  "X-CineGather-Features": `esports-v1,esports-v2,${PARTY_SUBMISSIONS_FEATURE}`,
+  "X-CineGather-Features": `esports-v1,esports-v2,${PARTY_SUBMISSIONS_FEATURE},${POINTS_FEATURE}`,
   "X-CineGather-Protocols": JSON.stringify(currentFeatureProtocols),
 };
 export function parseFeatureProtocols(

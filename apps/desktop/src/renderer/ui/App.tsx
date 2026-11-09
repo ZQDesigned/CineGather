@@ -1,3 +1,4 @@
+import { Points } from "../features/points/ui/Points";
 import { QuestionSubmissions } from "../features/party-submissions/ui/QuestionSubmissions";
 import { WhiteboardHistory } from "../features/activities/ui/RoomActivities";
 import { GameLink, GameLinkNotifications } from "../features/games/ui/GameLink";
@@ -25,6 +26,7 @@ import {
   Gamepad2,
   History,
   FilePenLine,
+  Coins,
 } from "lucide-react";
 import { useApp, update } from "../store";
 import * as actions from "../controller";
@@ -61,22 +63,30 @@ const roomStates: Record<string, string> = {
   leaving: "正在离开",
   failed: "连接已断开",
 };
-function readSection(): "main" | "admin" | "friends" | "games" | "submissions" {
+function readSection():
+  | "main"
+  | "admin"
+  | "friends"
+  | "games"
+  | "submissions"
+  | "points" {
   const route = location.hash
     ? location.hash.slice(1)
     : location.pathname.replace(/\/$/, "");
-  return route === "/admin"
-    ? "admin"
-    : route === "/friends"
-      ? "friends"
-      : route === "/games"
-        ? "games"
-        : route === "/submissions"
-          ? "submissions"
-          : "main";
+  return route === "/points"
+    ? "points"
+    : route === "/admin"
+      ? "admin"
+      : route === "/friends"
+        ? "friends"
+        : route === "/games"
+          ? "games"
+          : route === "/submissions"
+            ? "submissions"
+            : "main";
 }
 const mainPath = () =>
-  /^\/(admin|friends|games|submissions)\/?$/.test(location.pathname)
+  /^\/(admin|friends|games|submissions|points)\/?$/.test(location.pathname)
     ? "/"
     : location.pathname;
 export function App() {
@@ -318,6 +328,17 @@ export function App() {
               },
             },
             {
+              key: "points",
+              icon: <Coins size={18} />,
+              label: "我的积分",
+              disabled: !app.user,
+              onClick: () => {
+                setSection("points");
+                location.hash = "/points";
+                update({ modal: null });
+              },
+            },
+            {
               key: "submissions",
               icon: <FilePenLine size={18} />,
               label: "题目投稿",
@@ -433,17 +454,20 @@ export function App() {
             items={[
               { title: "我的空间" },
               {
-                title: admin
-                  ? "管理后台"
-                  : section === "games"
-                    ? "游戏联机"
-                    : section === "submissions"
-                      ? "题目投稿"
-                      : section === "friends"
-                        ? "好友"
-                        : app.room && !home
-                          ? app.room.name
-                          : "放映厅",
+                title:
+                  section === "points"
+                    ? "我的积分"
+                    : admin
+                      ? "管理后台"
+                      : section === "games"
+                        ? "游戏联机"
+                        : section === "submissions"
+                          ? "题目投稿"
+                          : section === "friends"
+                            ? "好友"
+                            : app.room && !home
+                              ? app.room.name
+                              : "放映厅",
               },
             ]}
           />
@@ -544,6 +568,8 @@ export function App() {
               <Admin onHome={showHome} />
             ) : section === "games" && window.desktop?.gameLink ? (
               <GameLink />
+            ) : section === "points" ? (
+              <Points />
             ) : section === "submissions" ? (
               <QuestionSubmissions />
             ) : section === "friends" ? (

@@ -267,6 +267,13 @@
       "when": 1794190000000,
       "tag": "0037_party_submissions",
       "breakpoints": true
+    },
+    {
+      "idx": 38,
+      "version": "7",
+      "when": 1794190000001,
+      "tag": "0038_points",
+      "breakpoints": true
     }
   ]
 }

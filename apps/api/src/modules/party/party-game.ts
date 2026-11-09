@@ -1,4 +1,4 @@
-import { randomInt } from "node:crypto";
+import { randomInt, randomUUID } from "node:crypto";
 import { partyAnswerKey } from "@cinegather/contracts";
 import type {
   PartyAction,
@@ -9,6 +9,15 @@ import { partyWords, type PartyWord } from "./party-words";
 
 export interface PartyGame {
   kind: "draw" | "quiz";
+  matchId?: string;
+  roundId?: string;
+  guessAttempts?: Record<string, number>;
+  roundCompleted?: boolean;
+  drewThisRound?: boolean;
+  rewardPolicy?: {
+    version: number;
+    rules: import("@cinegather/contracts").PointsRules;
+  };
   wordPool?: PartyWord[];
   categorySelection?: { categoryIds: string[] | null; version: number };
   phase: PartyView["phase"];
@@ -123,7 +132,13 @@ function nextRound(game: PartyGame, now: number) {
     game.choices = [];
     return;
   }
+  game.matchId ??= randomUUID();
   game.round++;
+  game.roundId = randomUUID();
+  game.guessAttempts = {};
+  game.roundCompleted = false;
+  game.drewThisRound = false;
+  delete game.rewardPolicy;
   game.solvedIds = [];
   game.lastGuesses = {};
   game.choices = candidates(game);
@@ -151,7 +166,8 @@ function choose(game: PartyGame, index: number, now: number) {
   game.phase = "playing";
   game.deadline = now + (game.kind === "draw" ? 90_000 : 45_000);
 }
-function results(game: PartyGame, now: number) {
+function results(game: PartyGame, now: number, completed = false) {
+  game.roundCompleted = completed;
   game.phase = "results";
   game.deadline = now + 5000;
   game.choices = [];
@@ -160,7 +176,7 @@ export function tickPartyGame(input: PartyGame, now: number): PartyGame {
   const game = structuredClone(input);
   if (!game.deadline || game.deadline > now) return game;
   if (game.phase === "choosing") choose(game, 0, now);
-  else if (game.phase === "playing") results(game, now);
+  else if (game.phase === "playing") results(game, now, true);
   else if (game.phase === "results") nextRound(game, now);
   return game;
 }
@@ -205,6 +221,7 @@ export function partyCommand(
     game.players.forEach((p) => {
       p.eligibleRound = 1;
     });
+    game.matchId = randomUUID();
     game.round = 0;
     nextRound(game, now);
     return game;
@@ -277,6 +294,13 @@ export function partyCommand(
   if (game.solvedIds.includes(actor.id)) throw Error("你已经猜对了");
   if (now - (game.lastGuesses[actor.id] ?? -Infinity) < 800)
     throw Error("答题太快，请稍后再试");
+  if (action.roundId && action.roundId !== game.roundId)
+    throw Error("轮次已更新，请重新答题");
+  game.guessAttempts ??= {};
+  game.guessAttempts[actor.id] = Math.min(
+    3,
+    (game.guessAttempts[actor.id] ?? 0) + 1,
+  );
   game.lastGuesses[actor.id] = now;
   const normalize = (s: string) =>
     s.normalize("NFKC").replace(/\s+/g, "").toLowerCase();
@@ -289,7 +313,7 @@ export function partyCommand(
         (game.kind !== "draw" || p.id !== game.drawerId),
     );
     if (guessers.every((p) => game.solvedIds.includes(p.id)))
-      results(game, now);
+      results(game, now, true);
   }
   return game;
 }
@@ -306,6 +330,7 @@ export function partyView(
     Math.max(0, (game.deadline ?? now + (game.remaining ?? 45_000)) - now);
   return {
     kind: game.kind,
+    roundId: game.roundId,
     categorySelection: game.categorySelection ?? {
       categoryIds: null,
       version: 0,

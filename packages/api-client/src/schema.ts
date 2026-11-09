@@ -4,6 +4,118 @@
  */
 
 export interface paths {
+    "/api/v1/points": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pointsSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/points/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pointsLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/points/ledger/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pointsEntry"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/points/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pointsRules"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/points/rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminPointsRules"];
+        put?: never;
+        post: operations["updatePointsRules"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/points/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["adminPointsLedger"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/admin/points/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["pointsPolicyHistory"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/party-submissions/eligibility": {
         parameters: {
             query?: never;
@@ -2224,6 +2336,1220 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    pointsSummary: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        balance: number;
+                        todayEarned: number;
+                        dailyCap: number;
+                        remaining: number;
+                        day: string;
+                        enabled: boolean;
+                        latest: {
+                            /** Format: uuid */
+                            id: string;
+                            sequence: number;
+                            game: string;
+                            reward: string;
+                            amount: number;
+                            expected: number;
+                            before: number;
+                            after: number;
+                            /** @enum {string} */
+                            outcome: "awarded" | "capped" | "disabled" | "no_reward";
+                            attempt: number;
+                            day: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            policyVersion: number;
+                        } | null;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    pointsLedger: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                q?: string;
+                game?: string;
+                today?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            sequence: number;
+                            game: string;
+                            reward: string;
+                            amount: number;
+                            expected: number;
+                            before: number;
+                            after: number;
+                            /** @enum {string} */
+                            outcome: "awarded" | "capped" | "disabled" | "no_reward";
+                            attempt: number;
+                            day: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            policyVersion: number;
+                        }[];
+                        total: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    pointsEntry: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        /** Format: uuid */
+                        id: string;
+                        sequence: number;
+                        game: string;
+                        reward: string;
+                        amount: number;
+                        expected: number;
+                        before: number;
+                        after: number;
+                        /** @enum {string} */
+                        outcome: "awarded" | "capped" | "disabled" | "no_reward";
+                        attempt: number;
+                        day: string;
+                        /** Format: date-time */
+                        createdAt: string;
+                        policyVersion: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    pointsRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        dailyCap: number;
+                        games: {
+                            "party.draw": {
+                                firstCorrect: number;
+                                painter: number;
+                            };
+                            "party.quiz": {
+                                firstCorrect: number;
+                                /** @enum {number} */
+                                painter: 0;
+                            };
+                        };
+                        version: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminPointsRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        dailyCap: number;
+                        games: {
+                            "party.draw": {
+                                firstCorrect: number;
+                                painter: number;
+                            };
+                            "party.quiz": {
+                                firstCorrect: number;
+                                /** @enum {number} */
+                                painter: 0;
+                            };
+                        };
+                        version: number;
+                        reason: string;
+                        actorName: string;
+                        actorUsername: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    updatePointsRules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    enabled: boolean;
+                    dailyCap: number;
+                    games: {
+                        "party.draw": {
+                            firstCorrect: number;
+                            painter: number;
+                        };
+                        "party.quiz": {
+                            firstCorrect: number;
+                            /** @enum {number} */
+                            painter: 0;
+                        };
+                    };
+                    version: number;
+                    reason: string;
+                };
+            };
+        };
+        responses: {
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        enabled: boolean;
+                        dailyCap: number;
+                        games: {
+                            "party.draw": {
+                                firstCorrect: number;
+                                painter: number;
+                            };
+                            "party.quiz": {
+                                firstCorrect: number;
+                                /** @enum {number} */
+                                painter: 0;
+                            };
+                        };
+                        version: number;
+                        reason: string;
+                        actorName: string;
+                        actorUsername: string | null;
+                        /** Format: date-time */
+                        createdAt: string;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    adminPointsLedger: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                q?: string;
+                game?: string;
+                today?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            /** Format: uuid */
+                            id: string;
+                            sequence: number;
+                            game: string;
+                            reward: string;
+                            amount: number;
+                            expected: number;
+                            before: number;
+                            after: number;
+                            /** @enum {string} */
+                            outcome: "awarded" | "capped" | "disabled" | "no_reward";
+                            attempt: number;
+                            day: string;
+                            /** Format: date-time */
+                            createdAt: string;
+                            policyVersion: number;
+                            /** Format: uuid */
+                            userId: string;
+                            displayName: string;
+                            username: string | null;
+                            /** Format: uuid */
+                            roomId: string;
+                            /** Format: uuid */
+                            matchId: string;
+                            /** Format: uuid */
+                            roundId: string;
+                            /** Format: uuid */
+                            traceId: string;
+                            appliedCap: number;
+                            settlementPolicyVersion: number;
+                            facts: {
+                                [key: string]: unknown;
+                            };
+                            policy: {
+                                enabled: boolean;
+                                dailyCap: number;
+                                games: {
+                                    "party.draw": {
+                                        firstCorrect: number;
+                                        painter: number;
+                                    };
+                                    "party.quiz": {
+                                        firstCorrect: number;
+                                        /** @enum {number} */
+                                        painter: 0;
+                                    };
+                                };
+                            };
+                            previousHash: string;
+                            entryHash: string;
+                        }[];
+                        total: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
+    pointsPolicyHistory: {
+        parameters: {
+            query?: {
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        items: {
+                            enabled: boolean;
+                            dailyCap: number;
+                            games: {
+                                "party.draw": {
+                                    firstCorrect: number;
+                                    painter: number;
+                                };
+                                "party.quiz": {
+                                    firstCorrect: number;
+                                    /** @enum {number} */
+                                    painter: 0;
+                                };
+                            };
+                            version: number;
+                            reason: string;
+                            actorName: string;
+                            actorUsername: string | null;
+                            /** Format: date-time */
+                            createdAt: string;
+                        }[];
+                        total: number;
+                    };
+                };
+            };
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            426: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        code: string;
+                        message: string;
+                        requestId: string;
+                        compatibility?: components["schemas"]["FeatureUpdateIssue"];
+                    };
+                };
+            };
+        };
+    };
     partySubmissionEligibility: {
         parameters: {
             query?: never;
@@ -4234,6 +5560,8 @@ export interface operations {
                         /** @enum {string} */
                         type: "guess";
                         answer: string;
+                        /** Format: uuid */
+                        roundId?: string;
                     } | {
                         /** @enum {string} */
                         type: "pause";
@@ -5728,7 +7056,7 @@ export interface operations {
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -6002,7 +7330,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -6153,7 +7481,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -6304,7 +7632,7 @@ export interface operations {
                                 id: string;
                                 name: string;
                             }[];
-                            permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions?: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         };
                         sessionToken: string;
                         expiresAt: string;
@@ -6453,7 +7781,7 @@ export interface operations {
                             id: string;
                             name: string;
                         }[];
-                        permissions?: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions?: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     };
                 };
             };
@@ -21356,7 +22684,7 @@ export interface operations {
                             /** Format: uuid */
                             id: string;
                             name: string;
-                            permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                            permissions: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                             builtIn: boolean;
                             memberCount: number;
                             createdAt: string;
@@ -21481,7 +22809,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -21496,7 +22824,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;
@@ -21622,7 +22950,7 @@ export interface operations {
             content: {
                 "application/json": {
                     name: string;
-                    permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                    permissions: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                     reason: string;
                 };
             };
@@ -21637,7 +22965,7 @@ export interface operations {
                         /** Format: uuid */
                         id: string;
                         name: string;
-                        permissions: ("party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
+                        permissions: ("points.read" | "points.manage" | "party-submissions.read" | "party-submissions.review" | "party-words.read" | "party-words.manage" | "overview.read" | "users.read" | "users.manage" | "users.screen-share" | "users.game-host" | "users.esports" | "users.high-frame-rate" | "users.room-capacity" | "rooms.read" | "rooms.manage" | "games.read" | "games.manage" | "audit.read" | "announcements.read" | "announcements.manage")[];
                         builtIn: boolean;
                         memberCount: number;
                         createdAt: string;

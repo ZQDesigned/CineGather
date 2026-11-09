@@ -39,3 +39,23 @@ test("old clients can still restore privileged sessions without unknown permissi
     user: { permissions: ["party-words.read"] },
   });
 });
+
+test("points permissions are projected independently from submission permissions", () => {
+  const user = {
+    id: crypto.randomUUID(),
+    displayName: "管理员",
+    permissions: ["points.read", "points.manage", "party-submissions.read"],
+  } as User;
+  expect(presentAccountUser(user, "party-submissions-v1").permissions).toEqual([
+    "party-submissions.read",
+  ]);
+  expect(presentAccountUser(user, "account-points-v1").permissions).toEqual([
+    "points.read",
+    "points.manage",
+  ]);
+  expect(presentAccountUser(user, undefined).permissions).toEqual([]);
+  expect(
+    presentAccountUser(user, protocolHeaders["X-CineGather-Features"])
+      .permissions,
+  ).toEqual(user.permissions);
+});

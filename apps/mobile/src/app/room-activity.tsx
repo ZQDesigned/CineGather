@@ -120,7 +120,17 @@ export default function RoomActivity() {
     if (partyBusy) return;
     setPartyBusy(true);
     try {
-      await activities.command({ type: "party", generation, action }, snapshot);
+      await activities.command(
+        {
+          type: "party",
+          generation,
+          action:
+            action.type === "guess"
+              ? { ...action, roundId: snapshot?.game?.roundId }
+              : action,
+        },
+        snapshot,
+      );
       if (action.type === "guess") setAnswer("");
     } finally {
       setPartyBusy(false);

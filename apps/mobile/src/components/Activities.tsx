@@ -1,4 +1,6 @@
 import {
+  nextPointsFeedback,
+  pointsReason,
   boardCursorColor,
   boardLiveDraft,
   boardStrokePath,
@@ -26,6 +28,7 @@ import * as Sharing from "expo-sharing";
 import { randomUUID } from "expo-crypto";
 import { router } from "expo-router";
 import type {
+  PointsSummary,
   BoardElement,
   BoardElementInput,
   BoardOperation,
@@ -46,6 +49,28 @@ export function ActivityConnection() {
   const roomId = state.room?.mode === "standard" ? state.room.id : undefined,
     userId = session.user?.id,
     connected = state.roomState === "connected";
+  const pointsSeen = useRef<{ userId?: string; summary?: PointsSummary }>({});
+  useEffect(() => {
+    const value = snapshot?.points;
+    if (!value) return;
+    const previous =
+      pointsSeen.current.userId === userId
+        ? pointsSeen.current.summary
+        : undefined;
+    const award = nextPointsFeedback(previous, value);
+    if (
+      !previous ||
+      (value.latest?.sequence ?? 0) >= (previous.latest?.sequence ?? 0)
+    )
+      pointsSeen.current = { userId, summary: value };
+    if (award)
+      runtime.feedback.show({
+        text: award.amount
+          ? `+${award.amount} 积分 ${pointsReason(award)}${award.outcome === "capped" ? "，今日额度已用完" : ""}`
+          : "今日积分已达上限，仍可继续游戏",
+        tone: award.amount ? "success" : "info",
+      });
+  }, [snapshot?.points, userId]);
   const seen = useRef(new Set<string>());
   useEffect(() => {
     const client = activities;

@@ -14,6 +14,7 @@ import {
   whiteboardSnapshots,
   whiteboardRecords,
   partyWordBank,
+  pointsLedger,
 } from "@cinegather/database";
 import { inArray, eq } from "drizzle-orm";
 import { protocolHeaders } from "@cinegather/contracts";
@@ -42,6 +43,131 @@ async function person() {
   return { id, credentialId, token };
 }
 type Person = Awaited<ReturnType<typeof person>>;
+for (const mode of ["quiz", "draw"] as const)
+  test(`points HTTP ${mode} commands credit only the authenticated guesser and reject client-authored rewards`, async () => {
+    const f = await fixture(),
+      path = `/rooms/${f.id}/activity`;
+    const start = await call(f.host, path, {
+      type: "start",
+      target: mode,
+      generation: 0,
+    });
+    expect(start.status).toBe(201);
+    const generation = start.data.generation;
+    for (const who of [f.host, f.guest])
+      expect(
+        (
+          await call(who, path, {
+            type: "party",
+            generation,
+            action: { type: "ready", ready: true },
+          })
+        ).status,
+      ).toBe(201);
+    expect(
+      (
+        await call(f.host, path, {
+          type: "party",
+          generation,
+          action: { type: "start" },
+        })
+      ).status,
+    ).toBe(201);
+    if (mode === "draw") {
+      expect(
+        (
+          await call(f.host, path, {
+            type: "party",
+            generation,
+            action: { type: "choose", index: 0 },
+          })
+        ).status,
+      ).toBe(201);
+      expect(
+        (
+          await call(f.host, path, {
+            type: "board",
+            generation,
+            operation: {
+              type: "put",
+              element: {
+                id: crypto.randomUUID(),
+                kind: "rect",
+                x: 10,
+                y: 20,
+                width: 30,
+                height: 40,
+                color: "#112233",
+                strokeWidth: 3,
+              },
+            },
+          })
+        ).status,
+      ).toBe(201);
+    }
+    const [row] = await db
+      .select()
+      .from(roomActivities)
+      .where(eq(roomActivities.roomId, f.id));
+    const game = (
+      row!.state as { game: { word: { answer: string }; roundId: string } }
+    ).game;
+    const forged = await call(f.guest, path, {
+      type: "party",
+      generation,
+      action: { type: "guess", answer: game.word.answer, expected: 1000 },
+    });
+    expect(forged.status).toBe(400);
+    const guessed = await call(f.guest, path, {
+      type: "party",
+      generation,
+      action: {
+        type: "guess",
+        answer: game.word.answer,
+        roundId: game.roundId,
+      },
+    });
+    expect(guessed.status).toBe(201);
+    expect(guessed.data.points.latest.amount).toBe(10);
+    const [receipt] = await db
+      .select()
+      .from(pointsLedger)
+      .where(eq(pointsLedger.id, guessed.data.points.latest.id));
+    expect(guessed.requestId).not.toBeNull();
+    expect(receipt!.traceId).toBe(guessed.requestId!);
+    expect(receipt!.facts.question).toBe(game.word.answer);
+    expect(guessed.data.points.latest).not.toHaveProperty("facts");
+    const own = await call(f.guest, "/points");
+    expect(own.data.balance).toBe(10);
+    const other = await call(f.host, "/points");
+    expect(other.data.balance).toBe(mode === "draw" ? 5 : 0);
+    if (mode === "quiz") expect(other.data.latest).toBeNull();
+    expect(
+      (await call(f.host, `/points/ledger/${guessed.data.points.latest.id}`))
+        .status,
+    ).toBe(404);
+    expect((await call(f.guest, "/points/rules")).data).not.toHaveProperty(
+      "actorUsername",
+    );
+    expect((await call(f.guest, "/admin/points/ledger")).status).toBe(403);
+    expect(
+      (await call(f.guest, "/points/credit", { amount: 10000 })).status,
+    ).toBe(404);
+    expect(
+      (
+        await call(f.guest, path, {
+          type: "party",
+          generation,
+          action: {
+            type: "guess",
+            answer: game.word.answer,
+            roundId: game.roundId,
+          },
+        })
+      ).status,
+    ).toBe(409);
+    expect((await call(f.guest, "/points")).data.balance).toBe(10);
+  });
 async function fixture() {
   const host = await person(),
     guest = await person(),
@@ -82,7 +208,11 @@ async function call(who: Person, path: string, body?: unknown) {
     },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
-  return { status: response.status, data: await response.json() };
+  return {
+    status: response.status,
+    data: await response.json(),
+    requestId: response.headers.get("X-Request-Id"),
+  };
 }
 beforeAll(async () => {
   app = await createApp();

@@ -31,7 +31,7 @@ export class RoomActivityController {
   @Get("rooms/:roomId/activity")
   @Endpoint("roomActivity", z.any(), undefined, ["roomId"])
   snapshot(@Req() req: AuthRequest, @Param("roomId") id: string) {
-    return activity.activitySnapshot(req.user, id);
+    return activity.activitySnapshot(req.user, id, req.requestId);
   }
   @Post("rooms/:roomId/activity")
   @Endpoint(
@@ -50,6 +50,7 @@ export class RoomActivityController {
       req.user,
       id,
       parse(activityCommandSchema, body),
+      req.requestId,
     );
   }
   @Post("rooms/:roomId/activity/ticket")
@@ -61,7 +62,7 @@ export class RoomActivityController {
     201,
   )
   async ticket(@Req() req: AuthRequest, @Param("roomId") id: string) {
-    await activity.activitySnapshot(req.user, id);
+    await activity.activitySnapshot(req.user, id, req.requestId);
     return issueActivityTicket(req.user, id);
   }
   @Post("rooms/:roomId/activity/images")

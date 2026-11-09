@@ -1,3 +1,5 @@
+import { readPointsSummary } from "../points/service";
+import { syncPartyRewards, advancePartyRewards } from "../points/party-rewards";
 import { firstCorrectAnswer } from "../party/party-learning-model";
 import { recordFirstCorrect } from "../party/party-learning";
 import { listPartyCatalog, lockPartyBank } from "../party/party-categories";
@@ -28,12 +30,7 @@ import { db, audit } from "../../core/context";
 import { fail, uuid } from "../../core/errors";
 import { requireFeature } from "../updates/feature-policy";
 import { media } from "../media/media";
-import {
-  newPartyGame,
-  partyCommand,
-  partyView,
-  tickPartyGame,
-} from "../party/party-game";
+import { newPartyGame, partyCommand, partyView } from "../party/party-game";
 import {
   canEditActivityBoard,
   lockWhiteboardArchives,
@@ -56,6 +53,7 @@ async function reconcile(
   tx: Transaction,
   room: ActivityRoom,
   state: ActivityData,
+  requestTrace?: string,
 ) {
   const now = Date.now(),
     live = await admittedActivityMembers(tx, room.id);
@@ -110,7 +108,13 @@ async function reconcile(
       state.game.deadline = now + 1000;
     }
     const before = state.game.round;
-    state.game = tickPartyGame(state.game, now);
+    state.game = await advancePartyRewards(
+      tx,
+      room.id,
+      state.game,
+      now,
+      requestTrace,
+    );
     state.partyRecentAnswers = {
       ...state.partyRecentAnswers,
       [state.game.kind]: state.game.recentAnswers ?? [
@@ -202,6 +206,7 @@ function view(
 export async function activitySnapshot(
   user: User,
   roomId: string,
+  requestTrace?: string,
 ): Promise<ActivitySnapshot> {
   requireFeature(user, "room.activities");
   roomId = uuid(roomId);
@@ -209,7 +214,7 @@ export async function activitySnapshot(
     const { room, credentialId } = await roomActivityAccess(tx, user, roomId);
     const { state, revision } = await readActivity(tx, room),
       before = JSON.stringify(state);
-    const { policies } = await reconcile(tx, room, state);
+    const { policies } = await reconcile(tx, room, state, requestTrace);
     if (state.kind === "board" && !state.participants[user.id]) {
       await requireActivityCapacity(tx, [user.id]);
       state.participants[user.id] = credentialId;
@@ -218,7 +223,12 @@ export async function activitySnapshot(
       before === JSON.stringify(state)
         ? revision
         : await writeActivity(tx, roomId, state);
-    return view(room, state, nextRevision, user, policies);
+    return {
+      ...view(room, state, nextRevision, user, policies),
+      ...(state.kind === "game"
+        ? { points: await readPointsSummary(tx, user.id) }
+        : {}),
+    };
   });
 }
 async function canStart(
@@ -269,6 +279,7 @@ export async function activityCommand(
   user: User,
   roomId: string,
   command: ActivityCommand,
+  requestTrace?: string,
 ): Promise<ActivitySnapshot> {
   requireFeature(user, "room.activities");
   roomId = uuid(roomId);
@@ -276,7 +287,7 @@ export async function activityCommand(
   const result = await db.transaction(async (tx) => {
     const { room, credentialId } = await roomActivityAccess(tx, user, roomId);
     let { state } = await readActivity(tx, room);
-    const { live } = await reconcile(tx, room, state);
+    const { live } = await reconcile(tx, room, state, requestTrace);
     if ("generation" in command && command.generation !== state.generation)
       fail(409, "ACTIVITY_CHANGED", "房间活动已变化，请重试");
     const controller =
@@ -471,6 +482,22 @@ export async function activityCommand(
       }
       try {
         state.board = editWhiteboard(state.board, command.operation, user.id);
+        if (
+          state.kind === "game" &&
+          state.game &&
+          command.operation.type === "put"
+        ) {
+          const e = command.operation.element;
+          if (
+            (e.kind === "rect" && e.width > 0 && e.height > 0) ||
+            (e.kind === "path" &&
+              (e.points?.length ?? 0) > 1 &&
+              e.points!.some(
+                (p) => p[0] !== e.points![0]![0] || p[1] !== e.points![0]![1],
+              ))
+          )
+            state.game.drewThisRound = true;
+        }
       } catch (e) {
         fail(409, "WHITEBOARD_CONFLICT", (e as Error).message);
       }
@@ -518,24 +545,38 @@ export async function activityCommand(
           true,
         );
       }
-      try {
-        if (command.action.type !== "categories") {
-          const now = Date.now();
-          const before = tickPartyGame(state.game, now);
+      if (command.action.type !== "categories") {
+        const now = Date.now();
+        const before = await advancePartyRewards(
+          tx,
+          roomId,
+          state.game,
+          now,
+          requestTrace,
+        );
+        try {
           state.game = partyCommand(
             before,
             { id: user.id, name: user.displayName },
             command.action,
             now,
           );
-          if (command.action.type === "guess") {
-            const answer = firstCorrectAnswer(before, state.game, user.id);
-            if (answer !== undefined)
-              await recordFirstCorrect(tx, user.id, answer);
-          }
+        } catch (e) {
+          fail(409, "PARTY_ACTION_UNAVAILABLE", (e as Error).message);
         }
-      } catch (e) {
-        fail(409, "PARTY_ACTION_UNAVAILABLE", (e as Error).message);
+        state.game = await syncPartyRewards(
+          tx,
+          roomId,
+          before,
+          state.game,
+          requestTrace,
+          user.id,
+        );
+        if (command.action.type === "guess") {
+          const answer = firstCorrectAnswer(before, state.game, user.id);
+          if (answer !== undefined)
+            await recordFirstCorrect(tx, user.id, answer);
+        }
       }
       if (command.action.type === "start") state.board = emptyWhiteboard();
     }
@@ -548,13 +589,12 @@ export async function activityCommand(
         ],
       };
     const revision = await writeActivity(tx, roomId, state);
-    return view(
-      room,
-      state,
-      revision,
-      user,
-      await activityPolicies(tx, roomId),
-    );
+    return {
+      ...view(room, state, revision, user, await activityPolicies(tx, roomId)),
+      ...(state.kind === "game"
+        ? { points: await readPointsSummary(tx, user.id) }
+        : {}),
+    };
   });
   // Notify only after the transition commits, using the old lease ID so a
   // delayed notification cannot stop a replacement publisher.

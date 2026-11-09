@@ -1,3 +1,4 @@
+import { useRoomPoints } from "../../points/ui/useRoomPoints";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { App, Dropdown, Input, Modal, Switch, Tag, type MenuProps } from "antd";
@@ -434,6 +435,7 @@ export function RoomActivityStage() {
     [busy, setBusy] = useState(false),
     [categoryReady, setCategoryReady] = useState(false),
     [now, setNow] = useState(Date.now());
+  useRoomPoints(current?.points);
   const clock = useRef({ server: Date.now(), local: Date.now() });
   const retained = useRef<ActivitySnapshot | undefined>(undefined);
   const active = current && ["board", "game"].includes(current.kind);
@@ -458,7 +460,10 @@ export function RoomActivityStage() {
       await roomActivities.command({
         type: "party",
         generation: snapshot.generation,
-        action,
+        action:
+          action.type === "guess"
+            ? { ...action, roundId: game?.roundId }
+            : action,
       });
       if (action.type === "guess") setAnswer("");
     } catch (e) {

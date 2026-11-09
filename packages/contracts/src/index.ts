@@ -1,3 +1,4 @@
+export * from "./points";
 export * from "./party-submissions";
 export * from "./party-bank";
 export * from "./admin-game";

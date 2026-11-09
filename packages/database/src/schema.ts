@@ -628,3 +628,5 @@ export const partySubmissions = pgTable("party_submissions", {
   updatedAt: time("updated_at").notNull().defaultNow(),
   reviewedAt: time("reviewed_at"),
 });
+
+export * from "./points";
