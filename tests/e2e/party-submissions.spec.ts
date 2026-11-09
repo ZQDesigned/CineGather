@@ -147,15 +147,17 @@ test("qualified users submit and withdraw; a dedicated reviewer edits and approv
     await expect(reviewRow).toContainText(
       `投稿体验者（${author.user.username}）`,
     );
-    let held = false;
+    let holdReview = true;
     const gate = new Promise<void>((resolve) => {
-      resumeReview = resolve;
+      resumeReview = () => {
+        holdReview = false;
+        resolve();
+      };
     });
     await reviewPage.route(
       "**/api/v1/admin/party-submissions/*",
       async (route) => {
-        if (route.request().method() === "GET" && !held) {
-          held = true;
+        if (route.request().method() === "GET" && holdReview) {
           const response = await route.fetch();
           await gate;
           await route.fulfill({ response });

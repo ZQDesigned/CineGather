@@ -51,6 +51,7 @@ const app = await electron.launch({
 try {
   expect(await app.evaluate(({ app }) => app.getVersion())).toBe(version);
   const page = await app.firstWindow();
+  await page.getByRole("button", { name: "账户菜单", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   const result = await page.evaluate(async (file) => {
     const loaded: Record<string, unknown> = await import(

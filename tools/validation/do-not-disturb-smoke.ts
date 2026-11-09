@@ -99,6 +99,7 @@ try {
   await page.screenshot({
     path: ".local/do-not-disturb-verification/" + process.platform + ".png",
   });
+  await page.getByRole("button", { name: "账户菜单", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   await page.getByRole("tab", { name: "通知", exact: true }).click();
   await expect(

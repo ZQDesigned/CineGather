@@ -216,6 +216,7 @@ try {
   expect(
     (await page.evaluate(() => window.desktop!.loadSettings())).noiseReduction,
   ).toBe("basic");
+  await page.getByRole("button", { name: "账户菜单", exact: true }).click();
   await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
   // The default is basic; explicitly exercise the shipped enhancement model.
   await page.getByRole("combobox", { name: "麦克风降噪", exact: true }).click();
@@ -251,13 +252,9 @@ try {
         (await page.evaluate(() => window.desktop!.loadSettings()))
           .windowsEncoder,
       ).toBe(id);
-      if (id === "auto")
-        await page
-          .getByRole("menuitem", { name: "设置与设备", exact: true })
-          .click();
     }
-  } else
-    await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
+  }
+  await page.getByRole("menuitem", { name: /^我的房间/ }).click();
   const preferences = await app.evaluate(({ BrowserWindow }) => {
     const contents = BrowserWindow.getAllWindows()[0]!
       .webContents as unknown as {

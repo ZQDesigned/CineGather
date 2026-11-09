@@ -69,13 +69,12 @@ jobs:
             if ($manifest.buildFingerprint -eq $expected) {
               New-Item -ItemType Directory -Force .local/native-runtime/windows | Out-Null
               Copy-Item .local/upgrade-payload/resources/capture/obs .local/native-runtime/windows/obs -Recurse
-              Copy-Item .local/upgrade-payload/resources/capture/CGProcessAudioHost.exe .local/native-runtime/windows/
               $reuse = $true
             }
           } catch { Write-Host 'No matching released native runtime; building current sources.' }
+          bun tools/windows-audio-build.ts
+          if ($LASTEXITCODE -ne 0) { throw 'Process audio host build failed' }
           if (-not $reuse) {
-            bun tools/windows-audio-build.ts
-            if ($LASTEXITCODE -ne 0) { throw 'Process audio host build failed' }
             python native/capture/build-windows.py
             if ($LASTEXITCODE -ne 0) { throw 'Native capture build failed' }
           }
