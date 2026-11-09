@@ -18,9 +18,6 @@ export function QuestionProgress({ value }: { value: SubmissionEligibility }) {
       <Label>{value.eligible ? "已具备投稿资格" : "投稿资格"}</Label>
       <Label>{value.ageEligible ? "注册已超过 7 天" : "需注册超过 7 天"}</Label>
       <Label>首次答对不同题目：{value.firstTryCorrect} / 50</Label>
-      <Label muted>
-        两种玩法合计，仅首次提交就答对计入；同一道题只计一次。进度从此功能启用后开始累计。
-      </Label>
     </View>
   );
 }

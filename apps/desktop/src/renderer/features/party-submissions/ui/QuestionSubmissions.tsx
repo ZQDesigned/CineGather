@@ -1,4 +1,6 @@
 import { useEffect, useRef, useState } from "react";
+import styled from "@emotion/styled";
+import { Plus, RefreshCw } from "lucide-react";
 import {
   Alert,
   App,
@@ -24,6 +26,7 @@ import { partySubmissionDraft } from "@cinegather/contracts";
 import { unwrap } from "@cinegather/api-client";
 import { api } from "../../../controller";
 import { useRetainedDialog } from "../../../ui/useRetainedDialog";
+import { PageHeading, PageSurface } from "../../../ui/layout/Page";
 import {
   QuestionFields,
   QuestionReadout,
@@ -33,6 +36,45 @@ import {
 } from "./QuestionFields";
 const errorText = (e: unknown) =>
   e instanceof Error ? e.message : "操作失败，请稍后重试";
+const Surface = styled(PageSurface)`
+  .submission-eligibility .ant-card-body {
+    padding: 16px 18px;
+  }
+  .submission-eligibility-grid {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px 32px;
+  }
+  .submission-age {
+    flex: 0 0 170px;
+  }
+  .submission-age-value {
+    margin-top: 8px;
+  }
+  .submission-progress {
+    flex: 1 1 240px;
+    max-width: 420px;
+    min-width: 0;
+  }
+  .submission-progress-heading,
+  .submission-history-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+  }
+  .submission-history-heading h2 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 600;
+  }
+  .submission-status {
+    width: 130px;
+  }
+`;
 export function QuestionSubmissions() {
   const [eligibility, setEligibility] = useState<SubmissionEligibility>(),
     [catalog, setCatalog] = useState<PartyCatalog>(),
@@ -93,87 +135,64 @@ export function QuestionSubmissions() {
     };
   }, [page, status, revision]);
   return (
-    <section
-      style={{ padding: 28, overflow: "auto", flex: 1, minHeight: 0 }}
-      aria-label="题目投稿页面"
-    >
-      <Space
-        style={{
-          width: "100%",
-          justifyContent: "space-between",
-          marginBottom: 20,
-        }}
-        wrap
-      >
-        <div>
-          <Typography.Title level={2} style={{ margin: 0 }}>
-            题目投稿
-          </Typography.Title>
-          <Typography.Text type="secondary">
-            分享你的好题，让大家一起猜。
-          </Typography.Text>
-        </div>
+    <Surface aria-label="题目投稿页面">
+      <PageHeading>
+        <h1>题目投稿</h1>
         <Space>
-          <Button onClick={refresh}>刷新</Button>
+          <Button
+            icon={<RefreshCw size={16} />}
+            onClick={refresh}
+            loading={loading}
+          >
+            刷新
+          </Button>
           <Button
             type="primary"
+            icon={<Plus size={16} />}
             disabled={!eligibility?.eligible || !catalog}
             onClick={() => setEditor({})}
           >
             提交题目
           </Button>
         </Space>
-      </Space>
+      </PageHeading>
       {error && (
         <Alert
           type="error"
           showIcon
           title={error}
-          style={{ marginBottom: 16 }}
           action={<Button onClick={refresh}>重试</Button>}
         />
       )}
       <Card
         size="small"
+        className="submission-eligibility"
         title={eligibility?.eligible ? "已具备投稿资格" : "投稿资格"}
-        style={{ marginBottom: 24 }}
         loading={!eligibility && loading}
       >
-        <div
-          style={{
-            display: "flex",
-            gap: 32,
-            flexWrap: "wrap",
-            alignItems: "center",
-          }}
-        >
-          <div>
+        <div className="submission-eligibility-grid">
+          <div className="submission-age">
             <Typography.Text type="secondary">注册时间</Typography.Text>
-            <div style={{ marginTop: 8 }}>
+            <div className="submission-age-value">
               {eligibility?.ageEligible ? "已超过 7 天" : "需注册超过 7 天"}
             </div>
           </div>
-          <div style={{ minWidth: 240, flex: 1, maxWidth: 420 }}>
-            <Space style={{ display: "flex", justifyContent: "space-between" }}>
+          <div className="submission-progress">
+            <div className="submission-progress-heading">
               <span>首次答对不同题目</span>
               <strong>
                 {eligibility ? `${eligibility.firstTryCorrect} / 50` : "— / 50"}
               </strong>
-            </Space>
+            </div>
             <Progress
               percent={Math.min(100, (eligibility?.firstTryCorrect ?? 0) * 2)}
               showInfo={false}
             />
           </div>
         </div>
-        <Typography.Paragraph type="secondary" style={{ margin: "12px 0 0" }}>
-          两种玩法合计，仅首次提交就答对计入；同一道题只计一次。进度从此功能启用后开始累计。
-        </Typography.Paragraph>
       </Card>
-      <Space style={{ marginBottom: 16 }}>
-        <Typography.Title level={4} style={{ margin: 0 }}>
-          我的投稿
-        </Typography.Title>
+      <div className="submission-history-heading">
+        <h2>我的投稿</h2>
         <Select
           aria-label="投稿状态"
           value={status}
@@ -181,10 +200,10 @@ export function QuestionSubmissions() {
             setStatus(s);
             setPage(1);
           }}
-          style={{ width: 130 }}
+          className="submission-status"
           options={[{ value: "all", label: "全部状态" }, ...submissionStatuses]}
         />
-      </Space>
+      </div>
       <Table<PartySubmission>
         rowKey="id"
         dataSource={items}
@@ -250,7 +269,7 @@ export function QuestionSubmissions() {
           onChanged={refresh}
         />
       )}
-    </section>
+    </Surface>
   );
 }
 function SubmissionEditor({
