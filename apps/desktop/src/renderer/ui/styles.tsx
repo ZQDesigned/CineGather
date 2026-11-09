@@ -249,6 +249,24 @@ export function GlobalStyles() {
         * {
           box-sizing: border-box;
         }
+        /* Include nested scroll areas and Ant Design portals mounted under body. */
+        *::-webkit-scrollbar {
+          width: 5px;
+          height: 5px;
+        }
+        *::-webkit-scrollbar-thumb {
+          background: #3a384e;
+          border-radius: 5px;
+        }
+        *::-webkit-scrollbar-track,
+        *::-webkit-scrollbar-corner {
+          background: transparent;
+        }
+        *::-webkit-scrollbar-button {
+          display: none;
+          width: 0;
+          height: 0;
+        }
         body {
           margin: 0;
           min-width: 760px;
@@ -1763,18 +1781,6 @@ export const AppSurface = styled.div`
       scroll-behavior: auto !important;
     }
   }
-  ::-webkit-scrollbar {
-    width: 5px;
-    height: 5px;
-  }
-  ::-webkit-scrollbar-thumb {
-    background: #3a384e;
-    border-radius: 5px;
-  }
-  ::-webkit-scrollbar-track {
-    background: transparent;
-  }
-
   .network-warning {
     display: flex;
     align-items: center;
