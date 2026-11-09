@@ -90,7 +90,7 @@ export function Chat({ active = true }: { active?: boolean }) {
                 })}
               </time>
             </header>
-            <p>{item.body}</p>
+            <p data-selectable="text">{item.body}</p>
           </article>
         ))}
       </div>

@@ -8,6 +8,7 @@ import {
 } from "../features/notifications/client-notifications";
 
 export function Feedback() {
+  const chatNotificationBody = useRef<HTMLDivElement>(null);
   const lastErrorReminder = useRef<
     { userId?: string; text: string; at: number } | undefined
   >(undefined);
@@ -47,8 +48,8 @@ export function Feedback() {
       key: "room-chat",
       title: `${item.displayName} 发来消息`,
       description: (
-        <div className="chat-notification">
-          <p>{item.body.slice(0, 160)}</p>
+        <div className="chat-notification" ref={chatNotificationBody}>
+          <p data-selectable="text">{item.body.slice(0, 160)}</p>
           <Button
             size="small"
             type="link"
@@ -61,7 +62,17 @@ export function Feedback() {
           </Button>
         </div>
       ),
-      onClick: open,
+      onClick: () => {
+        const selection = window.getSelection();
+        if (
+          window.desktop &&
+          selection &&
+          !selection.isCollapsed &&
+          chatNotificationBody.current?.contains(selection.anchorNode)
+        )
+          return;
+        open();
+      },
       duration: 5,
       role: "status",
     });
@@ -98,7 +109,7 @@ export function Feedback() {
     notification.error({
       key: "operation-error",
       title: "操作未完成",
-      description: error,
+      description: <span data-selectable="text">{error}</span>,
       role: "alert",
       duration: 8,
       pauseOnHover: true,
@@ -117,7 +128,7 @@ export function Feedback() {
     notification.warning({
       key: "operation-warning",
       title: warningTitle ?? "已离开房间",
-      description: warning,
+      description: <span data-selectable="text">{warning}</span>,
       role: "alert",
       duration: 8,
       pauseOnHover: true,

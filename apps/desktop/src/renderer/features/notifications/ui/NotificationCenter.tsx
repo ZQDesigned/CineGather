@@ -90,6 +90,13 @@ export function NotificationCenter() {
                 </Flex>
                 {item.body && (
                   <Typography.Paragraph
+                    data-selectable={
+                      ["chat", "announcements", "diagnostics"].includes(
+                        item.target,
+                      )
+                        ? "text"
+                        : undefined
+                    }
                     ellipsis={{ rows: 2 }}
                     style={{ margin: "6px 0", color: "#9298a9" }}
                   >

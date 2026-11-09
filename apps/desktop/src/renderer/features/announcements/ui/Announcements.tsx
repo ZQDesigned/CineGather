@@ -75,6 +75,7 @@ export function AnnouncementBody({
         </Typography.Text>
       </div>
       <div
+        data-selectable="text"
         style={{
           whiteSpace: "pre-wrap",
           overflowWrap: "anywhere",
@@ -157,7 +158,9 @@ export function AnnouncementLayer() {
           key: "announcement:" + id,
           title: a.title,
           description: (
-            <div style={{ whiteSpace: "pre-wrap" }}>{a.body.slice(0, 200)}</div>
+            <div data-selectable="text" style={{ whiteSpace: "pre-wrap" }}>
+              {a.body.slice(0, 200)}
+            </div>
           ),
           duration: 10,
           actions: (

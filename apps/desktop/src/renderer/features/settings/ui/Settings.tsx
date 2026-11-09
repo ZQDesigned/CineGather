@@ -150,7 +150,7 @@ export function Settings() {
         confirmation.current = modal.confirm({
           title: "无法验证服务器",
           content: (
-            <div className="server-confirmation">
+            <div className="server-confirmation" data-selectable="text">
               <p>{origin}</p>
               <p>
                 {error instanceof Error ? error.message : "连接失败"}

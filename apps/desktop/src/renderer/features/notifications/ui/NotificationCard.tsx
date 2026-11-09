@@ -45,7 +45,11 @@ export function NotificationCard() {
           onClick={() => void window.notificationCard!.close()}
         />
       </Flex>
-      <Typography.Paragraph ellipsis={{ rows: 2 }} style={{ margin: "8px 0" }}>
+      <Typography.Paragraph
+        data-selectable="text"
+        ellipsis={{ rows: 2 }}
+        style={{ margin: "8px 0" }}
+      >
         {item?.body}
       </Typography.Paragraph>
       <Button

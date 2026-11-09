@@ -4,6 +4,7 @@ import { App as AntApp, ConfigProvider, theme } from "antd";
 import zhCN from "antd/locale/zh_CN";
 import type { ReactNode } from "react";
 import { GlobalStyles, cinemaFont } from "./styles";
+import { DesktopTextSelection } from "./layout/DesktopTextSelection";
 export function UIProvider({
   children,
   overlay = false,
@@ -52,6 +53,7 @@ export function UIProvider({
         },
       }}
     >
+      <DesktopTextSelection />
       {!overlay && <GlobalStyles />}
       <AntApp
         message={{ maxCount: 3 }}
