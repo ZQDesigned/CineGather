@@ -30,9 +30,12 @@ export function isRoomInvitationUrl(value: string) {
 
 export function createRoomInvitationLink(
   base: string,
-  roomId: string,
+  roomCode: string,
   token: string,
 ) {
+  const code = roomCode.trim().toUpperCase();
+  if (!/^[A-F0-9]{8}$/u.test(code))
+    throw new Error("邀请链接必须使用 8 位房间号");
   const url = new URL(base);
   if (
     !["https:", "http:"].includes(url.protocol) ||
@@ -41,7 +44,7 @@ export function createRoomInvitationLink(
   )
     throw new Error("邀请需要使用有效的网页地址");
   url.search = "";
-  url.searchParams.set("room", roomId);
+  url.searchParams.set("room", code);
   url.hash = new URLSearchParams({ invite: token }).toString();
   return url.href;
 }

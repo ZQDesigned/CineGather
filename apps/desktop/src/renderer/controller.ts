@@ -2154,7 +2154,7 @@ export async function createInvite() {
     }),
   );
   update({
-    invite: invitationLink(roomId, invite.token),
+    invite: invitationLink(room.code, invite.token),
     inviteId: invite.id,
     modal: "invite",
   });
@@ -2207,7 +2207,7 @@ export async function acceptRoomInvitation(invitation: RoomInvitation) {
   )
     update({ modal: null });
 }
-function invitationLink(roomId: string, token: string) {
+function invitationLink(roomCode: string, token: string) {
   const web = roomInvitationBase({
     desktop: Boolean(window.desktop),
     server: baseUrl,
@@ -2215,7 +2215,7 @@ function invitationLink(roomId: string, token: string) {
     configuredServer: import.meta.env.VITE_API_URL,
     configuredWeb: import.meta.env.VITE_WEB_URL,
   });
-  return createRoomInvitationLink(web, roomId, token);
+  return createRoomInvitationLink(web, roomCode, token);
 }
 export async function logout() {
   await gameLink.exit();

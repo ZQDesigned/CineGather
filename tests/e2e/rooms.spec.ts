@@ -1,6 +1,5 @@
 import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
-import { parseInvitation } from "@cinegather/client-core";
 import { participantOwner } from "@cinegather/contracts";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
@@ -216,7 +215,10 @@ test("a real screen publisher holds the only server lease and stopping removes i
   );
   await page.getByRole("button", { name: "邀请朋友" }).click();
   const invite = await page.getByLabel("房间邀请").inputValue();
-  const { roomId } = parseInvitation(invite);
+  const roomId = await page.evaluate(async () => {
+    const { state } = await import("/store.ts" as string);
+    return state().room.id;
+  });
   await page.getByRole("button", { name: "关闭对话框" }).click();
   const context = await browser.newContext({ permissions: ["microphone"] });
   const viewer = await context.newPage();

@@ -28,7 +28,12 @@ test("desktop copies web invitation information and another client joins by past
   await registerTestAccount(page, "邀请分享体验");
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("一起看电影");
+  const created = page.waitForResponse(
+    (r) => r.url().endsWith("/api/v1/rooms") && r.request().method() === "POST",
+  );
   await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+  const internalId = (await (await created).json()).id as string;
+  expect(internalId).toMatch(/^[0-9a-f-]{36}$/i);
   await expect(page.locator(".connection")).toContainText("已连接");
   const other = await browser.newContext();
   const friend = await other.newPage();
@@ -37,13 +42,18 @@ test("desktop copies web invitation information and another client joins by past
     const preview = page.getByLabel("房间邀请", { exact: true });
     const info = await preview.inputValue();
     expect(info).toMatch(
-      /^邀请分享体验 邀请你加入映聚\n房间：一起看电影\n房间号：[A-Z0-9]{8}\n加入链接：http:\/\/127\.0\.0\.1:5180\//,
+      /^邀请分享体验 邀请你加入映聚\n房间：一起看电影\n房间号：[A-F0-9]{8}\n加入链接：https?:\/\//,
     );
     expect(info).not.toContain("cinegather:");
     const link = info
       .split("\n")
       .at(-1)!
       .replace(/^加入链接：/, "");
+    const visibleCode = /\n房间号：([A-F0-9]{8})\n/u.exec(info)![1];
+    expect(new URL(link).origin).toBe(new URL(page.url()).origin);
+    expect(new URL(link).searchParams.get("room")).toBe(visibleCode);
+    expect(parseInvitation(info).roomId).toBe(visibleCode);
+    expect(info).not.toContain(internalId);
     expect(new URL(link).searchParams.has("invite")).toBe(false);
     expect(parseInvitation(info).inviteToken).toHaveLength(43);
     await page

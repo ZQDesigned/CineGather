@@ -6,7 +6,8 @@ import {
   parseInvitation,
 } from "../src/invitations";
 const token = "a".repeat(43);
-const roomId = "00000000-0000-4000-8000-000000000001";
+const roomId = "ABCD1234";
+const internalId = "00000000-0000-4000-8000-000000000001";
 const link = `https://cgplat.zqdesigned.city/?room=${roomId}#invite=${token}`;
 test("room links use web URLs and keep credentials out of the query", () => {
   expect(
@@ -17,6 +18,13 @@ test("room links use web URLs and keep credentials out of the query", () => {
     ),
   ).toBe(link);
   expect(new URL(link).searchParams.has("invite")).toBe(false);
+  expect(() =>
+    createRoomInvitationLink(
+      "https://cgplat.zqdesigned.city",
+      internalId,
+      token,
+    ),
+  ).toThrow("房间号");
   expect(
     createRoomInvitationLink("http://localhost:5180/app/", "ABCD1234", token),
   ).toBe(`http://localhost:5180/app/?room=ABCD1234#invite=${token}`);
@@ -65,7 +73,7 @@ test("the new reader accepts web links and room numbers but rejects obsolete inv
     parseInvitation(`https://example.com/?room=ABCD1234&invite=${token}`),
   ).toEqual({ roomId: "ABCD1234", inviteToken: token });
   expect(parseInvitation("ABCD1234")).toEqual({ roomId: "ABCD1234" });
-  expect(parseInvitation(roomId)).toEqual({ roomId });
+  expect(parseInvitation(internalId)).toEqual({ roomId: internalId });
   expect(
     parseInvitation(`cinegather://join?room=${roomId}&invite=${token}`),
   ).toEqual({ roomId: "" });
