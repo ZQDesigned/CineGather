@@ -175,13 +175,14 @@ static void addApplication(Applications &apps, DWORD pid, const std::wstring &ti
   bool valid = GetProcessTimes(process, &created, &exited, &kernel, &user);
   wchar_t path[32768]{};
   DWORD size = 32768;
-  if (title.empty())
-    QueryFullProcessImageNameW(process, 0, path, &size);
+  if (!QueryFullProcessImageNameW(process, 0, path, &size))
+    path[0] = L'\0';
   CloseHandle(process);
   if (!valid)
     return;
   const wchar_t *name = wcsrchr(path, L'\\');
-  std::wstring label = title.empty() ? (name ? name + 1 : path) : title;
+  std::wstring executable = name ? name + 1 : path;
+  std::wstring label = title.empty() ? executable : title;
   if (label.empty())
     return;
   apps.seen.insert(pid);
@@ -190,8 +191,9 @@ static void addApplication(Applications &apps, DWORD pid, const std::wstring &ti
   auto key = std::to_string(pid);
   auto identity =
       key + ":" + std::to_string((uint64_t(created.dwHighDateTime) << 32) | created.dwLowDateTime);
-  apps.json += "{\"key\":\"" + key + "\",\"name\":" + quoted(label) + ",\"identity\":\"" +
-               identity + "\",\"target\":\"process:" + identity + "\"}";
+  apps.json += "{\"key\":\"" + key + "\",\"name\":" + quoted(label) +
+               (executable.empty() ? "" : ",\"executable\":" + quoted(executable)) +
+               ",\"identity\":\"" + identity + "\",\"target\":\"process:" + identity + "\"}";
 }
 static BOOL CALLBACK listApplication(HWND window, LPARAM context) {
   auto &apps = *reinterpret_cast<Applications *>(context);

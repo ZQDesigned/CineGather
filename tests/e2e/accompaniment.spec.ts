@@ -143,7 +143,7 @@ test("Mac application accompaniment is isolated, attenuated, independent of micr
       await sender!
         .getByRole("button", { name: "应用伴奏", exact: true })
         .click();
-      await sender!.getByRole("combobox", { name: "伴奏来源" }).click();
+      await sender!.getByRole("combobox", { name: "自选伴奏进程" }).click();
       await sender!
         .getByRole("option", { name: "CG Test Music", exact: true })
         .click();

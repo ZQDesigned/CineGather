@@ -417,6 +417,17 @@ export interface MainWindowState {
   maximized: boolean;
 }
 export type MainWindowAction = "minimize" | "toggle-maximize" | "close";
+export type AccompanimentApplication =
+  | "qqmusic"
+  | "netease"
+  | "soda"
+  | "kugou"
+  | "douyin";
+export interface AccompanimentSource {
+  id: string;
+  name: string;
+  application?: AccompanimentApplication;
+}
 export interface DesktopBridge {
   captureWhiteboardImage?(): Promise<string | undefined>;
   gameLink?: import("./game-link").GameLinkBridge;
@@ -441,7 +452,7 @@ export interface DesktopBridge {
     onState(callback: (state: MainWindowState) => void): () => void;
   };
   accompaniment?: {
-    sources(): Promise<{ id: string; name: string }[]>;
+    sources(): Promise<AccompanimentSource[]>;
     start(sourceId: string, requestId: string): Promise<ProcessAudioStart>;
     stop(requestId: string): Promise<void>;
     acknowledge(sessionId: string, sequence: number): void;

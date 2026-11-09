@@ -12,6 +12,7 @@ const applications = z
       name: z.string().min(1).max(2048),
       identity: z.string().min(1).max(2048),
       target: z.string().min(1).max(1024),
+      executable: z.string().min(1).max(1024).optional(),
     }),
   )
   .max(200);

@@ -62,3 +62,91 @@ test("stop while application validation is pending prevents capture from startin
   await expect(task).rejects.toThrow("停止");
   expect(start).not.toHaveBeenCalled();
 });
+
+test("popular players are identified by executable even when their window shows only the song title", async () => {
+  const applications = [
+    ["QQMusic.exe", "晴天", "qqmusic"],
+    ["cloudmusic.exe", "夜曲", "netease"],
+    ["SodaMusic.exe", "正在播放", "soda"],
+    ["KuGou.exe", "歌单", "kugou"],
+    ["Douyin.exe", "关注", "douyin"],
+  ];
+  const host = new AccompanimentHost({
+    list: async () =>
+      applications.map(([executable, name], i) => ({
+        key: String(i),
+        name: name!,
+        target: `process:${i}:123`,
+        identity: `${i}:123`,
+        executable,
+      })),
+    start: async () => ({ sessionId: "native", mode: "isolated" }),
+    stop: () => {},
+  });
+  const sources = await host.sources();
+  expect(sources.map((s) => s.application)).toEqual([
+    "qqmusic",
+    "netease",
+    "soda",
+    "kugou",
+    "douyin",
+  ]);
+  expect(Object.keys(sources[0]!).sort()).toEqual([
+    "application",
+    "id",
+    "name",
+  ]);
+});
+
+test("a browser or helper with a music player window title remains a custom process", async () => {
+  const host = new AccompanimentHost({
+    list: async () =>
+      ["chrome.exe", "QQMusicHelper.exe", "not-qqmusic.exe"].map(
+        (executable, i) => ({
+          key: String(i),
+          name: "QQ音乐",
+          target: `process:${i}:123`,
+          identity: `${i}:123`,
+          executable,
+        }),
+      ),
+    start: async () => ({ sessionId: "native", mode: "isolated" }),
+    stop: () => {},
+  });
+  expect((await host.sources()).map((s) => s.application)).toEqual([
+    undefined,
+    undefined,
+    undefined,
+  ]);
+});
+
+test("macOS players use bundle identity and older helpers use exact application names", async () => {
+  const host = new AccompanimentHost({
+    list: async () =>
+      [
+        ["com.tencent.QQMusicMac", "播放中"],
+        ["com.netease.163music", "播放中"],
+        ["com.soda.music", "播放中"],
+        ["com.bytedance.douyin.desktop", "播放中"],
+        ["com.example.music", "酷狗音乐"],
+        ["process:6:123", "QQMusic.exe"],
+        ["process:7:123", "QQ音乐 - 浏览器"],
+      ].map(([target, name], i) => ({
+        key: String(i),
+        name: name!,
+        target: target!,
+        identity: `${i}:123`,
+      })),
+    start: async () => ({ sessionId: "native", mode: "isolated" }),
+    stop: () => {},
+  });
+  expect((await host.sources()).map((s) => s.application)).toEqual([
+    "qqmusic",
+    "netease",
+    "soda",
+    "douyin",
+    "kugou",
+    "qqmusic",
+    undefined,
+  ]);
+});

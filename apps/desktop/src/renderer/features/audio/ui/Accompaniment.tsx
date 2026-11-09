@@ -3,6 +3,7 @@ import {
   Button,
   Empty,
   Popover,
+  Radio,
   Select,
   Slider,
   Space,
@@ -12,6 +13,8 @@ import {
 import styled from "@emotion/styled";
 import { Music2, RefreshCw, Square, Volume2 } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
+import type { AccompanimentSource } from "@cinegather/contracts";
+import { commonAccompanimentApplications } from "../../../../shared/accompaniment-apps";
 import { useApp } from "../../../store";
 import * as actions from "../../../controller";
 const Panel = styled.div`
@@ -39,6 +42,48 @@ const Panel = styled.div`
   .ant-select {
     width: 100%;
   }
+  .accompaniment-apps {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .accompaniment-apps .ant-radio-wrapper {
+    display: flex;
+    flex-direction: row-reverse;
+    align-items: center;
+    gap: 12px;
+    margin-inline-end: 0;
+    padding: 8px 10px;
+    border-radius: 8px;
+  }
+  .accompaniment-apps .ant-radio-wrapper-checked {
+    background: #b39bff14;
+  }
+  .accompaniment-apps .ant-radio-wrapper > span:last-child {
+    flex: 1;
+    min-width: 0;
+    padding: 0;
+  }
+  .accompaniment-app-label {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+  }
+  .accompaniment-app-label small {
+    font-size: 11px;
+  }
+  .accompaniment-custom {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    border-top: 1px solid var(--line);
+    padding-top: 12px;
+  }
+  .accompaniment-custom-label {
+    color: var(--muted);
+    font-size: 12px;
+  }
   .ant-slider {
     margin: 12px 6px 0;
   }
@@ -49,7 +94,7 @@ const Panel = styled.div`
 export function AccompanimentControl({ disabled }: { disabled: boolean }) {
   const app = useApp();
   const [open, setOpen] = useState(false);
-  const [sources, setSources] = useState<{ id: string; name: string }[]>([]);
+  const [sources, setSources] = useState<AccompanimentSource[]>([]);
   const [selected, setSelected] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
@@ -57,6 +102,15 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
   const bridge = window.desktop?.accompaniment;
   const active = app.accompaniment.status === "active";
   const starting = app.accompaniment.status === "starting";
+  const commonSources = commonAccompanimentApplications.map((application) => ({
+    ...application,
+    source: sources.find((item) => item.application === application.id),
+  }));
+  const customSelection = commonSources.some(
+    (application) => application.source?.id === selected,
+  )
+    ? undefined
+    : selected;
   const refresh = async () => {
     const revision = ++request.current;
     setLoading(true);
@@ -64,11 +118,13 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
     setSelected(undefined);
     try {
       const items = await bridge!.sources();
-      if (revision === request.current)
-        setSources(items.sort((a, b) => a.name.localeCompare(b.name, "zh-CN")));
+      // Preserve native order: visible applications precede audio-only subprocesses.
+      if (revision === request.current) setSources(items);
     } catch {
-      if (revision === request.current)
+      if (revision === request.current) {
+        setSources([]);
         setError("无法获取应用列表，请检查系统权限后重试");
+      }
     } finally {
       if (revision === request.current) setLoading(false);
     }
@@ -111,19 +167,45 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
             <Alert type="error" className="accompaniment-error" title={error} />
           )}
           <Spin spinning={loading}>
+            <Radio.Group
+              className="accompaniment-apps"
+              aria-label="常用伴奏应用"
+              value={selected}
+              onChange={(event) => setSelected(event.target.value)}
+              disabled={disabled || starting || loading}
+            >
+              {commonSources.map(({ id, name, source }) => {
+                return (
+                  <Radio
+                    key={id}
+                    value={source?.id ?? `unavailable:${id}`}
+                    disabled={disabled || starting || loading || !source}
+                  >
+                    <span className="accompaniment-app-label">
+                      <span>{name}</span>
+                      {(!source || loading) && (
+                        <small>{loading ? "读取中" : "未运行"}</small>
+                      )}
+                    </span>
+                  </Radio>
+                );
+              })}
+            </Radio.Group>
+          </Spin>
+          <div className="accompaniment-custom">
+            <span className="accompaniment-custom-label">自选进程</span>
             <Select
-              aria-label="伴奏来源"
-              placeholder="选择播放音乐的应用"
+              aria-label="自选伴奏进程"
+              placeholder="选择其他应用进程"
               showSearch={{ optionFilterProp: "label" }}
               virtual={false}
               getPopupContainer={(trigger) => trigger.parentElement!}
-              value={selected}
+              value={customSelection}
               onChange={setSelected}
-              disabled={starting || loading}
-              options={sources.map((source) => ({
-                value: source.id,
-                label: source.name,
-              }))}
+              disabled={disabled || starting || loading}
+              options={[...sources]
+                .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"))
+                .map((source) => ({ value: source.id, label: source.name }))}
               notFoundContent={
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -131,7 +213,7 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
                 />
               }
             />
-          </Spin>
+          </div>
           <div>
             <div className="accompaniment-volume">
               <Volume2 size={15} />

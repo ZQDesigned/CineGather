@@ -1,10 +1,15 @@
 import { randomUUID } from "node:crypto";
-import type { ProcessAudioStart } from "@cinegather/contracts";
+import type {
+  AccompanimentSource,
+  ProcessAudioStart,
+} from "@cinegather/contracts";
+import { identifyAccompanimentApplication } from "./accompaniment-applications";
 export interface AudioApplication {
   key: string;
   name: string;
   target: string;
   identity: string;
+  executable?: string;
 }
 // Renderer receives one-shot opaque grants, never arbitrary PIDs or bundle IDs.
 export class AccompanimentHost {
@@ -19,14 +24,19 @@ export class AccompanimentHost {
       stop(): void;
     },
   ) {}
-  async sources() {
+  async sources(): Promise<AccompanimentSource[]> {
     const applications = await this.native.list();
     this.choices.clear();
     this.expires = Date.now() + 60000;
     return applications.slice(0, 200).map((application) => {
       const id = randomUUID();
       this.choices.set(id, application);
-      return { id, name: application.name };
+      const kind = identifyAccompanimentApplication(application);
+      return {
+        id,
+        name: application.name,
+        ...(kind ? { application: kind } : {}),
+      };
     });
   }
   async start(id: string, request: string) {
