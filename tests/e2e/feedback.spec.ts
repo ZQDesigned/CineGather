@@ -18,6 +18,8 @@ test("copy feedback floats above an open modal, dismisses itself and can be show
   const copy = page.getByRole("button", { name: "复制邀请信息", exact: true });
   for (let i = 0; i < 2; i++) {
     await copy.click();
+    // Message pauses its expiry while hovered; keep the pointer outside it.
+    await page.mouse.move(0, 0);
     await expect(
       page
         .locator(".ant-message")
