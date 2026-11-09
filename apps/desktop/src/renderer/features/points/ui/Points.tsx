@@ -1,4 +1,6 @@
 import { useEffect, useState } from "react";
+import styled from "@emotion/styled";
+import { RefreshCw, ScrollText } from "lucide-react";
 import {
   Alert,
   Button,
@@ -21,7 +23,56 @@ import { pointsGameName, pointsReason } from "@cinegather/client-core";
 import { unwrap } from "@cinegather/api-client";
 import { api } from "../../../controller";
 import { useRetainedDialog } from "../../../ui/useRetainedDialog";
+import { PageHeading, PageSurface } from "../../../ui/layout/Page";
 import { PointsDetail } from "./PointsDetail";
+
+const Surface = styled(PageSurface)`
+  .points-summary .ant-card-body {
+    padding: 16px 18px;
+  }
+  .points-summary-grid {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 20px 32px;
+  }
+  .points-balance {
+    flex: 1 1 220px;
+    min-width: 0;
+  }
+  .points-balance-value {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    margin: 8px 0;
+  }
+  .points-balance-value strong {
+    font-size: 36px;
+    line-height: 44px;
+  }
+  .points-daily {
+    flex: 1 1 280px;
+    min-width: 0;
+  }
+  .points-daily-row,
+  .points-history-heading {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: 8px 16px;
+  }
+  .points-history-heading h2 {
+    margin: 0;
+    font-size: 16px;
+    line-height: 24px;
+    font-weight: 600;
+  }
+  .points-time-filter {
+    width: 124px;
+  }
+`;
+
 export function Points() {
   const [summary, setSummary] = useState<PointsSummary>(),
     [policy, setPolicy] = useState<PublicPointsPolicy>(),
@@ -81,65 +132,46 @@ export function Points() {
     };
   }, [page, game, today, revision]);
   return (
-    <section
-      aria-label="我的积分页面"
-      style={{ flex: 1, minHeight: 0, overflow: "auto", padding: 28 }}
-    >
-      <Space
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: 24,
-        }}
-      >
-        <Typography.Title level={3} style={{ margin: 0 }}>
-          我的积分
-        </Typography.Title>
+    <Surface aria-label="我的积分页面">
+      <PageHeading>
+        <h1>我的积分</h1>
         <Space>
-          <Button onClick={() => setRevision((n) => n + 1)} loading={loading}>
+          <Button
+            icon={<RefreshCw size={16} />}
+            onClick={() => setRevision((n) => n + 1)}
+            loading={loading}
+          >
             刷新
           </Button>
-          <Button disabled={!policy} onClick={() => setRules(policy)}>
+          <Button
+            icon={<ScrollText size={16} />}
+            disabled={!policy}
+            onClick={() => setRules(policy)}
+          >
             积分规则
           </Button>
         </Space>
-      </Space>
-      {error && (
-        <Alert
-          type="error"
-          showIcon
-          title={error}
-          style={{ marginBottom: 16 }}
-        />
-      )}
-      <Card style={{ marginBottom: 28 }}>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: 40,
-            flexWrap: "wrap",
-          }}
-        >
-          <div style={{ flex: "1 1 220px" }}>
+      </PageHeading>
+      {error && <Alert type="error" showIcon title={error} />}
+      <Card size="small" className="points-summary">
+        <div className="points-summary-grid">
+          <div className="points-balance">
             <Typography.Text type="secondary">可用积分</Typography.Text>
-            <Typography.Title style={{ margin: "12px 0", fontSize: 44 }}>
-              {summary?.balance ?? "—"}
-              <small style={{ fontSize: 13, fontWeight: 400, marginLeft: 12 }}>
-                积分
-              </small>
-            </Typography.Title>
+            <div className="points-balance-value">
+              <strong>{summary?.balance ?? "—"}</strong>
+              <Typography.Text type="secondary">积分</Typography.Text>
+            </div>
             <Typography.Text type="secondary">
               当前积分来自游戏奖励
             </Typography.Text>
           </div>
-          <div style={{ flex: "1 1 280px" }}>
-            <Space style={{ width: "100%", justifyContent: "space-between" }}>
+          <div className="points-daily">
+            <div className="points-daily-row">
               <Typography.Text type="secondary">今日游戏积分</Typography.Text>
               <strong>
                 {summary?.todayEarned ?? 0} / {summary?.dailyCap ?? "—"}
               </strong>
-            </Space>
+            </div>
             <Progress
               percent={
                 summary?.dailyCap
@@ -151,7 +183,7 @@ export function Points() {
               }
               showInfo={false}
             />
-            <Space style={{ width: "100%", justifyContent: "space-between" }}>
+            <div className="points-daily-row">
               <Typography.Text type="secondary">
                 {summary?.enabled === false
                   ? "游戏积分发放已暂停"
@@ -160,22 +192,13 @@ export function Points() {
               <Typography.Text type="secondary">
                 每日 00:00 刷新
               </Typography.Text>
-            </Space>
+            </div>
           </div>
         </div>
       </Card>
-      <Space
-        wrap
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          marginBottom: 16,
-        }}
-      >
-        <Typography.Title level={5} style={{ margin: 0 }}>
-          积分明细
-        </Typography.Title>
-        <Space wrap>
+      <div className="points-history-heading">
+        <h2>积分明细</h2>
+        <Space wrap size={12}>
           <Segmented
             value={game}
             onChange={(v) => {
@@ -189,6 +212,7 @@ export function Points() {
             ]}
           />
           <Select
+            className="points-time-filter"
             aria-label="明细时间"
             value={today}
             onChange={(v) => {
@@ -201,7 +225,7 @@ export function Points() {
             ]}
           />
         </Space>
-      </Space>
+      </div>
       <Table<PointsEntry>
         rowKey="id"
         dataSource={items}
@@ -288,6 +312,6 @@ export function Points() {
           </>
         )}
       </Modal>
-    </section>
+    </Surface>
   );
 }
