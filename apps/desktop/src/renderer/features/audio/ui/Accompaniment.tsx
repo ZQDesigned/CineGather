@@ -13,10 +13,27 @@ import {
 import styled from "@emotion/styled";
 import { Music2, RefreshCw, Square, Volume2 } from "lucide-react";
 import { useRef, useState, useEffect } from "react";
-import type { AccompanimentSource } from "@cinegather/contracts";
+import type {
+  AccompanimentApplication,
+  AccompanimentSource,
+} from "@cinegather/contracts";
 import { commonAccompanimentApplications } from "../../../../shared/accompaniment-apps";
+import qqMusicIcon from "../assets/qqmusic.png";
+import neteaseIcon from "../assets/netease.png";
+import sodaIcon from "../assets/soda.png";
+import kugouIcon from "../assets/kugou.png";
+import douyinIcon from "../assets/douyin.png";
 import { useApp } from "../../../store";
 import * as actions from "../../../controller";
+// Product marks from the official QQ Music, NetEase Music, Qishui, Kugou and Douyin sites.
+// Bundle locally so the audio picker never depends on third-party image requests.
+const applicationIcons = {
+  qqmusic: qqMusicIcon,
+  netease: neteaseIcon,
+  soda: sodaIcon,
+  kugou: kugouIcon,
+  douyin: douyinIcon,
+} satisfies Record<AccompanimentApplication, string>;
 const Panel = styled.div`
   width: 300px;
   max-width: calc(100vw - 48px);
@@ -72,6 +89,21 @@ const Panel = styled.div`
   }
   .accompaniment-app-label small {
     font-size: 11px;
+  }
+  .accompaniment-app-name {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+  }
+  .accompaniment-app-icon {
+    width: 20px;
+    height: 20px;
+    flex-shrink: 0;
+    object-fit: contain;
+  }
+  .ant-radio-wrapper-disabled .accompaniment-app-icon {
+    opacity: 0.6;
   }
   .accompaniment-custom {
     display: flex;
@@ -182,7 +214,18 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
                     disabled={disabled || starting || loading || !source}
                   >
                     <span className="accompaniment-app-label">
-                      <span>{name}</span>
+                      <span className="accompaniment-app-name">
+                        <img
+                          className="accompaniment-app-icon"
+                          src={applicationIcons[id]}
+                          width={20}
+                          height={20}
+                          alt=""
+                          aria-hidden="true"
+                          draggable={false}
+                        />
+                        <span>{name}</span>
+                      </span>
                       {(!source || loading) && (
                         <small>{loading ? "读取中" : "未运行"}</small>
                       )}
