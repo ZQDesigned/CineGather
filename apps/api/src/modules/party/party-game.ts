@@ -172,8 +172,60 @@ function results(game: PartyGame, now: number, completed = false) {
   game.deadline = now + 5000;
   game.choices = [];
 }
-export function tickPartyGame(input: PartyGame, now: number): PartyGame {
+function reconcileParticipants(game: PartyGame, now: number) {
+  const paused = game.phase === "paused";
+  const phase = paused ? game.pausedPhase : game.phase;
+  if (!phase || !["choosing", "playing", "results"].includes(phase)) return;
+  const ready = game.players.filter((p) => p.ready);
+  if (ready.length < 2) {
+    game.phase = "finished";
+    game.deadline = undefined;
+    game.choices = [];
+    if (phase !== "results") game.roundCompleted = false;
+    delete game.pausedPhase;
+    delete game.remaining;
+    return;
+  }
+  if (phase === "results") return;
+  const eligible = ready.filter((p) => p.eligibleRound <= game.round);
+  if (
+    eligible.length < 2 ||
+    (game.kind === "draw" && !eligible.some((p) => p.id === game.drawerId))
+  ) {
+    // An abandoned drawing is cancelled, not a completed participation round.
+    results(game, now);
+    game.deadline = now + 1000;
+    delete game.pausedPhase;
+    delete game.remaining;
+    return;
+  }
+  const guessers = eligible.filter(
+    (p) => game.kind !== "draw" || p.id !== game.drawerId,
+  );
+  if (
+    phase === "playing" &&
+    guessers.every((p) => game.solvedIds.includes(p.id))
+  ) {
+    results(game, now, true);
+    if (paused) {
+      game.phase = "paused";
+      game.pausedPhase = "results";
+      game.remaining = 5000;
+      game.deadline = undefined;
+    }
+  }
+}
+export function tickPartyGame(
+  input: PartyGame,
+  now: number,
+  activeIds?: readonly string[],
+): PartyGame {
   const game = structuredClone(input);
+  if (activeIds) {
+    const admitted = new Set(activeIds);
+    game.players = game.players.filter((p) => admitted.has(p.id));
+  }
+  reconcileParticipants(game, now);
   if (!game.deadline || game.deadline > now) return game;
   if (game.phase === "choosing") choose(game, 0, now);
   else if (game.phase === "playing") results(game, now, true);
@@ -204,12 +256,7 @@ export function partyCommand(
     player.ready = action.ready;
     if (action.ready && !["lobby", "finished"].includes(game.phase))
       player.eligibleRound = game.round + 1;
-    if (
-      !action.ready &&
-      game.drawerId === actor.id &&
-      ["choosing", "playing"].includes(game.phase)
-    )
-      results(game, now);
+    reconcileParticipants(game, now);
     return game;
   }
   if (action.type === "start") {

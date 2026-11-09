@@ -95,18 +95,6 @@ async function reconcile(
   if (state.starterId && !live.some((m) => m.userId === state.starterId))
     state.starterId = room.ownerUserId;
   if (state.game) {
-    for (const p of state.game.players)
-      if (!live.some((m) => m.userId === p.id)) p.ready = false;
-    if (
-      state.game.drawerId &&
-      !state.game.players.some(
-        (p) => p.id === state.game!.drawerId && p.ready,
-      ) &&
-      ["playing", "choosing", "paused"].includes(state.game.phase)
-    ) {
-      state.game.phase = "results";
-      state.game.deadline = now + 1000;
-    }
     const before = state.game.round;
     state.game = await advancePartyRewards(
       tx,
@@ -114,6 +102,8 @@ async function reconcile(
       state.game,
       now,
       requestTrace,
+      undefined,
+      live.map((m) => m.userId),
     );
     state.partyRecentAnswers = {
       ...state.partyRecentAnswers,

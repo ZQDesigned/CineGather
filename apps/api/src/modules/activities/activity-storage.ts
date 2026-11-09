@@ -1,3 +1,4 @@
+import { advancePartyRewards } from "../points/party-rewards";
 import { randomUUID } from "node:crypto";
 import { and, eq, gt, isNull, sql, inArray } from "drizzle-orm";
 import {
@@ -195,15 +196,15 @@ export async function archiveDeparting(
   state.requests = state.requests.filter((r) => r.userId !== userId);
   if (state.screenGrant?.userId === userId) delete state.screenGrant;
   if (state.game) {
-    const player = state.game.players.find((p) => p.id === userId);
-    if (player) player.ready = false;
-    if (
-      state.game.drawerId === userId &&
-      ["choosing", "playing", "paused"].includes(state.game.phase)
-    ) {
-      state.game.phase = "results";
-      state.game.deadline = Date.now() + 1000;
-    }
+    state.game = await advancePartyRewards(
+      tx,
+      roomId,
+      state.game,
+      Date.now(),
+      undefined,
+      userId,
+      state.game.players.filter((p) => p.id !== userId).map((p) => p.id),
+    );
   }
   await writeActivity(tx, roomId, state);
 }

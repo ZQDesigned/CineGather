@@ -112,12 +112,13 @@ export async function advancePartyRewards(
   now: number,
   requestTrace?: string,
   actorId?: string,
+  activeIds?: readonly string[],
 ) {
   return syncPartyRewards(
     tx,
     roomId,
     input,
-    tickPartyGame(input, now),
+    tickPartyGame(input, now, activeIds),
     requestTrace,
     actorId,
   );
