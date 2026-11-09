@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { test, expect } from "@playwright/test";
 import { resolve } from "node:path";
 
@@ -6,7 +7,7 @@ test("DeepFilterNet3 attenuates stationary fan-like noise in the actual AudioWor
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   const result = await page.evaluate(async (module) => {
     const { MicrophoneDenoiser } = await import(module);
     const context = new AudioContext({ sampleRate: 44100 });
@@ -97,7 +98,7 @@ test("a failed model load falls back without stopping the microphone or its call
     else await route.continue();
   });
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   const result = await page.evaluate(async (module) => {
     const { MicrophoneDenoiser } = await import(module);
     const context = new AudioContext();
@@ -142,7 +143,7 @@ test("enhancement preserves speech energy rather than passing the noise test by 
     ...(await readFile(resolve("tests/fixtures/microphone-voice.wav"))),
   ];
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   const result = await page.evaluate(
     async ({ module, bytes }) => {
       const { MicrophoneDenoiser } = await import(module);
@@ -209,7 +210,7 @@ test("mixed quiet speech and keyboard-like transients improve within the worklet
   ];
   const recordingModule = `/@fs${resolve("tests/fixtures/audio-recording-worklet.js")}`;
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   const result = await page.evaluate(
     async ({ module, bytes, recordingModule }) => {
       const { MicrophoneDenoiser } = await import(module);
@@ -436,7 +437,7 @@ test("a failed high-quality model uses RNNoise and a later worklet error keeps t
 }) => {
   await page.route("**/DeepFilterNet3*", (route) => route.abort("failed"));
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   const result = await page.evaluate(async (module) => {
     const { MicrophoneDenoiser } = await import(module);
     const context = new AudioContext({ sampleRate: 48000 });

@@ -149,7 +149,7 @@ for (const close of ["acknowledge", "escape", "outside", "arrow"] as const) {
     await expect(page.locator(".connection")).toContainText("未连接房间");
     await page.reload();
     await expect(
-      page.getByRole("button", { name: "退出登录", exact: true }),
+      page.getByRole("button", { name: "设置在线状态", exact: true }),
     ).toBeVisible();
     await createRoom(page);
     await expect(notice).toBeHidden();

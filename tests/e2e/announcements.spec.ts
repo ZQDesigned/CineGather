@@ -113,7 +113,7 @@ test("site announcements preview, broadcast, survive offline/reload, schedule, e
     await other.getByLabel("密码", { exact: true }).fill(testPassword);
     await other.getByRole("button", { name: "登录映聚", exact: true }).click();
     await expect(
-      other.getByRole("button", { name: "退出登录", exact: true }),
+      other.getByRole("button", { name: "设置在线状态", exact: true }),
     ).toBeVisible();
     expect(
       await other.evaluate(() => localStorage.getItem("cinegather.session")),

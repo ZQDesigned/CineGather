@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { defaultSettings } from "../../apps/desktop/src/shared/settings";
@@ -148,9 +149,7 @@ test("account capabilities use a single form and preserve cancellation and saved
         ),
       )
       .toBe("cinema");
-    await viewing
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(viewing, "设置与设备");
     await viewing
       .getByRole("tab", { name: "共享与快捷键", exact: true })
       .click();

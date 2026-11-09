@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
@@ -149,9 +150,7 @@ test("room audio arrow applies devices and noise immediately without unmuting or
     await select("扬声器 / 耳机", "系统默认输出");
     await page.keyboard.press("Escape");
     await expect(panel).not.toBeVisible();
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await expect(
       page.getByRole("region", { name: "设置与设备页面" }),
     ).toBeVisible();

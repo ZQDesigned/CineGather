@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import {
   test,
   expect,
@@ -81,7 +82,7 @@ test("Mac native Debug reports real VideoToolbox output and cached IPC never sta
         return state().room.id;
       }),
     );
-    await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+    await selectAccountMenu(page, "连接诊断");
     const dialog = page.getByRole("dialog", { name: "连接诊断", exact: true });
     await dialog
       .getByRole("switch", { name: "Debug 模式", exact: true })

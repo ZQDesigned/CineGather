@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { test, expect, type BrowserContext, type Page } from "@playwright/test";
 import { RoomServiceClient } from "livekit-server-sdk";
 import { participantOwner } from "@cinegather/contracts";
@@ -103,9 +104,7 @@ test("account subpages save nicknames without disconnecting the room and update 
     await expect(
       other.locator(".member-name").filter({ hasText: "改名前" }),
     ).toBeVisible();
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "账号与安全", exact: true }).click();
     await expect(page.getByLabel("当前密码", { exact: true })).toHaveCount(0);
     await page.getByRole("button", { name: "修改昵称", exact: true }).click();

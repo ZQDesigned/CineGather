@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { participantOwner } from "@cinegather/contracts";
 import { registerTestAccount } from "./helpers/account";
@@ -181,7 +182,7 @@ test("settings device tests release captured microphone when leaving the page", 
     };
   });
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "停止测试", exact: true }),
@@ -545,7 +546,7 @@ test("leaving settings while microphone permission is pending releases the late 
     };
   });
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
   const ended = () =>
     page.evaluate(() => {
@@ -623,7 +624,7 @@ test("a removed output device does not leave the speaker test audio context open
     };
   });
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page
     .getByRole("combobox", { name: "扬声器 / 耳机", exact: true })
     .click();
@@ -691,9 +692,7 @@ test("switching a selected microphone back to system default updates the active 
           .deviceSwitchProbe.calls,
     );
   try {
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     const select = page.getByRole("combobox", { name: "麦克风", exact: true });
     await select.click();
     await expect
@@ -706,9 +705,7 @@ test("switching a selected microphone back to system default updates the active 
     await expect(page.getByRole("dialog")).toHaveCount(0);
     await expect.poll(calls).toBeGreaterThan(before);
     const selectedCalls = await calls();
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("combobox", { name: "麦克风", exact: true }).click();
     await page
       .getByRole("option", { name: "系统默认麦克风", exact: true })
@@ -734,9 +731,7 @@ test("enabling push-to-talk mutes immediately and chat typing cannot release a l
     page.getByRole("button", { name: "关闭麦克风", exact: true }),
   ).toBeEnabled();
   try {
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await page.getByRole("checkbox", { name: /^按键说话/ }).check();
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
@@ -922,7 +917,7 @@ test("push-to-talk released during an SFU outage stays muted after reconnection"
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByLabel("房间名称").fill("重连静音意图测试");
   await page.getByRole("button", { name: "创建并进入" }).click();
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await page.getByRole("checkbox", { name: /^按键说话/ }).check();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
@@ -1064,7 +1059,7 @@ test("a hotkey status failure cannot disable the user's saved push-to-talk mode"
     });
   });
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await expect(page.getByRole("checkbox", { name: "按键说话" })).toBeChecked();
 });

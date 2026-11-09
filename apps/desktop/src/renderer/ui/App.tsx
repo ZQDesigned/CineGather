@@ -1,9 +1,6 @@
 import { Points } from "../features/points/ui/Points";
 import { Settings as SettingsPage } from "../features/settings/ui/Settings";
-import {
-  isSettingsPage,
-  openSettings,
-} from "../features/settings/settings-navigation";
+import { isSettingsPage } from "../features/settings/settings-navigation";
 import { QuestionSubmissions } from "../features/party-submissions/ui/QuestionSubmissions";
 import { WhiteboardHistory } from "../features/activities/ui/RoomActivities";
 import { GameLink, GameLinkNotifications } from "../features/games/ui/GameLink";
@@ -16,15 +13,13 @@ import { NotificationCenter } from "../features/notifications/ui/NotificationCen
 import { DoNotDisturb } from "../features/notifications/ui/DoNotDisturb";
 
 import { version } from "../../../package.json";
-import { Button, Menu, Avatar, Badge, Breadcrumb, Tooltip, Space } from "antd";
+import { Button, Menu, Avatar, Badge, Breadcrumb, Space } from "antd";
 import { useEffect, useState } from "react";
 import {
   Signal,
   Clapperboard,
   Film,
   Users,
-  Settings,
-  Radio,
   LogOut,
   ShieldCheck,
   Download,
@@ -51,6 +46,7 @@ import { matchesShortcut } from "../../shared/shortcuts";
 import { buildMemberOverlay } from "../../shared/member-overlay";
 import { hasIncomingRequests } from "../features/friends/friends";
 import { PresenceAvatar } from "./Presence";
+import { AccountMenu } from "./layout/AccountMenu";
 import {
   RoomInvitationInboxButton,
   RoomInvitationNotifications,
@@ -403,7 +399,7 @@ export function App() {
           <Menu
             className="sidebar-menu"
             mode="inline"
-            selectedKeys={section === "settings" ? ["settings"] : []}
+            selectedKeys={[]}
             items={[
               ...(!capabilities().desktop
                 ? [
@@ -422,18 +418,6 @@ export function App() {
                 label: "白板记录",
                 onClick: () => setWhiteboards(true),
               },
-              {
-                key: "settings",
-                icon: <Settings size={18} />,
-                label: "设置与设备",
-                onClick: () => openSettings(),
-              },
-              {
-                key: "diagnostics",
-                icon: <Radio size={18} />,
-                label: "连接诊断",
-                onClick: () => update({ modal: "diagnostics" }),
-              },
             ]}
           />
         </div>
@@ -447,17 +431,7 @@ export function App() {
               {app.user?.username ?? "等待你的加入"}
             </small>
           </span>
-          {app.user && (
-            <Tooltip title={"退出登录"}>
-              <Button
-                type="text"
-                aria-label={"退出登录"}
-                onClick={() => void actions.run(actions.logout)}
-              >
-                <LogOut size={16} />
-              </Button>
-            </Tooltip>
-          )}
+          <AccountMenu />
         </div>
       </aside>
       <main className="workspace">

@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { test, expect, _electron as electron } from "@playwright/test";
 import { mkdtemp, writeFile, rm } from "node:fs/promises";
@@ -43,9 +44,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     );
     await page.reload();
     await registerTestAccount(page, "浮层实机成员");
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "成员浮层", exact: true }).click();
     await expect(
       page.getByRole("switch", { name: "显示房间成员浮层", exact: true }),
@@ -157,9 +156,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     const friend = await other.newPage();
     await friend.goto("/");
     await registerTestAccount(friend, "浮层远端成员");
-    await friend
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(friend, "设置与设备");
     await expect(
       friend.getByRole("tab", { name: "成员浮层", exact: true }),
     ).toHaveCount(0);
@@ -240,9 +237,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     await page
       .getByRole("button", { name: "返回当前房间", exact: true })
       .click();
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "成员浮层", exact: true }).click();
     const enabled = page.getByRole("switch", {
       name: "显示房间成员浮层",
@@ -260,9 +255,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
         ),
       )
       .toBe(false);
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "成员浮层", exact: true }).click();
     await enabled.click();
     await page
@@ -303,9 +296,7 @@ test("native member overlay appears only in a room and uses an isolated transpar
     });
     expect(pixels.backgroundAlpha).toBe(0);
     expect(pixels.textAlpha).toBe(255);
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "成员浮层", exact: true }).click();
     const previousPosition = await app.evaluate(({ BrowserWindow }) =>
       BrowserWindow.getAllWindows()

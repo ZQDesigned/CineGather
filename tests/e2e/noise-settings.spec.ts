@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
@@ -6,7 +7,7 @@ test("microphone noise reduction defaults to basic and an explicit enhanced choi
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   const select = page.getByRole("combobox", {
     name: "麦克风降噪",
     exact: true,
@@ -20,7 +21,7 @@ test("microphone noise reduction defaults to basic and an explicit enhanced choi
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await leaveSettings(page);
   await page.reload();
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await expect(
     page.locator(".ant-select").filter({
       has: page.getByRole("combobox", { name: "麦克风降噪", exact: true }),
@@ -64,9 +65,7 @@ test("leaving settings during model loading stops the raw microphone capture imm
   });
   try {
     await page.goto("/");
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page
       .getByRole("combobox", { name: "麦克风降噪", exact: true })
       .click();
@@ -109,9 +108,7 @@ test("changing noise reduction hot-applies to the room without unmuting a muted 
       ["off", "关闭降噪"],
       ["enhanced", "增强降噪"],
     ]) {
-      await page
-        .getByRole("menuitem", { name: "设置与设备", exact: true })
-        .click();
+      await selectAccountMenu(page, "设置与设备");
       await page
         .getByRole("combobox", { name: "麦克风降噪", exact: true })
         .click();
@@ -122,9 +119,7 @@ test("changing noise reduction hot-applies to the room without unmuting a muted 
       await expect(
         page.getByRole("button", { name: "开启麦克风", exact: true }),
       ).toBeEnabled();
-      await page
-        .getByRole("menuitem", { name: "连接诊断", exact: true })
-        .click();
+      await selectAccountMenu(page, "连接诊断");
       const pending = page.waitForEvent("download");
       await page.getByRole("button", { name: "导出诊断", exact: true }).click();
       const stream = await (await pending).createReadStream();

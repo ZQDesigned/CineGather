@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
@@ -114,7 +115,7 @@ test("notification preferences, merged history, sharing privacy and account isol
   ).toBeVisible();
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   await page.getByRole("button", { name: "开启免打扰", exact: true }).click();
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "通知", exact: true }).click();
   await expect(
     page.getByRole("switch", { name: "免打扰", exact: true }),
@@ -135,7 +136,7 @@ test("notification preferences, merged history, sharing privacy and account isol
   ).toBe(1);
   await page.reload();
   await expect(
-    page.getByRole("button", { name: "退出登录", exact: true }),
+    page.getByRole("button", { name: "设置在线状态", exact: true }),
   ).toBeVisible();
   await page
     .getByRole("button", { name: "通知，1 条未读", exact: true })
@@ -149,7 +150,7 @@ test("notification preferences, merged history, sharing privacy and account isol
     page.getByRole("button", { name: "关闭免打扰", exact: true }),
   ).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "关闭免打扰", exact: true }).click();
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "通知", exact: true }).click();
   await page.getByRole("button", { name: "保存设置", exact: true }).click();
   await leaveSettings(page);
@@ -171,7 +172,7 @@ test("notification preferences, merged history, sharing privacy and account isol
     const { update } = await import("/store.ts" as string);
     update({ shareState: "idle" });
   });
-  await page.getByRole("button", { name: "退出登录", exact: true }).click();
+  await selectAccountMenu(page, "退出登录");
   await expect(
     page.getByRole("button", { name: "登录映聚", exact: true }),
   ).toBeVisible();
@@ -252,9 +253,7 @@ test("an upgrade resets notification volume once and later saved levels survive 
     doNotDisturb: true,
   });
   const open = async () => {
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "通知", exact: true }).click();
   };
   await open();
@@ -290,7 +289,7 @@ test("do not disturb is a persistent topbar shortcut and an open settings draft 
   const disable = page.getByRole("button", { name: "关闭免打扰", exact: true });
   await expect(disable).toHaveAttribute("aria-pressed", "true");
   await disable.click();
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "通知", exact: true }).click();
   await expect(
     page.getByRole("switch", { name: "免打扰", exact: true }),

@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { test, expect, type Page } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
 
@@ -36,7 +37,7 @@ async function source(page: Page) {
 test("login devices have their own settings tab", async ({ page }) => {
   await page.goto("/");
   await registerTestAccount(page, "设备标签测试");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "账号与安全", exact: true }).click();
   await expect(
     page.locator('section[aria-label="登录设备"]'),

@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { registerTestAccount } from "./helpers/account";
@@ -103,7 +104,7 @@ test("accepted friends see online state while invisibility survives a reload and
       timeout: 10000,
     });
     await b.keyboard.press("Escape");
-    await b.getByRole("button", { name: "退出登录", exact: true }).click();
+    await selectAccountMenu(b, "退出登录");
     await expect(friend.locator("small")).toHaveText("离线", {
       timeout: 10000,
     });

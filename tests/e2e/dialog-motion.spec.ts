@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
@@ -47,11 +48,11 @@ test("diagnostics keeps its panel and mask mounted until their exit animations c
 }) => {
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.goto("/");
-  const trigger = page.getByRole("menuitem", {
-    name: "连接诊断",
+  const trigger = page.getByRole("button", {
+    name: "账户菜单",
     exact: true,
   });
-  await trigger.click();
+  await selectAccountMenu(page, "连接诊断");
   await expect(page.getByRole("dialog")).toBeVisible();
   await watchClosing(page);
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
@@ -65,7 +66,7 @@ test("opening server settings retains diagnostics content through its exit anima
   await page.emulateMedia({ reducedMotion: "no-preference" });
   await page.route("**/api/v1/health", (route) => route.abort());
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+  await selectAccountMenu(page, "连接诊断");
   const link = page.getByRole("button", { name: "打开设置", exact: true });
   await expect(link).toBeVisible();
   await watchClosing(page);
@@ -113,9 +114,11 @@ test("create, join and diagnostics animate every supported close action", async 
     },
   ];
   for (const entry of cases) {
-    await page
-      .getByRole(entry.role, { name: entry.trigger, exact: true })
-      .click();
+    if (entry.trigger === "连接诊断") await selectAccountMenu(page, "连接诊断");
+    else
+      await page
+        .getByRole(entry.role, { name: entry.trigger, exact: true })
+        .click();
     await expect(
       page.getByRole("heading", { name: entry.title, exact: true }),
     ).toBeVisible();
@@ -203,7 +206,7 @@ test("microphone testing stops when leaving the settings page", async ({
     };
   });
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "停止测试", exact: true }),
@@ -263,7 +266,7 @@ test("an incoming invitation waits for the previous dialog to finish closing bef
   );
   await page.goto("/");
   await registerTestAccount(page, "弹窗切换回归");
-  await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+  await selectAccountMenu(page, "连接诊断");
   await watchClosing(page);
   const invitation = `cinegather://join?room=1234ABCD&invite=${"x".repeat(43)}`;
   await page.evaluate(

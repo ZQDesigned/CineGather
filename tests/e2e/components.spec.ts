@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect } from "@playwright/test";
 
@@ -91,7 +92,7 @@ test("settings tabs preserve draft fields and keep the matching submit action vi
 }) => {
   await page.setViewportSize({ width: 980, height: 680 });
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
   await page
     .getByRole("button", { name: "页面内麦克风静音", exact: true })

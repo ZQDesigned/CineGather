@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import {
   test,
@@ -114,7 +115,7 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     }, token);
     await page.reload();
     await expect(
-      page.getByRole("button", { name: "退出登录", exact: true }),
+      page.getByRole("button", { name: "设置在线状态", exact: true }),
     ).toBeVisible();
   };
   const setEffect = async (value: "none" | "ktv", target = sender!) => {
@@ -429,9 +430,7 @@ test("solo KTV effect persists on desktop, reaches the web listener and leaves a
     expect(
       JSON.parse(strFromU8(zip["current.json"]!)).microphoneEffect,
     ).toMatchObject({ requested: "ktv", active: "ktv", strength: 100 });
-    await sender
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(sender, "设置与设备");
     await expect(
       sender.getByRole("combobox", { name: "麦克风音效", exact: true }),
     ).toHaveCount(0);

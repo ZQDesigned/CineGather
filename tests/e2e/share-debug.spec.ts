@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { test, expect, type Page } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { registerTestAccount } from "./helpers/account";
@@ -22,7 +23,7 @@ test("Debug overlay shares real two-second sampling and distinguishes sender, re
     );
   };
   const debug = async (p: Page, on: boolean) => {
-    await p.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+    await selectAccountMenu(p, "连接诊断");
     const dialog = p.getByRole("dialog", { name: "连接诊断", exact: true });
     await dialog
       .getByRole("switch", { name: "Debug 模式", exact: true })

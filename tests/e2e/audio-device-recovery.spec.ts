@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { test, expect } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
@@ -44,7 +45,7 @@ test("lost saved devices fall back persistently and never show opaque IDs; priva
     { preferences },
   );
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备" }).click();
+  await selectAccountMenu(page, "设置与设备");
   await expect(
     page.getByRole("combobox", { name: "麦克风", exact: true }).locator(".."),
   ).toContainText("USB 麦克风");
@@ -104,7 +105,7 @@ test("lost saved devices fall back persistently and never show opaque IDs; priva
     );
   });
   await leaveSettings(page);
-  await page.getByRole("menuitem", { name: "设置与设备" }).click();
+  await selectAccountMenu(page, "设置与设备");
   await expect(
     page.getByRole("combobox", { name: "麦克风", exact: true }).locator(".."),
   ).toContainText("已保存的麦克风（等待设备授权）");
@@ -198,7 +199,7 @@ test("a disconnected microphone ends the settings test cleanly", async ({
     };
   });
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备" }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("button", { name: "测试麦克风", exact: true }).click();
   await expect(
     page.getByRole("button", { name: "停止测试", exact: true }),

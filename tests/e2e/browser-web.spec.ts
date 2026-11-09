@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
@@ -160,9 +161,7 @@ test("Chrome settings have page-only shortcuts, no tray controls, and mute works
   await context.grantPermissions(["microphone"]);
   await create(page);
   try {
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await expect(
       page.getByRole("button", { name: "页面内按住说话", exact: true }),
@@ -260,9 +259,7 @@ test("Chrome ignores saved push-to-talk and keeps free-mic or manual mute across
         await expect(mic(muted)).toBeEnabled();
       }
     }
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await expect(
       page.getByRole("checkbox", { name: "按键说话", exact: true }),
@@ -370,9 +367,7 @@ test("unsupported browser media APIs keep settings and basic chat usable", async
   page.on("pageerror", (e) => errors.push(e.message));
   await create(page);
   try {
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await expect(
       page.getByRole("button", { name: "测试麦克风", exact: true }),
     ).toBeDisabled();
@@ -388,7 +383,7 @@ test("unsupported browser media APIs keep settings and basic chat usable", async
     await page.getByLabel("聊天消息").fill("设备不可用时仍可聊天");
     await page.getByRole("button", { name: "发送消息", exact: true }).click();
     await expect(page.locator(".chat-message")).toContainText("仍可聊天");
-    await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+    await selectAccountMenu(page, "连接诊断");
     await expect(page.getByText("可以连接", { exact: true })).toBeVisible();
     const downloaded = page.waitForEvent("download");
     await page.getByRole("button", { name: "导出诊断", exact: true }).click();

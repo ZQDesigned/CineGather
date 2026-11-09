@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 import { registerTestAccount } from "./helpers/account";
@@ -136,9 +137,7 @@ test("real shared video reports healthy playback and injected pipeline faults re
         { timeout: 15000 },
       )
       .toBeGreaterThan(0);
-    await viewer
-      .getByRole("menuitem", { name: "连接诊断", exact: true })
-      .click();
+    await selectAccountMenu(viewer, "连接诊断");
     const dialog = viewer.getByRole("dialog", {
       name: "连接诊断",
       exact: true,

@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import {
   currentClientVersion,
@@ -98,7 +99,7 @@ async function fixture(page: Page, mode: UpdateStatus["mode"]) {
     },
   );
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "版本更新", exact: true }).click();
 }
 test("macOS checks and opens the release download without exposing installation", async ({
@@ -194,9 +195,7 @@ test("portable has no update actions and browser has no desktop update tab", asy
   try {
     const tab = await browser.newPage();
     await tab.goto("http://127.0.0.1:5173");
-    await tab
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(tab, "设置与设备");
     await expect(
       tab.getByRole("tab", { name: "版本更新", exact: true }),
     ).toHaveCount(0);
@@ -265,9 +264,7 @@ test("real Electron IPC keeps development builds out of automatic installation",
     });
     expect(rejected).toBe(true);
     await page.evaluate(() => window.desktop!.updates!.setInRoom(false));
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "版本更新", exact: true }).click();
     await expect(
       page.getByText("此版本不提供在线更新", { exact: true }),
@@ -395,7 +392,7 @@ test("updating from a real room waits for server leave and keeps the installer s
   await page.getByLabel("房间名称").fill("更新清理顺序验证");
   await page.getByRole("button", { name: "创建并进入", exact: true }).click();
   await expect(page.locator(".connection")).toContainText("已连接");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "版本更新", exact: true }).click();
   await page.evaluate(
     (latestVersion) =>

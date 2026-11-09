@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, _electron as electron } from "@playwright/test";
@@ -28,9 +29,7 @@ test("packaged shortcut recording suspends global actions, captures the native i
       w.show();
       w.focus();
     });
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     const recorder = page.getByRole("button", {
       name: "全局麦克风静音",
@@ -145,9 +144,7 @@ test("packaged desktop starts with a sandboxed renderer and the minimal typed br
     expect(bridge.platform).toBe("darwin");
     expect(bridge.node).toBe("undefined");
     expect(bridge.keys).not.toContain("invoke");
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await expect(
       page.getByRole("region", { name: "设置与设备页面" }),
     ).toBeVisible();
@@ -358,9 +355,7 @@ test("packaged global hold uses the native state boundary, combines foreground h
     await page
       .getByRole("button", { name: "关闭麦克风", exact: true })
       .waitFor();
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await page.getByRole("checkbox", { name: "按键说话" }).check();
     await page
@@ -545,9 +540,7 @@ test("a failed startup hotkey keeps saved push-to-talk enabled and joins muted",
   try {
     const page = await app.firstWindow();
     await expect(page.getByRole("alert")).toContainText("全局快捷键不可用");
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "共享与快捷键", exact: true }).click();
     await expect(
       page.getByRole("checkbox", { name: "按键说话" }),
@@ -612,7 +605,7 @@ test("packaged account onboarding shares login and registration UI, keeps identi
     await expect(
       page.getByRole("heading", { name: "晚上好，Mac 账号体验" }),
     ).toBeVisible();
-    await page.getByRole("button", { name: "退出登录", exact: true }).click();
+    await selectAccountMenu(page, "退出登录");
     await page
       .getByLabel("用户名", { exact: true })
       .fill(username.toUpperCase());

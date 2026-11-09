@@ -15,7 +15,7 @@ export async function registerTestAccount(
   await page.getByLabel("确认密码", { exact: true }).fill(testPassword);
   await page.getByRole("button", { name: "注册并登录", exact: true }).click();
   await expect(
-    page.getByRole("button", { name: "退出登录", exact: true }),
+    page.getByRole("button", { name: "设置在线状态", exact: true }),
   ).toBeVisible();
   execFileSync(
     "bun",

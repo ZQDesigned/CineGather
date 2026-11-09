@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { test, expect, type Page } from "@playwright/test";
 import { registerTestAccount } from "./helpers/account";
@@ -260,9 +261,7 @@ test("200% member volume doubles received voice samples, isolates other speakers
         ),
     ).toBe(true);
     expect((await rms(page, 0)) / baseline).toBeGreaterThan(1.8);
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("button", { name: "保存设置", exact: true }).click();
     await leaveSettings(page);
     await expect(page.getByRole("dialog")).toHaveCount(0);
@@ -459,7 +458,7 @@ test("friend volume is restored in real voice playback across clients, rooms, re
     await expect.poll(() => rms(page, 0)).toBeLessThan(0.0001);
     await page.reload();
     await expect(
-      page.getByRole("button", { name: "退出登录", exact: true }),
+      page.getByRole("button", { name: "设置在线状态", exact: true }),
     ).toBeVisible();
     await joinCode(page, code2);
     await expect(
@@ -490,7 +489,7 @@ test("friend volume is restored in real voice playback across clients, rooms, re
       headers: { Authorization: "Bearer " + s.token },
     });
     await leave(page);
-    await page.getByRole("button", { name: "退出登录", exact: true }).click();
+    await selectAccountMenu(page, "退出登录");
     await page.getByRole("tab", { name: "登录", exact: true }).click();
     await page.getByLabel("用户名", { exact: true }).fill(username);
     await page.getByLabel("密码", { exact: true }).fill(password);
@@ -499,7 +498,7 @@ test("friend volume is restored in real voice playback across clients, rooms, re
       page.getByRole("heading", { name: "晚上好，音量记忆乙", exact: false }),
     ).toBeVisible();
     await expect(
-      page.getByRole("button", { name: "退出登录", exact: true }),
+      page.getByRole("button", { name: "设置在线状态", exact: true }),
     ).toBeVisible();
     // Login restores the pending room code after asynchronous account sync.
     // Wait for that prompt before dismissing it, rather than pressing Esc early.

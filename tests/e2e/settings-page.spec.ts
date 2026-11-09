@@ -1,10 +1,11 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { test, expect } from "@playwright/test";
 
 test("settings are a full page before login; save stays on the page and restore discards edits", async ({
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   const settings = page.getByRole("region", {
     name: "设置与设备页面",
     exact: true,

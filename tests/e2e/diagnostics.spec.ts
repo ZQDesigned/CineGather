@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, _electron as electron } from "@playwright/test";
 import { mkdtemp, readFile, rm } from "node:fs/promises";
@@ -9,7 +10,7 @@ test("connection checks explain readiness and failures without exposing develope
   page,
 }) => {
   await page.goto("/");
-  await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+  await selectAccountMenu(page, "连接诊断");
   await expect(page.getByText("可以连接", { exact: true })).toBeVisible();
   await expect(
     page.getByText("还未加入房间", { exact: true }).first(),
@@ -115,7 +116,7 @@ test("room diagnostics show voice and sharing status while technical details rem
   await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
   await page.getByRole("button", { name: "创建并进入", exact: true }).click();
   await page.getByRole("button", { name: "关闭麦克风", exact: true }).waitFor();
-  await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+  await selectAccountMenu(page, "连接诊断");
   await expect(page.getByText("房间连接正常", { exact: true })).toBeVisible();
   await expect(
     page.getByRole("dialog").getByText("麦克风已开启", { exact: true }),
@@ -150,7 +151,7 @@ test("room diagnostics show voice and sharing status while technical details rem
   await page.screenshot({ path: ".local/dialog-motion/diagnostics.png" });
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   await page.getByRole("button", { name: "关闭麦克风", exact: true }).click();
-  await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+  await selectAccountMenu(page, "连接诊断");
   await expect(
     page.getByRole("dialog").getByText("麦克风已关闭", { exact: true }),
   ).toBeVisible();
@@ -172,7 +173,7 @@ test("paired diagnostic ZIPs correlate real video send/receive and retain an ind
   const sender = await senderContext.newPage(),
     viewer = await viewerContext.newPage();
   const exportZip = async (page: typeof sender, name: string) => {
-    await page.getByRole("menuitem", { name: "连接诊断", exact: true }).click();
+    await selectAccountMenu(page, "连接诊断");
     const download = page.waitForEvent("download");
     await page.getByRole("button", { name: "导出诊断", exact: true }).click();
     const path = `.local/media-diagnostics/${name}.zip`;
@@ -253,9 +254,7 @@ test("paired diagnostic ZIPs correlate real video send/receive and retain an ind
           }, 1000),
         ),
     );
-    await viewer
-      .getByRole("menuitem", { name: "连接诊断", exact: true })
-      .click();
+    await selectAccountMenu(viewer, "连接诊断");
     await viewer
       .getByRole("button", { name: "标记当前卡顿", exact: true })
       .click();

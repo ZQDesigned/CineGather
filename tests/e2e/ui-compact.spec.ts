@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect } from "@playwright/test";
@@ -161,9 +162,7 @@ test("failed API verification preserves identity until an explicit second confir
     });
   });
   const open = async () => {
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "自托管服务器", exact: true }).click();
     await page.getByLabel("API 地址").fill("http://127.0.0.1:14311");
     await page.getByRole("button", { name: "保存地址", exact: true }).click();
@@ -231,9 +230,7 @@ test("invalid health bodies and timeouts require confirmation, and leaving setti
       .catch(() => {});
   });
   const open = async () => {
-    await page
-      .getByRole("menuitem", { name: "设置与设备", exact: true })
-      .click();
+    await selectAccountMenu(page, "设置与设备");
     await page.getByRole("tab", { name: "自托管服务器", exact: true }).click();
     await page.getByLabel("API 地址").fill("http://127.0.0.1:14311");
     await page.getByRole("button", { name: "保存地址", exact: true }).click();

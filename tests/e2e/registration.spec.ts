@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { test, expect } from "@playwright/test";
 import { execFileSync } from "node:child_process";
 const base = "http://127.0.0.1:14310/api/v1";
@@ -85,9 +86,7 @@ test("superadmin controls persistent registration while the public UI keeps exis
     await expect(
       page.getByText("注册设置已保存", { exact: true }),
     ).toBeVisible();
-    await visitor
-      .getByRole("button", { name: "退出登录", exact: true })
-      .click();
+    await selectAccountMenu(visitor, "退出登录");
     await expect(
       visitor.getByRole("tab", { name: "注册", exact: true }),
     ).toBeEnabled();

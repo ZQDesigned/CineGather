@@ -1,3 +1,4 @@
+import { selectAccountMenu } from "./helpers/account-menu";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
 async function userId(page: Page) {
@@ -43,7 +44,7 @@ test("account login is the primary entrance, removed captions stay absent, and i
   await expect(
     page.getByRole("heading", { name: "晚上好，长期观众" }),
   ).toBeVisible();
-  await page.getByRole("button", { name: "退出登录", exact: true }).click();
+  await selectAccountMenu(page, "退出登录");
   await expect(
     page.getByRole("tab", { name: "登录", exact: true }),
   ).toBeVisible();
@@ -66,7 +67,7 @@ test("account login is the primary entrance, removed captions stay absent, and i
   ).toBeVisible();
   expect(await userId(page)).toBe(id);
   await page.setViewportSize({ width: 980, height: 680 });
-  await page.getByRole("button", { name: "退出登录", exact: true }).click();
+  await selectAccountMenu(page, "退出登录");
   await page.getByRole("tab", { name: "注册", exact: true }).click();
   expect(
     await page.evaluate(
@@ -82,7 +83,7 @@ test("registered accounts support password changes in the shared settings UI", a
   await page.getByLabel("房间名称").fill("账号安全保留房间");
   await page.getByRole("button", { name: "创建并进入", exact: true }).click();
   await expect(page.locator(".connection")).toContainText("已连接");
-  await page.getByRole("menuitem", { name: "设置与设备", exact: true }).click();
+  await selectAccountMenu(page, "设置与设备");
   await page.getByRole("tab", { name: "账号与安全", exact: true }).click();
   await page.getByRole("button", { name: "修改密码", exact: true }).click();
   await page
@@ -105,7 +106,7 @@ test("registered accounts support password changes in the shared settings UI", a
   await page.getByRole("button", { name: "修改密码", exact: true }).click();
   await expect(page.getByRole("dialog")).toHaveCount(0);
   await expect(
-    page.getByRole("button", { name: "退出登录", exact: true }),
+    page.getByRole("button", { name: "设置在线状态", exact: true }),
   ).toBeVisible();
 });
 test("room ownership follows present clients and the final departure removes the room from all lobbies", async ({
