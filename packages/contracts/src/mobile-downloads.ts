@@ -12,7 +12,7 @@ export const mobileDownloadsSchema = z
     version: clientVersionSchema,
     nativeBuild: z.number().int().positive(),
     revision: z.number().int().positive(),
-    releasedAt: z.iso.datetime(),
+    releasedAt: z.iso.datetime({ offset: true }),
     files: z.object({ android: artifact, ios: artifact }),
   })
   .refine(
@@ -21,5 +21,11 @@ export const mobileDownloadsSchema = z
       files.ios.name === `CineGather-${version}-ios-self-sign.ipa`,
     "Mobile downloads must contain the matching Android and iOS release",
   );
+
+// Emit canonical UTC for compatibility with already released clients.
+export const mobileDownloadsPublicationSchema =
+  mobileDownloadsSchema.safeExtend({
+    releasedAt: z.iso.datetime(),
+  });
 
 export type MobileDownloads = z.infer<typeof mobileDownloadsSchema>;

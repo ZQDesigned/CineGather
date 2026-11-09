@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { readFile, stat, writeFile, rename } from "node:fs/promises";
 import { resolve, join } from "node:path";
-import { mobileDownloadsSchema } from "@cinegather/contracts";
+import { mobileDownloadsPublicationSchema } from "@cinegather/contracts";
 import release from "../../apps/mobile/mobile-release.json";
 
 const directory = resolve(Bun.argv[2] ?? ".local/mobile/artifacts");
@@ -18,7 +18,7 @@ const artifact = async (suffix: string) => {
     sha256: createHash("sha256").update(bytes).digest("hex"),
   };
 };
-const manifest = mobileDownloadsSchema.parse({
+const manifest = mobileDownloadsPublicationSchema.parse({
   version: release.version,
   nativeBuild: release.nativeBuild,
   revision: release.revision,
