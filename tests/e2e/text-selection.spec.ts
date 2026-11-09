@@ -168,7 +168,7 @@ test("desktop chat, announcement and error bodies can be dragged and copy action
       ),
     ).toBe(value);
     await page
-      .getByRole("button", { name: "复制邀请链接", exact: true })
+      .getByRole("button", { name: "复制邀请信息", exact: true })
       .click();
     await expect
       .poll(() =>
@@ -184,7 +184,7 @@ test("desktop chat, announcement and error bodies can be dragged and copy action
       ).rejectSelectionCopy = true;
     });
     await page
-      .getByRole("button", { name: "复制邀请链接", exact: true })
+      .getByRole("button", { name: "复制邀请信息", exact: true })
       .click();
     const error = page
       .locator(".ant-notification-notice-description")

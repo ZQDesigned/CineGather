@@ -55,9 +55,8 @@ test("web invitation tokens use fragments, parse on either platform, and are rem
   ).toBe(link);
   expect(scrubbed).toBe("https://watch.example.com/");
   expect(
-    parseInvitation("cinegather://join?room=ABCDEF12&invite=" + "a".repeat(43))
-      .inviteToken,
-  ).toBe("a".repeat(43));
+    parseInvitation("cinegather://join?room=ABCDEF12&invite=" + "a".repeat(43)),
+  ).toEqual({ roomId: "" });
   expect(
     readWebInvitation("https://watch.example.com/", () => {}),
   ).toBeUndefined();

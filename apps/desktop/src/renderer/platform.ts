@@ -30,6 +30,37 @@ export function defaultServer(
   return desktop ? clientUpdateOrigin : origin;
 }
 
+export function roomInvitationBase(options: {
+  desktop: boolean;
+  server: string;
+  webOrigin: string;
+  configuredServer?: string;
+  configuredWeb?: string;
+}) {
+  if (!options.desktop) return options.webOrigin;
+  const server = serverOrigin(options.server);
+  const configured = defaultServer(
+    undefined,
+    options.configuredServer,
+    options.webOrigin,
+    true,
+  );
+  if (server === configured && options.configuredWeb) {
+    try {
+      const web = new URL(options.configuredWeb);
+      if (
+        ["https:", "http:"].includes(web.protocol) &&
+        !web.username &&
+        !web.password
+      )
+        return web.href;
+    } catch {
+      /* Use the current service when a build override is invalid. */
+    }
+  }
+  return server;
+}
+
 export function capabilities() {
   const bridge = window.desktop;
   const secure = window.isSecureContext;

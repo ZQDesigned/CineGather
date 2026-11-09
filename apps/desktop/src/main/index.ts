@@ -1,4 +1,5 @@
 import { projectGameDiagnostic } from "../shared/game-diagnostics";
+import { isRoomInvitationUrl } from "@cinegather/client-core/invitations";
 import { GameLocal } from "./games/game-local";
 import {
   gameTunnelConfigSchema,
@@ -101,9 +102,7 @@ let gameLocal: GameLocal | undefined;
 let windowsAudio: WindowsAudio | undefined;
 let accompaniment: ReturnType<typeof createAccompaniment> | undefined;
 let shutdownStarted = false;
-let pendingInvite: string | undefined = process.argv.find(
-  (value) => value.startsWith("cinegather://") && value.length <= 4096,
-);
+let pendingInvite: string | undefined = process.argv.find(isRoomInvitationUrl);
 const sendAction = (action: string, value?: string) =>
   win?.webContents.send("desktop:action", action, value);
 const settingsPath = () => join(app.getPath("userData"), "settings.json");
@@ -925,8 +924,8 @@ if (!app.requestSingleInstanceLock()) app.quit();
 else {
   app.on("second-instance", (_event, argv) => {
     updates?.recordActivation(argv[0]);
-    const invite = argv.find((v) => v.startsWith("cinegather://"));
-    if (invite && invite.length <= 4096) {
+    const invite = argv.find(isRoomInvitationUrl);
+    if (invite) {
       pendingInvite = invite;
       sendAction("invite", invite);
     }
@@ -934,7 +933,7 @@ else {
   });
   app.on("open-url", (event, url) => {
     event.preventDefault();
-    if (url.startsWith("cinegather://") && url.length <= 4096) {
+    if (isRoomInvitationUrl(url)) {
       pendingInvite = url;
       if (win) sendAction("invite", url);
     }
@@ -1208,7 +1207,6 @@ else {
         hotkeyFailure =
           "全局快捷键不可用，请在设置中重新保存组合键；窗口内仍可按住空格说话。";
       }
-      app.setAsDefaultProtocolClient("cinegather");
       await createWindow();
       app.on("activate", showWindow);
     })

@@ -46,7 +46,12 @@ test("production Chrome uses same-origin API, shared room UI, browser invites, v
     page.getByRole("button", { name: "关闭麦克风", exact: true }),
   ).toBeEnabled();
   await page.getByRole("button", { name: "邀请朋友", exact: true }).click();
-  const invite = await page.getByLabel("房间邀请").inputValue();
+  const info = await page.getByLabel("房间邀请").inputValue();
+  expect(info).toContain("邀请你加入映聚");
+  const invite = info
+    .split("\n")
+    .at(-1)!
+    .replace(/^加入链接：/, "");
   expect(invite).toMatch(/^http:\/\/127\.0\.0\.1:5180\/\?room=.*#invite=/);
   await page.getByRole("button", { name: "关闭对话框", exact: true }).click();
   const other = await browser.newContext({ permissions: ["microphone"] });

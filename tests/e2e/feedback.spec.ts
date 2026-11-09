@@ -15,22 +15,22 @@ test("copy feedback floats above an open modal, dismisses itself and can be show
   await page.goto("/");
   await registerTestAccount(page, "消息体验回归");
   await openInvite(page);
-  const copy = page.getByRole("button", { name: "复制邀请链接", exact: true });
+  const copy = page.getByRole("button", { name: "复制邀请信息", exact: true });
   for (let i = 0; i < 2; i++) {
     await copy.click();
     await expect(
       page
         .locator(".ant-message")
         .getByRole("status")
-        .filter({ hasText: "邀请链接已复制" }),
-    ).toHaveText("邀请链接已复制");
+        .filter({ hasText: "邀请信息已复制" }),
+    ).toHaveText("邀请信息已复制");
     await expect(page.getByRole("dialog")).toBeVisible();
     await expect(page.locator(".workspace > .toast")).toHaveCount(0);
     await expect(
       page
         .locator(".ant-message")
         .getByRole("status")
-        .filter({ hasText: "邀请链接已复制" }),
+        .filter({ hasText: "邀请信息已复制" }),
     ).toHaveCount(0, { timeout: 6000 });
   }
   await page.mouse.move(0, 0);
@@ -54,7 +54,7 @@ test("a clipboard failure is reported through Notification while its modal stays
   await page.goto("/");
   await registerTestAccount(page, "复制失败回归");
   await openInvite(page);
-  await page.getByRole("button", { name: "复制邀请链接", exact: true }).click();
+  await page.getByRole("button", { name: "复制邀请信息", exact: true }).click();
   await expect(
     page.locator(".ant-notification").getByRole("alert"),
   ).toContainText("无法写入剪贴板");

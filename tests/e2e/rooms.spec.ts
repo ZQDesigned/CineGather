@@ -1,5 +1,6 @@
 import { selectAccountMenu } from "./helpers/account-menu";
 import { leaveSettings } from "./helpers/settings";
+import { parseInvitation } from "@cinegather/client-core";
 import { participantOwner } from "@cinegather/contracts";
 import { registerTestAccount } from "./helpers/account";
 import { test, expect, type Page } from "@playwright/test";
@@ -214,15 +215,15 @@ test("a real screen publisher holds the only server lease and stopping removes i
     localStorage.getItem("cinegather.session"),
   );
   await page.getByRole("button", { name: "邀请朋友" }).click();
-  const invite = new URL(await page.getByLabel("房间邀请").inputValue());
-  const roomId = invite.searchParams.get("room")!;
+  const invite = await page.getByLabel("房间邀请").inputValue();
+  const { roomId } = parseInvitation(invite);
   await page.getByRole("button", { name: "关闭对话框" }).click();
   const context = await browser.newContext({ permissions: ["microphone"] });
   const viewer = await context.newPage();
   try {
     await guest(viewer, "观看者");
     await viewer.getByRole("button", { name: "加入房间", exact: true }).click();
-    await viewer.getByLabel("房间号或邀请链接").fill(invite.toString());
+    await viewer.getByLabel("房间号或邀请链接").fill(invite);
     await viewer.getByRole("button", { name: "进入房间", exact: true }).click();
     await expect(
       viewer.getByRole("heading", { name: "共享权限测试" }),

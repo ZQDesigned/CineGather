@@ -160,7 +160,7 @@ test("a first-launch invitation waits for account onboarding instead of being lo
     "Requires a local Mac package.",
   );
   const profile = await mkdtemp(join(tmpdir(), "cinegather-invite-smoke-"));
-  const invite = `cinegather://join?room=00000000-0000-4000-8000-000000000000&invite=${"x".repeat(43)}`;
+  const invite = `https://cgplat.zqdesigned.city/?room=00000000-0000-4000-8000-000000000000#invite=${"x".repeat(43)}`;
   const app = await electron.launch({
     executablePath,
     args: [`--user-data-dir=${profile}`, invite],

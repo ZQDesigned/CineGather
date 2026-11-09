@@ -3,7 +3,11 @@ import {
   bindGameLink,
   configureGameLink,
 } from "./features/games/game-link";
-import { FeatureCompatibility } from "@cinegather/client-core";
+import {
+  FeatureCompatibility,
+  createRoomInvitationLink,
+  isRoomInvitationUrl,
+} from "@cinegather/client-core";
 import { FeatureUpdateError } from "@cinegather/api-client";
 import {
   currentFeatureProtocols,
@@ -57,6 +61,7 @@ import {
   capabilities,
   defaultServer,
   readWebInvitation,
+  roomInvitationBase,
   platformSettings,
 } from "./platform";
 import { restoreSettings } from "../shared/settings";
@@ -1308,6 +1313,7 @@ export const roomSession = new RoomCoordinator({
   error: report,
 });
 function receiveInvitation(value: string) {
+  if (!isRoomInvitationUrl(value)) return;
   update({
     joinValue: value,
     modal: state().user ? "join" : null,
@@ -1842,6 +1848,7 @@ export async function updateRoomSettings(name: string, maxMembers: number) {
 }
 export async function joinRoom(value: string, password?: string) {
   const { roomId, inviteToken } = parseInvitation(value);
+  if (!roomId) throw new Error("请输入有效的房间号或网页邀请链接");
   await roomSession.enter(
     roomId,
     inviteToken,
@@ -2201,16 +2208,14 @@ export async function acceptRoomInvitation(invitation: RoomInvitation) {
     update({ modal: null });
 }
 function invitationLink(roomId: string, token: string) {
-  const web = !window.desktop ? location.origin : import.meta.env.VITE_WEB_URL;
-  if (web) {
-    const url = new URL(web);
-    if (["https:", "http:"].includes(url.protocol)) {
-      url.searchParams.set("room", roomId);
-      url.hash = new URLSearchParams({ invite: token }).toString();
-      return url.href;
-    }
-  }
-  return `cinegather://join?room=${roomId}&invite=${token}`;
+  const web = roomInvitationBase({
+    desktop: Boolean(window.desktop),
+    server: baseUrl,
+    webOrigin: location.origin,
+    configuredServer: import.meta.env.VITE_API_URL,
+    configuredWeb: import.meta.env.VITE_WEB_URL,
+  });
+  return createRoomInvitationLink(web, roomId, token);
 }
 export async function logout() {
   await gameLink.exit();

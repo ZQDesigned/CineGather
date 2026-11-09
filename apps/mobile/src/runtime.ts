@@ -1012,6 +1012,7 @@ export class MobileRuntime {
     if (this.updates.updater.snapshot().required)
       throw new Error("请先完成应用更新");
     const parsed = parseInvitation(input);
+    if (!parsed.roomId) throw new Error("请输入有效的房间号或网页邀请链接");
     await this.coordinator.enter(
       parsed.roomId,
       inviteToken ?? parsed.inviteToken,

@@ -22,9 +22,6 @@ extraResources:
       [package.json, index.cjs, src/koffi/index.cjs, src/koffi/src/static.cjs]
 asar: true
 npmRebuild: false
-protocols:
-  name: CineGather invitation
-  schemes: [cinegather]
 mac:
   target: [dmg, zip]
   category: public.app-category.social-networking

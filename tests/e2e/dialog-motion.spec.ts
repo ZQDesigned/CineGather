@@ -190,6 +190,43 @@ test("invites, bans and source selection animate closing without retaining the s
   }
 });
 
+test("revoking an invitation retains its complete preview until exit finishes", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await registerTestAccount(page, "邀请撤销动画");
+  await page.getByRole("button", { name: "创建私人房间", exact: true }).click();
+  await page.getByRole("button", { name: "创建并进入", exact: true }).click();
+  try {
+    await page.getByRole("button", { name: "邀请朋友", exact: true }).click();
+    const preview = page.getByLabel("房间邀请", { exact: true });
+    const before = await preview.inputValue();
+    await watchClosing(page);
+    await page
+      .getByRole("button", { name: "撤销这条邀请", exact: true })
+      .click();
+    await expect
+      .poll(() =>
+        page.evaluate(
+          () =>
+            (window as unknown as { closingMotion: { names: string[] } })
+              .closingMotion.names.length,
+        ),
+      )
+      .toBeGreaterThanOrEqual(2);
+    await expect(preview).toHaveValue(before);
+    await expect(
+      page.getByRole("button", { name: "撤销这条邀请", exact: true }),
+    ).toBeAttached();
+    await finishClosing(page);
+    await expect(
+      page.getByRole("button", { name: "邀请朋友", exact: true }),
+    ).toBeFocused();
+  } finally {
+    await page.getByRole("button", { name: "离开房间", exact: true }).click();
+  }
+});
+
 test("microphone testing stops when leaving the settings page", async ({
   page,
 }) => {
@@ -268,7 +305,7 @@ test("an incoming invitation waits for the previous dialog to finish closing bef
   await registerTestAccount(page, "弹窗切换回归");
   await selectAccountMenu(page, "连接诊断");
   await watchClosing(page);
-  const invitation = `cinegather://join?room=1234ABCD&invite=${"x".repeat(43)}`;
+  const invitation = `https://cgplat.zqdesigned.city/?room=1234ABCD#invite=${"x".repeat(43)}`;
   await page.evaluate(
     (value) =>
       (

@@ -179,7 +179,9 @@ test("kick, session revocation and crash-orphan reconciliation revoke native pub
     await friend.getByRole("button", { name: "加入房间", exact: true }).click();
     await friend
       .getByLabel("房间号或邀请链接")
-      .fill(`cinegather://join?room=${room}&invite=${invitation.token}`);
+      .fill(
+        `https://cgplat.zqdesigned.city/?room=${room}#invite=${invitation.token}`,
+      );
     await friend.getByRole("button", { name: "进入房间", exact: true }).click();
     await expect(
       friend.getByRole("button", { name: "关闭麦克风", exact: true }),

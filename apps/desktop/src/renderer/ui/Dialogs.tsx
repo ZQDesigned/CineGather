@@ -14,6 +14,7 @@ import {
   Spin,
 } from "antd";
 import { Button, TextArea, Input } from "../features/rooms/ui/Controls";
+import { formatRoomInvitation } from "@cinegather/client-core";
 import { ClientDownload } from "../features/updates/ui/ClientDownload";
 import { UpdateDialog } from "../features/updates/ui/Updates";
 import { RoomSettings } from "../features/rooms/ui/RoomSettings";
@@ -296,33 +297,69 @@ function Invite() {
   );
 }
 function InviteLink() {
-  const app = useApp();
-  const invite = app.invite ?? "";
+  const [snapshot] = useState(() => {
+    const app = useApp.getState();
+    const link = app.invite ?? "";
+    return {
+      link,
+      id: app.inviteId,
+      room: app.room,
+      text:
+        link && app.room
+          ? formatRoomInvitation({
+              inviterName: app.user?.displayName ?? "映聚用户",
+              roomName: app.room.name,
+              roomCode: app.room.code,
+              link,
+            })
+          : "",
+    };
+  });
 
   return (
     <>
       <Form layout="vertical">
         <Form.Item label="房间邀请">
-          <TextArea aria-label="房间邀请" readOnly rows={3} value={invite} />
+          <TextArea
+            aria-label="房间邀请"
+            readOnly
+            autoSize={{ minRows: 5, maxRows: 9 }}
+            value={snapshot.text}
+          />
         </Form.Item>
       </Form>
-      <Button
-        type="primary"
-        block
-        onClick={() =>
-          void actions.copyText(invite, "邀请链接已复制").catch(actions.report)
-        }
-      >
-        <Copy size={17} />
-        复制邀请链接
-      </Button>
+      <Space.Compact block>
+        <Button
+          type="primary"
+          style={{ flex: 1 }}
+          disabled={!snapshot.text}
+          onClick={() =>
+            void actions
+              .copyText(snapshot.text, "邀请信息已复制")
+              .catch(actions.report)
+          }
+        >
+          <Copy size={17} />
+          复制邀请信息
+        </Button>
+        <Button
+          disabled={!snapshot.link}
+          onClick={() =>
+            void actions
+              .copyText(snapshot.link, "邀请链接已复制")
+              .catch(actions.report)
+          }
+        >
+          仅复制链接
+        </Button>
+      </Space.Compact>
       <Alert
         type="info"
         showIcon
         title="邀请包含私密加入凭证，请只分享给你信任的朋友。"
         className="invite-note"
       />
-      {app.inviteId && app.room && (
+      {snapshot.id && snapshot.room && (
         <Button
           type="text"
           danger
@@ -333,15 +370,20 @@ function InviteLink() {
                   "/api/v1/rooms/{roomId}/invites/{inviteId}",
                   {
                     params: {
-                      path: { roomId: app.room!.id, inviteId: app.inviteId! },
+                      path: {
+                        roomId: snapshot.room!.id,
+                        inviteId: snapshot.id!,
+                      },
                     },
                   },
                 ),
               );
+              const current = useApp.getState();
+              if (current.inviteId !== snapshot.id) return;
               update({
                 invite: undefined,
                 inviteId: undefined,
-                modal: null,
+                ...(current.modal === "invite" ? { modal: null } : {}),
                 notice: "此邀请已撤销",
               });
             })
