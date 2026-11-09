@@ -425,8 +425,11 @@ export type AccompanimentApplication =
   | "douyin";
 export interface AccompanimentSource {
   id: string;
+  /** Opaque process identity for UI selection; never a capture authorization. */
+  selectionKey: string;
   name: string;
   application?: AccompanimentApplication;
+  active?: boolean;
 }
 export interface DesktopBridge {
   captureWhiteboardImage?(): Promise<string | undefined>;

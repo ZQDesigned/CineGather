@@ -1,4 +1,4 @@
-import { randomUUID } from "node:crypto";
+import { createHmac, randomUUID } from "node:crypto";
 import type {
   AccompanimentSource,
   ProcessAudioStart,
@@ -17,6 +17,8 @@ export class AccompanimentHost {
   private expires = 0;
   private generation = 0;
   private request?: string;
+  private active?: AudioApplication;
+  private readonly selectionSalt = randomUUID();
   constructor(
     private readonly native: {
       list(): Promise<AudioApplication[]>;
@@ -24,18 +26,47 @@ export class AccompanimentHost {
       stop(): void;
     },
   ) {}
+  private selectionKey(application: AudioApplication) {
+    return createHmac("sha256", this.selectionSalt)
+      .update(
+        JSON.stringify([
+          application.key,
+          application.identity,
+          application.target,
+        ]),
+      )
+      .digest("hex");
+  }
   async sources(): Promise<AccompanimentSource[]> {
-    const applications = await this.native.list();
+    const applications = (await this.native.list()).slice(0, 200);
+    const active = this.active;
+    // Tray applications can disappear from window/audio-session enumeration while
+    // process-tree capture is still running. Retain the actual capture for display.
+    if (
+      active &&
+      !applications.some(
+        (application) =>
+          this.selectionKey(application) === this.selectionKey(active),
+      )
+    ) {
+      if (applications.length === 200) applications.pop();
+      applications.push(active);
+    }
     this.choices.clear();
     this.expires = Date.now() + 60000;
-    return applications.slice(0, 200).map((application) => {
+    return applications.map((application) => {
       const id = randomUUID();
       this.choices.set(id, application);
       const kind = identifyAccompanimentApplication(application);
+      const selectionKey = this.selectionKey(application);
       return {
         id,
+        selectionKey,
         name: application.name,
         ...(kind ? { application: kind } : {}),
+        ...(this.active && this.selectionKey(this.active) === selectionKey
+          ? { active: true }
+          : {}),
       };
     });
   }
@@ -58,12 +89,14 @@ export class AccompanimentHost {
     if (!live) throw new Error("伴奏应用已关闭，请重新选择");
     const result = await this.native.start(live.target);
     if (generation !== this.generation) throw new Error("伴奏已停止");
+    this.active = { ...live };
     return result;
   }
   stop(request?: string) {
     if (request !== undefined && request !== this.request) return;
     ++this.generation;
     this.request = undefined;
+    this.active = undefined;
     this.native.stop();
   }
 }

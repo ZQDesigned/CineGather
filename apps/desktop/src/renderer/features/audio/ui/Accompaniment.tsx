@@ -127,34 +127,52 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
   const app = useApp();
   const [open, setOpen] = useState(false);
   const [sources, setSources] = useState<AccompanimentSource[]>([]);
-  const [selected, setSelected] = useState<string>();
+  const [selectedKey, setSelectedKey] = useState<string>();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string>();
   const request = useRef(0);
   const bridge = window.desktop?.accompaniment;
   const active = app.accompaniment.status === "active";
   const starting = app.accompaniment.status === "starting";
+  const selected = sources.find(
+    (source) => source.selectionKey === selectedKey,
+  );
+  const selectedActive = Boolean(
+    active &&
+      selected &&
+      (selected.active || selected.id === app.accompaniment.source),
+  );
   const commonSources = commonAccompanimentApplications.map((application) => ({
     ...application,
-    source: sources.find((item) => item.application === application.id),
+    source:
+      sources.find(
+        (item) =>
+          item.application === application.id &&
+          item.selectionKey === selectedKey,
+      ) ?? sources.find((item) => item.application === application.id),
   }));
   const customSelection = commonSources.some(
-    (application) => application.source?.id === selected,
+    (application) => application.source?.selectionKey === selectedKey,
   )
     ? undefined
-    : selected;
+    : selectedKey;
   const refresh = async () => {
     const revision = ++request.current;
     setLoading(true);
     setError(undefined);
-    setSelected(undefined);
     try {
       const items = await bridge!.sources();
       // Preserve native order: visible applications precede audio-only subprocesses.
-      if (revision === request.current) setSources(items);
+      if (revision === request.current) {
+        setSources(items);
+        setSelectedKey((previous) =>
+          items.some((item) => item.selectionKey === previous)
+            ? previous
+            : items.find((item) => item.active)?.selectionKey,
+        );
+      }
     } catch {
       if (revision === request.current) {
-        setSources([]);
         setError("无法获取应用列表，请检查系统权限后重试");
       }
     } finally {
@@ -202,16 +220,22 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
             <Radio.Group
               className="accompaniment-apps"
               aria-label="常用伴奏应用"
-              value={selected}
-              onChange={(event) => setSelected(event.target.value)}
-              disabled={disabled || starting || loading}
+              value={selectedKey}
+              onChange={(event) => setSelectedKey(event.target.value)}
+              disabled={disabled || starting || loading || Boolean(error)}
             >
               {commonSources.map(({ id, name, source }) => {
                 return (
                   <Radio
                     key={id}
-                    value={source?.id ?? `unavailable:${id}`}
-                    disabled={disabled || starting || loading || !source}
+                    value={source?.selectionKey ?? `unavailable:${id}`}
+                    disabled={
+                      disabled ||
+                      starting ||
+                      loading ||
+                      Boolean(error) ||
+                      !source
+                    }
                   >
                     <span className="accompaniment-app-label">
                       <span className="accompaniment-app-name">
@@ -244,11 +268,14 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
               virtual={false}
               getPopupContainer={(trigger) => trigger.parentElement!}
               value={customSelection}
-              onChange={setSelected}
-              disabled={disabled || starting || loading}
+              onChange={setSelectedKey}
+              disabled={disabled || starting || loading || Boolean(error)}
               options={[...sources]
                 .sort((a, b) => a.name.localeCompare(b.name, "zh-CN"))
-                .map((source) => ({ value: source.id, label: source.name }))}
+                .map((source) => ({
+                  value: source.selectionKey,
+                  label: source.name,
+                }))}
               notFoundContent={
                 <Empty
                   image={Empty.PRESENTED_IMAGE_SIMPLE}
@@ -275,11 +302,19 @@ export function AccompanimentControl({ disabled }: { disabled: boolean }) {
           <Space>
             <Button
               type="primary"
-              disabled={!selected || disabled || loading}
+              disabled={
+                !selected ||
+                selectedActive ||
+                disabled ||
+                loading ||
+                Boolean(error)
+              }
               loading={starting}
               onClick={() => {
                 if (selected)
-                  void actions.run(() => actions.accompaniment.start(selected));
+                  void actions.run(() =>
+                    actions.accompaniment.start(selected.id),
+                  );
               }}
             >
               开启伴奏

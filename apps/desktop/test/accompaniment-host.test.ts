@@ -95,7 +95,81 @@ test("popular players are identified by executable even when their window shows 
     "application",
     "id",
     "name",
+    "selectionKey",
   ]);
+});
+
+test("source selection survives refreshed grants and title changes without reusing capture authorization", async () => {
+  let target = {
+    key: "123",
+    name: "第一首歌",
+    target: "process:123:456",
+    identity: "123:456",
+  };
+  const host = new AccompanimentHost({
+    list: async () => [target],
+    start: async () => ({ sessionId: "native", mode: "isolated" }),
+    stop: () => {},
+  });
+  const [first] = await host.sources();
+  expect(first!.selectionKey).toBeString();
+  await host.start(first!.id, "request");
+  target = { ...target, name: "第二首歌" };
+  const [refreshed] = await host.sources();
+  expect(refreshed!.id).not.toBe(first!.id);
+  expect(refreshed!.selectionKey).toBe(first!.selectionKey);
+  expect(refreshed!.active).toBe(true);
+  await expect(host.start(first!.id, "stale")).rejects.toThrow("重新选择");
+  await expect(host.start(refreshed!.selectionKey, "wrong")).rejects.toThrow(
+    "重新选择",
+  );
+  host.stop();
+  expect((await host.sources())[0]!.active).not.toBe(true);
+});
+
+test("restarted or replaced processes never inherit the previous selection", async () => {
+  let target = {
+    key: "123",
+    name: "Music",
+    target: "process:123:456",
+    identity: "123:456",
+  };
+  const host = new AccompanimentHost({
+    list: async () => [target],
+    start: async () => ({ sessionId: "native", mode: "isolated" }),
+    stop: () => {},
+  });
+  const [first] = await host.sources();
+  expect(first!.selectionKey).toBeString();
+  await host.start(first!.id, "request");
+  target = { ...target, identity: "123:789", target: "process:123:789" };
+  const [replacement] = await host.sources();
+  expect(replacement!.selectionKey).not.toBe(first!.selectionKey);
+  expect(replacement!.active).not.toBe(true);
+});
+
+test("a captured application hidden from enumeration remains selected until capture stops", async () => {
+  let apps = [
+    {
+      key: "123",
+      name: "Music",
+      target: "process:123:456",
+      identity: "123:456",
+    },
+  ];
+  const host = new AccompanimentHost({
+    list: async () => apps,
+    start: async () => ({ sessionId: "native", mode: "isolated" }),
+    stop: () => {},
+  });
+  const [first] = await host.sources();
+  await host.start(first!.id, "request");
+  apps = [];
+  expect(await host.sources()).toMatchObject([
+    { selectionKey: first!.selectionKey, name: "Music", active: true },
+  ]);
+  host.stop();
+  expect(await host.sources()).toEqual([]);
 });
 
 test("a browser or helper with a music player window title remains a custom process", async () => {
