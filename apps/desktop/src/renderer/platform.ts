@@ -1,5 +1,4 @@
 import { serverOrigin } from "./server-address";
-import { parseInvitation } from "@cinegather/client-core";
 import {
   clientUpdateOrigin,
   type DesktopSettings,
@@ -85,19 +84,4 @@ export function capabilities() {
   };
 }
 
-export function readWebInvitation(
-  href: string,
-  replace: (clean: string) => void,
-): string | undefined {
-  const url = new URL(href);
-  if (!url.searchParams.has("room")) return;
-  const invitation = parseInvitation(href);
-  if (!invitation.roomId) return;
-  url.searchParams.delete("room");
-  url.searchParams.delete("invite");
-  const hash = new URLSearchParams(url.hash.slice(1));
-  hash.delete("invite");
-  url.hash = hash.toString();
-  replace(url.href);
-  return href;
-}
+export { readWebInvitation } from "./features/rooms/web-invitation";

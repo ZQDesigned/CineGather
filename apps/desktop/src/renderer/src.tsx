@@ -1,4 +1,9 @@
+import { captureWebInvitation } from "./features/rooms/web-invitation";
 import { bootstrapDesktopUI } from "./features/updates/hot-runtime";
+if (!window.desktop)
+  captureWebInvitation(location.href, (clean) =>
+    history.replaceState(null, "", clean),
+  );
 void bootstrapDesktopUI()
   .then(() => import("./ui/layout/entry"))
   .catch(() => {

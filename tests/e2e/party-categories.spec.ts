@@ -14,7 +14,9 @@ async function closeWithMotion(
       .filter(Boolean)
       .filter((line, index, lines) => index === 0 || line !== lines[index - 1])
       .join("\n");
-  const content = normalized(await dialog.innerText());
+  const snapshot = await dialog.elementHandle();
+  if (!snapshot) throw new Error("Missing visible dialog snapshot");
+  const content = normalized(await snapshot.innerText());
   const fields = await dialog
     .locator("input,textarea")
     .evaluateAll((elements) =>
@@ -54,10 +56,11 @@ async function closeWithMotion(
       ),
     )
     .toBeGreaterThanOrEqual(2);
-  expect(normalized(await dialog.innerText())).toBe(content);
+  expect(await snapshot.evaluate((element) => element.isConnected)).toBe(true);
+  expect(normalized(await snapshot.innerText())).toBe(content);
   expect(
-    await dialog.locator("input,textarea").evaluateAll((elements) =>
-      elements.map((e) => ({
+    await snapshot.evaluate((element) =>
+      [...element.querySelectorAll("input,textarea")].map((e) => ({
         value: (e as HTMLInputElement).value,
         checked: (e as HTMLInputElement).checked,
       })),

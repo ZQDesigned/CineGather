@@ -1,3 +1,4 @@
+import { takeCapturedWebInvitation } from "./features/rooms/web-invitation";
 import {
   desktopUIIdentity,
   hotPreparing,
@@ -97,9 +98,10 @@ const baseUrl = defaultServer(
   capabilities().desktop,
 );
 let webInvitation = !window.desktop
-  ? readWebInvitation(location.href, (clean) =>
+  ? (takeCapturedWebInvitation() ??
+    readWebInvitation(location.href, (clean) =>
       history.replaceState(null, "", clean),
-    )
+    ))
   : undefined;
 export function requireClientUpdate(
   minimumVersion: string,

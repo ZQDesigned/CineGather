@@ -114,3 +114,15 @@ test("explicit local self-hosting and development API addresses are preserved", 
     "https://cgplat.zqdesigned.city",
   );
 });
+test("web invitation is scrubbed synchronously before lazy UI and handed off exactly once", async () => {
+  const { captureWebInvitation, takeCapturedWebInvitation } = await import(
+    "../src/renderer/features/rooms/web-invitation"
+  );
+  const href =
+    "https://watch.example.com/?room=ABCDEF12#invite=" + "b".repeat(43);
+  let address = href;
+  captureWebInvitation(href, (clean) => (address = clean));
+  expect(address).toBe("https://watch.example.com/");
+  expect(takeCapturedWebInvitation()).toBe(href);
+  expect(takeCapturedWebInvitation()).toBeUndefined();
+});
