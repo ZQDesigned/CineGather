@@ -19,17 +19,27 @@ export function microphoneConstraints(mode: NoiseReduction) {
 
 export async function createMicrophoneDenoiser(
   status: (status: MicrophoneNoiseStatus) => void,
+  mode: "basic" | "enhanced" = "enhanced",
 ) {
   try {
     const { MicrophoneDenoiser } = await import("./noise-processor");
-    return new MicrophoneDenoiser(status);
+    return new MicrophoneDenoiser(status, mode);
   } catch (error) {
     status({
-      requested: "enhanced",
+      requested: mode,
+      engine: "platform",
       active: "basic",
       reason:
         error instanceof Error ? error.message : "Noise processor unavailable",
     });
     return undefined;
   }
+}
+
+export function microphoneNoiseWarning(status?: MicrophoneNoiseStatus) {
+  return status?.requested !== "off" &&
+    status?.engine === "platform" &&
+    status.reason
+    ? "应用降噪暂不可用，正在使用系统兼容降噪。可稍后重新选择降噪档位重试。"
+    : undefined;
 }

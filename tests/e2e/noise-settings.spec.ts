@@ -130,7 +130,11 @@ test("changing noise reduction hot-applies to the room without unmuting a muted 
       expect(diagnostic.microphoneNoise).toMatchObject({
         requested: value,
         active: value,
-        ...(value === "enhanced" ? { engine: "deepfilternet3" } : {}),
+        ...(value === "enhanced"
+          ? { engine: "deepfilternet3" }
+          : value === "basic"
+            ? { engine: "rnnoise" }
+            : {}),
       });
       await page
         .getByRole("button", { name: "关闭对话框", exact: true })

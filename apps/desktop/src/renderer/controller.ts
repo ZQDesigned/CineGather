@@ -44,6 +44,7 @@ import {
   Accompaniment,
   MediaSession,
   MicrophoneMonitor,
+  microphoneNoiseWarning,
 } from "@cinegather/media-core";
 import { DisconnectReason } from "livekit-client";
 import type {
@@ -812,7 +813,11 @@ export const media = new MediaSession(
       void chat.sync();
     const fallback = summary.microphoneNoise?.reason;
     if (fallback && !state().media.microphoneNoise?.reason)
-      update({ notice: "高质量降噪暂不可用，已切换兼容降噪" });
+      update({
+        notice:
+          microphoneNoiseWarning(summary.microphoneNoise) ??
+          "增强降噪暂不可用，已使用基础降噪",
+      });
     if (
       summary.microphoneEffect?.reason &&
       !state().media.microphoneEffect?.reason
@@ -2048,10 +2053,11 @@ export async function saveSettings(settings: DesktopSettings, close = true) {
   update({
     settings,
     notice:
-      settings.noiseReduction === "enhanced" &&
+      microphoneNoiseWarning(state().media.microphoneNoise) ??
+      (settings.noiseReduction === "enhanced" &&
       state().media.microphoneNoise?.reason
         ? "设置已保存，增强降噪暂不可用，已使用基础降噪"
-        : "设置已保存",
+        : "设置已保存"),
     ...(close ? { modal: null } : {}),
   });
 }

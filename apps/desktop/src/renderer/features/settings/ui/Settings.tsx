@@ -51,6 +51,8 @@ import { NotificationSettings } from "../../notifications/ui/NotificationSetting
 import {
   createMicrophoneProcessor,
   microphoneConstraints,
+  microphoneNoiseWarning,
+  type MicrophoneNoiseStatus,
 } from "@cinegather/media-core";
 const Surface = styled(PageSurface)`
   overflow: hidden;
@@ -219,7 +221,16 @@ export function Settings() {
   };
   const [server, setServer] = useState(actions.baseUrl);
   const [testing, setTesting] = useState(false);
+  const [testNoise, setTestNoise] = useState<MicrophoneNoiseStatus>();
+  const roomNoise = useApp((s) => s.media.microphoneNoise);
   const [requesting, setRequesting] = useState(false);
+  const noiseWarning = microphoneNoiseWarning(
+    testing || requesting
+      ? testNoise
+      : roomNoise?.requested === settings.noiseReduction
+        ? roomNoise
+        : undefined,
+  );
   const capturePending = useRef(false);
   const testRevision = useRef(0);
   const [level, setLevel] = useState(0);
@@ -291,6 +302,7 @@ export function Settings() {
   }, [tab]);
   const testMicrophone = async () => {
     if (capturePending.current) return;
+    setTestNoise(undefined);
     if (audioRef.current) {
       const active = audioRef.current;
       audioRef.current = undefined;
@@ -356,15 +368,14 @@ export function Settings() {
       );
       let metered = stream;
       if (
-        settings.noiseReduction === "enhanced" ||
+        settings.noiseReduction !== "off" ||
         settings.microphoneEffect === "ktv"
       ) {
         processor = await createMicrophoneProcessor(
           settings.noiseReduction,
           settings.microphoneEffect ?? "none",
           (status) => {
-            if (status.reason && revision === testRevision.current)
-              update({ notice: "高质量降噪暂不可用，已切换兼容降噪" });
+            if (revision === testRevision.current) setTestNoise(status);
           },
           undefined,
           settings.microphoneReverbStrength,
@@ -586,6 +597,9 @@ export function Settings() {
                     ]}
                   />
                 </Form.Item>
+                {noiseWarning && (
+                  <Alert type="warning" showIcon title={noiseWarning} />
+                )}
                 <div className="device-test">
                   <Button
                     disabled={!platform.microphone}

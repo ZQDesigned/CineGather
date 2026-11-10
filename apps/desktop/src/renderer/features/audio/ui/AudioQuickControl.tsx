@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
-import { Popover, Select, Switch, Slider } from "antd";
+import { Popover, Select, Switch, Slider, Alert } from "antd";
+import { microphoneNoiseWarning } from "@cinegather/media-core";
 import styled from "@emotion/styled";
 import { ChevronUp } from "lucide-react";
 import type { DesktopSettings } from "@cinegather/contracts";
@@ -52,6 +53,9 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
   const settings = useApp((s) => s.settings);
   const devices = useApp((s) => s.audioDevices);
   const monitor = useApp((s) => s.microphoneMonitor);
+  const noiseWarning = microphoneNoiseWarning(
+    useApp((s) => s.media.microphoneNoise),
+  );
   const canOpen = !disabled || monitor.state !== "off";
   const platform = capabilities();
   const [open, setOpen] = useState(false);
@@ -173,6 +177,9 @@ export function AudioQuickControl({ disabled }: { disabled: boolean }) {
                   { value: "off", label: "关闭降噪" },
                 ]}
               />
+              {noiseWarning && (
+                <Alert type="warning" showIcon title={noiseWarning} />
+              )}
             </div>
             <div className="audio-quick-field">
               <span className="audio-quick-label">扬声器 / 耳机</span>

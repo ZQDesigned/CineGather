@@ -733,7 +733,14 @@ export class MediaSession {
           const processor = await createMicrophoneProcessor(
             noise,
             requested,
-            status,
+            noise === mode
+              ? status
+              : (value) =>
+                  status({
+                    ...value,
+                    requested: mode,
+                    reason: value.reason ?? "processor-unavailable",
+                  }),
             () => !this.microphoneWanted,
             this.effectStrength,
             this.inputVolume,
@@ -777,17 +784,10 @@ export class MediaSession {
                 "麦克风音量处理暂不可用，麦克风已保持关闭，请重试",
               );
             }
-            if (mode === "enhanced")
-              status({
-                requested: mode,
-                active: "basic",
-                reason: "processor-unavailable",
-                engine: "platform",
-              });
           }
         }
         if (!current()) return;
-        if (mode !== "enhanced")
+        if (mode === "off")
           this.noiseStatus = { requested: mode, active: mode };
         const attached = track.getProcessor();
         if (attached instanceof MicrophoneInput) {

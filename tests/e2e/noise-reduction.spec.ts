@@ -477,7 +477,7 @@ test("a failed high-quality model uses RNNoise and a later worklet error keeps t
   }, processorModule);
   console.log("Fallback chain", result);
   expect(result.initial).toMatchObject({
-    active: "enhanced",
+    active: "basic",
     engine: "rnnoise",
   });
   expect(result.final).toMatchObject({ active: "basic", engine: "platform" });

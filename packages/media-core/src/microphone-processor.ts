@@ -21,7 +21,7 @@ export async function createMicrophoneProcessor(
   volume = 100,
 ) {
   const denoiser =
-    mode === "enhanced" ? await createMicrophoneDenoiser(status) : undefined;
+    mode !== "off" ? await createMicrophoneDenoiser(status, mode) : undefined;
   return new MicrophoneInput(
     effect === "ktv" ? new KtvReverb(denoiser, isMuted, strength) : denoiser,
     isMuted,

@@ -48,7 +48,11 @@ async function bounded<T>(
 export class MicrophoneDenoiser
   implements TrackProcessor<Track.Kind.Audio, AudioProcessorOptions>
 {
-  readonly name = "CineGather DeepFilterNet3";
+  get name() {
+    return this.mode === "basic"
+      ? "CineGather RNNoise"
+      : "CineGather DeepFilterNet3";
+  }
   processedTrack?: MediaStreamTrack;
   private context?: AudioContext;
   private source?: MediaStreamAudioSourceNode;
@@ -60,6 +64,7 @@ export class MicrophoneDenoiser
   private degrading = false;
   constructor(
     private readonly status: (status: MicrophoneNoiseStatus) => void = () => {},
+    private readonly mode: "basic" | "enhanced" = "enhanced",
   ) {}
 
   async init(options: AudioProcessorOptions) {
@@ -81,6 +86,10 @@ export class MicrophoneDenoiser
       this.destination = context.createMediaStreamDestination();
       this.destination.channelCount = 1;
       this.processedTrack = this.destination.stream.getAudioTracks()[0];
+      if (this.mode === "basic") {
+        await this.useRnnoise(options.track, undefined, generation);
+        return;
+      }
       let abandoned = false;
       const loading = createDeepFilterNetAudioWorklet(context, {
         speechAttenuationDb: 35,
@@ -91,7 +100,7 @@ export class MicrophoneDenoiser
         bypassUntilReady: false,
         readyTimeoutMs: 8000,
         onOverload: () => {
-          void this.compatibility(
+          void this.useRnnoise(
             options.track,
             "deepfilternet-overloaded",
             generation,
@@ -129,7 +138,7 @@ export class MicrophoneDenoiser
       handle.node.addEventListener(
         "processorerror",
         () => {
-          void this.compatibility(
+          void this.useRnnoise(
             options.track,
             "deepfilternet-processing-failed",
             generation,
@@ -141,7 +150,7 @@ export class MicrophoneDenoiser
         "message",
         (event) => {
           if (event.data?.type === "error")
-            void this.compatibility(
+            void this.useRnnoise(
               options.track,
               "deepfilternet-processing-failed",
               generation,
@@ -150,14 +159,16 @@ export class MicrophoneDenoiser
         { signal: this.filterEvents!.signal },
       );
       this.status({
-        requested: "enhanced",
+        requested: this.mode,
         active: "enhanced",
         engine: "deepfilternet3",
       });
     } catch {
-      await this.compatibility(
+      await this.useRnnoise(
         options.track,
-        "deepfilternet-initialization-failed",
+        this.mode === "basic"
+          ? "rnnoise-initialization-failed"
+          : "deepfilternet-initialization-failed",
         generation,
       );
       if (generation === this.generation && !this.processedTrack)
@@ -184,9 +195,9 @@ export class MicrophoneDenoiser
     this.source?.disconnect();
     if (this.source && this.destination) this.source.connect(this.destination);
   }
-  private async basic(
+  private async platformFallback(
     track: MediaStreamTrack,
-    reason: string,
+    reason: string | undefined,
     generation: number,
   ) {
     if (generation !== this.generation) return;
@@ -200,20 +211,20 @@ export class MicrophoneDenoiser
       .catch(() => {});
     if (generation === this.generation)
       this.status({
-        requested: "enhanced",
+        requested: this.mode,
         active: "basic",
         engine: "platform",
         reason,
       });
   }
-  private async compatibility(
+  private async useRnnoise(
     track: MediaStreamTrack,
-    reason: string,
+    reason: string | undefined,
     generation: number,
   ) {
     if (generation !== this.generation || this.degrading) return;
     this.degrading = true;
-    await this.basic(track, reason, generation);
+    await this.platformFallback(track, reason, generation);
     try {
       const context = this.context;
       if (
@@ -236,18 +247,27 @@ export class MicrophoneDenoiser
       node.addEventListener(
         "processorerror",
         () => {
-          void this.basic(track, "rnnoise-processing-failed", generation);
+          void this.platformFallback(
+            track,
+            "rnnoise-processing-failed",
+            generation,
+          );
         },
         { signal: this.filterEvents!.signal },
       );
       this.status({
-        requested: "enhanced",
-        active: "enhanced",
+        requested: this.mode,
+        active: "basic",
         engine: "rnnoise",
         reason,
       });
     } catch {
-      await this.basic(track, "enhancement-unavailable", generation);
+      binary = undefined;
+      await this.platformFallback(
+        track,
+        "rnnoise-initialization-failed",
+        generation,
+      );
     }
   }
   async restart(options: AudioProcessorOptions) {
