@@ -5,6 +5,30 @@ import type {
   MainWindowState,
 } from "@cinegather/contracts";
 const bridge: DesktopBridge = {
+  hotUpdates: {
+    bootstrap: () => ipcRenderer.invoke("desktop:hot-bootstrap"),
+    ready: (id) => ipcRenderer.invoke("desktop:hot-ready", id),
+    status: () => ipcRenderer.invoke("desktop:hot-status"),
+    check: () => ipcRenderer.invoke("desktop:hot-check"),
+    download: () => ipcRenderer.invoke("desktop:hot-download"),
+    apply: () => ipcRenderer.invoke("desktop:hot-apply"),
+    activity: (busy) => ipcRenderer.invoke("desktop:hot-activity", busy),
+    prepareResult: (value) => ipcRenderer.invoke("desktop:hot-prepare", value),
+    onPrepare: (callback) => {
+      const listener = (_event: Electron.IpcRendererEvent, id: string) =>
+        callback(id);
+      ipcRenderer.on("desktop:hot-prepare", listener);
+      return () => ipcRenderer.removeListener("desktop:hot-prepare", listener);
+    },
+    onChange: (callback) => {
+      const listener = (
+        _event: Electron.IpcRendererEvent,
+        status: import("@cinegather/contracts").DesktopHotStatus,
+      ) => callback(status);
+      ipcRenderer.on("desktop:hot-status", listener);
+      return () => ipcRenderer.removeListener("desktop:hot-status", listener);
+    },
+  },
   ...(["win32", "darwin"].includes(process.platform)
     ? {
         gameLink: {

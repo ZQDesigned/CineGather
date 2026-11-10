@@ -24,7 +24,7 @@ import { windowsDownloader } from "./windows-update";
 export async function createUpdates(
   changed: (status: UpdateStatus) => void,
   beforeInstall: () => Promise<void>,
-  options: { autoDownload?: boolean } = {},
+  options: { autoDownload?: boolean; hotCheck?: () => Promise<void> } = {},
 ) {
   const resource = (file: string) => join(__dirname, "../../resources", file);
   const installation =
@@ -143,7 +143,10 @@ export async function createUpdates(
       })
     : false;
   ready = !startupInstalling;
-  const scheduler = new UpdateScheduler(() => controller.check());
+  const scheduler = new UpdateScheduler(async () => {
+    await controller.check();
+    await options.hotCheck?.();
+  });
   let stopEvents = Object.assign(() => {}, { reconnect: () => {} });
   const resume = () => {
     void scheduler.resume();
@@ -156,7 +159,9 @@ export async function createUpdates(
     url.searchParams.set("platform", process.platform);
     url.searchParams.set("arch", process.arch);
     stopEvents = watchUpdateEvents(url.href, (event, raw) => {
-      if (event === "release") {
+      if (event === "desktop-ui") {
+        void options.hotCheck?.();
+      } else if (event === "release") {
         controller.acceptRelease(
           verifyRelease(raw, publicKey, process.platform, process.arch),
         );
@@ -195,6 +200,7 @@ export async function createUpdates(
     },
     check: async () => {
       const status = await controller.check();
+      await options.hotCheck?.();
       scheduler.checked();
       return status;
     },

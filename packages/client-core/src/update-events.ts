@@ -17,6 +17,7 @@ export function watchUpdateEvents(
       | "release"
       | "announcements"
       | "mobile-update"
+      | "desktop-ui"
       | "feature-policy",
     data: string,
   ) => void,
@@ -91,6 +92,7 @@ export function watchUpdateEvents(
                 event === "release" ||
                 event === "announcements" ||
                 event === "mobile-update" ||
+                event === "desktop-ui" ||
                 event === "feature-policy")
             )
               try {

@@ -1,3 +1,5 @@
+import { desktopAdmission } from "../modules/updates/desktop-admission";
+import type { DesktopUpdateStore } from "../modules/updates/desktop-updates";
 import { checkRoomRequestCompatibility } from "../modules/updates/feature-admission";
 import {
   applyDecorators,
@@ -203,6 +205,16 @@ export class AuthGuard implements CanActivate {
           req.app.get("cinegather.featurePolicy") as FeaturePolicyStore
         ).snapshot(),
     );
+    const desktopStore = req.app.get("cinegather.desktopUpdates") as
+      | DesktopUpdateStore
+      | undefined;
+    if (desktopStore)
+      await desktopAdmission(
+        req,
+        req.user,
+        identity.credentialId,
+        desktopStore,
+      );
     await checkRoomRequestCompatibility(
       req.user,
       req.method,

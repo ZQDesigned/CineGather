@@ -1,3 +1,4 @@
+import { requireDesktopFeature } from "../updates/desktop-feature-context";
 import { readPointsSummary } from "../points/service";
 import { syncPartyRewards, advancePartyRewards } from "../points/party-rewards";
 import { firstCorrectAnswer } from "../party/party-learning-model";
@@ -272,6 +273,8 @@ export async function activityCommand(
   requestTrace?: string,
 ): Promise<ActivitySnapshot> {
   requireFeature(user, "room.activities");
+  if (command.type === "start" || command.type === "request")
+    requireDesktopFeature(user, "room.activities");
   roomId = uuid(roomId);
   let stopped: { userId: string; leaseId: string } | undefined;
   const result = await db.transaction(async (tx) => {

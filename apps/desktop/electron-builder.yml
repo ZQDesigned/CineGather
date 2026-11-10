@@ -22,6 +22,7 @@ extraResources:
       [package.json, index.cjs, src/koffi/index.cjs, src/koffi/src/static.cjs]
 asar: true
 npmRebuild: false
+beforePack: "@cinegather/update-core/builder-hook"
 mac:
   target: [dmg, zip]
   category: public.app-category.social-networking

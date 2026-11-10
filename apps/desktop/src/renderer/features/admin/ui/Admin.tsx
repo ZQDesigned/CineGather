@@ -78,7 +78,8 @@ const Surface = styled.section`
     width: 100%;
     min-width: 0;
   }
-  .admin-toolbar .ant-input-search {
+  .admin-toolbar .ant-input-search,
+  .admin-role-toolbar .ant-input-search {
     width: 300px;
     max-width: 100%;
     align-self: flex-end;
@@ -130,7 +131,8 @@ const Surface = styled.section`
     h1 {
       font-size: 21px;
     }
-    .admin-toolbar .ant-input-search {
+    .admin-toolbar .ant-input-search,
+    .admin-role-toolbar .ant-input-search {
       max-width: 230px;
     }
   }
@@ -594,6 +596,28 @@ function AdminPanel() {
       setPageSize(size);
     },
   };
+  const searchControl = (
+    <Input.Search
+      aria-label="搜索管理数据"
+      placeholder={
+        activeTab === "users"
+          ? "搜索用户名或昵称"
+          : activeTab === "rooms"
+            ? "搜索房间名或房间号"
+            : activeTab === "roles"
+              ? "搜索角色名称"
+              : "搜索操作人或对象"
+      }
+      allowClear
+      value={draft}
+      maxLength={100}
+      onChange={(e) => setDraft(e.target.value)}
+      onSearch={(value) => {
+        setSearch(value.trim());
+        setPage(1);
+      }}
+    />
+  );
   return (
     <Surface aria-label="管理后台">
       {roomHistoryDialog.value && (
@@ -672,28 +696,9 @@ function AdminPanel() {
           activeTab !== "announcements" &&
           activeTab !== "party-words" &&
           activeTab !== "points" &&
-          activeTab !== "games" && (
-            <Input.Search
-              aria-label="搜索管理数据"
-              placeholder={
-                activeTab === "users"
-                  ? "搜索用户名或昵称"
-                  : activeTab === "rooms"
-                    ? "搜索房间名或房间号"
-                    : activeTab === "roles"
-                      ? "搜索角色名称"
-                      : "搜索操作人或对象"
-              }
-              allowClear
-              value={draft}
-              maxLength={100}
-              onChange={(e) => setDraft(e.target.value)}
-              onSearch={(value) => {
-                setSearch(value.trim());
-                setPage(1);
-              }}
-            />
-          )}
+          activeTab !== "games" &&
+          activeTab !== "roles" &&
+          searchControl}
       </div>
       <div className="admin-table" ref={tableRef}>
         {activeTab === "points" ? (
@@ -708,6 +713,7 @@ function AdminPanel() {
           <RoleManagement
             revision={revision}
             search={search}
+            searchControl={searchControl}
             height={tableHeight}
             onChanged={() => setRevision((r) => r + 1)}
           />

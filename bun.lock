@@ -28,6 +28,7 @@
       "dependencies": {
         "@cinegather/contracts": "workspace:*",
         "@cinegather/database": "workspace:*",
+        "@cinegather/update-core": "workspace:*",
         "@livekit/protocol": "1.51.0",
         "@nestjs/common": "catalog:",
         "@nestjs/core": "catalog:",
@@ -46,13 +47,14 @@
     },
     "apps/desktop": {
       "name": "@cinegather/desktop",
-      "version": "0.1.40",
+      "version": "0.1.43",
       "dependencies": {
         "@ant-design/icons": "6.3.4",
         "@cinegather/api-client": "workspace:*",
         "@cinegather/client-core": "workspace:*",
         "@cinegather/contracts": "workspace:*",
         "@cinegather/media-core": "workspace:*",
+        "@cinegather/update-core": "workspace:*",
         "@emotion/react": "11.14.0",
         "@emotion/styled": "11.14.1",
         "antd": "6.6.7",
@@ -164,6 +166,14 @@
         "@sapphi-red/web-noise-suppressor": "0.4.1",
         "@workadventure/noise-suppression": "0.2.0",
         "livekit-client": "catalog:",
+      },
+    },
+    "packages/update-core": {
+      "name": "@cinegather/update-core",
+      "version": "0.1.0",
+      "dependencies": {
+        "@cinegather/contracts": "workspace:*",
+        "zod": "catalog:",
       },
     },
   },
@@ -365,6 +375,8 @@
     "@cinegather/media-core": ["@cinegather/media-core@workspace:packages/media-core"],
 
     "@cinegather/mobile": ["@cinegather/mobile@workspace:apps/mobile"],
+
+    "@cinegather/update-core": ["@cinegather/update-core@workspace:packages/update-core"],
 
     "@config-plugins/react-native-webrtc": ["@config-plugins/react-native-webrtc@15.0.2", "", { "peerDependencies": { "expo": ">=56" } }, "sha512-sH4T7Z4P2RowV91k9CEwEr0unn+396NBexxCNZwRXuJXwguDU1qZWpE6fcwN0730B8uiS83F7+CLTyhpC7qRHQ=="],
 

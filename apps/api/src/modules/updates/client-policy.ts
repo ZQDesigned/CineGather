@@ -31,6 +31,7 @@ export function compatibilityFailure(
   if (
     !path.startsWith("/api/v1/") ||
     path.startsWith("/api/v1/mobile-updates/") ||
+    path.startsWith("/api/v1/desktop-updates/") ||
     method === "OPTIONS" ||
     gameCleanupRequest(method, path) ||
     [

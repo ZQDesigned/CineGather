@@ -156,11 +156,39 @@ test("account capabilities use a single form and preserve cancellation and saved
     await viewing
       .getByRole("combobox", { name: "默认共享画质", exact: true })
       .click();
+    const qualities = viewing.locator(
+      ".ant-select-dropdown:visible .ant-select-item-option",
+    );
     await expect(
-      viewing
-        .locator(".ant-select-item-option-disabled")
-        .filter({ hasText: "游戏" }),
-    ).toContainText("需授权");
+      viewing.locator(".ant-select-dropdown:visible"),
+    ).not.toContainText("游戏");
+    await expect(qualities.filter({ hasText: "省流" })).toHaveCount(1);
+    await expect(qualities.filter({ hasText: "影院" })).toHaveCount(1);
+    expect(
+      (
+        await page.request.patch(
+          `${api}/admin/users/${member.user.id}/capabilities`,
+          {
+            headers: { Authorization: `Bearer ${root.sessionToken}` },
+            data: {
+              highFrameRateEnabled: true,
+              reason: "画质选项授权显示验证",
+            },
+          },
+        )
+      ).status(),
+    ).toBe(200);
+    await viewing.reload();
+    await viewing
+      .getByRole("tab", { name: "共享与快捷键", exact: true })
+      .click();
+    await viewing
+      .getByRole("combobox", { name: "默认共享画质", exact: true })
+      .click();
+    await expect(viewing.locator(".ant-select-dropdown:visible")).toContainText(
+      "游戏",
+    );
+
     await viewing
       .getByRole("region", { name: "设置与设备页面" })
       .getByText("设置与设备", { exact: true })

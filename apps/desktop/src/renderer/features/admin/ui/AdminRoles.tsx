@@ -3,6 +3,7 @@ import {
   Button,
   Checkbox,
   Form,
+  Flex,
   Input,
   Modal,
   Select,
@@ -14,7 +15,7 @@ import {
 } from "antd";
 import type { TableColumnsType } from "antd";
 import styled from "@emotion/styled";
-import { useEffect, useState } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { unwrap } from "@cinegather/api-client";
 import {
   adminPermissionKeys,
@@ -73,11 +74,13 @@ function PermissionPicker({
 export function RoleManagement({
   revision,
   search,
+  searchControl,
   height,
   onChanged,
 }: {
   revision: number;
   search: string;
+  searchControl: ReactNode;
   height: number;
   onChanged: () => void;
 }) {
@@ -181,7 +184,14 @@ export function RoleManagement({
   ];
   return (
     <>
-      <Space style={{ marginBottom: 12 }}>
+      <Flex
+        className="admin-role-toolbar"
+        align="center"
+        justify="space-between"
+        gap={12}
+        wrap
+        style={{ marginBottom: 12 }}
+      >
         <Button
           type="primary"
           onClick={() => {
@@ -191,7 +201,8 @@ export function RoleManagement({
         >
           创建角色
         </Button>
-      </Space>
+        {searchControl}
+      </Flex>
       {error && <Alert type="error" showIcon title={error} />}
       <Table<AdminRole>
         rowKey="id"

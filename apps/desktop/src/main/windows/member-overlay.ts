@@ -25,6 +25,10 @@ export class MemberOverlay {
   constructor(
     private mainWindow: () => BrowserWindow | undefined,
     private devURL?: string,
+    private renderer?: {
+      url(): string | undefined;
+      resource(request: Request): Promise<Response> | undefined;
+    },
   ) {
     screen.on("display-added", this.displayChanged);
     screen.on("display-removed", this.displayChanged);
@@ -66,6 +70,13 @@ export class MemberOverlay {
       ? this.window.getMediaSourceId()
       : undefined;
   }
+  resetRenderer() {
+    this.stacking?.destroy();
+    this.window?.destroy();
+    this.window = undefined;
+    this.ready = false;
+    this.block(true);
+  }
   private create() {
     const ses = session.fromPartition("member-overlay");
     ses.setPermissionRequestHandler((_contents, _permission, callback) =>
@@ -76,6 +87,8 @@ export class MemberOverlay {
     const root = resolve(__dirname, "../renderer");
     if (!this.sessionConfigured)
       ses.protocol.handle("app", (request) => {
+        const response = this.renderer?.resource(request);
+        if (response) return response;
         const url = new URL(request.url);
         const path = resolve(root, `.${decodeURIComponent(url.pathname)}`);
         if (
@@ -169,10 +182,14 @@ export class MemberOverlay {
         this.ready = false;
       }
     });
-    void w.loadURL(this.devURL || "app://cinegather/index.html").catch(() => {
-      this.ready = false;
-      if (!w.isDestroyed()) w.hide();
-    });
+    void w
+      .loadURL(
+        this.devURL || this.renderer?.url() || "app://cinegather/index.html",
+      )
+      .catch(() => {
+        this.ready = false;
+        if (!w.isDestroyed()) w.hide();
+      });
   }
   private refresh() {
     if (this.disposed) return;

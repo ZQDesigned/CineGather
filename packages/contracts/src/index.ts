@@ -432,6 +432,7 @@ export interface AccompanimentSource {
   active?: boolean;
 }
 export interface DesktopBridge {
+  hotUpdates?: import("./desktop-updates").DesktopHotBridge;
   captureWhiteboardImage?(): Promise<string | undefined>;
   gameLink?: import("./game-link").GameLinkBridge;
   notifications?: {
@@ -664,3 +665,5 @@ export * from "./game-link";
 export * from "./room-activities";
 
 export * from "./party-categories";
+
+export * from "./desktop-updates";

@@ -5,7 +5,7 @@ import {
 import { app, BrowserWindow, dialog, powerMonitor } from "electron";
 import { cpus, freemem, totalmem, loadavg, release } from "node:os";
 import { randomUUID } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { writeFile, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import {
   safeDiagnosticRecord,
@@ -65,7 +65,10 @@ export class ProductionDiagnostics {
   private exportPending = false;
   private writeWindow = 0;
   private writeCount = 0;
-  constructor(private native: () => NativeCapture | undefined) {
+  constructor(
+    private native: () => NativeCapture | undefined,
+    private hotIdentity?: () => unknown,
+  ) {
     this.history = new DiagnosticHistory(
       join(app.getPath("userData"), "diagnostics"),
     );
@@ -296,6 +299,15 @@ export class ProductionDiagnostics {
         },
         current,
         await readInstallerDiagnostics(installerDiagnosticDirectories()),
+        {
+          identity: this.hotIdentity?.(),
+          events: await readFile(
+            join(app.getPath("userData"), "hot-updates.jsonl"),
+            "utf8",
+          )
+            .then((v) => v.slice(-2 * 1024 * 1024))
+            .catch(() => ""),
+        },
       );
       await writeFile(target.filePath, archive, { mode: 0o600 });
       return true;

@@ -31,6 +31,7 @@ import { useApp, update } from "../../../store";
 import * as actions from "../../../controller";
 import {
   qualityPresets,
+  allowedShareQuality,
   defaultNotificationPreferences,
   qualityLabel,
   watchProfiles,
@@ -709,17 +710,19 @@ export function Settings() {
                 <Form.Item label="默认共享画质">
                   <Select
                     aria-label="默认共享画质"
-                    value={settings.quality}
+                    value={allowedShareQuality(settings.quality, user)}
                     onChange={(v) => change("quality", v)}
-                    options={Object.entries(qualityPresets).map(([value]) => ({
-                      value: value as DesktopSettings["quality"],
-                      label:
-                        qualityLabel(value as DesktopSettings["quality"]) +
-                        (value === "game" && !user?.highFrameRateEnabled
-                          ? " · 需授权"
-                          : ""),
-                      disabled: value === "game" && !user?.highFrameRateEnabled,
-                    }))}
+                    options={Object.entries(qualityPresets)
+                      .filter(
+                        ([value]) =>
+                          value !== "game" || user?.highFrameRateEnabled,
+                      )
+                      .map(([value]) => ({
+                        value: value as DesktopSettings["quality"],
+                        label: qualityLabel(
+                          value as DesktopSettings["quality"],
+                        ),
+                      }))}
                   />
                 </Form.Item>
                 {platform.pushToTalk && (

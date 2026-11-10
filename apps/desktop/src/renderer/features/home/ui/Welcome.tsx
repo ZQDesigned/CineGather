@@ -4,7 +4,7 @@ import {
   SlidersHorizontal,
   Headphones,
   MonitorUp,
-  Shield,
+  Gamepad2,
   Clapperboard,
 } from "lucide-react";
 import { useEffect, useState } from "react";
@@ -68,8 +68,8 @@ export function Welcome() {
             屏幕共享
           </span>
           <span>
-            <Shield size={17} />
-            邀请加入
+            <Gamepad2 size={17} />
+            聚会游戏
           </span>
         </div>
         <div className="orbital">

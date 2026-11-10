@@ -18,7 +18,8 @@
     "lucide-react": "1.59.0",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "zustand": "5.0.15"
+    "zustand": "5.0.15",
+    "@cinegather/update-core": "workspace:*"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "6.1.2",
@@ -34,11 +35,11 @@
     "dev:web": "vite --config vite.web.config.ts",
     "build:web": "vite build --config vite.web.config.ts && bun ../../tools/build/third-party.ts web",
     "serve:web": "vite preview --config vite.web.config.ts",
-    "build": "electron-vite build",
-    "dist:win": "bun ../../tools/build/icons.ts && bun ../../tools/windows-audio-build.ts && python ../../native/capture/build-windows.py && bun ../../tools/validation/windows/native-smoke.ts ../../.local/native-runtime/windows/obs && bun ../../tools/build/game-link.ts && electron-vite build && bun ../../tools/build/third-party.ts win32 x64 && electron-builder --win --x64 --publish never",
-    "dist:mac": "bun ../../tools/build/icons.ts && python3 ../../native/capture/build-macos.py && bun ../../tools/build/game-link.ts && electron-vite build && bun ../../tools/build/third-party.ts darwin arm64 && electron-builder --mac --arm64 --publish never"
+    "build": "electron-vite build && bun ../../tools/build/desktop-ui.ts",
+    "dist:win": "bun ../../tools/build/icons.ts && bun ../../tools/windows-audio-build.ts && python ../../native/capture/build-windows.py && bun ../../tools/validation/windows/native-smoke.ts ../../.local/native-runtime/windows/obs && bun ../../tools/build/game-link.ts && electron-vite build && bun ../../tools/build/desktop-ui.ts && bun ../../tools/build/third-party.ts win32 x64 && electron-builder --win --x64 --publish never",
+    "dist:mac": "bun ../../tools/build/icons.ts && python3 ../../native/capture/build-macos.py && bun ../../tools/build/game-link.ts && electron-vite build && bun ../../tools/build/desktop-ui.ts && bun ../../tools/build/third-party.ts darwin arm64 && electron-builder --mac --arm64 --publish never"
   },
-  "version": "0.1.42",
+  "version": "0.1.43",
   "private": true,
   "type": "module",
   "license": "MIT",

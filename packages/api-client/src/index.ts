@@ -17,6 +17,7 @@ export function createApi(
     identity?: {
       version: string;
       platform: ClientPlatform;
+      desktop?: import("@cinegather/contracts").DesktopUIIdentity;
       mobile?: {
         runtime: string;
         build: number;
@@ -24,20 +25,46 @@ export function createApi(
         channel: string;
       };
     };
+    beforeRequest?: (request: Request) => void;
+    onNetworkActivity?: (active: boolean) => void;
+    onDesktopUIRequired?: (reason: string) => void;
     onUpdateRequired?: (minimumVersion: string, reason: string) => void;
   } = {},
 ) {
   const timeoutMs = options.timeoutMs ?? 15000;
   if (!Number.isFinite(timeoutMs) || timeoutMs <= 0)
     throw new Error("API timeout must be positive");
-  const client = createClient<paths>({ baseUrl });
+  const client = createClient<paths>({
+    baseUrl,
+    ...(options.onNetworkActivity
+      ? {
+          fetch: async (request: Request) => {
+            options.onNetworkActivity?.(true);
+            try {
+              return await fetch(request);
+            } finally {
+              options.onNetworkActivity?.(false);
+            }
+          },
+        }
+      : {}),
+  });
   client.use({
     onRequest({ request }) {
+      options.beforeRequest?.(request);
       for (const [key, value] of Object.entries(protocolHeaders))
         request.headers.set(key, value);
       if (options.identity) {
         request.headers.set("X-CineGather-Version", options.identity.version);
         request.headers.set("X-CineGather-Platform", options.identity.platform);
+        const desktop = options.identity.desktop;
+        if (desktop) {
+          request.headers.set("X-CineGather-Runtime", desktop.runtime);
+          request.headers.set(
+            "X-CineGather-Revision",
+            String(desktop.revision),
+          );
+        }
         const mobile = options.identity.mobile;
         if (mobile) {
           request.headers.set("X-CineGather-Runtime", mobile.runtime);
@@ -56,6 +83,18 @@ export function createApi(
       });
     },
     async onResponse({ request, response }) {
+      if (response.status === 426 && options.onDesktopUIRequired) {
+        const body = await response
+          .clone()
+          .json()
+          .catch(() => undefined);
+        if (body?.code === "DESKTOP_UI_UPDATE_REQUIRED")
+          options.onDesktopUIRequired(
+            typeof body.message === "string"
+              ? body.message.slice(0, 500)
+              : "此功能需要应用资源更新。",
+          );
+      }
       const minimum = response.headers.get("X-CineGather-Min-Version");
       if (
         response.status === 426 &&

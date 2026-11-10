@@ -144,3 +144,7 @@ jobs:
             apps/desktop/release/*.exe
             apps/desktop/release/*.blockmap
             apps/desktop/release/*-native-source.zip
+            apps/desktop/resources/desktop-runtime.json
+            apps/desktop/out/main/**
+            apps/desktop/out/preload/**
+            apps/desktop/out/renderer/**

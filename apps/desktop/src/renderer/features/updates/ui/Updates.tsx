@@ -1,3 +1,4 @@
+import { HotUpdatePanel, HotUpdateCenter } from "./HotUpdates";
 import { useEffect, useRef, useState } from "react";
 import { create } from "zustand";
 import {
@@ -98,7 +99,12 @@ export function UpdateCenter() {
       ),
     });
   }, [status, notification]);
-  return <RequiredUpdate />;
+  return (
+    <>
+      <HotUpdateCenter />
+      <RequiredUpdate />
+    </>
+  );
 }
 function updateError(error: unknown) {
   return error instanceof Error
@@ -344,6 +350,7 @@ export function UpdatePanel() {
           </Button>
         )}
       </Flex>
+      <HotUpdatePanel />
     </Flex>
   );
 }

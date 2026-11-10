@@ -1,3 +1,4 @@
+import { requireDesktopFeature } from "../updates/desktop-feature-context";
 import { requireFeature, requireRoomFeature } from "../updates/feature-policy";
 import {
   esportsVisibility,
@@ -953,6 +954,9 @@ export async function acquireLease(
       const policy = await requireScreenShare(tx, user.id, roomId);
       await requireShareQuality(tx, user.id, quality);
       requireFeature(user, "screen.publish");
+      requireDesktopFeature(user, "screen.publish");
+      if (quality === "game")
+        requireDesktopFeature(user, "screen.quality.game");
       if (quality === "game") requireFeature(user, "screen.quality.game");
       const activitySwitch = await guardActivityShare(
         tx,
@@ -2073,6 +2077,7 @@ export async function nativePublication(
 export async function watchAdmission(user: User, roomId: string) {
   await getRoom(user, roomId);
   requireFeature(user, "screen.watch");
+  requireDesktopFeature(user, "screen.watch");
   return { ok: true as const };
 }
 

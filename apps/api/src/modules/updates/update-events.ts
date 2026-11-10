@@ -23,6 +23,14 @@ export class UpdateEvents implements OnModuleDestroy {
       for (const client of this.clients)
         this.send(client.response, "announcements", "{}");
     });
+    const uiFile = join(directory, "desktop-ui/changed");
+    const refreshUI = () => {
+      for (const client of this.clients)
+        if (/^(win32|darwin)-/.test(client.channel))
+          this.send(client.response, "desktop-ui", "{}");
+    };
+    this.watchers.set(uiFile, refreshUI);
+    watchFile(uiFile, { interval: 1000, persistent: false }, refreshUI);
     for (const platform of ["android", "ios"])
       for (const channel of ["stable", "preview"]) {
         const file = join(directory, "mobile", channel, platform + ".json");
@@ -126,6 +134,8 @@ export class UpdateEvents implements OnModuleDestroy {
         JSON.stringify(features.snapshot()),
       ),
     );
+    if (platform === "win32" || platform === "darwin")
+      this.send(response, "desktop-ui", "{}");
     this.send(response, "announcements", "{}");
     const channel = platform + "-" + arch;
     const timer = setInterval(() => {

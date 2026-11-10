@@ -1,4 +1,9 @@
 import {
+  desktopUIIdentity,
+  hotPreparing,
+  hotNetworkActivity,
+} from "./features/updates/hot-runtime";
+import {
   gameLink,
   bindGameLink,
   configureGameLink,
@@ -125,7 +130,13 @@ export function requireClientUpdate(
 }
 
 export const api = createApi(baseUrl, () => sessionToken, {
+  onNetworkActivity: desktopUIIdentity() ? hotNetworkActivity : undefined,
+  beforeRequest: (request) => {
+    if (hotPreparing() && !["GET", "HEAD", "OPTIONS"].includes(request.method))
+      throw new Error("界面正在更新，请稍后重试");
+  },
   identity: {
+    desktop: desktopUIIdentity(),
     version,
     platform:
       window.desktop?.platform === "win32"
@@ -135,6 +146,12 @@ export const api = createApi(baseUrl, () => sessionToken, {
           : "web",
   },
   onUpdateRequired: requireClientUpdate,
+  onDesktopUIRequired: (reason) => {
+    window.dispatchEvent(
+      new CustomEvent("desktop-ui-required", { detail: reason }),
+    );
+    void window.desktop?.hotUpdates?.check().catch(() => {});
+  },
 });
 configureGameLink({ api, report });
 

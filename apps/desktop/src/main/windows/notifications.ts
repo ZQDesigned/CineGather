@@ -44,6 +44,10 @@ export class DesktopNotifications {
       sharing(): boolean;
       activate(id: string, scope: string): void;
       devURL?: string;
+      renderer?: {
+        url(): string | undefined;
+        resource(request: Request): Promise<Response> | undefined;
+      };
     },
   ) {
     for (const [channel, run] of [
@@ -68,6 +72,11 @@ export class DesktopNotifications {
           throw Error("不受信任的通知调用");
         return run();
       });
+  }
+  resetRenderer() {
+    this.hideCard();
+    this.card?.destroy();
+    this.card = undefined;
   }
   show(input: DesktopNotification) {
     const preferences =
@@ -164,6 +173,8 @@ export class DesktopNotifications {
       if (!this.sessionReady) {
         const root = resolve(__dirname, "../renderer");
         ses.protocol.handle("app", (request) => {
+          const response = this.deps.renderer?.resource(request);
+          if (response) return response;
           const url = new URL(request.url),
             path = resolve(root, `.${decodeURIComponent(url.pathname)}`);
           if (url.hostname !== "cinegather" || !path.startsWith(root + sep))
@@ -223,7 +234,11 @@ export class DesktopNotifications {
       card.on("closed", () => {
         if (this.card === card) this.card = undefined;
       });
-      await card.loadURL(this.deps.devURL || "app://cinegather/index.html");
+      await card.loadURL(
+        this.deps.devURL ||
+          this.deps.renderer?.url() ||
+          "app://cinegather/index.html",
+      );
     }
     if (
       generation !== this.generation ||

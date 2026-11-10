@@ -1,3 +1,4 @@
+import { requireDesktopFeature } from "../updates/desktop-feature-context";
 import { requireFeature } from "../updates/feature-policy";
 import {
   readEsportsConfiguration,
@@ -431,6 +432,8 @@ export async function changeWatch(
   roomId: string,
   input: z.infer<typeof esportsWatchInput>,
 ) {
+  if (input.action !== "stop" && input.action !== "cancel")
+    requireDesktopFeature(user, "screen.watch");
   await db.transaction(async (tx) => {
     const { seat } = await esportsActor(tx, roomId, user.id, credential(user));
     if (seat.kind === "player")
@@ -727,6 +730,8 @@ export async function acquireEsportsLease(
       fail(403, "ESPORTS_PUBLISH_DENIED", "仅允许有共享权限的选手推流");
     await requireShareQuality(tx, user.id, quality);
     requireFeature(user, "screen.publish");
+    requireDesktopFeature(user, "screen.publish");
+    if (quality === "game") requireDesktopFeature(user, "screen.quality.game");
     if (quality === "game") requireFeature(user, "screen.quality.game");
     const [old] = await tx
       .select()

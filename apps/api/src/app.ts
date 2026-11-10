@@ -1,4 +1,8 @@
 import {
+  DesktopUpdateStore,
+  serveDesktopUpdate,
+} from "./modules/updates/desktop-updates";
+import {
   PointsController,
   AdminPointsController,
 } from "./modules/points/controller";
@@ -175,6 +179,7 @@ export async function createApp({
   updateDirectory = config.updateDirectory,
   maintenanceFile = config.maintenanceFile,
   featurePolicy,
+  desktopUpdateKey,
 }: {
   trustedProxies?: string[];
   trustedCdns?: string[];
@@ -182,6 +187,7 @@ export async function createApp({
   updateDirectory?: string;
   maintenanceFile?: string;
   featurePolicy?: FeaturePolicy;
+  desktopUpdateKey?: string;
 } = {}) {
   const app = await NestFactory.create<NestExpressApplication>(AppModule, {
     logger: false,
@@ -230,6 +236,8 @@ export async function createApp({
       "X-CineGather-Version",
       "X-CineGather-Platform",
       "X-CineGather-Runtime",
+      "X-CineGather-Arch",
+      "X-CineGather-Bundle",
       "X-CineGather-Build",
       "X-CineGather-Revision",
       "X-CineGather-Channel",
@@ -271,6 +279,14 @@ export async function createApp({
   app.use(mediaGateway.middleware);
   app.getHttpServer().once("close", () => mediaGateway.close());
   const mobileUpdates = new MobileUpdateStore(updateDirectory);
+  const desktopUpdates = new DesktopUpdateStore(
+    updateDirectory,
+    desktopUpdateKey,
+  );
+  app
+    .getHttpAdapter()
+    .getInstance()
+    .set("cinegather.desktopUpdates", desktopUpdates);
   const buckets = new Map<string, { count: number; reset: number }>();
   function consume(key: string, limit: number, now: number) {
     let bucket = buckets.get(key);
@@ -347,6 +363,13 @@ export async function createApp({
           message: "操作太频繁，请稍后重试",
           requestId: req.requestId,
         });
+        return;
+      }
+      if (
+        req.method === "GET" &&
+        req.path.startsWith("/api/v1/desktop-updates/")
+      ) {
+        serveDesktopUpdate(desktopUpdates, req, res);
         return;
       }
       if (

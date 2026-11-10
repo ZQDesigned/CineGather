@@ -30,3 +30,6 @@ docs/
 
 .idea/
 __pycache__/
+
+# Generated desktop native runtime identity
+apps/desktop/resources/desktop-runtime.json

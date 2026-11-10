@@ -58,17 +58,17 @@ export default function ShareScreen() {
         <Label>当前账号尚未开通屏幕共享，或房主已禁止你共享。</Label>
       )}
       <Label>共享画质</Label>
-      {(Object.keys(qualityPresets) as Quality[]).map((value) => (
-        <Button
-          key={value}
-          primary={allowedShareQuality(quality, user) === value}
-          disabled={value === "game" && !user?.highFrameRateEnabled}
-          onPress={() => setQuality(value)}
-        >
-          {qualityLabel(value)}
-          {value === "game" && !user?.highFrameRateEnabled ? " · 需授权" : ""}
-        </Button>
-      ))}
+      {(Object.keys(qualityPresets) as Quality[])
+        .filter((value) => value !== "game" || user?.highFrameRateEnabled)
+        .map((value) => (
+          <Button
+            key={value}
+            primary={allowedShareQuality(quality, user) === value}
+            onPress={() => setQuality(value)}
+          >
+            {qualityLabel(value)}
+          </Button>
+        ))}
       <View style={styles.spread}>
         <Text style={styles.text}>同时共享应用声音</Text>
         <Switch

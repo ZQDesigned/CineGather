@@ -1,3 +1,10 @@
+import { hotIPCAllowed } from "./updates/hot/ipc-policy";
+import { HotStore } from "./updates/hot/store";
+import { HotController, boundedFetch } from "./updates/hot/controller";
+import { desktopRuntimeSchema } from "@cinegather/contracts";
+import { desktopUpdatePublicKey } from "@cinegather/update-core";
+import { appendFile } from "node:fs/promises";
+import { updateOrigin } from "./updates/update-release";
 import { projectGameDiagnostic } from "../shared/game-diagnostics";
 import { isRoomInvitationUrl } from "@cinegather/client-core/invitations";
 import { GameLocal } from "./games/game-local";
@@ -93,6 +100,9 @@ let diagnostics: ProductionDiagnostics | undefined;
 let tray: Tray | undefined;
 let quitting = false;
 let sharing = false;
+let hot: HotController | undefined;
+let hotStarted = false;
+let hotPrepare: { id: string; finish: (safe: boolean) => void } | undefined;
 let updates: Awaited<ReturnType<typeof createUpdates>> | undefined;
 let settings: DesktopSettings = defaultSettings;
 let pending: (CaptureSelection & { expiresAt: number }) | undefined;
@@ -125,6 +135,7 @@ async function commitSettings(next: DesktopSettings) {
   if (notificationSettingsChanged) notifications?.clear();
   if (previous.autoDownloadUpdates !== next.autoDownloadUpdates)
     updates?.configure(next.autoDownloadUpdates ?? true);
+  hot?.configure(next.autoDownloadUpdates ?? true);
   if (
     JSON.stringify(previous.memberOverlay) !==
     JSON.stringify(next.memberOverlay)
@@ -431,6 +442,8 @@ async function createWindow() {
     }
   });
   win.webContents.on("render-process-gone", () => {
+    if (hot && hot.store.current !== "factory")
+      void hot.failed("renderer-crashed");
     notifications?.clear();
     watchVisibility?.watch(false);
     viewingWindow?.close();
@@ -447,7 +460,10 @@ async function createWindow() {
     updateTray();
   });
   if (devURL) await win.loadURL(devURL);
-  else await win.loadURL("app://cinegather/index.html");
+  else {
+    hot?.booting();
+    await win.loadURL(hot?.store.url ?? "app://cinegather/index.html");
+  }
 }
 function registerIPC() {
   function handle(name: string, run: (input: unknown) => unknown) {
@@ -456,7 +472,11 @@ function registerIPC() {
         !win ||
         event.sender !== win.webContents ||
         event.senderFrame !== win.webContents.mainFrame ||
-        !trustedURL(event.senderFrame.url, devURL)
+        !trustedURL(event.senderFrame.url, devURL) ||
+        (hot &&
+          !devURL &&
+          new URL(event.senderFrame.url).pathname !==
+            new URL(hot.store.url).pathname)
       )
         throw new Error("不受信任的 IPC 调用");
       if (
@@ -475,9 +495,30 @@ function registerIPC() {
           updates?.controller.snapshot().required)
       )
         throw new Error("设备已锁定或休眠，请解锁后重新选择共享来源");
+      if (hot?.locked && !hotIPCAllowed(name))
+        throw new Error("界面正在更新，请稍后重试");
       return run(input);
     });
   }
+  handle("desktop:hot-bootstrap", () => hot?.identity());
+  handle("desktop:hot-status", () => hot?.snapshot());
+  handle("desktop:hot-check", () => hot?.check());
+  handle("desktop:hot-download", () => hot?.download());
+  handle("desktop:hot-apply", () => hot?.apply() ?? false);
+  handle("desktop:hot-activity", (input) =>
+    hot?.activity(z.boolean().parse(input)),
+  );
+  handle("desktop:hot-ready", async (input) => {
+    await hot?.ready(z.string().max(64).parse(input));
+    memberOverlay?.block(screenLocked || suspended);
+  });
+  handle("desktop:hot-prepare", (input) => {
+    const value = z
+      .object({ id: z.string().uuid(), safe: z.boolean() })
+      .strict()
+      .parse(input);
+    if (hotPrepare?.id === value.id) hotPrepare.finish(value.safe);
+  });
   if (process.platform === "win32") {
     handle("desktop:window-state", () => mainWindowState(win!));
     handle("desktop:window-action", (input) => controlMainWindow(win!, input));
@@ -939,6 +980,7 @@ else {
     }
   });
   app.on("before-quit", (event) => {
+    hot?.dispose();
     notifications?.destroy();
     watchVisibility?.dispose();
     memberOverlay?.destroy();
@@ -1027,8 +1069,98 @@ else {
       } catch {
         settings = defaultSettings;
       }
+      if (
+        app.isPackaged &&
+        !devURL &&
+        ["win32", "darwin"].includes(process.platform)
+      ) {
+        const identity = desktopRuntimeSchema.parse(
+          JSON.parse(
+            await readFile(
+              join(__dirname, "../../resources/desktop-runtime.json"),
+              "utf8",
+            ),
+          ).identity,
+        );
+        const hotLog = (phase: string, data?: Record<string, unknown>) => {
+          void appendFile(
+            join(app.getPath("userData"), "hot-updates.jsonl"),
+            JSON.stringify({ at: new Date().toISOString(), phase, ...data }) +
+              "\n",
+            { mode: 0o600 },
+          ).catch(() => {});
+        };
+        const store = new HotStore({
+          root: join(app.getPath("userData"), "hot-updates", identity.runtime),
+          factory: resolve(__dirname, "../renderer"),
+          identity,
+          publicKey: desktopUpdatePublicKey,
+          log: hotLog,
+        });
+        const installed =
+          process.platform === "darwin" ||
+          (await readFile(join(process.resourcesPath, "install-mode"), "utf8")
+            .then((v) => v.trim() === "nsis")
+            .catch(() => false));
+        hot = new HotController(store, {
+          enabled: installed,
+          log: hotLog,
+          fetch: (path, max) =>
+            boundedFetch(
+              new URL("/api/v1/desktop-updates/" + path, updateOrigin).href,
+              max,
+            ),
+          changed: (value) => {
+            if (win && !win.isDestroyed())
+              win.webContents.send("desktop:hot-status", value);
+          },
+          nativeBusy: () =>
+            Boolean(
+              sharing ||
+                pending ||
+                recording ||
+                quitting ||
+                screenLocked ||
+                suspended ||
+                viewingWindow ||
+                (gameLocal && gameLocal.status.state !== "idle") ||
+                (updates &&
+                  (updates.controller.snapshot().required ||
+                    ["downloading", "downloaded", "installing"].includes(
+                      updates.controller.snapshot().status,
+                    ))),
+            ),
+          prepare: () =>
+            new Promise<boolean>((done) => {
+              const id = crypto.randomUUID();
+              const timer = setTimeout(() => {
+                hotPrepare = undefined;
+                done(false);
+              }, 3000);
+              hotPrepare = {
+                id,
+                finish: (safe) => {
+                  clearTimeout(timer);
+                  hotPrepare = undefined;
+                  done(safe);
+                },
+              };
+              win?.webContents.send("desktop:hot-prepare", id);
+            }),
+          load: async (url) => {
+            notifications?.resetRenderer();
+            memberOverlay?.resetRenderer();
+            const target = new URL(url);
+            if (win)
+              target.hash = new URL(win.webContents.getURL() || url).hash;
+            await win?.loadURL(target.href);
+          },
+        });
+        hot.configure(settings.autoDownloadUpdates ?? true);
+      }
       const root = resolve(__dirname, "../renderer");
       protocol.handle("app", (request) => {
+        if (hot) return hot.store.resource(request.url);
         const url = new URL(request.url);
         const path = resolve(root, `.${decodeURIComponent(url.pathname)}`);
         if (
@@ -1138,17 +1270,37 @@ else {
           finishRecording();
           globalHold?.release();
         },
-        { autoDownload: settings.autoDownloadUpdates ?? true },
+        {
+          autoDownload: settings.autoDownloadUpdates ?? true,
+          hotCheck: () =>
+            hotStarted
+              ? (hot?.check() ?? Promise.resolve())
+              : Promise.resolve(),
+        },
       );
       if (updates.startupInstalling) return;
-      diagnostics = new ProductionDiagnostics(() => nativeCapture);
+      await hot?.initialize();
+      hotStarted = true;
+      diagnostics = new ProductionDiagnostics(
+        () => nativeCapture,
+        () => hot?.snapshot(),
+      );
       diagnostics.start();
-      memberOverlay = new MemberOverlay(() => win, devURL);
+      memberOverlay = new MemberOverlay(() => win, devURL, {
+        url: () => hot?.store.url,
+        resource: (request) =>
+          hot ? hot.store.resource(request.url) : undefined,
+      });
       notifications = new DesktopNotifications({
         main: () => win,
         settings: () => settings,
         sharing: () => sharing,
         devURL,
+        renderer: {
+          url: () => hot?.store.url,
+          resource: (request) =>
+            hot ? hot.store.resource(request.url) : undefined,
+        },
         activate: (id, scope) => {
           showWindow();
           win?.webContents.send("desktop:notification-activate", id, scope);

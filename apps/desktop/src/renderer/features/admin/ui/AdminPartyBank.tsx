@@ -24,11 +24,16 @@ export function AdminPartyBank({
   const active = tabs.some((t) => t.key === tab) ? tab : tabs[0]?.key;
   return (
     <>
-      <Tabs activeKey={active} onChange={setTab} items={tabs} />
+      <Tabs
+        activeKey={active}
+        onChange={setTab}
+        items={tabs}
+        style={{ marginBottom: 12 }}
+      />
       {active === "words" ? (
-        <AdminPartyWords revision={revision} height={height - 54} />
+        <AdminPartyWords revision={revision} height={height - 66} />
       ) : active === "submissions" ? (
-        <SubmissionReview revision={revision} height={height - 54} />
+        <SubmissionReview revision={revision} height={height - 66} />
       ) : null}
     </>
   );
