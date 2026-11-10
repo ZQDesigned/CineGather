@@ -7,16 +7,17 @@ async function closeWithMotion(
   close: () => Promise<unknown>,
 ) {
   await expect(page.locator(".ant-select-dropdown:visible")).toHaveCount(0);
-  const normalized = (text: string) =>
-    text
-      .split("\n")
-      .map((line) => line.trim())
-      .filter(Boolean)
-      .filter((line, index, lines) => index === 0 || line !== lines[index - 1])
-      .join("\n");
   const snapshot = await dialog.elementHandle();
   if (!snapshot) throw new Error("Missing visible dialog snapshot");
-  const content = normalized(await snapshot.innerText());
+  const readContent = () =>
+    snapshot.evaluate((element) => {
+      const copy = element.cloneNode(true) as Element;
+      // Ant Design removes its invisible live-region mirror on blur. Compare
+      // retained presentation content, independently of that accessibility helper.
+      copy.querySelectorAll("[aria-live]").forEach((node) => node.remove());
+      return copy.textContent;
+    });
+  const content = await readContent();
   const fields = await dialog
     .locator("input,textarea")
     .evaluateAll((elements) =>
@@ -57,7 +58,7 @@ async function closeWithMotion(
     )
     .toBeGreaterThanOrEqual(2);
   expect(await snapshot.evaluate((element) => element.isConnected)).toBe(true);
-  expect(normalized(await snapshot.innerText())).toBe(content);
+  expect(await readContent()).toBe(content);
   expect(
     await snapshot.evaluate((element) =>
       [...element.querySelectorAll("input,textarea")].map((e) => ({

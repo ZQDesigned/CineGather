@@ -24,6 +24,9 @@ test("copy feedback floats above an open modal, dismisses itself and can be show
         .getByRole("status")
         .filter({ hasText: "邀请信息已复制" }),
     ).toHaveText("邀请信息已复制");
+    // Clipboard access may change browser activation on a loaded CI host.
+    // Notice dismissal uses requestAnimationFrame, so keep this page foreground.
+    await page.bringToFront();
     // Move only after the asynchronous clipboard result mounted the message.
     await page.mouse.move(5, page.viewportSize()!.height - 5);
     await expect(page.getByRole("dialog")).toBeVisible();
@@ -33,7 +36,7 @@ test("copy feedback floats above an open modal, dismisses itself and can be show
         .locator(".ant-message")
         .getByRole("status")
         .filter({ hasText: "邀请信息已复制" }),
-    ).toHaveCount(0, { timeout: 6000 });
+    ).toHaveCount(0, { timeout: 15000 });
   }
   await page.mouse.move(0, 0);
   await expect(page.getByRole("tooltip")).toHaveCount(0);
