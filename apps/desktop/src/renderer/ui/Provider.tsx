@@ -41,6 +41,7 @@ export function UIProvider({
         },
         components: {
           Modal: { borderRadiusLG: 17 },
+          Tooltip: { controlHeight: 32 },
           Message: { zIndexPopup: 2100 },
           Notification: { zIndexPopup: 2150 },
           Select: { optionSelectedBg: "#bca5ff25" },

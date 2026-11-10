@@ -1340,6 +1340,7 @@ function receiveInvitation(value: string) {
   });
 }
 export async function initialize() {
+  update({ restoringSession: Boolean(sessionToken) });
   const stopGameLink = bindGameLink(() =>
     state().user ? sessionToken : undefined,
   );
@@ -1448,13 +1449,17 @@ export async function initialize() {
     void refreshAudioDevices(media.inputRecoveryNeeded).catch(report);
   };
   navigator.mediaDevices?.addEventListener("devicechange", deviceChanged);
-  if (sessionToken)
-    await run(async () => {
-      await applyAccount(unwrap(await api.GET("/api/v1/me")));
-      await syncPresence();
-      await refreshRooms();
-      await refreshFriends();
-    });
+  try {
+    if (sessionToken)
+      await run(async () => {
+        await applyAccount(unwrap(await api.GET("/api/v1/me")));
+        await syncPresence();
+        await refreshRooms();
+        await refreshFriends();
+      });
+  } finally {
+    update({ restoringSession: false });
+  }
   try {
     const hotkeys = await window.desktop?.hotkeyStatus?.();
     if (hotkeys?.error) update({ error: hotkeys.error });

@@ -12,12 +12,15 @@ import { unwrap } from "@cinegather/api-client";
 import { api } from "../../../controller";
 import { useApp, update } from "../../../store";
 import { AccountForm } from "../../accounts/ui/AccountForm";
+import { SessionLoading } from "./SessionLoading";
 export function Welcome() {
   const enabled = useApp((s) => s.registrationEnabled);
+  const restoring = useApp((s) => s.restoringSession);
   const [tab, setTab] = useState("login");
   const [failed, setFailed] = useState(false);
   const [retry, setRetry] = useState(0);
   useEffect(() => {
+    if (restoring) return;
     let active = true,
       sequence = 0;
     const load = async () => {
@@ -43,7 +46,7 @@ export function Welcome() {
       clearInterval(timer);
       window.removeEventListener("focus", load);
     };
-  }, [retry]);
+  }, [retry, restoring]);
 
   return (
     <section className="welcome">
@@ -83,38 +86,44 @@ export function Welcome() {
       </div>
       <div className="welcome-card">
         <h2>欢迎来到映聚</h2>
-        <Tabs
-          activeKey={tab === "register" && !enabled ? "login" : tab}
-          onChange={setTab}
-          destroyOnHidden
-          items={[
-            {
-              key: "login",
-              label: "登录",
-              children: <AccountForm mode="login" />,
-            },
-            {
-              key: "register",
-              disabled: !enabled,
-              label: "注册",
-              children: enabled ? <AccountForm mode="register" /> : null,
-            },
-          ]}
-        />
-        {failed ? (
-          <Alert
-            type="warning"
-            showIcon
-            title="暂时无法确认注册状态"
-            action={
-              <Button size="small" onClick={() => setRetry((v) => v + 1)}>
-                重试
-              </Button>
-            }
-          />
-        ) : enabled === false ? (
-          <Alert type="info" showIcon title="当前暂未开放注册" />
-        ) : null}
+        {restoring ? (
+          <SessionLoading />
+        ) : (
+          <>
+            <Tabs
+              activeKey={tab === "register" && !enabled ? "login" : tab}
+              onChange={setTab}
+              destroyOnHidden
+              items={[
+                {
+                  key: "login",
+                  label: "登录",
+                  children: <AccountForm mode="login" />,
+                },
+                {
+                  key: "register",
+                  disabled: !enabled,
+                  label: "注册",
+                  children: enabled ? <AccountForm mode="register" /> : null,
+                },
+              ]}
+            />
+            {failed ? (
+              <Alert
+                type="warning"
+                showIcon
+                title="暂时无法确认注册状态"
+                action={
+                  <Button size="small" onClick={() => setRetry((v) => v + 1)}>
+                    重试
+                  </Button>
+                }
+              />
+            ) : enabled === false ? (
+              <Alert type="info" showIcon title="当前暂未开放注册" />
+            ) : null}
+          </>
+        )}
         <Button
           type="link"
           htmlType="button"

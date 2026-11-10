@@ -59,6 +59,7 @@ interface State {
   featureUpdate?: import("@cinegather/contracts").FeatureUpdateIssue;
   requiredUpdate?: { minimumVersion: string; reason: string };
   user?: User;
+  restoringSession: boolean;
   friends: Friend[];
   friendRemarkId?: string;
   roomInvitations: RoomInvitation[];
@@ -133,6 +134,7 @@ export const useApp = create<State>(() => ({
   roomJoinRequests: [],
   modal: null,
   busy: false,
+  restoringSession: true,
   cinema: false,
   settings: defaults,
   microphoneMonitor: { state: "off", volume: 30 },
